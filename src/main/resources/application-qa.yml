@@ -1,0 +1,99 @@
+# QA environment configuration — used by the second Railway project (QA / pre-production)
+# Same structure as application-prod.yml. This project uses profile=qa; the other Railway project uses profile=prod.
+# DATABASE_URL is set by Railway when you link Postgres; Application.kt converts it and overrides url/username/password.
+# Set all the same variables as prod (APP_PUBLICBASEURL, JWT_SECRET, etc.) with QA-specific values in the QA Railway project.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/shifa
+    username: ${DB_USERNAME:${PGUSER:shifa}}
+    password: ${DB_PASSWORD:${PGPASSWORD:shifa}}
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+        show_sql: false
+    open-in-view: false
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 25MB
+      max-request-size: 25MB
+
+logging:
+  level:
+    root: INFO
+    com.shifa: INFO
+    com.shifa.security: WARN
+    com.shifa.web: INFO
+    org.springframework.security: WARN
+    org.hibernate: WARN
+    org.apache.tomcat: WARN
+  file:
+    name: ${LOG_FILE_PATH:./logs/shifa-backend-qa.log}
+    max-size: 10MB
+    max-history: 10
+
+server:
+  port: ${PORT:${SERVER_PORT:8080}}
+  error:
+    include-message: never
+    include-stacktrace: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    probes:
+      enabled: true
+
+app:
+  rate-limit:
+    auth:
+      requests-per-minute: ${RATE_LIMIT_AUTH_PER_MIN:10}
+    general:
+      requests-per-minute: ${RATE_LIMIT_GENERAL_PER_MIN:200}
+  jwt:
+    issuer: ${JWT_ISSUER:shifa}
+    secret: ${JWT_SECRET}
+    accessTokenMinutesDoctor: ${JWT_ACCESS_TOKEN_MINUTES_DOCTOR:720}
+    accessTokenMinutesPatient: ${JWT_ACCESS_TOKEN_MINUTES_PATIENT:525600}
+  publicBaseUrl: ${APP_PUBLICBASEURL}
+  frontendUrl: ${APP_FRONTENDURL:}
+  storageRoot: ${STORAGE_ROOT:/app/storage/images}
+
+openai:
+  apiKey: ${OPENAI_API_KEY}
+  projectId: ${OPENAI_PROJECT_ID}
+  model: ${OPENAI_MODEL:gpt-4o-mini}
+  url: ${OPENAI_URL:https://api.openai.com/v1/responses}
+  temperature: ${OPENAI_TEMPERATURE:0.2}
+  maxTokens: ${OPENAI_MAX_TOKENS:600}
+  requestTimeoutMs: ${OPENAI_REQUEST_TIMEOUT_MS:15000}
+
+daily:
+  apiKey: ${DAILY_API_KEY}
+  apiUrl: ${DAILY_API_URL:https://api.daily.co/v1}
+
+googleMaps:
+  apiKey: ${GOOGLE_MAPS_API_KEY:}

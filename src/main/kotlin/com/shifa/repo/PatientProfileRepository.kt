@@ -1,0 +1,79 @@
+// src/main/kotlin/com/shifa/repo/PatientProfileRepository.kt
+package com.shifa.repo
+
+import com.shifa.domain.PatientProfile
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
+import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
+import java.util.Optional
+
+// ✅ JpaRepository requires two type parameters: <Entity, ID>
+interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
+
+    /**
+     * Patients visible to a doctor: those with at least one appointment with this doctor,
+     * or those created by this doctor (e.g. via "New patient" on the patients screen).
+     * Distinct, paginated.
+     */
+    @Query("""
+        SELECT p FROM PatientProfile p
+        WHERE p.id IN (
+            SELECT DISTINCT a.patient.id FROM Appointment a
+            WHERE a.doctor.id = :doctorId
+        )
+        OR p.createdByDoctor.id = :doctorId
+        ORDER BY p.fullName
+    """)
+    fun findDistinctByDoctorAppointments(
+        @Param("doctorId") doctorId: Long,
+        pageable: Pageable
+    ): Page<PatientProfile>
+    // Use native query with LIMIT to handle duplicate phone/email
+    @org.springframework.data.jpa.repository.Query(
+        value = "SELECT * FROM patient_profiles WHERE phone = :phone ORDER BY id DESC LIMIT 1",
+        nativeQuery = true
+    )
+    fun findByPhone(@org.springframework.data.repository.query.Param("phone") phone: String): Optional<PatientProfile>
+    
+    @org.springframework.data.jpa.repository.Query(
+        value = "SELECT * FROM patient_profiles WHERE email = :email ORDER BY id DESC LIMIT 1",
+        nativeQuery = true
+    )
+    fun findByEmail(@org.springframework.data.repository.query.Param("email") email: String): Optional<PatientProfile>
+
+    /** Used for uniqueness: exact match on normalized phone (E.164-like). */
+    fun findByPhoneNormalized(phoneNormalized: String): Optional<PatientProfile>
+
+    /**
+     * Find patient profile by user_id (for multi-role support: same user can be doctor and patient)
+     */
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT p FROM PatientProfile p WHERE p.user.id = :userId"
+    )
+    fun findByUserId(@org.springframework.data.repository.query.Param("userId") userId: Long): Optional<PatientProfile>
+    
+    // Search patients by query string (name, email, or phone) - filters at database level
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT p FROM PatientProfile p WHERE " +
+        "LOWER(p.fullName) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+        "LOWER(p.email) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
+        "LOWER(p.phone) LIKE LOWER(CONCAT('%', :query, '%'))"
+    )
+    fun searchByQuery(@org.springframework.data.repository.query.Param("query") query: String): List<PatientProfile>
+
+    /** Admin user search: user IDs of patients whose fullName contains q (JPQL). Only where user is set. */
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT p.user.id FROM PatientProfile p WHERE p.user IS NOT NULL AND " +
+        "LOWER(p.fullName) LIKE LOWER(CONCAT('%', :q, '%'))"
+    )
+    fun findUserIdsBySearch(@org.springframework.data.repository.query.Param("q") q: String): List<Long>
+
+    /** Eager-load user for admin deleted-patient export (avoids lazy-init issues). */
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT p FROM PatientProfile p JOIN FETCH p.user WHERE p.id = :id"
+    )
+    fun findByIdWithUser(@Param("id") id: Long): Optional<PatientProfile>
+}
+

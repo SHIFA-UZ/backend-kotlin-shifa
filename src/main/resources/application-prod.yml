@@ -1,0 +1,148 @@
+# Production environment configuration
+# This file uses environment variables for all sensitive data
+# DO NOT commit actual secrets to version control!
+
+spring:
+  datasource:
+    # Railway: DATABASE_URL is set by Railway when you add Postgres. Application.kt (main()) converts it to
+    # JDBC and sets system properties (spring.datasource.url/username/password), which override these values.
+    # So on Railway these entries are never used. They are fallbacks only if DATABASE_URL is missing (e.g. local prod test).
+    url: jdbc:postgresql://localhost:5432/shifa
+    username: ${DB_USERNAME:${PGUSER:shifa}}
+    password: ${DB_PASSWORD:${PGPASSWORD:shifa}}
+    
+    # Connection pooling for better performance
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
+
+  jpa:
+    # In production, NEVER use 'update' - only validate!
+    # Schema changes must go through Flyway migrations
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false  # Disable SQL formatting in production
+        show_sql: false     # Disable SQL logging in production
+    open-in-view: false  # Better for production performance
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+  
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 25MB
+      max-request-size: 25MB
+
+  mail:
+    host: ${MAIL_HOST:smtp-relay.brevo.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+    from: ${MAIL_FROM:noreply@shifa.health}
+    from-name: ${MAIL_FROM_NAME:Shifa Health}
+
+# Logging configuration for production
+logging:
+  level:
+    root: INFO
+    com.shifa: INFO
+    com.shifa.security: WARN  # Disable DEBUG logs from JwtAuthFilter to prevent memory issues
+    com.shifa.web: INFO  # Reduce logging verbosity
+    org.springframework.security: WARN  # Less verbose in production
+    org.hibernate: WARN
+    org.apache.tomcat: WARN  # Reduce Tomcat logging
+  file:
+    name: ${LOG_FILE_PATH:./logs/shifa-backend.log}
+    max-size: 10MB
+    max-history: 10  # Reduced from 30 to save memory
+
+server:
+  # Railway uses PORT environment variable, fallback to SERVER_PORT or 8080
+  port: ${PORT:${SERVER_PORT:8080}}
+  # Production security headers
+  error:
+    include-message: never
+    include-stacktrace: never
+
+# Actuator configuration for health checks
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    probes:
+      enabled: true
+
+# Application-specific configuration
+app:
+  # SECURITY (NEW): Rate limits - auth stricter to prevent brute-force
+  rate-limit:
+    auth:
+      requests-per-minute: ${RATE_LIMIT_AUTH_PER_MIN:10}
+    general:
+      requests-per-minute: ${RATE_LIMIT_GENERAL_PER_MIN:200}
+  jwt:
+    issuer: ${JWT_ISSUER:shifa}
+    # CRITICAL: Use a strong random secret in production!
+    # Generate with: openssl rand -base64 64
+    secret: ${JWT_SECRET}
+    # Doctor app: 12 hours (720 min). Patient app: 365 days (525600 min).
+    accessTokenMinutesDoctor: ${JWT_ACCESS_TOKEN_MINUTES_DOCTOR:720}
+    accessTokenMinutesPatient: ${JWT_ACCESS_TOKEN_MINUTES_PATIENT:525600}
+  
+  # Public base URL for CORS and file serving
+  # In Railway: Set this to your Railway app URL (e.g., https://your-app.railway.app)
+  # Files will be served from the same domain, so no separate file server needed
+  publicBaseUrl: ${APP_PUBLICBASEURL}
+  
+  # Frontend URL for CORS configuration
+  # In Railway: Set this to your Firebase app URL (e.g., https://shifa-doctor-staging.web.app)
+  # This is used to allow CORS requests from your frontend
+  frontendUrl: ${APP_FRONTENDURL:}
+  
+  # Storage root for uploaded files
+  # In Railway: Use /app/storage/images (mounted volume) or /tmp/storage/images (ephemeral)
+  # For persistent storage, use Railway Volume mounted at /app/storage
+  storageRoot: ${STORAGE_ROOT:/app/storage/images}
+
+# OpenAI API configuration
+openai:
+  apiKey: ${OPENAI_API_KEY}
+  projectId: ${OPENAI_PROJECT_ID}
+  model: ${OPENAI_MODEL:gpt-4o-mini}
+  url: ${OPENAI_URL:https://api.openai.com/v1/responses}
+  temperature: ${OPENAI_TEMPERATURE:0.2}
+  maxTokens: ${OPENAI_MAX_TOKENS:600}
+  requestTimeoutMs: ${OPENAI_REQUEST_TIMEOUT_MS:15000}
+
+# Daily.co Video API configuration
+# Get your API key from https://dashboard.daily.co/
+# In production, set DAILY_API_KEY environment variable
+daily:
+  apiKey: ${DAILY_API_KEY}
+  apiUrl: ${DAILY_API_URL:https://api.daily.co/v1}
+
+# Google Maps API configuration
+# Get your API key from https://console.cloud.google.com/google/maps-apis
+# This is exposed to frontend via /api/public/config endpoint
+# In production, set GOOGLE_MAPS_API_KEY environment variable
+googleMaps:
+  apiKey: ${GOOGLE_MAPS_API_KEY:}

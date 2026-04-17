@@ -1,0 +1,17 @@
+.git
+.gradle
+build
+bin
+public-storage
+docs
+images
+*.md
+*.sql
+*.log
+*.gz
+*.tmp
+docker-compose.yml
+railway.json
+railway.toml
+nixpacks.toml
+Procfile

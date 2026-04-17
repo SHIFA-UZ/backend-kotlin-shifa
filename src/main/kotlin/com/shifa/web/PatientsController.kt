@@ -1,0 +1,428 @@
+// src/main/kotlin/com/shifa/web/PatientsController.kt
+package com.shifa.web
+
+import com.shifa.domain.PatientDocument
+import com.shifa.domain.PatientProfile
+import com.shifa.repo.AppointmentRepository
+import com.shifa.repo.DocumentAccessGrantRepository
+import com.shifa.repo.PatientProfileRepository
+import com.shifa.security.DoctorPrincipal
+import com.shifa.service.PatientAccountService
+import com.shifa.service.PatientProfileMapper
+import com.shifa.util.PhoneNormalizer
+import jakarta.validation.Valid
+import org.springframework.http.HttpStatus
+import org.springframework.web.server.ResponseStatusException
+import org.slf4j.LoggerFactory
+import jakarta.validation.constraints.Email
+import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.NotNull
+import jakarta.validation.constraints.Size
+import org.hibernate.Hibernate
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.bind.annotation.*
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Sort
+import org.springframework.data.web.PageableDefault
+import java.time.LocalDate
+
+@RestController
+@RequestMapping("/api/patients")
+class PatientsController(
+    private val patientsRepo: PatientProfileRepository,
+    private val appointmentRepo: AppointmentRepository,
+    private val accessGrants: DocumentAccessGrantRepository,
+    private val profileMapper: PatientProfileMapper,
+    private val patientAccountService: PatientAccountService
+) {
+    companion object {
+        private val logger = LoggerFactory.getLogger(PatientsController::class.java)
+    }
+
+    // -------------------- DTOs --------------------
+
+    data class PatientDto(
+        val id: Long?,
+        val name: String,
+        val phone: String?,
+        val email: String?,
+        val address: String?, // Legacy field - will be populated from structured location if available
+        val birthDate: String?,
+        val language: String?,
+        val photoUrl: String?,              // absolute URL
+        val chronicDisease: String?,
+        val hasAccount: Boolean,            // ✅ NEW
+        val username: String?,              // ✅ NEW
+        val documents: List<DocumentDto>,
+        // Structured location fields
+        val locationCountry: String? = null,
+        val locationRegion: String? = null,
+        val locationDistrict: String? = null,
+        val locationCity: String? = null,
+        val locationPostalCode: String? = null,
+        val locationStreetAddress: String? = null,
+        /** IANA timezone for remote task schedule (e.g. Europe/Berlin). Doctor enters times in this zone. */
+        val timeZone: String? = null
+    )
+
+    data class DocumentDto(
+        val id: Long?,
+        val title: String,
+        val date: String,
+        val url: String?,
+        val canView: Boolean = true,
+        val creatorLabel: String = "Unknown"
+    )
+
+    /** Minimal DTO for calendar assign-patient: search by id or name, show avatar. */
+    data class PatientAssignmentDto(val id: Long?, val name: String, val photoUrl: String? = null)
+
+    // SECURITY (NEW): Bean validation to reject invalid input before business logic; prevents oversized/XSS payloads
+    data class CreatePatientRequest(
+        @field:NotBlank(message = "Name is required")
+        @field:Size(min = 1, max = 255)
+        val name: String,
+        @field:NotNull(message = "Phone is required")
+        @field:NotBlank(message = "Phone is required")
+        @field:Size(max = 50)
+        val phone: String?,
+        @field:Email @field:Size(max = 255)
+        val email: String?,
+        @field:Size(max = 500)
+        val address: String?,
+        @field:Size(max = 10)
+        val birthDate: String?,
+        @field:Size(max = 20)
+        val language: String?,
+        @field:Size(max = 2048)
+        val photoUrl: String?,
+        @field:Size(max = 1000)
+        val chronicDisease: String?
+    )
+
+    data class UpdatePatientRequest(
+        @field:Size(max = 255)
+        val name: String?,
+        @field:Size(max = 50)
+        val phone: String?,
+        @field:Email @field:Size(max = 255)
+        val email: String?,
+        @field:Size(max = 500)
+        val address: String?,
+        @field:Size(max = 10)
+        val birthDate: String?,
+        @field:Size(max = 20)
+        val language: String?,
+        @field:Size(max = 2048)
+        val photoUrl: String?,
+        @field:Size(max = 1000)
+        val chronicDisease: String?
+    )
+
+    // -------------------- Endpoints --------------------
+
+    /**
+     * GET /api/patients
+     * Returns only patients that have at least one (past or future) appointment with the current doctor.
+     * Never returns 500: patients without user accounts or with broken relations are returned with minimal DTOs.
+     */
+    @GetMapping
+    @Transactional(readOnly = true)
+    fun getAllPatients(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @PageableDefault(size = 50) pageable: Pageable
+    ): List<PatientDto> {
+        return try {
+            val doctorId = principal.profile.id
+            val patients = patientsRepo.findDistinctByDoctorAppointments(doctorId, pageable).content
+            patients.map { toDto(it, doctorId) }
+        } catch (e: Exception) {
+            logger.error("Failed to load patient list for doctor: {}", e.message, e)
+            emptyList()
+        }
+    }
+
+    /**
+     * GET /api/patients/for-assignment
+     * Returns all patients as id+name only (for calendar assign-patient: search by id or name).
+     */
+    @GetMapping("/for-assignment")
+    @Transactional(readOnly = true)
+    fun getPatientsForAssignment(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @PageableDefault(size = 500) pageable: Pageable
+    ): List<PatientAssignmentDto> {
+        val sort = if (pageable.sort.isSorted) pageable.sort else Sort.by(Sort.Direction.ASC, "fullName")
+        val patients = patientsRepo.findAll(PageRequest.of(pageable.pageNumber, pageable.pageSize, sort)).content
+        return patients.map { p ->
+            PatientAssignmentDto(
+                id = p.id,
+                name = p.fullName,
+                photoUrl = profileMapper.normalizePhotoUrl(p.photoUrl)
+            )
+        }
+    }
+
+    /**
+     * GET /api/patients/{id}
+     * Returns details for a single patient. Allowed if the patient has an appointment with the current doctor or was created by them.
+     */
+    @GetMapping("/{id}")
+    @Transactional(readOnly = true)
+    fun getPatient(
+        @PathVariable id: Long,
+        @AuthenticationPrincipal principal: DoctorPrincipal
+    ): PatientDto {
+        val p = patientsRepo.findById(id)
+            .orElseThrow { IllegalArgumentException("Patient not found") }
+        val doctorId = principal.profile.id
+        if (!appointmentRepo.existsByDoctorIdAndPatientId(doctorId, id) && p.createdByDoctor?.id != doctorId) {
+            throw IllegalArgumentException("Patient not found")
+        }
+        return toDto(p, doctorId)
+    }
+
+    /**
+     * POST /api/patients
+     * Creates a new patient.
+     */
+    @PostMapping
+    fun createPatient(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestBody @Valid req: CreatePatientRequest
+    ): PatientDto {
+        val phoneTrimmed = req.phone!!.trim()
+        val phoneNormalized = PhoneNormalizer.normalize(phoneTrimmed)
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
+        if (patientsRepo.findByPhoneNormalized(phoneNormalized).isPresent) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Patient with this phone number already exists.")
+        }
+
+        val patient = PatientProfile(
+            fullName = req.name.trim(),
+            phone = phoneTrimmed,
+            phoneNormalized = phoneNormalized,
+            email = req.email?.trim(),
+            address = req.address?.trim(),
+            birthDate = req.birthDate?.let { LocalDate.parse(it) },
+            language = req.language?.trim(),
+            photoUrl = req.photoUrl?.trim(),
+            chronicDisease = req.chronicDisease?.trim(),
+            documents = mutableListOf<PatientDocument>()
+        )
+        patient.createdByDoctor = principal.profile
+
+        val saved = patientsRepo.save(patient)
+        return toDto(saved, principal.profile.id)
+    }
+
+    /**
+     * POST /api/patients/{id}/create-account
+     * Generates a patient user account.
+     */
+    @PostMapping("/{id}/create-account")
+    fun createAccount(
+        @PathVariable id: Long,
+        @AuthenticationPrincipal principal: DoctorPrincipal
+    ): PatientAccountService.AccountCreationResult {
+        val p = patientsRepo.findById(id).orElseThrow { IllegalArgumentException("Patient not found") }
+        val doctorId = principal.profile.id
+        if (!appointmentRepo.existsByDoctorIdAndPatientId(doctorId, id) && p.createdByDoctor?.id != doctorId) {
+            throw IllegalArgumentException("Patient not found")
+        }
+        return patientAccountService.createPatientAccount(id)
+    }
+
+    // -------------------- Helpers --------------------
+
+    /**
+     * PATCH /api/patients/{id}
+     * Updates a patient's information.
+     */
+    @PatchMapping("/{id}")
+    fun updatePatient(
+        @PathVariable id: Long,
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestBody @Valid req: UpdatePatientRequest
+    ): PatientDto {
+        val patient = patientsRepo.findById(id)
+            .orElseThrow { IllegalArgumentException("Patient not found") }
+        val doctorId = principal.profile.id
+        if (!appointmentRepo.existsByDoctorIdAndPatientId(doctorId, id) && patient.createdByDoctor?.id != doctorId) {
+            throw IllegalArgumentException("Patient not found")
+        }
+
+        req.name?.let { patient.fullName = it.trim() }
+        req.phone?.let { raw ->
+            val normalized = PhoneNormalizer.normalize(raw)
+            if (normalized != null) {
+                val existing = patientsRepo.findByPhoneNormalized(normalized).orElse(null)
+                if (existing != null && existing.id != patient.id) {
+                    throw ResponseStatusException(HttpStatus.CONFLICT, "Patient with this phone number already exists.")
+                }
+                patient.phone = normalized
+                patient.phoneNormalized = normalized
+            } else {
+                patient.phone = raw.trim().takeIf { it.isNotEmpty() }
+                patient.phoneNormalized = null
+            }
+        }
+        req.email?.let { patient.email = it.trim() }
+        req.address?.let { patient.address = it.trim() }
+        req.birthDate?.let { patient.birthDate = LocalDate.parse(it) }
+        req.language?.let { patient.language = it.trim() }
+        req.photoUrl?.let { patient.photoUrl = it.trim() }
+        req.chronicDisease?.let { patient.chronicDisease = it.trim().takeIf { it.isNotEmpty() } }
+
+        val saved = patientsRepo.save(patient)
+        return toDto(saved, principal.profile.id)
+    }
+
+    private fun toDto(p: PatientProfile, doctorId: Long): PatientDto {
+        return try {
+            toDtoInternal(p, doctorId)
+        } catch (e: Exception) {
+            logger.warn("Failed to map patient to DTO (patientId={}, doctorId={}): {} - returning minimal DTO", p.id, doctorId, e.message, e)
+            toDtoMinimal(p)
+        }
+    }
+
+    /** Minimal DTO when full mapping fails (e.g. patient has no user account or broken relations). Never throws. */
+    private fun toDtoMinimal(p: PatientProfile): PatientDto {
+        return PatientDto(
+            id = p.id,
+            name = p.fullName,
+            phone = p.phone,
+            email = p.email,
+            address = p.address,
+            birthDate = p.birthDate?.toString(),
+            language = p.language,
+            photoUrl = try { profileMapper.normalizePhotoUrl(p.photoUrl) } catch (_: Exception) { null },
+            chronicDisease = p.chronicDisease,
+            hasAccount = false,
+            username = null,
+            documents = emptyList(),
+            locationCountry = p.locationCountry,
+            locationRegion = p.locationRegion,
+            locationDistrict = p.locationDistrict,
+            locationCity = p.locationCity,
+            locationPostalCode = p.locationPostalCode,
+            locationStreetAddress = p.locationStreetAddress,
+            timeZone = p.timeZone
+        )
+    }
+
+    private fun toDtoInternal(p: PatientProfile, doctorId: Long): PatientDto {
+        // Force Hibernate to load the documents collection while the session is open
+        Hibernate.initialize(p.documents)
+
+        // Safe user fields: patient may have no linked user account (user_id null or orphaned)
+        val (hasAccount, username) = safeUserFields(p)
+
+        // Build legacy address from structured location if address is empty
+        val legacyAddress = p.address?.takeIf { it.isNotBlank() }
+            ?: buildString {
+                if (p.locationStreetAddress?.isNotBlank() == true) {
+                    append(p.locationStreetAddress)
+                }
+                if (p.locationCity?.isNotBlank() == true) {
+                    if (isNotEmpty()) append(", ")
+                    append(p.locationCity)
+                }
+                if (p.locationDistrict?.isNotBlank() == true) {
+                    if (isNotEmpty()) append(", ")
+                    append(p.locationDistrict)
+                }
+                if (p.locationRegion?.isNotBlank() == true) {
+                    if (isNotEmpty()) append(", ")
+                    append(p.locationRegion)
+                }
+            }.takeIf { it.isNotBlank() }
+
+        val docDtos = try {
+            p.documents
+                .filter { it.filePath.isNotBlank() && !it.isChatAttachment }
+                .map { d -> documentToDto(d, doctorId) }
+        } catch (_: Exception) {
+            emptyList()
+        }
+
+        return PatientDto(
+            id = p.id,
+            name = p.fullName,
+            phone = p.phone,
+            email = p.email,
+            address = legacyAddress,
+            birthDate = p.birthDate?.toString(),
+            language = p.language,
+            photoUrl = profileMapper.normalizePhotoUrl(p.photoUrl),
+            chronicDisease = p.chronicDisease,
+            hasAccount = hasAccount,
+            username = username,
+            documents = docDtos,
+            locationCountry = p.locationCountry,
+            locationRegion = p.locationRegion,
+            locationDistrict = p.locationDistrict,
+            locationCity = p.locationCity,
+            locationPostalCode = p.locationPostalCode,
+            locationStreetAddress = p.locationStreetAddress,
+            timeZone = p.timeZone
+        )
+    }
+
+    /**
+     * Safely read user-related fields from a patient. Never throws.
+     * Returns (hasAccount, username); if user is null or access fails, returns (false, null).
+     */
+    private fun safeUserFields(p: PatientProfile): Pair<Boolean, String?> {
+        return try {
+            val u = p.user
+            (u != null) to (u?.username)
+        } catch (_: Exception) {
+            false to null
+        }
+    }
+
+    private fun documentToDto(d: PatientDocument, doctorId: Long): DocumentDto {
+        return try {
+            val canView = d.uploadedByDoctor?.id == doctorId ||
+                (d.id != null && accessGrants.existsByDocument_IdAndDoctor_Id(d.id!!, doctorId))
+            val creatorLabel = when {
+                d.uploadedByDoctor != null -> {
+                    val doctor = d.uploadedByDoctor!!
+                    val profileName = listOf(doctor.firstName, doctor.lastName)
+                        .map { it.trim() }
+                        .filter { it.isNotEmpty() }
+                        .joinToString(" ")
+                    if (profileName.isNotBlank()) profileName
+                    else {
+                        val username = doctor.user.username?.trim().orEmpty()
+                        val email = doctor.user.email?.trim().orEmpty()
+                        val phone = doctor.user.phone?.trim().orEmpty()
+                        when {
+                            username.isNotEmpty() -> username
+                            email.isNotEmpty() -> email
+                            phone.isNotEmpty() -> phone
+                            else -> "Doctor"
+                        }
+                    }
+                }
+                d.uploadedByPatientProfile != null -> d.uploadedByPatientProfile!!.fullName.trim().ifBlank { "Patient" }
+                else -> "Unknown"
+            }
+            val url = if (canView && d.filePath.isNotBlank()) profileMapper.normalizePhotoUrl(d.filePath) else null
+            DocumentDto(
+                id = d.id,
+                title = d.title,
+                date = d.date.toString(),
+                url = url,
+                canView = canView,
+                creatorLabel = creatorLabel
+            )
+        } catch (_: Exception) {
+            DocumentDto(id = d.id, title = d.title, date = d.date.toString(), url = null, canView = false, creatorLabel = "Unknown")
+        }
+    }
+}

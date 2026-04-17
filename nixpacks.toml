@@ -1,0 +1,6 @@
+[variables]
+NIXPACKS_JDK_VERSION = "21"
+
+# Start command: no --spring.profiles.active; set SPRING_PROFILES_ACTIVE=prod or =qa in Railway Variables
+[start]
+cmd = "java -Xmx1536m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:MaxMetaspaceSize=384m -jar build/libs/app.jar"

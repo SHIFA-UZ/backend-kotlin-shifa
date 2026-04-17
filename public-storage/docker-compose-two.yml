@@ -1,0 +1,11 @@
+version: '3.8'
+services:
+  public-storage:
+    image: nginx:stable
+    container_name: public-storage
+    ports:
+      - "8090:80"
+    volumes:
+      - ./images:/usr/share/nginx/html:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped

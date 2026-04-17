@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: shifa
+      POSTGRES_USER: shifa
+      POSTGRES_PASSWORD: shifa
+    ports:
+      # Use 5433 on host so the app hits this container even if native Postgres uses 5432
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

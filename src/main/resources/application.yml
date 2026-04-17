@@ -1,0 +1,125 @@
+# Default/Development configuration — LOCAL ONLY
+# Used when no profile is set (.\gradlew bootRun). Railway uses profile=prod (railway.toml) and DATABASE_URL.
+# On Railway, Application.kt reads DATABASE_URL and sets datasource URL/username/password; this file is not used for DB.
+#
+# Local Docker: docker-compose maps 5433:5432, so we use port 5433 to avoid clashing with native Postgres on 5432.
+# If you get "password authentication failed for user shifa", set DB_USERNAME/DB_PASSWORD or create user shifa in Postgres.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:${DB_PORT:5433}/shifa
+    username: ${DB_USERNAME:shifa}
+    password: ${DB_PASSWORD:shifa}
+
+  jpa:
+    # In development, we can use 'update' for convenience
+    # In production, this MUST be 'validate' (see application-prod.yml)
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: true
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    validate-on-migrate: true
+  
+  servlet:
+    multipart:
+      enabled: true
+      max-file-size: 25MB
+      max-request-size: 25MB
+
+  # Email (Brevo SMTP) for OTP verification
+  # In development: emails are logged, not sent (unless SMTP credentials are set)
+  # In production: set MAIL_USERNAME and MAIL_PASSWORD env vars with Brevo SMTP credentials
+  mail:
+    host: ${MAIL_HOST:smtp-relay.brevo.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+    from: ${MAIL_FROM:noreply@shifa.health}
+    from-name: ${MAIL_FROM_NAME:Shifa Health}
+
+# Development logging - more verbose
+logging:
+  level:
+    root: INFO
+    org.springframework.security: DEBUG
+    com.shifa.security.JwtAuthFilter: DEBUG
+    com.shifa: DEBUG
+  file:
+    name: shifa-backend.log
+
+server:
+  # Use PORT on Railway (or SERVER_PORT), default 8080 for local
+  port: ${PORT:${SERVER_PORT:8080}}
+
+# Actuator: same baseline as prod/qa so /actuator/health/liveness exists for every profile (Docker/Railway).
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+  health:
+    probes:
+      enabled: true
+
+# Development configuration
+# WARNING: These values are for development only!
+# In production, use environment variables (see application-prod.yml)
+# SECURITY (NEW): Rate limiting - auth endpoints stricter, general API reasonable
+app:
+  rate-limit:
+    auth:
+      requests-per-minute: 10
+    general:
+      requests-per-minute: 200
+  jwt:
+    issuer: "shifa"
+    # Development secret - MUST be changed in production!
+    secret: "a_really_long_random_64+_char_secret_development_only"
+    accessTokenMinutesDoctor: 720   # 12 hours for doctor app
+    accessTokenMinutesPatient: 525600  # 365 days for patient app
+  # In development: Use separate nginx on 8090 or serve from Spring Boot on 8080
+  # For Railway: Set PUBLIC_BASE_URL to your Railway app URL (same as API)
+  publicBaseUrl: http://localhost:8080  # Changed from 8090 - now served from Spring Boot
+  storageRoot: ./public-storage/images
+
+# OpenAI configuration
+# In development, these can be set via environment variables
+# In production, they MUST be set via environment variables
+openai:
+  apiKey: ${OPENAI_API_KEY:}    # Set in environment or .env file
+  projectId: ${OPENAI_PROJECT_ID:}
+  model: gpt-4o-mini
+  url: https://api.openai.com/v1/responses
+  temperature: 0.2
+  maxTokens: 600
+  requestTimeoutMs: 15000
+  promptVersion: "1"
+
+# Daily.co Video API configuration
+# Get your API key from https://dashboard.daily.co/
+# In production, set DAILY_API_KEY environment variable
+daily:
+  apiKey: ${DAILY_API_KEY:7e5614c8eb388445d63dec33b390e8cc9e396185517deff5f13be5ece7b5e714}    # Set in environment or .env file
+  apiUrl: https://api.daily.co/v1
+
+# AI Medical Scribe
+scribe:
+  temp-dir: ${STORAGE_ROOT:./public-storage/images}/scribe-temp
+  temp-retention-minutes: 60
+  max-audio-size-bytes: 26214400  # 25 MB (Whisper limit)
+  daily-webhook-secret: ${DAILY_WEBHOOK_SECRET:}

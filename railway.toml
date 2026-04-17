@@ -1,0 +1,19 @@
+[build]
+builder = "nixpacks"
+nixpacksPlan = { phases = { setup = { nixPkgs = ["jdk21"] } } }
+buildCommand = "chmod +x gradlew && ./gradlew clean build -x test --no-daemon"
+
+[deploy]
+# Profile is set per project via Variable: SPRING_PROFILES_ACTIVE=prod (prod) or =qa (QA)
+# Must match Dockerfile layout (jar at build/libs/app.jar); Railway may apply this even for Docker deploys.
+startCommand = "java -Xmx1536m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:MaxMetaspaceSize=384m -jar build/libs/app.jar"
+# Liveness = "is the process up?" (200). Full /actuator/health returns 503 when DB is down and fails deploy.
+healthcheckPath = "/actuator/health/liveness"
+# Seconds Railway waits for the health path (cold start + Flyway can exceed 100s on small instances).
+healthcheckTimeout = 180
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
+
+[env]
+PORT = "8080"
+JAVA_VERSION = "21"
