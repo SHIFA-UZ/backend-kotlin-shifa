@@ -76,3 +76,38 @@ Uploads served from `storageRoot` (default `./public-storage/images`) at paths: 
 
 - `@Async` scribe pipeline (voice-to-notes): ThreadPool core=2, max=4, queue=50
 - Scheduled tasks: appointment reminders, AI draft cleanup, calendar resets
+
+## Git Workflow
+
+**NEVER commit and push directly to `main`.** When the user wants to commit and push changes while on `main`:
+
+1. Create a new feature branch from `main` with a descriptive name based on the changes (e.g., `feature/add-patient-search`, `fix/appointment-timezone-bug`, `refactor/auth-middleware`).
+2. Stage and commit the changes on the new branch.
+3. Push the new branch to the remote with `-u` flag.
+4. Offer to create a pull request targeting `main`.
+
+If the user is already on a non-main branch, commit and push normally to that branch.
+
+## Commit Message Convention
+
+Follow **Conventional Commits** format:
+
+```
+<type>(<scope>): <short summary>
+```
+
+**Types:**
+- `feat` — new feature
+- `fix` — bug fix
+- `refactor` — code restructuring without behavior change
+- `docs` — documentation only
+- `style` — formatting, missing semicolons, etc. (no logic change)
+- `test` — adding or updating tests
+- `chore` — build config, dependencies, CI, tooling
+- `perf` — performance improvement
+
+**Rules:**
+- Subject line: imperative mood, lowercase, no period, max 72 characters (e.g., `feat(appointments): add recurring appointment support`)
+- Scope is optional but encouraged — use the module or domain area (e.g., `auth`, `appointments`, `ai`, `patients`, `doctors`, `admin`, `video`, `chat`)
+- Add a blank line then a body paragraph only when the **why** is not obvious from the subject
+- Never reference ticket numbers or conversation context in commit messages — those belong in the PR description
