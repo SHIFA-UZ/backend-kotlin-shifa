@@ -26,3 +26,8 @@ node_modules/
 # Secrets
 application-local.yml
 application-dev.yml
+
+# Markdown docs (except CLAUDE.md and README.md)
+*.md
+!CLAUDE.md
+!README.md
