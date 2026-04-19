@@ -1,14 +1,18 @@
 package com.shifa.service
 
 import com.shifa.ai.PatientAiContext
+import com.shifa.ai.PatientCopilotPromptBuilder
 import com.shifa.ai.RedFlagEngine
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.ai.MedicalPromptBuilder
 import com.shifa.ai.OutputLanguage
 import com.shifa.config.OpenAiProperties
 import com.shifa.domain.DoctorProfile
+import com.shifa.domain.PatientProfile
+import com.fasterxml.jackson.databind.JsonNode
 import com.shifa.web.AiStreamException
 import com.shifa.web.dto.AiMessageDto
+import com.shifa.web.dto.PatientBookingIntentResolution
 import jakarta.annotation.PostConstruct
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -163,6 +167,228 @@ val request = Request.Builder()
                 }
             }
         }
+    }
+
+    /**
+     * SSE streaming patient co-pilot (Shifa AI in the patient app). Text-only replies; same token streaming as doctor assistant.
+     */
+    fun streamPatientCopilot(
+        patient: PatientProfile,
+        messages: List<AiMessageDto>,
+        language: OutputLanguage
+    ): Flow<String> = flow {
+        val recordContext = PatientCopilotPromptBuilder.patientRecordContextPrompt(patient)
+        val combinedInput = buildString {
+            append(recordContext)
+            append(" ")
+            append(messages.joinToString(" ") { it.content })
+        }
+
+        val redFlagResult = RedFlagEngine.analyze(combinedInput)
+        if (redFlagResult.hasEmergency) {
+            throw AiStreamException(
+                code = "SAFETY_BLOCK",
+                message = "This may represent a medical emergency. I cannot provide medical advice for this situation. Please seek immediate professional medical care or contact emergency services."
+            )
+        }
+
+        if (!rateLimiter.tryAcquire()) {
+            throw AiStreamException(
+                code = "RATE_LIMIT",
+                message = "AI rate limit exceeded. Please try again later."
+            )
+        }
+
+        val systemMessages = mutableListOf(
+            mapOf(
+                "role" to "system",
+                "content" to PatientCopilotPromptBuilder.patientCopilotSystemPrompt(language)
+            ),
+            mapOf(
+                "role" to "system",
+                "content" to recordContext
+            )
+        )
+
+        val payload = mapper.writeValueAsString(
+            mapOf(
+                "model" to props.model,
+                "stream" to true,
+                "messages" to systemMessages + messages.map { mapOf("role" to it.role, "content" to it.content) }
+            )
+        )
+
+        val request = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .addHeader("Authorization", "Bearer ${props.apiKey}")
+            .addHeader("OpenAI-Project", props.projectId)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("Accept", "text/event-stream")
+            .post(payload.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        client.newCall(request).execute().use { response ->
+
+            log.info("OpenAI patient copilot SSE status={}", response.code)
+
+            if (!response.isSuccessful) {
+                throw AiStreamException(
+                    code = "AI_UNAVAILABLE",
+                    message = "AI is temporarily unavailable. Please try again later."
+                )
+            }
+
+            val source = response.body?.source() ?: return@use
+
+            while (!source.exhausted()) {
+                val line = source.readUtf8Line() ?: continue
+                if (!line.startsWith("data:")) continue
+
+                val data = line.removePrefix("data:")
+                if (data.isBlank() || data.trim() == "[DONE]") continue
+
+                try {
+                    val json = mapper.readTree(data)
+                    val delta = json.path("choices")
+                        .path(0)
+                        .path("delta")
+                        .path("content")
+                        .asText(null)
+
+                    if (delta != null && delta.isNotEmpty()) {
+                        emit(delta)
+                    }
+                } catch (e: Exception) {
+                    log.debug("Skipping SSE frame: {}", e.message)
+                }
+            }
+        }
+    }
+
+    /**
+     * Non-streaming JSON extraction: whether the patient clearly asked to auto-book with consent,
+     * doctor, preferred time (interpreted in [patientTimeZone]), and video vs onsite.
+     */
+    fun resolvePatientBookingIntent(
+        messages: List<AiMessageDto>,
+        language: OutputLanguage,
+        patientTimeZone: String?,
+        allowedDoctorIds: List<Long>?
+    ): PatientBookingIntentResolution {
+        val combined = messages.joinToString(" ") { it.content }
+        if (RedFlagEngine.analyze(combined).hasEmergency) {
+            return PatientBookingIntentResolution()
+        }
+        if (!rateLimiter.tryAcquire()) {
+            return PatientBookingIntentResolution()
+        }
+
+        val tz = patientTimeZone?.trim()?.takeIf { it.isNotBlank() } ?: "UTC"
+        val allowedLine = if (!allowedDoctorIds.isNullOrEmpty()) {
+            "doctorId MUST be one of these numeric ids only: ${allowedDoctorIds.joinToString(", ")}. If none match the patient's chosen doctor, return doctorId null and bookNow false."
+        } else {
+            "Return doctorId only if the transcript clearly and uniquely identifies one doctor; otherwise null and bookNow false."
+        }
+
+        val systemPrompt = """
+You extract structured booking intent from a Shifa patient AI chat. The user message is a JSON string whose key "messages" is an array of {role, content} in order.
+
+Return ONLY a JSON object with exactly these keys:
+bookNow (boolean), doctorId (number or null), preferredStartAtUtc (string ISO-8601 instant in UTC with Z suffix, or null), isVideo (boolean or null), userExplicitConsentToAutoBook (boolean).
+
+STRICT RULES:
+1. userExplicitConsentToAutoBook true ONLY if a message with role "user" contains clear authorization to automatically book on their behalf (e.g. "yes book it for me", "please schedule that", "go ahead and book", "confirm auto-booking"). A vague "ok" or "yes" to a general question is NOT sufficient.
+2. bookNow true ONLY if userExplicitConsentToAutoBook is true AND doctorId is non-null AND preferredStartAtUtc is non-null AND isVideo is non-null AND they refer to the same booking request.
+3. $allowedLine
+4. Interpret the patient's stated date and time in IANA time zone "$tz", then set preferredStartAtUtc to the correct UTC instant. If the patient only said a date, assume a reasonable time they mentioned or midday local only if they implied "any time"; otherwise prefer null and bookNow false.
+5. isVideo: true for video/online/remote; false for clinic/in-person/onsite.
+6. Use assistant messages only as context; consent must be inferred from user messages.
+7. If anything is ambiguous or multiple doctors, return bookNow false.
+
+Language hint for understanding user text: ${language.name}
+""".trimIndent()
+
+        val transcript = mapper.writeValueAsString(
+            mapOf("messages" to messages.map { mapOf("role" to it.role, "content" to it.content) })
+        )
+
+        val payload = mapper.writeValueAsString(
+            mapOf(
+                "model" to props.model,
+                "stream" to false,
+                "temperature" to 0.1,
+                "max_tokens" to 450,
+                "response_format" to mapOf("type" to "json_object"),
+                "messages" to listOf(
+                    mapOf("role" to "system", "content" to systemPrompt),
+                    mapOf("role" to "user", "content" to transcript)
+                )
+            )
+        )
+
+        val request = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .addHeader("Authorization", "Bearer ${props.apiKey}")
+            .addHeader("OpenAI-Project", props.projectId)
+            .addHeader("Content-Type", "application/json")
+            .post(payload.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        completionClient.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                log.warn("OpenAI booking intent resolution failed: {}", response.code)
+                return PatientBookingIntentResolution()
+            }
+            val body = response.body?.string() ?: return PatientBookingIntentResolution()
+            val tree = mapper.readTree(body)
+            val content = tree.path("choices").path(0).path("message").path("content").asText("").trim()
+            if (content.isBlank()) return PatientBookingIntentResolution()
+            return parseBookingIntentJson(content)
+        }
+    }
+
+    private fun parseBookingIntentJson(content: String): PatientBookingIntentResolution {
+        return try {
+            val n = mapper.readTree(content)
+            PatientBookingIntentResolution(
+                bookNow = jsonBool(n.path("bookNow")),
+                doctorId = jsonLong(n.path("doctorId")),
+                preferredStartAtUtc = n.path("preferredStartAtUtc").asText("").trim().ifBlank { null },
+                isVideo = jsonBoolOrNull(n.path("isVideo")),
+                userExplicitConsentToAutoBook = jsonBool(n.path("userExplicitConsentToAutoBook"))
+            )
+        } catch (e: Exception) {
+            log.debug("Failed to parse booking intent JSON: {}", e.message)
+            PatientBookingIntentResolution()
+        }
+    }
+
+    private fun jsonBool(node: JsonNode): Boolean = when {
+        node.isMissingNode || node.isNull -> false
+        node.isBoolean -> node.booleanValue()
+        node.isIntegralNumber -> node.asLong() != 0L
+        node.isTextual -> node.asText().equals("true", ignoreCase = true)
+        else -> false
+    }
+
+    private fun jsonLong(node: JsonNode): Long? = when {
+        node.isMissingNode || node.isNull -> null
+        node.isIntegralNumber -> node.asLong()
+        node.isFloatingPointNumber -> node.asDouble().toLong()
+        node.isTextual -> node.asText().trim().toLongOrNull()
+        else -> null
+    }
+
+    private fun jsonBoolOrNull(node: JsonNode): Boolean? = when {
+        node.isMissingNode || node.isNull -> null
+        node.isBoolean -> node.booleanValue()
+        node.isIntegralNumber -> node.asLong() != 0L
+        node.isTextual -> when (node.asText().trim().lowercase()) {
+            "true" -> true
+            "false" -> false
+            else -> null
+        }
+        else -> null
     }
 
     /**
