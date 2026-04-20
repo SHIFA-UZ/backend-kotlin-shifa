@@ -35,13 +35,17 @@ class CalendarController(
         val reason: String? = null,
         val status: String? = null, // Appointment status: CONFIRMED, COMPLETED, CANCELLED, REQUESTED
         val signatureRequested: Boolean = false,
-        val patientSignedAt: String? = null // ISO when patient signed
+        val patientSignedAt: String? = null, // ISO when patient signed
+        /** Which practice location this slot/appointment belongs to (null for video/legacy). */
+        val locationId: Long? = null,
+        val locationLabel: String? = null
     )
 
     @GetMapping
     fun byDay(
         @AuthenticationPrincipal principal: DoctorPrincipal,
-        @RequestParam day: String
+        @RequestParam day: String,
+        @RequestParam(required = false) locationId: Long?
     ): List<EntryDto> {
 
         val doctor = principal.profile
@@ -80,11 +84,13 @@ class CalendarController(
         // Use a Set to track slot start times and prevent duplicates from overlapping rules
         val slotStarts = mutableSetOf<Instant>()
         
-        // Helper data class to unify weekly and date-specific rules
+        // Helper data class to unify weekly and date-specific rules (carries location too).
         data class ScheduleRuleForDay(
             val startTime: LocalTime,
             val endTime: LocalTime,
-            val slotMinutes: Int
+            val slotMinutes: Int,
+            val locationId: Long?,
+            val locationLabel: String?
         )
         
         val freeSlots = buildList {
@@ -93,25 +99,32 @@ class CalendarController(
                 return@buildList
             }
 
-            // BUG 1 FIX: Extension is additive. Combine weekly rules (for this weekday) and
-            // date-specific rules (for this date). Do NOT replace existing with extension-only.
+            // Extension is additive: combine weekly rules (for this weekday) and
+            // date-specific rules (for this date). Optionally filter to one location.
             val weeklyForDay = rulesRepo.findByDoctorId(doctor.id)
                 .filter { it.weekday == weekday }
+                .filter { locationId == null || it.location?.id == locationId }
                 .map { rule ->
                     ScheduleRuleForDay(
                         startTime = rule.startTime,
                         endTime = rule.endTime,
-                        slotMinutes = rule.slotMinutes
+                        slotMinutes = rule.slotMinutes,
+                        locationId = rule.location?.id,
+                        locationLabel = rule.location?.label
                     )
                 }
             val dateSpecificRules = dateSpecificRulesRepo.findByDoctorIdAndDate(doctor.id, localDate)
-            val dateSpecificForDay = dateSpecificRules.map { rule ->
-                ScheduleRuleForDay(
-                    startTime = rule.startTime,
-                    endTime = rule.endTime,
-                    slotMinutes = rule.slotMinutes
-                )
-            }
+            val dateSpecificForDay = dateSpecificRules
+                .filter { locationId == null || it.location?.id == locationId }
+                .map { rule ->
+                    ScheduleRuleForDay(
+                        startTime = rule.startTime,
+                        endTime = rule.endTime,
+                        slotMinutes = rule.slotMinutes,
+                        locationId = rule.location?.id,
+                        locationLabel = rule.location?.label
+                    )
+                }
             val rulesForDay = (weeklyForDay + dateSpecificForDay)
             
             // Sort rules by start time to process them in order
@@ -149,7 +162,9 @@ class CalendarController(
                                     dto = EntryDto(
                                         type = "FREE_SLOT",
                                         startAt = startInstant.toString(),
-                                        endAt = endLdt.atZone(zone).toInstant().toString()
+                                        endAt = endLdt.atZone(zone).toInstant().toString(),
+                                        locationId = r.locationId,
+                                        locationLabel = r.locationLabel
                                     )
                                 )
                             )
@@ -178,7 +193,9 @@ class CalendarController(
                                 dto = EntryDto(
                                     type = "FREE_SLOT",
                                     startAt = startInstant.toString(),
-                                    endAt = endLdt.atZone(zone).toInstant().toString()
+                                    endAt = endLdt.atZone(zone).toInstant().toString(),
+                                    locationId = r.locationId,
+                                    locationLabel = r.locationLabel
                                 )
                             )
                         )
@@ -208,7 +225,12 @@ class CalendarController(
                 if (!isValidStatus) {
                     logger.warn("Appointment ${appointment.id} has status ${appointment.status}, filtering out")
                 }
-                belongsToDoctor && isValidStatus
+                val matchesLocation = when {
+                    locationId == null -> true
+                    // Include video appointments (no locationRef) when filtering by a physical location? No: keep strict.
+                    else -> appointment.locationRef?.id == locationId
+                }
+                belongsToDoctor && isValidStatus && matchesLocation
             }
             .map { ap ->
                 FreeSlot(
@@ -226,7 +248,9 @@ class CalendarController(
                         reason = ap.reason,
                         status = ap.status.name,
                         signatureRequested = ap.signatureRequested,
-                        patientSignedAt = ap.patientSignedAt?.toString()
+                        patientSignedAt = ap.patientSignedAt?.toString(),
+                        locationId = ap.locationRef?.id,
+                        locationLabel = ap.locationRef?.label
                     )
                 )
             }

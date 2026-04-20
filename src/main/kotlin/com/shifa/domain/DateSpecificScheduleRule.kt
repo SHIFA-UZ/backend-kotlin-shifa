@@ -21,6 +21,14 @@ class DateSpecificScheduleRule(
     @JoinColumn(name = "doctor_id", nullable = false)
     val doctor: DoctorProfile,
 
+    /**
+     * Optional location this expansion belongs to. When null, the expansion is treated as
+     * tied to the doctor's primary location. See [DoctorLocation].
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
+    var location: DoctorLocation? = null,
+
     @Column(name = "start_date", nullable = false)
     var startDate: LocalDate, // First date this rule applies to
 

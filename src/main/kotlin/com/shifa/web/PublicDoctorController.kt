@@ -4,6 +4,7 @@ package com.shifa.web
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.config.AppProperties
 import com.shifa.domain.DoctorProfile
+import com.shifa.repo.DoctorLocationRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.DoctorReviewRepository
 import com.shifa.security.PatientPrincipal
@@ -15,9 +16,24 @@ import org.springframework.web.bind.annotation.*
 class PublicDoctorController(
     private val doctorProfiles: DoctorProfileRepository,
     private val reviewRepository: DoctorReviewRepository,
+    private val doctorLocations: DoctorLocationRepository,
     private val appProps: AppProperties,
     private val objectMapper: ObjectMapper
 ) {
+
+    data class PublicLocationDto(
+        val id: Long,
+        val label: String,
+        val clinic: String?,
+        val address: String?,
+        val latitude: Double?,
+        val longitude: Double?,
+        val locationCountry: String?,
+        val locationRegion: String?,
+        val locationCity: String?,
+        val locationStreetAddress: String?,
+        val isPrimary: Boolean
+    )
 
     data class DoctorDto(
         val id: Long?,
@@ -247,6 +263,72 @@ class PublicDoctorController(
             locationRegion = doctor.locationRegion,
             locationCity = doctor.locationCity,
             locationStreetAddress = doctor.locationStreetAddress
+        )
+    }
+
+    /**
+     * GET /api/public/doctors/{id}/locations
+     *
+     * Returns the list of practice locations for a doctor. Used by the patient app to let the
+     * patient pick which clinic they want to book before seeing time slots for that location.
+     * For doctors who haven't set up multi-location yet, we synthesize a single entry from the
+     * legacy profile fields so clients can uniformly handle the one-location case.
+     */
+    @GetMapping("/{id}/locations")
+    fun getDoctorLocations(@PathVariable id: Long): List<PublicLocationDto> {
+        val doctor = doctorProfiles.findById(id)
+            .orElseThrow { org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND,
+                "Doctor not found"
+            ) }
+        if (!doctor.user.enabled) {
+            throw org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND,
+                "Doctor not found"
+            )
+        }
+
+        val locations = doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(doctor.id!!)
+        if (locations.isNotEmpty()) {
+            return locations.map { loc ->
+                PublicLocationDto(
+                    id = loc.id!!,
+                    label = loc.label,
+                    clinic = loc.clinic,
+                    address = loc.address,
+                    latitude = loc.latitude,
+                    longitude = loc.longitude,
+                    locationCountry = loc.locationCountry,
+                    locationRegion = loc.locationRegion,
+                    locationCity = loc.locationCity,
+                    locationStreetAddress = loc.locationStreetAddress,
+                    isPrimary = loc.isPrimary
+                )
+            }
+        }
+
+        // Legacy fallback: synthesize a single pseudo-location from the profile.
+        val hasAnyLocationData = !doctor.clinic.isNullOrBlank() ||
+            !doctor.address.isNullOrBlank() ||
+            doctor.latitude != null ||
+            doctor.longitude != null ||
+            !doctor.locationCity.isNullOrBlank()
+        if (!hasAnyLocationData) return emptyList()
+
+        return listOf(
+            PublicLocationDto(
+                id = -1L, // sentinel; clients should treat <=0 as "doctor has no structured location"
+                label = doctor.clinic ?: "Main Clinic",
+                clinic = doctor.clinic,
+                address = doctor.address,
+                latitude = doctor.latitude,
+                longitude = doctor.longitude,
+                locationCountry = doctor.locationCountry,
+                locationRegion = doctor.locationRegion,
+                locationCity = doctor.locationCity,
+                locationStreetAddress = doctor.locationStreetAddress,
+                isPrimary = true
+            )
         )
     }
 }

@@ -3,6 +3,7 @@ package com.shifa.web
 
 import com.shifa.domain.Appointment
 import com.shifa.repo.AppointmentRepository
+import com.shifa.repo.DoctorLocationRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.DoctorPrincipal
@@ -21,6 +22,7 @@ class BookingController(
     private val patients: PatientProfileRepository,
     private val appts: AppointmentRepository,
     private val notifications: NotificationRepository,
+    private val doctorLocations: DoctorLocationRepository,
     private val fcmService: FcmService
 ) {
 
@@ -31,7 +33,9 @@ class BookingController(
         val patientId: Long?,
         val location: String?,
         val reason: String?,
-        val isVideo: Boolean
+        val isVideo: Boolean,
+        /** Optional structured location FK. Required when doctor has multiple locations and !isVideo. */
+        val locationId: Long? = null
     )
 
     /** startAt/endAt: ISO 8601 UTC. */
@@ -43,7 +47,9 @@ class BookingController(
         val patientName: String,
         val location: String,
         val reason: String?,
-        val status: String
+        val status: String,
+        val locationId: Long? = null,
+        val locationLabel: String? = null
     )
 
     @PostMapping
@@ -78,8 +84,23 @@ class BookingController(
             )
         }
 
+        val doctorLocs = doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(doctor.id!!)
+
+        val locationRef = when {
+            b.isVideo -> null
+            b.locationId != null -> doctorLocs.firstOrNull { it.id == b.locationId }
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid locationId for this doctor")
+            // Backwards compatibility: if doctor has a single location, attach it automatically.
+            doctorLocs.size == 1 -> doctorLocs.first()
+            // Multi-location doctor without explicit locationId falls back to primary.
+            doctorLocs.isNotEmpty() -> doctorLocs.firstOrNull { it.isPrimary } ?: doctorLocs.first()
+            else -> null
+        }
+
         val location = when {
             b.isVideo -> "Video Consultation"
+            locationRef != null -> locationRef.clinic?.takeIf { it.isNotBlank() }
+                ?: locationRef.label
             !b.location.isNullOrBlank() -> b.location
             else -> "Clinic"
         }
@@ -91,6 +112,7 @@ class BookingController(
                 startAt = startAt,
                 endAt = endAt,
                 location = location,
+                locationRef = locationRef,
                 reason = b.reason,
                 status = Appointment.Status.CONFIRMED
             )
@@ -119,7 +141,9 @@ class BookingController(
             patientName = patient.fullName ?: "",
             location = saved.location,
             reason = saved.reason,
-            status = saved.status.name
+            status = saved.status.name,
+            locationId = saved.locationRef?.id,
+            locationLabel = saved.locationRef?.label
         )
     }
 }

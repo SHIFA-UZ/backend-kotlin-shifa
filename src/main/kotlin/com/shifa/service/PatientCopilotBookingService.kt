@@ -5,6 +5,7 @@ import com.shifa.domain.Appointment
 import com.shifa.domain.Notification
 import com.shifa.domain.PatientProfile
 import com.shifa.repo.AppointmentRepository
+import com.shifa.repo.DoctorLocationRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.NotificationRepository
 import org.springframework.http.HttpStatus
@@ -18,6 +19,7 @@ class PatientCopilotBookingService(
     private val doctorProfiles: DoctorProfileRepository,
     private val appointments: AppointmentRepository,
     private val notifications: NotificationRepository,
+    private val doctorLocations: DoctorLocationRepository,
     private val fcmService: FcmService,
     private val appProps: AppProperties,
     private val patientDaySlotsService: PatientDaySlotsService
@@ -69,6 +71,7 @@ class PatientCopilotBookingService(
         var startLocalDate = preferredStartAt.atZone(zone).toLocalDate()
         var bestStart: Instant? = null
         var bestSlotMinutes: Int? = null
+        var bestSlotLocationId: Long? = null
         var bestDelta = Long.MAX_VALUE
 
         var dayOffset = 0L
@@ -82,6 +85,7 @@ class PatientCopilotBookingService(
                     bestDelta = delta
                     bestStart = start
                     bestSlotMinutes = slot.slotMinutes
+                    bestSlotLocationId = slot.locationId
                 }
             }
             dayOffset++
@@ -107,8 +111,19 @@ class PatientCopilotBookingService(
             )
         }
 
+        // Use the slot's location if the doctor has structured locations. Fall back to primary
+        // location for legacy/ambiguous situations. Video consults don't attach a location.
+        val locationRef = when {
+            isVideo -> null
+            bestSlotLocationId != null ->
+                doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(doctor.id!!)
+                    .firstOrNull { it.id == bestSlotLocationId }
+            else -> doctorLocations.findByDoctorIdAndIsPrimaryTrue(doctor.id!!).orElse(null)
+        }
+
         val location = when {
             isVideo -> "Video Consultation"
+            locationRef != null -> locationRef.clinic?.takeIf { it.isNotBlank() } ?: locationRef.label
             else -> doctor.clinic ?: "Clinic"
         }
 
@@ -119,6 +134,7 @@ class PatientCopilotBookingService(
                 startAt = chosenStart,
                 endAt = endAt,
                 location = location,
+                locationRef = locationRef,
                 reason = reason,
                 status = Appointment.Status.CONFIRMED
             )

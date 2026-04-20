@@ -21,7 +21,15 @@ class Appointment(
     var endAt: Instant,
 
     @Column(nullable = false)
-    var location: String, // "Video Consultation" or clinic
+    var location: String, // Human-readable label: "Video Consultation" or the clinic/location name
+
+    /**
+     * Structured reference to the doctor's location for this appointment. Null for video
+     * consultations or legacy appointments that predate multi-location support.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
+    var locationRef: DoctorLocation? = null,
 
     var reason: String? = null,
 

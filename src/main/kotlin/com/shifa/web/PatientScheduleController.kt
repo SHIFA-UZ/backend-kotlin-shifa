@@ -25,12 +25,13 @@ class PatientScheduleController(
     fun getAvailableSlots(
         @AuthenticationPrincipal _principal: PatientPrincipal,
         @PathVariable doctorId: Long,
-        @RequestParam day: String // yyyy-MM-dd
+        @RequestParam day: String, // yyyy-MM-dd
+        @RequestParam(required = false) locationId: Long?
     ): List<PatientDaySlotsService.AvailableSlotDto> {
         val doctor = doctorProfiles.findById(doctorId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found") }
 
         val localDate = LocalDate.parse(day)
-        return patientDaySlotsService.availableSlotsForDay(doctor, localDate)
+        return patientDaySlotsService.availableSlotsForDay(doctor, localDate, locationId)
     }
 }

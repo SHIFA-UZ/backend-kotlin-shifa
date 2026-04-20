@@ -26,10 +26,25 @@ class PatientDaySlotsService(
     data class AvailableSlotDto(
         val startAt: String,
         val endAt: String,
-        val slotMinutes: Int
+        val slotMinutes: Int,
+        /** Practice location this slot belongs to (null = video / legacy). */
+        val locationId: Long? = null,
+        val locationLabel: String? = null
     )
 
-    fun availableSlotsForDay(doctor: DoctorProfile, localDate: LocalDate): List<AvailableSlotDto> {
+    /**
+     * Returns bookable slots for [doctor] on [localDate]. When [locationId] is non-null, only slots
+     * tied to that specific practice location are returned. When null, slots from all locations are
+     * merged (classic behavior for doctors with a single location).
+     *
+     * Appointments across all locations are considered when detecting conflicts, since a doctor
+     * cannot be at two physical places at the same time.
+     */
+    fun availableSlotsForDay(
+        doctor: DoctorProfile,
+        localDate: LocalDate,
+        locationId: Long? = null
+    ): List<AvailableSlotDto> {
         val weekday = localDate.dayOfWeek.value
         val zone = ZoneId.of(doctor.timeZone)
 
@@ -40,12 +55,20 @@ class PatientDaySlotsService(
         val dayStart = localDate.atStartOfDay(zone).toInstant()
         val dayEnd = localDate.plusDays(1).atStartOfDay(zone).toInstant()
 
-        data class RuleForDay(val startTime: LocalTime, val endTime: LocalTime, val slotMinutes: Int)
+        data class RuleForDay(
+            val startTime: LocalTime,
+            val endTime: LocalTime,
+            val slotMinutes: Int,
+            val locationId: Long?,
+            val locationLabel: String?
+        )
         val weeklyRules = rulesRepo.findByDoctorId(doctor.id)
             .filter { it.weekday == weekday }
-            .map { RuleForDay(it.startTime, it.endTime, it.slotMinutes) }
+            .filter { locationId == null || it.location?.id == locationId }
+            .map { RuleForDay(it.startTime, it.endTime, it.slotMinutes, it.location?.id, it.location?.label) }
         val dateSpecificRules = dateSpecificRulesRepo.findByDoctorIdAndDate(doctor.id, localDate)
-            .map { RuleForDay(it.startTime, it.endTime, it.slotMinutes) }
+            .filter { locationId == null || it.location?.id == locationId }
+            .map { RuleForDay(it.startTime, it.endTime, it.slotMinutes, it.location?.id, it.location?.label) }
         val allRules = (weeklyRules + dateSpecificRules).sortedBy { it.startTime }
 
         val slotStarts = mutableSetOf<Instant>()
@@ -71,7 +94,9 @@ class PatientDaySlotsService(
                                 AvailableSlotDto(
                                     startAt = startInstant.toString(),
                                     endAt = endInstant.toString(),
-                                    slotMinutes = r.slotMinutes
+                                    slotMinutes = r.slotMinutes,
+                                    locationId = r.locationId,
+                                    locationLabel = r.locationLabel
                                 )
                             )
                         )
@@ -81,6 +106,8 @@ class PatientDaySlotsService(
             }
         }
 
+        // Conflicts are computed against ALL of this doctor's appointments for the day,
+        // regardless of location – a doctor can only be in one place at a time.
         val existingAppts = appts.findOverlapping(doctor.id!!, dayStart, dayEnd)
 
         fun overlaps(a: Instant, b: Instant, c: Instant, d: Instant) = a < d && c < b

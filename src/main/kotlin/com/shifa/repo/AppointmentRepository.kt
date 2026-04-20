@@ -207,6 +207,23 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         @Param("end") end: Instant
     ): Long
 
+    /**
+     * Count future (non-cancelled) appointments for a doctor at a specific location. Used
+     * to prevent deleting a location that still has upcoming bookings.
+     */
+    @Query("""
+        SELECT COUNT(a) FROM Appointment a
+        WHERE a.doctor.id = :doctorId
+          AND a.locationRef.id = :locationId
+          AND a.status != 'CANCELLED'
+          AND a.endAt > :now
+    """)
+    fun countFutureByDoctorAndLocation(
+        @Param("doctorId") doctorId: Long,
+        @Param("locationId") locationId: Long,
+        @Param("now") now: Instant
+    ): Long
+
     /** Appointments starting in [start, end) for reminder notifications (e.g. 1 hour before). */
     @Query("""
         SELECT a FROM Appointment a

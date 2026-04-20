@@ -20,6 +20,13 @@ interface DateSpecificScheduleRuleRepository : JpaRepository<DateSpecificSchedul
      * Find all date-specific schedule rules for a doctor.
      */
     fun findByDoctorId(doctorId: Long): List<DateSpecificScheduleRule>
+
+    /** Date-specific rules for a single location (used by per-location editor). */
+    @Query("SELECT r FROM DateSpecificScheduleRule r WHERE r.doctor.id = :doctorId AND r.location.id = :locationId")
+    fun findByDoctorIdAndLocationId(
+        @Param("doctorId") doctorId: Long,
+        @Param("locationId") locationId: Long
+    ): List<DateSpecificScheduleRule>
     
     /**
      * Find all date-specific schedule rules that apply to a specific date.

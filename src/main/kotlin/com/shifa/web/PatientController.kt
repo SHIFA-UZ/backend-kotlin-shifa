@@ -7,6 +7,7 @@ import com.shifa.domain.Appointment
 import com.shifa.domain.Notification
 import com.shifa.domain.PatientProfile
 import com.shifa.repo.AppointmentRepository
+import com.shifa.repo.DoctorLocationRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.repo.PatientProfileRepository
@@ -38,6 +39,7 @@ class PatientController(
     private val profileMapper: PatientProfileMapper,
     private val appProps: AppProperties,
     private val doctorProfiles: DoctorProfileRepository,
+    private val doctorLocations: DoctorLocationRepository,
     private val patientDocumentService: PatientDocumentService,
     private val notifications: NotificationRepository,
     private val fcmService: FcmService
@@ -113,7 +115,10 @@ class PatientController(
         val endAt: String,
         val location: String,
         val reason: String?,
-        val status: String
+        val status: String,
+        val locationId: Long? = null,
+        val locationLabel: String? = null,
+        val locationAddress: String? = null
     )
 
     /** startAt: ISO 8601 UTC (e.g. 2026-02-12T13:00:00Z). */
@@ -122,7 +127,13 @@ class PatientController(
         val startAt: String,
         val slotMinutes: Int = 30,
         val reason: String?,
-        val isVideo: Boolean = false
+        val isVideo: Boolean = false,
+        /**
+         * Optional practice location id. If the doctor has multiple structured locations, the
+         * patient MUST pick one (unless the booking is a video consultation). For single-location
+         * doctors (or legacy doctors without structured locations), this can be omitted.
+         */
+        val locationId: Long? = null
     )
 
     // -------------------- FCM Token (push notifications) --------------------
@@ -254,7 +265,10 @@ class PatientController(
                 endAt = appt.endAt.toString(),
                 location = appt.location,
                 reason = appt.reason,
-                status = appt.status.name
+                status = appt.status.name,
+                locationId = appt.locationRef?.id,
+                locationLabel = appt.locationRef?.label,
+                locationAddress = appt.locationRef?.address
             )
         }
     }
@@ -322,19 +336,41 @@ class PatientController(
             )
         }
 
-        // Determine location
+        // Resolve the structured doctor location (if any). Rules:
+        //  - Video consultation -> no locationRef.
+        //  - Patient provided a locationId -> must belong to this doctor.
+        //  - Multi-location doctor -> require a locationId to avoid ambiguity.
+        //  - Single-location doctor -> auto-attach the one location.
+        //  - Legacy doctor (no structured locations) -> no locationRef; use clinic string.
+        val availableLocations = doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(doctor.id!!)
+        val locationRef = when {
+            req.isVideo -> null
+            req.locationId != null -> availableLocations.firstOrNull { it.id == req.locationId }
+                ?: throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Invalid locationId for this doctor"
+                )
+            availableLocations.size > 1 -> throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "This doctor has multiple locations. Please select a location before booking."
+            )
+            availableLocations.size == 1 -> availableLocations.first()
+            else -> null
+        }
+
         val location = when {
             req.isVideo -> "Video Consultation"
+            locationRef != null -> locationRef.clinic?.takeIf { it.isNotBlank() } ?: locationRef.label
             else -> doctor.clinic ?: "Clinic"
         }
 
-        // Create appointment
         val appointment = Appointment(
             doctor = doctor,
             patient = profile,
             startAt = startAt,
             endAt = endAt,
             location = location,
+            locationRef = locationRef,
             reason = req.reason,
             status = Appointment.Status.CONFIRMED
         )
@@ -364,7 +400,10 @@ class PatientController(
             endAt = saved.endAt.toString(),
             location = saved.location,
             reason = saved.reason,
-            status = saved.status.name
+            status = saved.status.name,
+            locationId = saved.locationRef?.id,
+            locationLabel = saved.locationRef?.label,
+            locationAddress = saved.locationRef?.address
         )
     }
 
