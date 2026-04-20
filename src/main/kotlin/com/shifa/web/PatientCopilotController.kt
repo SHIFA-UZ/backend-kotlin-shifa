@@ -409,28 +409,67 @@ class PatientCopilotController(
             allowedDoctorIds = body.allowedDoctorIds
         )
         if (!intent.bookNow || !intent.userExplicitConsentToAutoBook) {
-            return mapOf("booked" to false)
+            return mapOf(
+                "booked" to false,
+                "reasonCode" to "NO_CONSENT_OR_INCOMPLETE",
+                "message" to "Please confirm doctor, date/time, and visit type (video or in person)."
+            )
         }
-        val doctorId = intent.doctorId ?: return mapOf("booked" to false)
+        val doctorId = intent.doctorId ?: return mapOf(
+            "booked" to false,
+            "reasonCode" to "DOCTOR_MISSING",
+            "message" to "Please choose one doctor from the suggested list."
+        )
         val allowed = body.allowedDoctorIds
         if (allowed != null) {
             if (allowed.isEmpty()) {
-                return mapOf("booked" to false, "message" to "No suggested doctors on platform for this chat")
+                return mapOf(
+                    "booked" to false,
+                    "reasonCode" to "NO_SUGGESTED_DOCTORS",
+                    "message" to "No suggested doctors on platform for this chat"
+                )
             }
             if (doctorId !in allowed.toSet()) {
-                return mapOf("booked" to false, "message" to "Doctor not in suggested list")
+                return mapOf(
+                    "booked" to false,
+                    "reasonCode" to "DOCTOR_NOT_IN_SUGGESTED_LIST",
+                    "message" to "Doctor not in suggested list"
+                )
             }
         }
         val doctor = doctorProfiles.findById(doctorId).orElse(null)
         if (doctor == null || !doctor.user.enabled) {
-            return mapOf("booked" to false, "message" to "Doctor not found")
+            return mapOf(
+                "booked" to false,
+                "reasonCode" to "DOCTOR_NOT_FOUND",
+                "message" to "Doctor not found"
+            )
         }
-        val prefStr = intent.preferredStartAtUtc ?: return mapOf("booked" to false)
-        val video = intent.isVideo ?: return mapOf("booked" to false)
+        val prefStr = intent.preferredStartAtUtc ?: return mapOf(
+            "booked" to false,
+            "reasonCode" to "TIME_MISSING",
+            "message" to "Please share your preferred date and time."
+        )
+        val video = intent.isVideo ?: return mapOf(
+            "booked" to false,
+            "reasonCode" to "VISIT_TYPE_MISSING",
+            "message" to "Do you prefer a video visit or an in-person clinic visit?"
+        )
         val preferred = try {
             Instant.parse(prefStr.trim())
         } catch (_: Exception) {
-            return mapOf("booked" to false, "message" to "Invalid preferred time")
+            return mapOf(
+                "booked" to false,
+                "reasonCode" to "INVALID_PREFERRED_TIME",
+                "message" to "Invalid preferred time"
+            )
+        }
+        if (preferred.isBefore(Instant.now().minusSeconds(60))) {
+            return mapOf(
+                "booked" to false,
+                "reasonCode" to "PREFERRED_TIME_IN_PAST",
+                "message" to "Preferred time is in the past. Please provide a future date and time."
+            )
         }
         val tzRaw = profile.timeZone?.trim().orEmpty()
         val patientZone = try {

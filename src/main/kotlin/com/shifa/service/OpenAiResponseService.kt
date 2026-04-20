@@ -302,9 +302,12 @@ STRICT RULES:
 2. bookNow true ONLY if userExplicitConsentToAutoBook is true AND doctorId is non-null AND preferredStartAtUtc is non-null AND isVideo is non-null AND they refer to the same booking request.
 3. $allowedLine
 4. Interpret the patient's stated date and time in IANA time zone "$tz", then set preferredStartAtUtc to the correct UTC instant. If the patient only said a date, assume a reasonable time they mentioned or midday local only if they implied "any time"; otherwise prefer null and bookNow false.
-5. isVideo: true for video/online/remote; false for clinic/in-person/onsite.
-6. Use assistant messages only as context; consent must be inferred from user messages.
-7. If anything is ambiguous or multiple doctors, return bookNow false.
+5. Use the MOST RECENT user booking details in the transcript. If older and newer date/time or doctor details conflict, use the latest explicit user instruction and ignore older turns.
+6. preferredStartAtUtc MUST be in the future relative to now; if the transcript points to a past time/date or unclear year/date, set preferredStartAtUtc null and bookNow false.
+7. Never infer doctorId from assistant suggestions alone. Only set doctorId if the user explicitly picked a doctor or there is exactly one unambiguous doctor choice in user messages.
+8. isVideo: true for video/online/remote; false for clinic/in-person/onsite.
+9. Use assistant messages only as context; consent must be inferred from user messages.
+10. If anything is ambiguous or multiple doctors, return bookNow false.
 
 Language hint for understanding user text: ${language.name}
 """.trimIndent()
