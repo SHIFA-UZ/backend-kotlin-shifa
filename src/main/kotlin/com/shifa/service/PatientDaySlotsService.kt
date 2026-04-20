@@ -89,4 +89,27 @@ class PatientDaySlotsService(
             existingAppts.none { ap -> overlaps(start, end, ap.startAt, ap.endAt) }
         }.map { (_, _, dto) -> dto }.sortedBy { it.startAt }
     }
+
+    /**
+     * Finds the earliest bookable slot start time for [doctor] at or after [fromInstant], scanning up to
+     * [lookaheadDays] days forward. Returns null when no slot is available in that window. Used by copilot
+     * doctor ranking to prefer providers with soonest availability.
+     */
+    fun nextAvailableStartAt(
+        doctor: DoctorProfile,
+        fromInstant: Instant,
+        lookaheadDays: Int = 14
+    ): Instant? {
+        val zone = ZoneId.of(doctor.timeZone)
+        val startDate = fromInstant.atZone(zone).toLocalDate()
+        for (i in 0..lookaheadDays) {
+            val date = startDate.plusDays(i.toLong())
+            val slots = availableSlotsForDay(doctor, date)
+            for (s in slots) {
+                val slotStart = Instant.parse(s.startAt)
+                if (!slotStart.isBefore(fromInstant)) return slotStart
+            }
+        }
+        return null
+    }
 }

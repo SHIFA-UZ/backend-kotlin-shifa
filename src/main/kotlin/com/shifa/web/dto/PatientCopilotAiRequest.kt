@@ -40,6 +40,15 @@ data class PatientCopilotSuggestDoctorsRequest(
 )
 
 /**
+ * Chat-history driven doctor suggestion: the server uses OpenAI to infer the medical specialty and routing
+ * context from the full conversation, then ranks doctors by rating, next available slot, and distance.
+ */
+data class PatientCopilotSuggestFromChatRequest(
+    val messages: List<AiMessageDto>,
+    val language: OutputLanguage
+)
+
+/**
  * Server-side auto-book: picks the nearest available slot to [preferredStartAt] (ISO-8601 UTC).
  */
 data class PatientCopilotBookAppointmentRequest(

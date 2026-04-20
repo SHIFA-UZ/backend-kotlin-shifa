@@ -12,11 +12,13 @@ import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.PatientPrincipal
 import com.shifa.service.OpenAiResponsesService
 import com.shifa.service.PatientCopilotBookingService
+import com.shifa.service.PatientDaySlotsService
 import com.shifa.service.TranscriptionService
 import com.shifa.web.dto.PatientCopilotAiRequest
 import com.shifa.web.dto.PatientCopilotBookAppointmentRequest
 import com.shifa.web.dto.PatientCopilotResolveBookingRequest
 import com.shifa.web.dto.PatientCopilotSuggestDoctorsRequest
+import com.shifa.web.dto.PatientCopilotSuggestFromChatRequest
 import jakarta.validation.Valid
 import kotlinx.coroutines.runBlocking
 import org.springframework.http.HttpStatus
@@ -44,6 +46,7 @@ class PatientCopilotController(
     private val doctorProfiles: DoctorProfileRepository,
     private val reviewRepository: DoctorReviewRepository,
     private val copilotBookingService: PatientCopilotBookingService,
+    private val daySlotsService: PatientDaySlotsService,
     private val appProps: AppProperties,
     private val objectMapper: ObjectMapper
 ) {
@@ -246,6 +249,147 @@ class PatientCopilotController(
         }
 
         return sorted.take(12).map { toDoctorDto(it, null) }
+    }
+
+    /**
+     * Smart doctor suggestions from the whole chat history. The server asks OpenAI to infer the likely medical
+     * specialty and clinical keywords, filters enabled doctors by profession (case-insensitive), and ranks them
+     * by rating → soonest available slot → proximity to the patient.
+     *
+     * Response shape:
+     *  {
+     *    "needsMoreInfo": Boolean,
+     *    "clarifyingQuestion": String?,    // localized follow-up when the copilot should ask for more details
+     *    "specialties": List<String>,
+     *    "doctors": List<DoctorDto>        // empty when needsMoreInfo == true or nothing matched
+     *  }
+     */
+    @PostMapping("/suggest-doctors-chat")
+    fun suggestDoctorsFromChat(
+        @AuthenticationPrincipal principal: PatientPrincipal,
+        @RequestBody @Valid body: PatientCopilotSuggestFromChatRequest
+    ): Map<String, Any?> {
+        val profile = currentPatientProfile(principal)
+        val cleaned = body.messages
+            .mapNotNull { msg ->
+                val role = msg.role.trim().lowercase()
+                val content = msg.content.trim()
+                if (content.isBlank()) return@mapNotNull null
+                if (role != "user" && role != "assistant" && role != "system") return@mapNotNull null
+                com.shifa.web.dto.AiMessageDto(role = role, content = content)
+            }
+        if (cleaned.none { it.role == "user" }) {
+            return mapOf(
+                "needsMoreInfo" to true,
+                "clarifyingQuestion" to null,
+                "specialties" to emptyList<String>(),
+                "doctors" to emptyList<Map<String, Any?>>()
+            )
+        }
+
+        val inference = aiService.inferSpecialtiesAndClarification(cleaned, body.language)
+        if (!inference.hasEnoughInfo) {
+            return mapOf(
+                "needsMoreInfo" to true,
+                "clarifyingQuestion" to inference.clarifyingQuestion,
+                "specialties" to inference.specialties,
+                "doctors" to emptyList<Map<String, Any?>>()
+            )
+        }
+
+        val seen = linkedSetOf<Long>()
+        val candidates = mutableListOf<DoctorProfile>()
+
+        // 1) Profession-based match (exact or substring match on DB profession field).
+        val allEnabled = doctorProfiles.findAllByUserEnabled()
+        for (specialty in inference.specialties) {
+            val needle = specialty.lowercase().trim()
+            if (needle.isBlank()) continue
+            for (d in allEnabled) {
+                val prof = d.profession?.lowercase()?.trim() ?: continue
+                if (prof == needle || prof.contains(needle) || needle.contains(prof)) {
+                    val id = d.id ?: continue
+                    if (seen.add(id)) candidates.add(d)
+                }
+            }
+        }
+
+        // 2) Fallback: free-text search with LLM keywords if profession filter was empty.
+        if (candidates.isEmpty()) {
+            for (term in inference.searchTerms) {
+                val needle = term.trim().take(80)
+                if (needle.isBlank()) continue
+                for (d in doctorProfiles.searchWithFilters(needle, null)) {
+                    val id = d.id ?: continue
+                    if (seen.add(id)) candidates.add(d)
+                }
+            }
+        }
+
+        if (candidates.isEmpty()) {
+            return mapOf(
+                "needsMoreInfo" to false,
+                "clarifyingQuestion" to null,
+                "specialties" to inference.specialties,
+                "doctors" to emptyList<Map<String, Any?>>()
+            )
+        }
+
+        val now = Instant.now()
+        val patientLat = profile.latitude
+        val patientLng = profile.longitude
+
+        data class Scored(
+            val doctor: DoctorProfile,
+            val rating: Double,
+            val nextSlotAt: Instant?,  // null when no free slot within window
+            val distanceKm: Double?    // null when coordinates unknown
+        )
+
+        // Cap how many doctors we score to keep request fast (slot scan is O(days * rules) each).
+        val capped = candidates.take(20)
+
+        val scored = capped.map { d ->
+            val rating = reviewRepository.findAverageRatingByDoctorId(d.id!!) ?: 0.0
+            val next = daySlotsService.nextAvailableStartAt(d, now, lookaheadDays = 14)
+            val distKm = if (patientLat != null && patientLng != null && d.latitude != null && d.longitude != null) {
+                haversineKm(patientLat, patientLng, d.latitude!!, d.longitude!!)
+            } else null
+            Scored(d, rating, next, distKm)
+        }
+
+        // Sort: bucket rating to 0.5 so strong candidates aren't edged out by 0.1 rating differences;
+        // then prefer soonest free slot; then closest distance; raw rating as final tiebreaker.
+        val sorted = scored.sortedWith(
+            compareByDescending<Scored> { kotlin.math.floor(it.rating * 2.0) / 2.0 }
+                .thenBy { it.nextSlotAt?.toEpochMilli() ?: Long.MAX_VALUE }
+                .thenBy { it.distanceKm ?: Double.MAX_VALUE }
+                .thenByDescending { it.rating }
+        )
+
+        val doctors = sorted.take(12).map { s ->
+            toDoctorDto(s.doctor, s.distanceKm) + mapOf(
+                "nextAvailableStartAt" to s.nextSlotAt?.toString()
+            )
+        }
+
+        return mapOf(
+            "needsMoreInfo" to false,
+            "clarifyingQuestion" to null,
+            "specialties" to inference.specialties,
+            "doctors" to doctors
+        )
+    }
+
+    private fun haversineKm(lat1: Double, lng1: Double, lat2: Double, lng2: Double): Double {
+        val r = 6371.0
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLng = Math.toRadians(lng2 - lng1)
+        val a = kotlin.math.sin(dLat / 2).let { it * it } +
+            kotlin.math.cos(Math.toRadians(lat1)) * kotlin.math.cos(Math.toRadians(lat2)) *
+            kotlin.math.sin(dLng / 2).let { it * it }
+        val c = 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
+        return r * c
     }
 
     /**

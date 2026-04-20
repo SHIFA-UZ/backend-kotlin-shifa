@@ -13,6 +13,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.shifa.web.AiStreamException
 import com.shifa.web.dto.AiMessageDto
 import com.shifa.web.dto.PatientBookingIntentResolution
+import com.shifa.web.dto.PatientCopilotSpecialtyInference
 import jakarta.annotation.PostConstruct
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -344,6 +345,99 @@ Language hint for understanding user text: ${language.name}
             val content = tree.path("choices").path(0).path("message").path("content").asText("").trim()
             if (content.isBlank()) return PatientBookingIntentResolution()
             return parseBookingIntentJson(content)
+        }
+    }
+
+    /**
+     * Infer which medical specialty (or specialties) best match the patient's chat so far and whether the copilot
+     * already has enough clinical context to recommend doctors. When info is insufficient, returns a single concise
+     * clarifying question in the patient's language so the copilot can ask for the missing piece.
+     */
+    fun inferSpecialtiesAndClarification(
+        messages: List<AiMessageDto>,
+        language: OutputLanguage
+    ): PatientCopilotSpecialtyInference {
+        val combined = messages.joinToString(" ") { it.content }
+        if (combined.isBlank()) return PatientCopilotSpecialtyInference()
+        if (RedFlagEngine.analyze(combined).hasEmergency) return PatientCopilotSpecialtyInference()
+        if (!rateLimiter.tryAcquire()) return PatientCopilotSpecialtyInference()
+
+        val systemPrompt = """
+You help Shifa route a patient to the right medical specialist based on their chat so far.
+You receive a JSON string whose key "messages" is an ordered array of {role, content}.
+
+Return ONLY a JSON object with exactly these keys:
+specialties (array of short lowercase strings), searchTerms (array of short lowercase strings),
+hasEnoughInfo (boolean), clarifyingQuestion (string or null).
+
+RULES:
+1. specialties: 1 to 3 medical specialty labels that would treat the patient's likely issue, as short English lowercase nouns that match a doctor's profession field (e.g. "cardiologist", "dermatologist", "gastroenterologist", "pediatrician", "neurologist", "urologist", "gynecologist", "otolaryngologist", "endocrinologist", "orthopedist", "psychiatrist", "general practitioner", "dentist"). If multiple specialties are plausible, put the most likely first.
+2. searchTerms: 2-6 short lowercase keywords (symptom name, affected organ, condition) that could be used as a fallback text search if specialty matching fails (e.g. ["chest pain", "shortness of breath"]). Use English clinical terms even if the patient wrote in another language.
+3. hasEnoughInfo: true ONLY if the patient has described at least a concrete symptom or body system AND you are confident which specialty to suggest. If the chat is still generic (e.g. "I feel bad", "need a doctor") set false.
+4. clarifyingQuestion: when hasEnoughInfo is false, return ONE short friendly question in ${language.name} (${language.isoCode}) asking for the single most useful missing piece (symptom detail, duration/severity, location on body, preferred date/time, or onsite vs video). When hasEnoughInfo is true, set clarifyingQuestion to null.
+5. Never invent specialties; pick from common medical specialties only. Prefer "general practitioner" when the issue is vague but clearly medical.
+6. Output must be valid JSON only; no prose, no Markdown.
+""".trimIndent()
+
+        val transcript = mapper.writeValueAsString(
+            mapOf("messages" to messages.map { mapOf("role" to it.role, "content" to it.content) })
+        )
+
+        val payload = mapper.writeValueAsString(
+            mapOf(
+                "model" to props.model,
+                "stream" to false,
+                "temperature" to 0.1,
+                "max_tokens" to 350,
+                "response_format" to mapOf("type" to "json_object"),
+                "messages" to listOf(
+                    mapOf("role" to "system", "content" to systemPrompt),
+                    mapOf("role" to "user", "content" to transcript)
+                )
+            )
+        )
+
+        val request = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .addHeader("Authorization", "Bearer ${props.apiKey}")
+            .addHeader("OpenAI-Project", props.projectId)
+            .addHeader("Content-Type", "application/json")
+            .post(payload.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        return try {
+            completionClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    log.warn("OpenAI specialty inference failed: {}", response.code)
+                    return PatientCopilotSpecialtyInference()
+                }
+                val body = response.body?.string() ?: return PatientCopilotSpecialtyInference()
+                val tree = mapper.readTree(body)
+                val content = tree.path("choices").path(0).path("message").path("content").asText("").trim()
+                if (content.isBlank()) return PatientCopilotSpecialtyInference()
+                val n = mapper.readTree(content)
+                val specialties = n.path("specialties")
+                    .takeIf { it.isArray }
+                    ?.mapNotNull { it.asText("").trim().lowercase().ifBlank { null } }
+                    ?.distinct()
+                    ?: emptyList()
+                val searchTerms = n.path("searchTerms")
+                    .takeIf { it.isArray }
+                    ?.mapNotNull { it.asText("").trim().lowercase().ifBlank { null } }
+                    ?.distinct()
+                    ?: emptyList()
+                val hasEnough = jsonBool(n.path("hasEnoughInfo"))
+                val clarify = n.path("clarifyingQuestion").asText("").trim().ifBlank { null }
+                PatientCopilotSpecialtyInference(
+                    specialties = specialties,
+                    searchTerms = searchTerms,
+                    hasEnoughInfo = hasEnough,
+                    clarifyingQuestion = if (hasEnough) null else clarify
+                )
+            }
+        } catch (e: Exception) {
+            log.debug("Specialty inference error: {}", e.message)
+            PatientCopilotSpecialtyInference()
         }
     }
 
