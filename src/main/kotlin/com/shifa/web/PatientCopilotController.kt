@@ -231,7 +231,16 @@ class PatientCopilotController(
             }
         }
 
-        // Prefer higher-rated doctors when many matches
+        // If symptom terms do not map well, fall back to enabled doctors from platform
+        // so users still receive practical suggestions instead of an empty result.
+        if (collected.isEmpty()) {
+            for (d in doctorProfiles.findAllByUserEnabled()) {
+                val id = d.id ?: continue
+                if (seen.add(id)) collected.add(d)
+            }
+        }
+
+        // Prefer higher-rated doctors when many matches/fallback candidates are present
         val sorted = collected.sortedByDescending { doc ->
             reviewRepository.findAverageRatingByDoctorId(doc.id!!) ?: 0.0
         }
