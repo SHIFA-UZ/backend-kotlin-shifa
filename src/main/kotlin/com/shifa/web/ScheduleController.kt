@@ -317,6 +317,24 @@ class ScheduleController(
         }
 
         val existingPeriods = scheduleValidityService.getPeriods(d)
+
+        // Multi-location friendly: if the new range is already fully covered by an existing
+        // period (equal or contained), treat the call as a no-op. This lets a doctor save a
+        // schedule for a second location without having to re-define the validity window.
+        val containingPeriod = existingPeriods.firstOrNull { p ->
+            !newValidFrom.isBefore(p.validFrom) && !newValidUntil.isAfter(p.validUntil)
+        }
+        if (containingPeriod != null) {
+            logger.info(
+                "Calendar period {} – {} is already covered by existing period {} – {}; no-op.",
+                newValidFrom, newValidUntil, containingPeriod.validFrom, containingPeriod.validUntil
+            )
+            return ValidRangeDto(
+                validFrom = containingPeriod.validFrom.toString(),
+                validUntil = containingPeriod.validUntil.toString()
+            )
+        }
+
         validateNewPeriodDoesNotOverlapAny(existingPeriods, newValidFrom, newValidUntil)
 
         periodRepo.save(
