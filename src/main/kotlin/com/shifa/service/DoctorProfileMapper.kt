@@ -70,7 +70,9 @@ class DoctorProfileMapper(
             locationDistrict = d.locationDistrict,
             locationCity = d.locationCity,
             locationPostalCode = d.locationPostalCode,
-            locationStreetAddress = d.locationStreetAddress
+            locationStreetAddress = d.locationStreetAddress,
+            consultationPriceMinor = d.consultationPriceMinor,
+            consultationCurrency = d.consultationCurrency
         )
     }
 }

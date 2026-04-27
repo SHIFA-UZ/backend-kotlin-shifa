@@ -72,5 +72,11 @@ class DoctorProfile(
 
     /** IANA timezone for practice (e.g. Europe/Berlin). Used for scheduling and "today"; storage remains UTC. */
     @Column(name = "time_zone", nullable = false, length = 64)
-    var timeZone: String = "Asia/Tashkent"
+    var timeZone: String = "Asia/Tashkent",
+
+    @Column(name = "consultation_price_minor")
+    var consultationPriceMinor: Long? = null,
+
+    @Column(name = "consultation_currency", length = 3)
+    var consultationCurrency: String? = null
 )

@@ -36,7 +36,10 @@ class PatientCopilotBookingService(
         val endAt: String,
         val location: String,
         val reason: String?,
-        val status: String
+        val status: String,
+        val paymentStatus: String,
+        val paymentAmountMinor: Long?,
+        val paymentCurrency: String?
     )
 
     /**
@@ -136,7 +139,14 @@ class PatientCopilotBookingService(
                 location = location,
                 locationRef = locationRef,
                 reason = reason,
-                status = Appointment.Status.CONFIRMED
+                status = Appointment.Status.REQUESTED,
+                paymentAmountMinor = doctor.consultationPriceMinor,
+                paymentCurrency = doctor.consultationCurrency,
+                paymentStatus = if (doctor.consultationPriceMinor != null) {
+                    Appointment.PaymentStatus.PENDING
+                } else {
+                    Appointment.PaymentStatus.NOT_REQUIRED
+                }
             )
         )
 
@@ -162,7 +172,10 @@ class PatientCopilotBookingService(
             endAt = saved.endAt.toString(),
             location = saved.location,
             reason = saved.reason,
-            status = saved.status.name
+            status = saved.status.name,
+            paymentStatus = saved.paymentStatus.name,
+            paymentAmountMinor = saved.paymentAmountMinor,
+            paymentCurrency = saved.paymentCurrency
         )
     }
 

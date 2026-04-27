@@ -4,6 +4,8 @@ package com.shifa.web
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.config.AppProperties
 import com.shifa.domain.DoctorProfile
+import com.shifa.repo.DoctorServicePriceRepository
+import com.shifa.repo.DoctorServiceRepository
 import com.shifa.repo.DoctorLocationRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.DoctorReviewRepository
@@ -17,9 +19,23 @@ class PublicDoctorController(
     private val doctorProfiles: DoctorProfileRepository,
     private val reviewRepository: DoctorReviewRepository,
     private val doctorLocations: DoctorLocationRepository,
+    private val doctorServices: DoctorServiceRepository,
+    private val doctorServicePrices: DoctorServicePriceRepository,
     private val appProps: AppProperties,
     private val objectMapper: ObjectMapper
 ) {
+    data class ServicePriceDto(
+        val amountMinor: Long,
+        val currency: String
+    )
+
+    data class ServiceDto(
+        val id: Long,
+        val title: String,
+        val description: String?,
+        val prices: List<ServicePriceDto>
+    )
+
 
     data class PublicLocationDto(
         val id: Long,
@@ -50,6 +66,7 @@ class PublicDoctorController(
         val reviewCount: Long,
         val biography: String?,
         val services: List<String>?,
+        val serviceItems: List<ServiceDto>?,
         val certificates: List<String>?,
         val telegram: String?,
         val instagram: String?,
@@ -197,6 +214,7 @@ class PublicDoctorController(
                 reviewCount = reviewCount,
                 biography = doc.biography,
                 services = parseJsonList(doc.services),
+                serviceItems = mapServiceItems(doc.id!!),
                 certificates = normalizedCerts,
                 telegram = doc.telegram,
                 instagram = doc.instagram,
@@ -252,6 +270,7 @@ class PublicDoctorController(
             reviewCount = reviewCount,
             biography = doctor.biography,
             services = parseJsonList(doctor.services),
+            serviceItems = mapServiceItems(doctor.id!!),
             certificates = normalizedCerts,
             telegram = doctor.telegram,
             instagram = doctor.instagram,
@@ -264,6 +283,20 @@ class PublicDoctorController(
             locationCity = doctor.locationCity,
             locationStreetAddress = doctor.locationStreetAddress
         )
+    }
+
+    private fun mapServiceItems(doctorId: Long): List<ServiceDto> {
+        return doctorServices.findByDoctorIdAndIsActiveTrueOrderByCreatedAtAsc(doctorId).map { s ->
+            val priceItems = doctorServicePrices.findByService_IdOrderByCurrencyAsc(s.id).map {
+                ServicePriceDto(amountMinor = it.amountMinor, currency = it.currency)
+            }
+            ServiceDto(
+                id = s.id,
+                title = s.title,
+                description = s.description,
+                prices = priceItems
+            )
+        }
     }
 
     /**

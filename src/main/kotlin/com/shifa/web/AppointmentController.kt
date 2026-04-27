@@ -43,6 +43,9 @@ class AppointmentController(
         val endAt: String,
         val location: String,
         val status: String,
+        val paymentStatus: String,
+        val paymentAmountMinor: Long?,
+        val paymentCurrency: String?,
         val signatureRequested: Boolean,
         val patientSignedAt: String?,
         val patientSignatureImageBase64: String?
@@ -71,6 +74,9 @@ class AppointmentController(
             endAt = appointment.endAt.toString(),
             location = appointment.location,
             status = appointment.status.name,
+            paymentStatus = appointment.paymentStatus.name,
+            paymentAmountMinor = appointment.paymentAmountMinor,
+            paymentCurrency = appointment.paymentCurrency,
             signatureRequested = appointment.signatureRequested,
             patientSignedAt = appointment.patientSignedAt?.toString(),
             patientSignatureImageBase64 = appointment.patientSignatureImage

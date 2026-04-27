@@ -114,7 +114,8 @@ class BookingController(
                 location = location,
                 locationRef = locationRef,
                 reason = b.reason,
-                status = Appointment.Status.CONFIRMED
+                status = Appointment.Status.CONFIRMED,
+                paymentStatus = Appointment.PaymentStatus.NOT_REQUIRED
             )
         )
 

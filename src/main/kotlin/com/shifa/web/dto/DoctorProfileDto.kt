@@ -26,5 +26,7 @@ data class DoctorProfileDto(
     val locationDistrict: String?,
     val locationCity: String?,
     val locationPostalCode: String?,
-    val locationStreetAddress: String?
+    val locationStreetAddress: String?,
+    val consultationPriceMinor: Long?,
+    val consultationCurrency: String?
 )

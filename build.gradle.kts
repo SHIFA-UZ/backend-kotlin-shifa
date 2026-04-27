@@ -72,6 +72,9 @@ dependencies {
 
     // Cloud SQL socket factory for GCP Cloud Run
     implementation("com.google.cloud.sql:postgres-socket-factory:1.15.2")
+
+    // Payments
+    implementation("com.stripe:stripe-java:30.1.0")
 }
 
 tasks.withType<Test> {

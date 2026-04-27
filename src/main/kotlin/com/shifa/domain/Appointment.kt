@@ -37,6 +37,22 @@ class Appointment(
     @Column(nullable = false)
     var status: Status = Status.REQUESTED,
 
+    @Column(name = "payment_amount_minor")
+    var paymentAmountMinor: Long? = null,
+
+    @Column(name = "payment_currency", length = 3)
+    var paymentCurrency: String? = null,
+
+    @Column(name = "service_id")
+    var serviceId: Long? = null,
+
+    @Column(name = "service_title", length = 160)
+    var serviceTitle: String? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_status", nullable = false, length = 32)
+    var paymentStatus: PaymentStatus = PaymentStatus.NOT_REQUIRED,
+
     @Column(name = "signature_requested", nullable = false)
     var signatureRequested: Boolean = false,
 
@@ -47,4 +63,5 @@ class Appointment(
     var patientSignedAt: Instant? = null
 ) {
     enum class Status { REQUESTED, CONFIRMED, CANCELLED, COMPLETED }
+    enum class PaymentStatus { NOT_REQUIRED, PENDING, PAID, FAILED, REFUNDED }
 }

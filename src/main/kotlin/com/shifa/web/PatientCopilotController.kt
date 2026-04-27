@@ -563,7 +563,10 @@ class PatientCopilotController(
             "endAt" to booked.endAt,
             "location" to booked.location,
             "reason" to booked.reason,
-            "status" to booked.status
+            "status" to booked.status,
+            "paymentStatus" to booked.paymentStatus,
+            "paymentAmountMinor" to booked.paymentAmountMinor,
+            "paymentCurrency" to booked.paymentCurrency
         )
     }
 }

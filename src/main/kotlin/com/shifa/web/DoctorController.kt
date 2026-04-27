@@ -102,7 +102,9 @@ class DoctorController(
         val locationPostalCode: String?,
         val locationStreetAddress: String?,
         /** IANA time zone id (e.g. Europe/Berlin). Used for scheduling and calendar. */
-        val timeZone: String?
+        val timeZone: String?,
+        val consultationPriceMinor: Long?,
+        val consultationCurrency: String?
     )
 
     data class ContactDto(
@@ -114,7 +116,10 @@ class DoctorController(
         val billingName: String?,
         val billingEmail: String?,
         val iban: String?,
-        val taxId: String?
+        val taxId: String?,
+        val stripeConnectAccountId: String?,
+        val clickMerchantId: String?,
+        val paymeMerchantId: String?
     )
 
     data class SettingsDto(
@@ -196,7 +201,9 @@ class DoctorController(
                 locationCity = d.locationCity,
                 locationPostalCode = d.locationPostalCode,
                 locationStreetAddress = d.locationStreetAddress,
-                timeZone = d.timeZone
+                timeZone = d.timeZone,
+                consultationPriceMinor = d.consultationPriceMinor,
+                consultationCurrency = d.consultationCurrency
             ),
             "contact" to ContactDto(
                 phone = d.user.phone ?: "",
@@ -206,7 +213,10 @@ class DoctorController(
                 billingName = b?.billingName,
                 billingEmail = b?.billingEmail,
                 iban = b?.iban,
-                taxId = b?.taxId
+                taxId = b?.taxId,
+                stripeConnectAccountId = b?.stripeConnectAccountId,
+                clickMerchantId = b?.clickMerchantId,
+                paymeMerchantId = b?.paymeMerchantId
             ),
             "settings" to SettingsDto(
                 country = s?.country,
@@ -264,6 +274,8 @@ class DoctorController(
         body.locationPostalCode?.let { d.locationPostalCode = it }
         body.locationStreetAddress?.let { d.locationStreetAddress = it }
         body.timeZone?.let { d.timeZone = it }
+        body.consultationPriceMinor?.let { d.consultationPriceMinor = it }
+        body.consultationCurrency?.let { d.consultationCurrency = it.uppercase() }
 
         doctors.save(d)
 
@@ -292,7 +304,9 @@ class DoctorController(
             locationCity = d.locationCity,
             locationPostalCode = d.locationPostalCode,
             locationStreetAddress = d.locationStreetAddress,
-            timeZone = d.timeZone
+            timeZone = d.timeZone,
+            consultationPriceMinor = d.consultationPriceMinor,
+            consultationCurrency = d.consultationCurrency
         )
     }
 
@@ -329,6 +343,9 @@ class DoctorController(
         b.billingEmail = body.billingEmail
         b.iban = body.iban
         b.taxId = body.taxId
+        b.stripeConnectAccountId = body.stripeConnectAccountId
+        b.clickMerchantId = body.clickMerchantId
+        b.paymeMerchantId = body.paymeMerchantId
         b.updatedAt = OffsetDateTime.now()
 
         billingRepo.save(b)

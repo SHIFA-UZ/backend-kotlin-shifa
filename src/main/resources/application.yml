@@ -123,3 +123,9 @@ scribe:
   temp-retention-minutes: 60
   max-audio-size-bytes: 26214400  # 25 MB (Whisper limit)
   daily-webhook-secret: ${DAILY_WEBHOOK_SECRET:}
+
+stripe:
+  secretKey: ${STRIPE_SECRET_KEY:}
+  webhookSecret: ${STRIPE_WEBHOOK_SECRET:}
+  connectRefreshUrl: ${STRIPE_CONNECT_REFRESH_URL:http://localhost:8080/settings/billing}
+  connectReturnUrl: ${STRIPE_CONNECT_RETURN_URL:http://localhost:8080/settings/billing}

@@ -24,3 +24,12 @@ class DailyProperties {
     lateinit var apiKey: String
     var apiUrl: String = "https://api.daily.co/v1"
 }
+
+@Component
+@ConfigurationProperties(prefix = "stripe")
+class StripeProperties {
+    var secretKey: String = ""
+    var webhookSecret: String = ""
+    var connectRefreshUrl: String = ""
+    var connectReturnUrl: String = ""
+}

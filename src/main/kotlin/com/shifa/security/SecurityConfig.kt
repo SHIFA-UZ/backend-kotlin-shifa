@@ -75,6 +75,7 @@ class SecurityConfig(
                 it.requestMatchers("/api/test/**").permitAll() // Test endpoints for development
                 it.requestMatchers("/api/public/**").permitAll() // Public endpoints (doctor listings)
                 it.requestMatchers("/api/webhooks/daily").permitAll() // Daily.co webhook (no auth)
+                it.requestMatchers("/api/webhooks/stripe").permitAll() // Stripe webhook (signature verified)
                 it.requestMatchers("/actuator/health/**").permitAll() // Health check endpoint
                 it.requestMatchers("/error").permitAll()
 
@@ -99,10 +100,13 @@ class SecurityConfig(
                 it.requestMatchers("/api/doctors/me", "/api/doctors/me/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/schedule/**").hasRole("DOCTOR") // Includes /api/schedule/book (doctor books for patient)
                 it.requestMatchers("/api/doctor/analytics/**").hasRole("DOCTOR")
+                it.requestMatchers("/api/doctor/subscription/**").hasRole("DOCTOR")
+                it.requestMatchers("/api/doctor/payments/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/calendar/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/appointments/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/consultations/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/messages/**").hasRole("DOCTOR")
+                it.requestMatchers("/api/payments/**").hasRole("PATIENT")
                 // Patient: own remote care tasks (my-tasks)
                 it.requestMatchers("/api/tasks/my-tasks", "/api/tasks/my-tasks/**").hasRole("PATIENT")
                 it.requestMatchers("/api/tasks/**").hasRole("DOCTOR")

@@ -9,6 +9,8 @@ import com.shifa.domain.PatientProfile
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DoctorLocationRepository
 import com.shifa.repo.DoctorProfileRepository
+import com.shifa.repo.DoctorServicePriceRepository
+import com.shifa.repo.DoctorServiceRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.PatientPrincipal
@@ -40,6 +42,8 @@ class PatientController(
     private val appProps: AppProperties,
     private val doctorProfiles: DoctorProfileRepository,
     private val doctorLocations: DoctorLocationRepository,
+    private val doctorServices: DoctorServiceRepository,
+    private val doctorServicePrices: DoctorServicePriceRepository,
     private val patientDocumentService: PatientDocumentService,
     private val notifications: NotificationRepository,
     private val fcmService: FcmService
@@ -116,6 +120,9 @@ class PatientController(
         val location: String,
         val reason: String?,
         val status: String,
+        val paymentStatus: String? = null,
+        val paymentAmountMinor: Long? = null,
+        val paymentCurrency: String? = null,
         val locationId: Long? = null,
         val locationLabel: String? = null,
         val locationAddress: String? = null
@@ -128,6 +135,7 @@ class PatientController(
         val slotMinutes: Int = 30,
         val reason: String?,
         val isVideo: Boolean = false,
+        val serviceId: Long? = null,
         /**
          * Optional practice location id. If the doctor has multiple structured locations, the
          * patient MUST pick one (unless the booking is a video consultation). For single-location
@@ -364,6 +372,26 @@ class PatientController(
             else -> doctor.clinic ?: "Clinic"
         }
 
+        val selectedService = req.serviceId?.let {
+            doctorServices.findById(it).orElseThrow {
+                ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service not found")
+            }
+        }
+        if (req.isVideo && selectedService == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "serviceId is required for video consultation")
+        }
+        if (selectedService != null && selectedService.doctor.id != doctor.id) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service does not belong to doctor")
+        }
+        if (selectedService != null && !selectedService.isActive) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service is not active")
+        }
+        val selectedServicePrice = selectedService?.let { svc ->
+            val prices = doctorServicePrices.findByService_IdOrderByCurrencyAsc(svc.id)
+            prices.firstOrNull()
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service has no price configured")
+        }
+
         val appointment = Appointment(
             doctor = doctor,
             patient = profile,
@@ -372,7 +400,16 @@ class PatientController(
             location = location,
             locationRef = locationRef,
             reason = req.reason,
-            status = Appointment.Status.CONFIRMED
+            status = Appointment.Status.REQUESTED,
+            paymentAmountMinor = selectedServicePrice?.amountMinor ?: doctor.consultationPriceMinor,
+            paymentCurrency = selectedServicePrice?.currency ?: doctor.consultationCurrency,
+            serviceId = selectedService?.id,
+            serviceTitle = selectedService?.title,
+            paymentStatus = if ((selectedServicePrice?.amountMinor ?: doctor.consultationPriceMinor) != null) {
+                Appointment.PaymentStatus.PENDING
+            } else {
+                Appointment.PaymentStatus.NOT_REQUIRED
+            }
         )
 
         val saved = appointments.save(appointment)
@@ -401,6 +438,9 @@ class PatientController(
             location = saved.location,
             reason = saved.reason,
             status = saved.status.name,
+            paymentStatus = saved.paymentStatus.name,
+            paymentAmountMinor = saved.paymentAmountMinor,
+            paymentCurrency = saved.paymentCurrency,
             locationId = saved.locationRef?.id,
             locationLabel = saved.locationRef?.label,
             locationAddress = saved.locationRef?.address

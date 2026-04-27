@@ -15,6 +15,9 @@ class DoctorBilling(
     var billingEmail: String? = null,
     var iban: String? = null,
     var taxId: String? = null,
+    var stripeConnectAccountId: String? = null,
+    var clickMerchantId: String? = null,
+    var paymeMerchantId: String? = null,
 
     @Column(nullable = false)
     var updatedAt: OffsetDateTime = OffsetDateTime.now()

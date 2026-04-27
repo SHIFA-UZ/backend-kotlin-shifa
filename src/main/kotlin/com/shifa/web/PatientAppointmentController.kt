@@ -39,6 +39,9 @@ class PatientAppointmentController(
         val location: String,
         val reason: String?,
         val status: String,
+        val paymentStatus: String,
+        val paymentAmountMinor: Long?,
+        val paymentCurrency: String?,
         val signatureRequested: Boolean,
         val alreadySigned: Boolean
     )
@@ -72,6 +75,9 @@ class PatientAppointmentController(
                 location = appointment.location.ifEmpty { "—" },
                 reason = appointment.reason,
                 status = appointment.status.name,
+                paymentStatus = appointment.paymentStatus.name,
+                paymentAmountMinor = appointment.paymentAmountMinor,
+                paymentCurrency = appointment.paymentCurrency,
                 signatureRequested = appointment.signatureRequested,
                 alreadySigned = appointment.patientSignatureImage != null
             )
