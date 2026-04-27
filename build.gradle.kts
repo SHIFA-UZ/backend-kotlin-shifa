@@ -61,6 +61,9 @@ dependencies {
     // SECURITY (NEW): Rate limiting - Bucket4j for DDoS/abuse protection
     implementation("com.bucket4j:bucket4j_jdk17-core:8.16.1")
 
+    // Stripe Java SDK - payment processing and webhook signature verification
+    implementation("com.stripe:stripe-java:24.22.0")
+
     // Firebase Admin SDK - verify ID tokens (phone OTP doctor login)
     implementation("com.google.firebase:firebase-admin:9.4.0")
 
