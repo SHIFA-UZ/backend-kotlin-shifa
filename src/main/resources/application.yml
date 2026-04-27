@@ -123,3 +123,9 @@ scribe:
   temp-retention-minutes: 60
   max-audio-size-bytes: 26214400  # 25 MB (Whisper limit)
   daily-webhook-secret: ${DAILY_WEBHOOK_SECRET:}
+
+# Stripe payment configuration
+# Set STRIPE_WEBHOOK_SECRET to the signing secret from your Stripe Dashboard
+# (Developers → Webhooks → [your endpoint] → Signing secret)
+stripe:
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET:}

@@ -146,3 +146,9 @@ daily:
 # In production, set GOOGLE_MAPS_API_KEY environment variable
 googleMaps:
   apiKey: ${GOOGLE_MAPS_API_KEY:}
+
+# Stripe payment configuration
+# Set STRIPE_WEBHOOK_SECRET to the signing secret from your Stripe Dashboard
+# (Developers → Webhooks → [your endpoint] → Signing secret)
+stripe:
+  webhook-secret: ${STRIPE_WEBHOOK_SECRET}
