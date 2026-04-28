@@ -153,6 +153,21 @@ class VideoController(
                 )
             }
 
+            // Payment gate for paid consultations: token can be issued only after payment is confirmed.
+            val requiresPayment = (appointment.paymentAmountMinor ?: 0L) > 0L
+            if (requiresPayment && appointment.paymentStatus != com.shifa.domain.Appointment.PaymentStatus.PAID) {
+                logger.warn(
+                    "Video token blocked for appointment {} due to unpaid status: paymentStatus={}, amountMinor={}",
+                    appointment.id,
+                    appointment.paymentStatus,
+                    appointment.paymentAmountMinor
+                )
+                throw ResponseStatusException(
+                    HttpStatus.PAYMENT_REQUIRED,
+                    "Payment is required before joining this video consultation."
+                )
+            }
+
             // Verify user has access to this appointment
             if (isDoctor && doctor != null) {
                 if (appointment.doctor?.id != doctor.id) {

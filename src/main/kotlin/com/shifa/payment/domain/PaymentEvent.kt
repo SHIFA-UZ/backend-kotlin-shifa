@@ -39,6 +39,15 @@ class PaymentEvent(
     @Column(name = "failure_reason", columnDefinition = "TEXT")
     var failureReason: String? = null,
 
+    @Column(name = "retry_count", nullable = false)
+    var retryCount: Int = 0,
+
+    @Column(name = "last_retry_at")
+    var lastRetryAt: Instant? = null,
+
+    @Column(name = "retried_by_admin_user_id")
+    var retriedByAdminUserId: Long? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now()
 )

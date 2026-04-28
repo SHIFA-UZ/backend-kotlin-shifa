@@ -7,6 +7,7 @@ import com.shifa.payment.domain.DoctorSubscriptionStatus
 import com.shifa.payment.domain.PaymentGatewayCode
 import com.shifa.payment.repo.DoctorSubscriptionRepository
 import com.shifa.payment.repo.SubscriptionPlanRepository
+import com.stripe.exception.StripeException
 import com.stripe.Stripe
 import com.stripe.model.Subscription
 import com.stripe.model.checkout.Session
@@ -104,17 +105,21 @@ class SubscriptionService(
             )
             .build()
 
-        val session = Session.create(
-            SessionCreateParams.builder()
-                .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
-                .setClientReferenceId("doctor_${doctor.id}_${plan.code}")
-                .putMetadata("doctorId", doctor.id.toString())
-                .putMetadata("planCode", plan.code)
-                .setSuccessUrl("${appProperties.publicBaseUrl.removeSuffix("/")}/doctor/subscription/success")
-                .setCancelUrl("${appProperties.publicBaseUrl.removeSuffix("/")}/doctor/subscription/cancel")
-                .addLineItem(lineItem)
-                .build()
-        )
+        val session = try {
+            Session.create(
+                SessionCreateParams.builder()
+                    .setMode(SessionCreateParams.Mode.SUBSCRIPTION)
+                    .setClientReferenceId("doctor_${doctor.id}_${plan.code}")
+                    .putMetadata("doctorId", doctor.id.toString())
+                    .putMetadata("planCode", plan.code)
+                    .setSuccessUrl("${appProperties.publicBaseUrl.removeSuffix("/")}/doctor/subscription/success")
+                    .setCancelUrl("${appProperties.publicBaseUrl.removeSuffix("/")}/doctor/subscription/cancel")
+                    .addLineItem(lineItem)
+                    .build()
+            )
+        } catch (e: StripeException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe subscription checkout failed: ${e.message}", e)
+        }
 
         return SubscriptionCheckoutResult(
             checkoutUrl = session.url ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe checkout URL missing"),

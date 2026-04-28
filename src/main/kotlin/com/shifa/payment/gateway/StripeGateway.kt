@@ -2,6 +2,7 @@ package com.shifa.payment.gateway
 
 import com.shifa.config.StripeProperties
 import com.shifa.payment.domain.PaymentGatewayCode
+import com.stripe.exception.StripeException
 import com.stripe.Stripe
 import com.stripe.param.checkout.SessionCreateParams
 import com.stripe.param.checkout.SessionCreateParams.LineItem.PriceData
@@ -9,7 +10,9 @@ import com.stripe.param.checkout.SessionCreateParams.LineItem.PriceData.ProductD
 import com.stripe.param.checkout.SessionCreateParams.PaymentIntentData
 import com.stripe.param.checkout.SessionCreateParams.PaymentMethodType
 import com.stripe.model.checkout.Session
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
+import org.springframework.web.server.ResponseStatusException
 
 @Component
 class StripeGateway(
@@ -58,7 +61,15 @@ class StripeGateway(
             )
         }
 
-        val session = Session.create(builder.build())
+        val session = try {
+            Session.create(builder.build())
+        } catch (e: StripeException) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Stripe checkout creation failed: ${e.message}",
+                e
+            )
+        }
         return GatewayCheckoutResult(
             gatewayPaymentId = session.id,
             checkoutUrl = session.url ?: "",

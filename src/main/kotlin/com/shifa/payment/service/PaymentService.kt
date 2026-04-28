@@ -12,6 +12,7 @@ import com.shifa.payment.repo.PaymentRepository
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DoctorBillingRepository
 import com.shifa.repo.PatientProfileRepository
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -28,6 +29,8 @@ class PaymentService(
     private val paymentGatewayRouter: PaymentGatewayRouter,
     private val appProperties: AppProperties
 ) {
+    private val log = LoggerFactory.getLogger(PaymentService::class.java)
+
     data class ConsultationCheckoutResult(
         val paymentId: Long,
         val externalRef: String,
@@ -66,6 +69,22 @@ class PaymentService(
         val externalRef = UUID.randomUUID().toString().replace("-", "")
         val gateway = paymentGatewayRouter.getOrDefault(preferredGateway)
         val doctorBilling = doctorBillingRepository.findByDoctorId(appointment.doctor.id).orElse(null)
+        val destinationAccountId = doctorBilling?.stripeConnectAccountId?.takeIf { it.isNotBlank() }
+
+        if (destinationAccountId == null) {
+            log.info(
+                "Consultation payment {} has no connected payout account for doctor {}. Funds will settle on platform account.",
+                externalRef,
+                appointment.doctor.id
+            )
+        } else {
+            log.info(
+                "Consultation payment {} will route to connected account {} for doctor {}.",
+                externalRef,
+                destinationAccountId,
+                appointment.doctor.id
+            )
+        }
 
         val gatewayResult = gateway.createCheckout(
             GatewayCheckoutRequest(
@@ -74,7 +93,7 @@ class PaymentService(
                 currency = currency,
                 kind = PaymentKind.CONSULTATION,
                 description = "Consultation payment for appointment #${appointment.id}",
-                destinationAccountId = doctorBilling?.stripeConnectAccountId,
+                destinationAccountId = destinationAccountId,
                 successUrl = "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef",
                 cancelUrl = "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef"
             )

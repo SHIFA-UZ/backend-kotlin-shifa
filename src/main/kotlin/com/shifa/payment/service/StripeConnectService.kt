@@ -4,6 +4,7 @@ import com.shifa.config.StripeProperties
 import com.shifa.domain.DoctorBilling
 import com.shifa.repo.DoctorBillingRepository
 import com.shifa.repo.DoctorProfileRepository
+import com.stripe.exception.StripeException
 import com.stripe.Stripe
 import com.stripe.model.Account
 import com.stripe.model.AccountLink
@@ -43,37 +44,45 @@ class StripeConnectService(
         val billing = doctorBillingRepository.findByDoctorId(doctorId).orElse(DoctorBilling(doctor = doctor))
 
         val accountId = billing.stripeConnectAccountId?.takeIf { it.isNotBlank() } ?: run {
-            val account = Account.create(
-                AccountCreateParams.builder()
-                    .setType(AccountCreateParams.Type.EXPRESS)
-                    .setCountry(if (doctor.locationCountry.equals("UZ", true)) "UZ" else "DE")
-                    .setEmail(doctor.user.email ?: billing.billingEmail ?: "")
-                    .setBusinessType(AccountCreateParams.BusinessType.INDIVIDUAL)
-                    .setCapabilities(
-                        AccountCreateParams.Capabilities.builder()
-                            .setTransfers(
-                                AccountCreateParams.Capabilities.Transfers.builder()
-                                    .setRequested(true)
-                                    .build()
-                            )
-                            .build()
-                    )
-                    .build()
-            )
+            val account = try {
+                Account.create(
+                    AccountCreateParams.builder()
+                        .setType(AccountCreateParams.Type.EXPRESS)
+                        .setCountry(if (doctor.locationCountry.equals("UZ", true)) "UZ" else "DE")
+                        .setEmail(doctor.user.email ?: billing.billingEmail ?: "")
+                        .setBusinessType(AccountCreateParams.BusinessType.INDIVIDUAL)
+                        .setCapabilities(
+                            AccountCreateParams.Capabilities.builder()
+                                .setTransfers(
+                                    AccountCreateParams.Capabilities.Transfers.builder()
+                                        .setRequested(true)
+                                        .build()
+                                )
+                                .build()
+                        )
+                        .build()
+                )
+            } catch (e: StripeException) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe Connect onboarding failed: ${e.message}", e)
+            }
             billing.stripeConnectAccountId = account.id
             billing.updatedAt = OffsetDateTime.now()
             doctorBillingRepository.save(billing)
             account.id
         }
 
-        val accountLink = AccountLink.create(
-            AccountLinkCreateParams.builder()
-                .setAccount(accountId)
-                .setRefreshUrl(refreshUrl ?: stripeProperties.connectRefreshUrl)
-                .setReturnUrl(returnUrl ?: stripeProperties.connectReturnUrl)
-                .setType(AccountLinkCreateParams.Type.ACCOUNT_ONBOARDING)
-                .build()
-        )
+        val accountLink = try {
+            AccountLink.create(
+                AccountLinkCreateParams.builder()
+                    .setAccount(accountId)
+                    .setRefreshUrl(refreshUrl ?: stripeProperties.connectRefreshUrl)
+                    .setReturnUrl(returnUrl ?: stripeProperties.connectReturnUrl)
+                    .setType(AccountLinkCreateParams.Type.ACCOUNT_ONBOARDING)
+                    .build()
+            )
+        } catch (e: StripeException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Stripe Connect link creation failed: ${e.message}", e)
+        }
 
         return ConnectOnboardingResult(accountId = accountId, onboardingUrl = accountLink.url)
     }
