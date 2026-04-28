@@ -8,7 +8,6 @@ import com.stripe.param.checkout.SessionCreateParams.LineItem.PriceData
 import com.stripe.param.checkout.SessionCreateParams.LineItem.PriceData.ProductData
 import com.stripe.param.checkout.SessionCreateParams.PaymentIntentData
 import com.stripe.param.checkout.SessionCreateParams.PaymentMethodType
-import com.stripe.param.checkout.SessionCreateParams.SavedPaymentMethodOptions
 import com.stripe.model.checkout.Session
 import org.springframework.stereotype.Component
 
@@ -47,9 +46,6 @@ class StripeGateway(
             .setCancelUrl(request.cancelUrl ?: "https://example.com/payment-cancel")
             .addPaymentMethodType(PaymentMethodType.CARD)
             .addPaymentMethodType(PaymentMethodType.PAYPAL)
-            .setSavedPaymentMethodOptions(
-                SavedPaymentMethodOptions.builder().setPaymentMethodSave(SavedPaymentMethodOptions.PaymentMethodSave.ENABLED).build()
-            )
 
         if (!request.destinationAccountId.isNullOrBlank()) {
             builder.setPaymentIntentData(
