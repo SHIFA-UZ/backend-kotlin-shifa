@@ -400,7 +400,14 @@ class PatientController(
             location = location,
             locationRef = locationRef,
             reason = req.reason,
-            status = Appointment.Status.REQUESTED,
+            // Business rule:
+            // - On-site (no payment required): immediately confirmed.
+            // - Paid video: requested until payment webhook marks it paid+confirmed.
+            status = if ((selectedServicePrice?.amountMinor ?: doctor.consultationPriceMinor) != null) {
+                Appointment.Status.REQUESTED
+            } else {
+                Appointment.Status.CONFIRMED
+            },
             paymentAmountMinor = selectedServicePrice?.amountMinor ?: doctor.consultationPriceMinor,
             paymentCurrency = selectedServicePrice?.currency ?: doctor.consultationCurrency,
             serviceId = selectedService?.id,

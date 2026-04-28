@@ -34,6 +34,7 @@ class CalendarController(
         val location: String? = null,
         val reason: String? = null,
         val status: String? = null, // Appointment status: CONFIRMED, COMPLETED, CANCELLED, REQUESTED
+        val paymentStatus: String? = null, // For video payment visibility in doctor calendar
         val signatureRequested: Boolean = false,
         val patientSignedAt: String? = null, // ISO when patient signed
         /** Which practice location this slot/appointment belongs to (null for video/legacy). */
@@ -247,6 +248,7 @@ class CalendarController(
                         location = ap.location,
                         reason = ap.reason,
                         status = ap.status.name,
+                        paymentStatus = ap.paymentStatus.name,
                         signatureRequested = ap.signatureRequested,
                         patientSignedAt = ap.patientSignedAt?.toString(),
                         locationId = ap.locationRef?.id,

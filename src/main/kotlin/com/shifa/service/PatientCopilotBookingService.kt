@@ -139,7 +139,11 @@ class PatientCopilotBookingService(
                 location = location,
                 locationRef = locationRef,
                 reason = reason,
-                status = Appointment.Status.REQUESTED,
+                status = if (doctor.consultationPriceMinor != null) {
+                    Appointment.Status.REQUESTED
+                } else {
+                    Appointment.Status.CONFIRMED
+                },
                 paymentAmountMinor = doctor.consultationPriceMinor,
                 paymentCurrency = doctor.consultationCurrency,
                 paymentStatus = if (doctor.consultationPriceMinor != null) {
