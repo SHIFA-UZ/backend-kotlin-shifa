@@ -45,7 +45,6 @@ class StripeGateway(
             .setSuccessUrl(request.successUrl ?: "https://example.com/payment-success")
             .setCancelUrl(request.cancelUrl ?: "https://example.com/payment-cancel")
             .addPaymentMethodType(PaymentMethodType.CARD)
-            .addPaymentMethodType(PaymentMethodType.PAYPAL)
 
         if (!request.destinationAccountId.isNullOrBlank()) {
             builder.setPaymentIntentData(
