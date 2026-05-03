@@ -2,6 +2,7 @@ package com.shifa.web
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.ai.OutputLanguage
+import com.shifa.ai.SpecialtyTaxonomy
 import com.shifa.ai.SymptomMatcher
 import com.shifa.config.AppProperties
 import com.shifa.domain.DoctorProfile
@@ -12,6 +13,7 @@ import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.PatientPrincipal
 import com.shifa.service.OpenAiResponsesService
 import com.shifa.service.PatientCopilotBookingService
+import com.shifa.service.PatientCopilotContextService
 import com.shifa.service.PatientDaySlotsService
 import com.shifa.service.TranscriptionService
 import com.shifa.web.dto.PatientCopilotAiRequest
@@ -46,6 +48,7 @@ class PatientCopilotController(
     private val doctorProfiles: DoctorProfileRepository,
     private val reviewRepository: DoctorReviewRepository,
     private val copilotBookingService: PatientCopilotBookingService,
+    private val copilotContextService: PatientCopilotContextService,
     private val daySlotsService: PatientDaySlotsService,
     private val appProps: AppProperties,
     private val objectMapper: ObjectMapper
@@ -142,10 +145,26 @@ class PatientCopilotController(
                     throw AiStreamException("VALIDATION", ex.message ?: "Invalid AI request")
                 }
                 runBlocking {
+                    val latestUser = conversation.asReversed().firstOrNull { it.role == "user" }?.content.orEmpty()
+                    val intent = copilotContextService.detectIntent(latestUser)
+                    val coreContext = copilotContextService.getPatientContextJson(profile, intent)
+                    val docsContext = if (intent == PatientCopilotContextService.Intent.DOCUMENTS) {
+                        copilotContextService.getPatientDocumentsJson(profile, includeSnippets = true, limit = 4)
+                    } else {
+                        emptyMap<String, Any?>()
+                    }
+                    val extraContext = objectMapper.writeValueAsString(
+                        mapOf(
+                            "intent" to intent.name,
+                            "patientContext" to coreContext,
+                            "documents" to docsContext["documents"]
+                        )
+                    )
                     aiService.streamPatientCopilot(
                         patient = profile,
                         messages = conversation,
-                        language = request.language
+                        language = request.language,
+                        extraContext = extraContext
                     ).collect { token ->
                         emitter.send(token)
                     }
@@ -302,12 +321,17 @@ class PatientCopilotController(
 
         // 1) Profession-based match (exact or substring match on DB profession field).
         val allEnabled = doctorProfiles.findAllByUserEnabled()
+        val normalizedTargets = inference.specialties
+            .mapNotNull { SpecialtyTaxonomy.normalize(it) }
+            .toSet()
         for (specialty in inference.specialties) {
             val needle = specialty.lowercase().trim()
             if (needle.isBlank()) continue
             for (d in allEnabled) {
                 val prof = d.profession?.lowercase()?.trim() ?: continue
-                if (prof == needle || prof.contains(needle) || needle.contains(prof)) {
+                val profNorm = SpecialtyTaxonomy.normalize(prof)
+                val taxonomyMatch = profNorm != null && profNorm in normalizedTargets
+                if (taxonomyMatch) {
                     val id = d.id ?: continue
                     if (seen.add(id)) candidates.add(d)
                 }
@@ -343,7 +367,8 @@ class PatientCopilotController(
             val doctor: DoctorProfile,
             val rating: Double,
             val nextSlotAt: Instant?,  // null when no free slot within window
-            val distanceKm: Double?    // null when coordinates unknown
+            val distanceKm: Double?,   // null when coordinates unknown
+            val reason: String
         )
 
         // Cap how many doctors we score to keep request fast (slot scan is O(days * rules) each).
@@ -355,7 +380,13 @@ class PatientCopilotController(
             val distKm = if (patientLat != null && patientLng != null && d.latitude != null && d.longitude != null) {
                 haversineKm(patientLat, patientLng, d.latitude!!, d.longitude!!)
             } else null
-            Scored(d, rating, next, distKm)
+            val prof = d.profession?.trim().orEmpty()
+            val reason = if (inference.specialties.isNotEmpty()) {
+                "Matched specialty ${inference.specialties.first()} with doctor profession ${if (prof.isNotBlank()) prof else "N/A"}."
+            } else {
+                "Matched by symptom terms: ${inference.searchTerms.joinToString(", ")}"
+            }
+            Scored(d, rating, next, distKm, reason)
         }
 
         // Sort: bucket rating to 0.5 so strong candidates aren't edged out by 0.1 rating differences;
@@ -369,15 +400,44 @@ class PatientCopilotController(
 
         val doctors = sorted.take(12).map { s ->
             toDoctorDto(s.doctor, s.distanceKm) + mapOf(
-                "nextAvailableStartAt" to s.nextSlotAt?.toString()
+                "nextAvailableStartAt" to s.nextSlotAt?.toString(),
+                "recommendationReason" to s.reason,
+                "triggeredBySymptoms" to inference.searchTerms
             )
         }
+        val symptomClarity = when {
+            inference.searchTerms.size >= 3 -> 1.0
+            inference.searchTerms.isNotEmpty() -> 0.7
+            else -> 0.3
+        }
+        val specialtyCertainty = when {
+            normalizedTargets.isNotEmpty() -> 1.0
+            inference.specialties.isNotEmpty() -> 0.6
+            else -> 0.2
+        }
+        val dataCompleteness = when {
+            doctors.isNotEmpty() -> 1.0
+            candidates.isNotEmpty() -> 0.6
+            else -> 0.2
+        }
+        val confidenceScore = (symptomClarity * 0.4 + specialtyCertainty * 0.35 + dataCompleteness * 0.25).coerceIn(0.0, 1.0)
 
         return mapOf(
             "needsMoreInfo" to false,
             "clarifyingQuestion" to null,
             "specialties" to inference.specialties,
-            "doctors" to doctors
+            "doctors" to doctors,
+            "confidenceScore" to confidenceScore,
+            "uncertaintyMessage" to if (confidenceScore < 0.55) {
+                "I am not fully certain yet. Please clarify key symptoms or preferred doctor/time."
+            } else null,
+            "diagnostics" to mapOf(
+                "normalizedSpecialties" to normalizedTargets.toList(),
+                "llmSpecialties" to inference.specialties,
+                "llmSearchTerms" to inference.searchTerms,
+                "candidateCount" to candidates.size,
+                "scoredCount" to scored.size
+            )
         )
     }
 
@@ -408,14 +468,18 @@ class PatientCopilotController(
             patientTimeZone = profile.timeZone,
             allowedDoctorIds = body.allowedDoctorIds
         )
-        if (!intent.bookNow || !intent.userExplicitConsentToAutoBook) {
+        val effectiveDoctorId = intent.doctorId ?: parseDoctorIdFallback(body.messages, body.allowedDoctorIds)
+        val effectivePreferred = parsePreferredInstantFallback(intent.preferredStartAtUtc, body.messages, profile.timeZone)
+        val effectiveIsVideo = intent.isVideo ?: parseVisitTypeFallback(body.messages)
+
+        if (!intent.userExplicitConsentToAutoBook) {
             return mapOf(
                 "booked" to false,
                 "reasonCode" to "NO_CONSENT_OR_INCOMPLETE",
                 "message" to "Please confirm doctor, date/time, and visit type (video or in person)."
             )
         }
-        val doctorId = intent.doctorId ?: return mapOf(
+        val doctorId = effectiveDoctorId ?: return mapOf(
             "booked" to false,
             "reasonCode" to "DOCTOR_MISSING",
             "message" to "Please choose one doctor from the suggested list."
@@ -445,30 +509,29 @@ class PatientCopilotController(
                 "message" to "Doctor not found"
             )
         }
-        val prefStr = intent.preferredStartAtUtc ?: return mapOf(
+        val preferred = effectivePreferred ?: return mapOf(
             "booked" to false,
             "reasonCode" to "TIME_MISSING",
             "message" to "Please share your preferred date and time."
         )
-        val video = intent.isVideo ?: return mapOf(
+        val video = effectiveIsVideo ?: return mapOf(
             "booked" to false,
             "reasonCode" to "VISIT_TYPE_MISSING",
             "message" to "Do you prefer a video visit or an in-person clinic visit?"
         )
-        val preferred = try {
-            Instant.parse(prefStr.trim())
-        } catch (_: Exception) {
-            return mapOf(
-                "booked" to false,
-                "reasonCode" to "INVALID_PREFERRED_TIME",
-                "message" to "Invalid preferred time"
-            )
-        }
         if (preferred.isBefore(Instant.now().minusSeconds(60))) {
             return mapOf(
                 "booked" to false,
                 "reasonCode" to "PREFERRED_TIME_IN_PAST",
                 "message" to "Preferred time is in the past. Please provide a future date and time."
+            )
+        }
+        val upcomingSlot = daySlotsService.nextAvailableStartAt(doctor, preferred.minusSeconds(3 * 3600), lookaheadDays = 28)
+        if (upcomingSlot == null) {
+            return mapOf(
+                "booked" to false,
+                "reasonCode" to "NO_UPCOMING_SLOTS",
+                "message" to "No available slots were found for this doctor in the next 28 days."
             )
         }
         val tzRaw = profile.timeZone?.trim().orEmpty()
@@ -531,6 +594,48 @@ class PatientCopilotController(
         } catch (e: Exception) {
             mapOf("booked" to false, "message" to (e.message ?: "Booking failed"))
         }
+    }
+
+    private fun parseDoctorIdFallback(messages: List<com.shifa.web.dto.AiMessageDto>, allowed: List<Long>?): Long? {
+        if (allowed.isNullOrEmpty()) return null
+        val latestUser = messages.asReversed().firstOrNull { it.role.equals("user", true) }?.content ?: return null
+        val idsMentioned = Regex("""\b\d+\b""").findAll(latestUser).mapNotNull { it.value.toLongOrNull() }.toSet()
+        val matched = allowed.filter { it in idsMentioned }
+        return if (matched.size == 1) matched.first() else null
+    }
+
+    private fun parsePreferredInstantFallback(
+        llmPreferredUtc: String?,
+        messages: List<com.shifa.web.dto.AiMessageDto>,
+        patientTimeZone: String?
+    ): Instant? {
+        llmPreferredUtc?.trim()?.let {
+            runCatching { return Instant.parse(it) }
+        }
+        val latestUser = messages.asReversed().firstOrNull { it.role.equals("user", true) }?.content?.lowercase() ?: return null
+        val zone = try {
+            ZoneId.of(patientTimeZone?.trim().takeUnless { it.isNullOrBlank() } ?: "UTC")
+        } catch (_: Exception) {
+            ZoneId.of("UTC")
+        }
+        val now = ZonedDateTime.now(zone)
+        val date = when {
+            "tomorrow" in latestUser -> now.toLocalDate().plusDays(1)
+            "today" in latestUser -> now.toLocalDate()
+            else -> now.toLocalDate()
+        }
+        val hhmm = Regex("""\b([01]?\d|2[0-3])[:.]([0-5]\d)\b""").find(latestUser)
+        val hour = hhmm?.groupValues?.getOrNull(1)?.toIntOrNull()
+        val minute = hhmm?.groupValues?.getOrNull(2)?.toIntOrNull()
+        if (hour == null || minute == null) return null
+        return date.atTime(hour, minute).atZone(zone).toInstant()
+    }
+
+    private fun parseVisitTypeFallback(messages: List<com.shifa.web.dto.AiMessageDto>): Boolean? {
+        val latestUser = messages.asReversed().firstOrNull { it.role.equals("user", true) }?.content?.lowercase() ?: return null
+        if (listOf("video", "online", "remote").any { latestUser.contains(it) }) return true
+        if (listOf("in person", "onsite", "clinic").any { latestUser.contains(it) }) return false
+        return null
     }
 
     /**

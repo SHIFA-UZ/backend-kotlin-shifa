@@ -4,6 +4,7 @@ import com.shifa.ai.PatientAiContext
 import com.shifa.ai.PatientCopilotPromptBuilder
 import com.shifa.ai.RedFlagEngine
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.fasterxml.jackson.module.kotlin.readValue
 import com.shifa.ai.MedicalPromptBuilder
 import com.shifa.ai.OutputLanguage
 import com.shifa.config.OpenAiProperties
@@ -27,8 +28,31 @@ import com.shifa.service.PatientVisitAskResult
 
 @Service
 class OpenAiResponsesService(
-    private val props: OpenAiProperties
+    private val props: OpenAiProperties,
+    private val copilotToolService: PatientCopilotToolService,
+    private val flowController: PatientCopilotFlowController
 ) {
+    data class ToolCallMessage(
+        val id: String,
+        val name: String,
+        val arguments: Map<String, Any?>,
+        val rawArguments: String
+    )
+
+    data class ToolResultMessage(
+        val toolCallId: String,
+        val name: String,
+        val result: Map<String, Any?>,
+        val durationMs: Long,
+        val failed: Boolean
+    )
+
+    data class AgentLoopOutcome(
+        val loopMessages: List<Map<String, Any?>>,
+        val progressEvents: List<String>,
+        val trace: List<Map<String, Any?>>
+    )
+
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val mapper = jacksonObjectMapper()
@@ -176,11 +200,16 @@ val request = Request.Builder()
     fun streamPatientCopilot(
         patient: PatientProfile,
         messages: List<AiMessageDto>,
-        language: OutputLanguage
+        language: OutputLanguage,
+        extraContext: String? = null
     ): Flow<String> = flow {
         val recordContext = PatientCopilotPromptBuilder.patientRecordContextPrompt(patient)
         val combinedInput = buildString {
             append(recordContext)
+            extraContext?.takeIf { it.isNotBlank() }?.let {
+                append(" ")
+                append(it)
+            }
             append(" ")
             append(messages.joinToString(" ") { it.content })
         }
@@ -210,12 +239,53 @@ val request = Request.Builder()
                 "content" to recordContext
             )
         )
+        extraContext?.takeIf { it.isNotBlank() }?.let {
+            systemMessages += mapOf(
+                "role" to "system",
+                "content" to it
+            )
+        }
+        val flowDecision = flowController.decideFlow(
+            messages = messages,
+            llmFallbackFlow = classifyFlowWithLlm(messages, language)
+        )
+        emit("Why this step: ${flowDecision.explainWhy}\n")
+        emit("What happens next: ${flowDecision.explainNext}\n")
+        if (flowDecision.flowType == PatientCopilotFlowController.FlowType.URGENT_CARE) {
+            emit("Possible emergency detected. Please seek urgent in-person care or emergency services.\n")
+        }
+        val flowState = PatientCopilotFlowController.FlowState(
+            currentFlow = flowDecision.flowType,
+            missingInputs = flowDecision.missingInputs.toMutableSet()
+        )
+        val firstStep = flowController.getNextRequiredStep(flowDecision.definition, flowState)
+        flowState.currentStep = firstStep?.name
+        flowState.nextStep = firstStep?.name
+        if (flowDecision.definition.orderedSteps.isNotEmpty() && firstStep != null) {
+            val total = flowDecision.definition.orderedSteps.size
+            val idx = flowDecision.definition.orderedSteps.indexOfFirst { it.name == firstStep.name } + 1
+            emit("Step $idx/$total: ${humanizeStepName(firstStep.name)}\n")
+        }
+        val loopOutcome = runAgentLoop(
+            patient = patient,
+            language = language,
+            messages = messages,
+            allowedTools = flowDecision.allowedTools,
+            requiredSteps = flowDecision.requiredSteps,
+            flowState = flowState,
+            definition = flowDecision.definition
+        )
+        for (evt in loopOutcome.progressEvents) {
+            emit("$evt\n")
+        }
 
         val payload = mapper.writeValueAsString(
             mapOf(
                 "model" to props.model,
                 "stream" to true,
-                "messages" to systemMessages + messages.map { mapOf("role" to it.role, "content" to it.content) }
+                "messages" to systemMessages +
+                    messages.map { mapOf("role" to it.role, "content" to it.content) } +
+                    loopOutcome.loopMessages
             )
         )
 
@@ -230,41 +300,507 @@ val request = Request.Builder()
 
         client.newCall(request).execute().use { response ->
 
-            log.info("OpenAI patient copilot SSE status={}", response.code)
+                log.info("OpenAI patient copilot SSE status={}", response.code)
 
-            if (!response.isSuccessful) {
-                throw AiStreamException(
-                    code = "AI_UNAVAILABLE",
-                    message = "AI is temporarily unavailable. Please try again later."
-                )
-            }
-
-            val source = response.body?.source() ?: return@use
-
-            while (!source.exhausted()) {
-                val line = source.readUtf8Line() ?: continue
-                if (!line.startsWith("data:")) continue
-
-                val data = line.removePrefix("data:")
-                if (data.isBlank() || data.trim() == "[DONE]") continue
-
-                try {
-                    val json = mapper.readTree(data)
-                    val delta = json.path("choices")
-                        .path(0)
-                        .path("delta")
-                        .path("content")
-                        .asText(null)
-
-                    if (delta != null && delta.isNotEmpty()) {
-                        emit(delta)
-                    }
-                } catch (e: Exception) {
-                    log.debug("Skipping SSE frame: {}", e.message)
+                if (!response.isSuccessful) {
+                    throw AiStreamException(
+                        code = "AI_UNAVAILABLE",
+                        message = "AI is temporarily unavailable. Please try again later."
+                    )
                 }
-            }
+
+                val source = response.body?.source() ?: return@use
+
+                while (!source.exhausted()) {
+                    val line = source.readUtf8Line() ?: continue
+                    if (!line.startsWith("data:")) continue
+
+                    val data = line.removePrefix("data:")
+                    if (data.isBlank() || data.trim() == "[DONE]") continue
+
+                    try {
+                        val json = mapper.readTree(data)
+                        val delta = json.path("choices")
+                            .path(0)
+                            .path("delta")
+                            .path("content")
+                            .asText(null)
+
+                        if (delta != null && delta.isNotEmpty()) {
+                            emit(delta)
+                        }
+                    } catch (e: Exception) {
+                        log.debug("Skipping SSE frame: {}", e.message)
+                    }
+                }
         }
     }
+
+    private fun runAgentLoop(
+        patient: PatientProfile,
+        language: OutputLanguage,
+        messages: List<AiMessageDto>,
+        allowedTools: Set<String>,
+        requiredSteps: List<String>,
+        flowState: PatientCopilotFlowController.FlowState,
+        definition: PatientCopilotFlowController.FlowDefinition
+    ): AgentLoopOutcome {
+        val loopStart = System.nanoTime()
+        val maxIterations = 5
+        val timeoutMs = 15_000L
+        val loopMessages = mutableListOf<Map<String, Any?>>()
+        val progressEvents = mutableListOf<String>()
+        val trace = mutableListOf<Map<String, Any?>>()
+        val callFingerprints = mutableSetOf<String>()
+        val toolMemory = linkedMapOf<String, Any?>()
+
+        for (iteration in 1..maxIterations) {
+            val elapsedMs = (System.nanoTime() - loopStart) / 1_000_000
+            if (elapsedMs > timeoutMs) {
+                trace += mapOf("iteration" to iteration, "status" to "timeout", "elapsedMs" to elapsedMs)
+                break
+            }
+            val modelMsg = requestAgentLoopStep(
+                language = language,
+                userMessages = messages,
+                loopMessages = loopMessages,
+                toolMemory = toolMemory,
+                allowedTools = allowedTools,
+                requiredSteps = requiredSteps,
+                flowState = flowState
+            ) ?: break
+            val toolCallsNode = modelMsg.path("tool_calls")
+            if (!toolCallsNode.isArray || toolCallsNode.isEmpty) {
+                trace += mapOf("iteration" to iteration, "status" to "final_answer")
+                break
+            }
+            val normalizedCalls = mutableListOf<ToolCallMessage>()
+            for (tc in toolCallsNode.take(3)) {
+                val id = tc.path("id").asText("").ifBlank { "tc_${iteration}_${normalizedCalls.size}" }
+                val name = tc.path("function").path("name").asText("")
+                val raw = tc.path("function").path("arguments").asText("{}")
+                val args = runCatching { mapper.readValue(raw, Map::class.java) as Map<String, Any?> }.getOrElse { emptyMap() }
+                normalizedCalls += ToolCallMessage(id = id, name = name, arguments = args, rawArguments = raw)
+            }
+            loopMessages += mapOf(
+                "role" to "assistant",
+                "content" to "",
+                "tool_calls" to normalizedCalls.map {
+                    mapOf(
+                        "id" to it.id,
+                        "type" to "function",
+                        "function" to mapOf("name" to it.name, "arguments" to it.rawArguments)
+                    )
+                }
+            )
+
+            var anySucceeded = false
+            for (tc in normalizedCalls) {
+                val fingerprint = "${tc.name}:${mapper.writeValueAsString(tc.arguments)}"
+                if (tc.name !in allowedTools) {
+                    val msg = mapOf("error" to "tool ${tc.name} is not allowed in flow ${flowState.currentFlow}")
+                    loopMessages += toToolResultMessage(ToolResultMessage(tc.id, tc.name, msg, 0, true))
+                    trace += mapOf("iteration" to iteration, "tool" to tc.name, "status" to "blocked_not_allowed")
+                    log.warn("copilot_flow audit_event=tool_blocked tool={} reason=not_allowed flow={}", tc.name, flowState.currentFlow)
+                    continue
+                }
+                val nextStep = flowController.getNextRequiredStep(definition, flowState)
+                val mappedStep = definition.toolToStep(tc.name)
+                if (mappedStep != null && nextStep != null && mappedStep.name != nextStep.name) {
+                    val correction = nextStep.correctiveQuestion
+                        ?: "I need to complete a prior step (${humanizeStepName(nextStep.name)}) before this action."
+                    val msg = mapOf(
+                        "error" to "STEP_ORDER_VIOLATION",
+                        "expectedStep" to nextStep.name,
+                        "attemptedTool" to tc.name,
+                        "corrective" to correction
+                    )
+                    loopMessages += toToolResultMessage(ToolResultMessage(tc.id, tc.name, msg, 0, true))
+                    loopMessages += mapOf(
+                        "role" to "system",
+                        "content" to "STEP_ORDER_VIOLATION corrective: $correction"
+                    )
+                    trace += mapOf(
+                        "iteration" to iteration,
+                        "tool" to tc.name,
+                        "status" to "step_order_violation",
+                        "expectedStep" to nextStep.name
+                    )
+                    log.warn(
+                        "copilot_flow audit_event=step_order_violation flow={} attemptedTool={} expectedStep={}",
+                        flowState.currentFlow, tc.name, nextStep.name
+                    )
+                    continue
+                }
+                if (!callFingerprints.add(fingerprint)) {
+                    val msg = mapOf("error" to "repeated identical tool call blocked")
+                    loopMessages += toToolResultMessage(ToolResultMessage(tc.id, tc.name, msg, 0, true))
+                    trace += mapOf("iteration" to iteration, "tool" to tc.name, "status" to "blocked_repeated")
+                    continue
+                }
+                val validationError = validateToolArguments(tc)
+                if (validationError != null) {
+                    val msg = mapOf("error" to validationError)
+                    loopMessages += toToolResultMessage(ToolResultMessage(tc.id, tc.name, msg, 0, true))
+                    trace += mapOf("iteration" to iteration, "tool" to tc.name, "status" to "invalid_args", "reason" to validationError)
+                    continue
+                }
+
+                progressEvents += progressTextForTool(tc.name)
+                val t0 = System.nanoTime()
+                var result = executeToolSafely(patient, messages, tc)
+                var failed = result["error"] != null
+                if (failed) {
+                    result = executeToolSafely(patient, messages, tc) // retry once
+                    failed = result["error"] != null
+                }
+                val durationMs = ((System.nanoTime() - t0) / 1_000_000).coerceAtLeast(1)
+                loopMessages += toToolResultMessage(ToolResultMessage(tc.id, tc.name, result, durationMs, failed))
+                trace += mapOf(
+                    "iteration" to iteration,
+                    "tool" to tc.name,
+                    "durationMs" to durationMs,
+                    "failed" to failed,
+                    "failureReason" to result["error"]
+                )
+                if (!failed) {
+                    anySucceeded = true
+                    updateToolMemory(toolMemory, tc.name, result)
+                    updateFlowStateAfterStep(flowState, tc.name, result)
+                    val mapped = definition.toolToStep(tc.name)
+                    if (mapped != null && mapped.name !in flowState.completedSteps) {
+                        flowState.completedSteps += mapped.name
+                        flowState.stepHistory += mapped.name
+                        flowState.currentStep = mapped.name
+                        log.info(
+                            "copilot_flow audit_event=step_transition flow={} step={} history={}",
+                            flowState.currentFlow, mapped.name, flowState.stepHistory
+                        )
+                    }
+                    val nextAfter = flowController.getNextRequiredStep(definition, flowState)
+                    flowState.nextStep = nextAfter?.name
+                    if (nextAfter != null) {
+                        val total = definition.orderedSteps.size
+                        val idx = definition.orderedSteps.indexOfFirst { it.name == nextAfter.name } + 1
+                        progressEvents += "Step $idx/$total: ${humanizeStepName(nextAfter.name)}"
+                    }
+                    progressEvents += completionTextForTool(tc.name, result)
+                }
+            }
+            if (!anySucceeded) break
+            val missingSteps = requiredSteps.filterNot { it in flowState.completedSteps }
+            if (missingSteps.isNotEmpty()) {
+                flowState.missingInputs += missingSteps
+            }
+            loopMessages += mapOf(
+                "role" to "system",
+                "content" to "Flow state: ${mapper.writeValueAsString(flowState)} | Tool memory snapshot: ${mapper.writeValueAsString(toolMemory)}"
+            )
+        }
+
+        val totalMs = (System.nanoTime() - loopStart) / 1_000_000
+        log.info(
+            "copilot_agent_loop done iterations={} totalMs={} toolsUsed={} trace={}",
+            trace.mapNotNull { it["iteration"] }.distinct().size,
+            totalMs,
+            trace.mapNotNull { it["tool"] },
+            mapper.writeValueAsString(trace)
+        )
+        return AgentLoopOutcome(
+            loopMessages = loopMessages,
+            progressEvents = progressEvents.filter { it.isNotBlank() }.distinct().take(6),
+            trace = trace
+        )
+    }
+
+    private fun requestAgentLoopStep(
+        language: OutputLanguage,
+        userMessages: List<AiMessageDto>,
+        loopMessages: List<Map<String, Any?>>,
+        toolMemory: Map<String, Any?>,
+        allowedTools: Set<String>,
+        requiredSteps: List<String>,
+        flowState: PatientCopilotFlowController.FlowState
+    ): JsonNode? {
+        val orchestrationPrompt = """
+You are a deterministic medical copilot agent orchestrator.
+You may call tools iteratively to complete multi-step tasks (doctor matching, availability, booking).
+Only call tools when needed; avoid repeating a previous identical tool call.
+Allowed tools for this flow: ${allowedTools.joinToString(", ")}.
+Required flow steps in order: ${requiredSteps.joinToString(" -> ")}.
+Current flow state: ${mapper.writeValueAsString(flowState)}.
+You MUST follow the required flow steps in order. Do not skip steps.
+If the next required step's tool prerequisites or inputs are missing, ask the user for that single missing item rather than calling another tool.
+If enough information is gathered, stop tool usage and provide a normal assistant reply.
+If any tool result includes error, explain issue and suggest a safe fallback.
+Language: ${language.isoCode}
+""".trimIndent()
+        val payload = mapper.writeValueAsString(
+            mapOf(
+                "model" to props.model,
+                "stream" to false,
+                "temperature" to 0.0,
+                "messages" to listOf(
+                    mapOf("role" to "system", "content" to orchestrationPrompt),
+                    mapOf("role" to "system", "content" to "Known tool memory: ${mapper.writeValueAsString(toolMemory)}")
+                ) + userMessages.map { mapOf("role" to it.role, "content" to it.content) } + loopMessages,
+                "tools" to patientCopilotToolsSchema(),
+                "tool_choice" to "auto"
+            )
+        )
+        val request = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .addHeader("Authorization", "Bearer ${props.apiKey}")
+            .addHeader("OpenAI-Project", props.projectId)
+            .addHeader("Content-Type", "application/json")
+            .post(payload.toRequestBody("application/json".toMediaType()))
+            .build()
+        return try {
+            withRetry(maxAttempts = 2) {
+                completionClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) return@withRetry null
+                    val body = response.body?.string() ?: return@withRetry null
+                    mapper.readTree(body).path("choices").path(0).path("message")
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun executeToolSafely(
+        patient: PatientProfile,
+        messages: List<AiMessageDto>,
+        tc: ToolCallMessage
+    ): Map<String, Any?> {
+        return try {
+            copilotToolService.execute(
+                patient = patient,
+                messages = messages,
+                toolCall = PatientCopilotToolService.ToolCall(name = tc.name, arguments = tc.arguments)
+            )
+        } catch (e: Exception) {
+            mapOf("error" to (e.message ?: "tool_execution_failed"))
+        }
+    }
+
+    private fun validateToolArguments(tc: ToolCallMessage): String? {
+        return when (tc.name) {
+            "get_doctor_availability" -> if ((tc.arguments["doctorId"] as? Number)?.toLong() == null) "doctorId is required" else null
+            "book_appointment" -> {
+                when {
+                    (tc.arguments["doctorId"] as? Number)?.toLong() == null -> "doctorId is required"
+                    (tc.arguments["preferredStartAtUtc"] as? String).isNullOrBlank() -> "preferredStartAtUtc is required"
+                    (tc.arguments["consentConfirmed"] as? Boolean) != true -> "consentConfirmed=true required"
+                    runCatching { java.time.Instant.parse(tc.arguments["preferredStartAtUtc"] as String) }.isFailure -> "preferredStartAtUtc must be ISO-8601 UTC"
+                    runCatching { java.time.Instant.parse(tc.arguments["preferredStartAtUtc"] as String).isBefore(java.time.Instant.now()) }.getOrDefault(false) -> "preferredStartAtUtc must be in the future"
+                    else -> null
+                }
+            }
+            else -> null
+        }
+    }
+
+    private fun humanizeStepName(name: String): String = when (name) {
+        "identify_doctor" -> "Selecting doctor"
+        "identify_time" -> "Choosing time"
+        "check_availability" -> "Checking availability"
+        "book_appointment" -> "Booking appointment"
+        "understand_symptoms", "understand_context" -> "Understanding symptoms"
+        "find_doctor_candidates" -> "Finding doctors"
+        "suggest_specialists" -> "Suggesting specialists"
+        "retrieve_documents" -> "Reviewing documents"
+        "review_context" -> "Reviewing context"
+        else -> name.replace('_', ' ').replaceFirstChar { it.titlecase() }
+    }
+
+    private fun toToolResultMessage(result: ToolResultMessage): Map<String, Any?> = mapOf(
+        "role" to "tool",
+        "tool_call_id" to result.toolCallId,
+        "name" to result.name,
+        "content" to mapper.writeValueAsString(result.result + mapOf("durationMs" to result.durationMs, "failed" to result.failed))
+    )
+
+    private fun updateToolMemory(memory: MutableMap<String, Any?>, toolName: String, result: Map<String, Any?>) {
+        when (toolName) {
+            "find_doctors" -> memory["doctorsFound"] = (result["doctors"] as? List<*>)?.size ?: 0
+            "get_doctor_availability" -> {
+                memory["selectedDoctor"] = result["doctorId"]
+                memory["availableSlots"] = listOfNotNull(result["nextAvailableStartAt"])
+            }
+            "book_appointment" -> memory["bookingResult"] = result
+            "get_patient_context", "get_patient_documents" -> memory[toolName] = result
+        }
+    }
+
+    private fun updateFlowStateAfterStep(
+        state: PatientCopilotFlowController.FlowState,
+        toolName: String,
+        result: Map<String, Any?>
+    ) {
+        when (toolName) {
+            "find_doctors" -> {
+                if (((result["doctors"] as? List<*>)?.isNotEmpty() == true)) {
+                    state.completedSteps += "doctor_candidates_found"
+                    state.completedSteps += "doctor_identified"
+                    state.missingInputs.remove("doctorId")
+                }
+                state.completedSteps += "symptoms_understood"
+                state.missingInputs.remove("symptoms")
+            }
+            "get_doctor_availability" -> {
+                state.completedSteps += "availability_checked"
+                if (result["nextAvailableStartAt"] != null) {
+                    state.completedSteps += "time_identified"
+                    state.missingInputs.remove("time")
+                }
+            }
+            "book_appointment" -> {
+                state.completedSteps += "booking_attempted"
+            }
+            "get_patient_documents" -> state.completedSteps += "documents_retrieved"
+        }
+    }
+
+    private fun classifyFlowWithLlm(
+        messages: List<AiMessageDto>,
+        language: OutputLanguage
+    ): PatientCopilotFlowController.FlowType? {
+        val transcript = mapper.writeValueAsString(
+            mapOf("messages" to messages.map { mapOf("role" to it.role, "content" to it.content) })
+        )
+        val prompt = """
+Classify patient copilot request into exactly one flow:
+SYMPTOM_ANALYSIS, DOCTOR_SEARCH, APPOINTMENT_BOOKING, DOCUMENT_QA, GENERAL_QA.
+Return JSON only: {"flowType":"..."}.
+Language hint: ${language.isoCode}
+""".trimIndent()
+        val payload = mapper.writeValueAsString(
+            mapOf(
+                "model" to props.model,
+                "stream" to false,
+                "temperature" to 0.0,
+                "response_format" to mapOf("type" to "json_object"),
+                "messages" to listOf(
+                    mapOf("role" to "system", "content" to prompt),
+                    mapOf("role" to "user", "content" to transcript)
+                )
+            )
+        )
+        val req = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .addHeader("Authorization", "Bearer ${props.apiKey}")
+            .addHeader("OpenAI-Project", props.projectId)
+            .addHeader("Content-Type", "application/json")
+            .post(payload.toRequestBody("application/json".toMediaType()))
+            .build()
+        return try {
+            withRetry(maxAttempts = 2) {
+                completionClient.newCall(req).execute().use { resp ->
+                    if (!resp.isSuccessful) return@withRetry null
+                    val body = resp.body?.string() ?: return@withRetry null
+                    val content = mapper.readTree(body).path("choices").path(0).path("message").path("content").asText("")
+                    if (content.isBlank()) return@withRetry null
+                    val flow = mapper.readTree(content).path("flowType").asText("").trim()
+                    runCatching { PatientCopilotFlowController.FlowType.valueOf(flow) }.getOrNull()
+                }
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    private fun progressTextForTool(toolName: String): String = when (toolName) {
+        "find_doctors" -> "Looking for doctors..."
+        "get_doctor_availability" -> "Checking availability..."
+        "book_appointment" -> "Preparing booking..."
+        "get_patient_documents" -> "Reviewing your documents..."
+        "get_patient_context" -> "Reviewing your health context..."
+        else -> "Working on your request..."
+    }
+
+    private fun completionTextForTool(toolName: String, result: Map<String, Any?>): String = when (toolName) {
+        "find_doctors" -> "Found ${((result["doctors"] as? List<*>)?.size ?: 0)} options."
+        "get_doctor_availability" -> if (result["nextAvailableStartAt"] != null) "Availability checked." else "No upcoming availability found yet."
+        "book_appointment" -> if (result["booked"] == true) "Appointment booked." else "Could not book yet."
+        else -> ""
+    }
+
+    private fun patientCopilotToolsSchema(): List<Map<String, Any?>> = listOf(
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "get_patient_context",
+                "description" to "Get patient medical context: conditions, complaints, medications, appointments.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "intent" to mapOf("type" to "string", "enum" to listOf("documents", "symptoms", "appointments", "general"))
+                    ),
+                    "required" to emptyList<String>()
+                )
+            )
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "get_patient_documents",
+                "description" to "Get patient documents metadata and optional extracted snippets.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "includeSnippets" to mapOf("type" to "boolean"),
+                        "limit" to mapOf("type" to "integer", "minimum" to 1, "maximum" to 12)
+                    )
+                )
+            )
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "find_doctors",
+                "description" to "Find and rank doctors by specialty match, availability, rating, and distance.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "specialties" to mapOf("type" to "array", "items" to mapOf("type" to "string")),
+                        "symptoms" to mapOf("type" to "array", "items" to mapOf("type" to "string"))
+                    )
+                )
+            )
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "get_doctor_availability",
+                "description" to "Get next available slot for a doctor.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "doctorId" to mapOf("type" to "integer")
+                    ),
+                    "required" to listOf("doctorId")
+                )
+            )
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "book_appointment",
+                "description" to "Book an appointment after explicit consent.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "doctorId" to mapOf("type" to "integer"),
+                        "preferredStartAtUtc" to mapOf("type" to "string"),
+                        "isVideo" to mapOf("type" to "boolean"),
+                        "consentConfirmed" to mapOf("type" to "boolean")
+                    ),
+                    "required" to listOf("doctorId", "preferredStartAtUtc", "consentConfirmed")
+                )
+            )
+        )
+    )
 
     /**
      * Non-streaming JSON extraction: whether the patient clearly asked to auto-book with consent,
@@ -338,17 +874,20 @@ Language hint for understanding user text: ${language.name}
             .post(payload.toRequestBody("application/json".toMediaType()))
             .build()
 
-        completionClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                log.warn("OpenAI booking intent resolution failed: {}", response.code)
-                return PatientBookingIntentResolution()
+        val parsed = withRetry {
+            completionClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    log.warn("OpenAI booking intent resolution failed: {}", response.code)
+                    return@withRetry PatientBookingIntentResolution()
+                }
+                val body = response.body?.string() ?: return@withRetry PatientBookingIntentResolution()
+                val tree = mapper.readTree(body)
+                val content = tree.path("choices").path(0).path("message").path("content").asText("").trim()
+                if (content.isBlank()) return@withRetry PatientBookingIntentResolution()
+                parseBookingIntentJson(content)
             }
-            val body = response.body?.string() ?: return PatientBookingIntentResolution()
-            val tree = mapper.readTree(body)
-            val content = tree.path("choices").path(0).path("message").path("content").asText("").trim()
-            if (content.isBlank()) return PatientBookingIntentResolution()
-            return parseBookingIntentJson(content)
         }
+        return parsed
     }
 
     /**
@@ -409,39 +948,59 @@ RULES:
             .build()
 
         return try {
-            completionClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    log.warn("OpenAI specialty inference failed: {}", response.code)
-                    return PatientCopilotSpecialtyInference()
+            withRetry {
+                completionClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        log.warn("OpenAI specialty inference failed: {}", response.code)
+                        return@withRetry PatientCopilotSpecialtyInference()
+                    }
+                    val body = response.body?.string() ?: return@withRetry PatientCopilotSpecialtyInference()
+                    val tree = mapper.readTree(body)
+                    val content = tree.path("choices").path(0).path("message").path("content").asText("").trim()
+                    if (content.isBlank()) return@withRetry PatientCopilotSpecialtyInference()
+                    val n = mapper.readTree(content)
+                    val specialties = n.path("specialties")
+                        .takeIf { it.isArray }
+                        ?.mapNotNull { it.asText("").trim().lowercase().ifBlank { null } }
+                        ?.distinct()
+                        ?: emptyList()
+                    val searchTerms = n.path("searchTerms")
+                        .takeIf { it.isArray }
+                        ?.mapNotNull { it.asText("").trim().lowercase().ifBlank { null } }
+                        ?.distinct()
+                        ?: emptyList()
+                    val hasEnough = jsonBool(n.path("hasEnoughInfo"))
+                    val clarify = n.path("clarifyingQuestion").asText("").trim().ifBlank { null }
+                    PatientCopilotSpecialtyInference(
+                        specialties = specialties,
+                        searchTerms = searchTerms,
+                        hasEnoughInfo = hasEnough,
+                        clarifyingQuestion = if (hasEnough) null else clarify
+                    )
                 }
-                val body = response.body?.string() ?: return PatientCopilotSpecialtyInference()
-                val tree = mapper.readTree(body)
-                val content = tree.path("choices").path(0).path("message").path("content").asText("").trim()
-                if (content.isBlank()) return PatientCopilotSpecialtyInference()
-                val n = mapper.readTree(content)
-                val specialties = n.path("specialties")
-                    .takeIf { it.isArray }
-                    ?.mapNotNull { it.asText("").trim().lowercase().ifBlank { null } }
-                    ?.distinct()
-                    ?: emptyList()
-                val searchTerms = n.path("searchTerms")
-                    .takeIf { it.isArray }
-                    ?.mapNotNull { it.asText("").trim().lowercase().ifBlank { null } }
-                    ?.distinct()
-                    ?: emptyList()
-                val hasEnough = jsonBool(n.path("hasEnoughInfo"))
-                val clarify = n.path("clarifyingQuestion").asText("").trim().ifBlank { null }
-                PatientCopilotSpecialtyInference(
-                    specialties = specialties,
-                    searchTerms = searchTerms,
-                    hasEnoughInfo = hasEnough,
-                    clarifyingQuestion = if (hasEnough) null else clarify
-                )
             }
         } catch (e: Exception) {
             log.debug("Specialty inference error: {}", e.message)
             PatientCopilotSpecialtyInference()
         }
+    }
+
+    private fun <T> withRetry(maxAttempts: Int = 3, block: () -> T): T {
+        var last: Exception? = null
+        repeat(maxAttempts) { attempt ->
+            try {
+                return block()
+            } catch (e: Exception) {
+                last = e
+                if (attempt < maxAttempts - 1) {
+                    try {
+                        Thread.sleep((250L * (attempt + 1)))
+                    } catch (_: InterruptedException) {
+                    }
+                }
+            }
+        }
+        throw (last ?: IllegalStateException("Unknown retry error"))
     }
 
     private fun parseBookingIntentJson(content: String): PatientBookingIntentResolution {

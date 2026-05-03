@@ -19,7 +19,8 @@ data class PatientCopilotAiRequest(
                 val role = msg.role.trim().lowercase()
                 val content = msg.content.trim()
                 if (content.isBlank()) return@mapNotNull null
-                if (role != "user" && role != "assistant" && role != "system") return@mapNotNull null
+                // Security: patient-facing copilot must never accept caller-provided system messages.
+                if (role != "user" && role != "assistant") return@mapNotNull null
                 AiMessageDto(role = role, content = content)
             }
             ?: emptyList()
