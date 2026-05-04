@@ -15,7 +15,8 @@ import java.nio.file.Path
 import java.time.Duration
 
 /**
- * Speech-to-text via OpenAI Whisper API.
+ * Speech-to-text via OpenAI Audio API ([OpenAiProperties.transcriptionModel]),
+ * default **gpt-4o-transcribe** (falls back to whisper-1 if overridden).
  */
 @Service
 class TranscriptionService(
@@ -56,14 +57,29 @@ class TranscriptionService(
             else -> null
         }
 
+        val modelId = openAiProps.transcriptionModel.trim().ifBlank { "gpt-4o-transcribe" }
         val requestBodyBuilder = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("file", file.name, file.asRequestBody("audio/*".toMediaType()))
-            .addFormDataPart("model", "whisper-1")
+            .addFormDataPart("model", modelId)
+            // gpt-4o-transcribe supports json | text; verbose_json is for whisper-1.
             .addFormDataPart("response_format", "json")
 
-        // Strong hint to Whisper: use the active app language when provided.
-        normalizedLanguageHint?.let { requestBodyBuilder.addFormDataPart("language", it) }
+        if (modelId.startsWith("whisper", ignoreCase = true)) {
+            requestBodyBuilder.addFormDataPart("temperature", "0")
+        }
+
+        normalizedLanguageHint?.let { lang ->
+            requestBodyBuilder.addFormDataPart("language", lang)
+            // Latin-Uzbek decoding hint reduces Azerbaijani/Turkish drift on short clips.
+            val biasPrompt = when (lang) {
+                "uz" -> "O'zbekcha tibbiy suhbat: shifokor, qabul, simptom, dori, kasalxona, sog'liqni saqlash."
+                "ru" -> "Медицинский разговор на русском языке: врач, приём, симптомы, лекарства, больница."
+                "en" -> "English medical conversation: doctor, appointment, symptoms, medication, clinic."
+                else -> null
+            }
+            biasPrompt?.let { requestBodyBuilder.addFormDataPart("prompt", it) }
+        }
 
         val requestBody = requestBodyBuilder.build()
 
@@ -75,16 +91,17 @@ class TranscriptionService(
             .build()
 
         log.info(
-            "Transcribing audio: {} ({} bytes), languageHint={}",
+            "Transcribing audio: {} ({} bytes), model={}, languageHint={}",
             file.name,
             file.length(),
+            modelId,
             normalizedLanguageHint ?: "auto"
         )
 
         client.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 val body = response.body?.string() ?: ""
-                log.error("Whisper API error: {} - {}", response.code, body)
+                log.error("OpenAI transcription API error: {} - {}", response.code, body)
                 throw RuntimeException("Transcription failed: ${response.code} - $body")
             }
 

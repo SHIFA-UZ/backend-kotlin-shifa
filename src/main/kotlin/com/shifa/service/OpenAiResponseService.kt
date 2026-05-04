@@ -249,11 +249,6 @@ val request = Request.Builder()
             messages = messages,
             llmFallbackFlow = classifyFlowWithLlm(messages, language)
         )
-        emit("Why this step: ${flowDecision.explainWhy}\n")
-        emit("What happens next: ${flowDecision.explainNext}\n")
-        if (flowDecision.flowType == PatientCopilotFlowController.FlowType.URGENT_CARE) {
-            emit("Possible emergency detected. Please seek urgent in-person care or emergency services.\n")
-        }
         val flowState = PatientCopilotFlowController.FlowState(
             currentFlow = flowDecision.flowType,
             missingInputs = flowDecision.missingInputs.toMutableSet()
@@ -261,11 +256,6 @@ val request = Request.Builder()
         val firstStep = flowController.getNextRequiredStep(flowDecision.definition, flowState)
         flowState.currentStep = firstStep?.name
         flowState.nextStep = firstStep?.name
-        if (flowDecision.definition.orderedSteps.isNotEmpty() && firstStep != null) {
-            val total = flowDecision.definition.orderedSteps.size
-            val idx = flowDecision.definition.orderedSteps.indexOfFirst { it.name == firstStep.name } + 1
-            emit("Step $idx/$total: ${humanizeStepName(firstStep.name)}\n")
-        }
         val loopOutcome = runAgentLoop(
             patient = patient,
             language = language,
@@ -275,9 +265,6 @@ val request = Request.Builder()
             flowState = flowState,
             definition = flowDecision.definition
         )
-        for (evt in loopOutcome.progressEvents) {
-            emit("$evt\n")
-        }
 
         val payload = mapper.writeValueAsString(
             mapOf(
