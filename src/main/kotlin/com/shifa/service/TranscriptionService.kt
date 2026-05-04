@@ -38,7 +38,7 @@ class TranscriptionService(
     )
 
     /**
-     * Transcribe audio file to text using Whisper API.
+     * Transcribe audio file to text using OpenAI Audio Transcriptions API.
      * Supports: mp3, mp4, mpeg, mpga, m4a, wav, webm
      */
     fun transcribe(audioPath: Path, languageHint: String? = null): TranscriptionResult {
@@ -65,12 +65,17 @@ class TranscriptionService(
             // gpt-4o-transcribe supports json | text; verbose_json is for whisper-1.
             .addFormDataPart("response_format", "json")
 
-        if (modelId.startsWith("whisper", ignoreCase = true)) {
+        val isWhisperModel = modelId.startsWith("whisper", ignoreCase = true)
+        if (isWhisperModel) {
             requestBodyBuilder.addFormDataPart("temperature", "0")
         }
 
         normalizedLanguageHint?.let { lang ->
-            requestBodyBuilder.addFormDataPart("language", lang)
+            // gpt-4o-transcribe currently rejects some ISO codes (e.g. "uz").
+            // Keep explicit language only for Whisper; for GPT models rely on prompt bias.
+            if (isWhisperModel) {
+                requestBodyBuilder.addFormDataPart("language", lang)
+            }
             // Latin-Uzbek decoding hint reduces Azerbaijani/Turkish drift on short clips.
             val biasPrompt = when (lang) {
                 "uz" -> "O'zbekcha tibbiy suhbat: shifokor, qabul, simptom, dori, kasalxona, sog'liqni saqlash."
