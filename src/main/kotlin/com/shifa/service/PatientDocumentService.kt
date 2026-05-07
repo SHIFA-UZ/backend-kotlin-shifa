@@ -11,6 +11,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
+import org.slf4j.LoggerFactory
 import java.time.LocalDate
 
 @Service
@@ -21,20 +22,25 @@ class PatientDocumentService(
     private val doctorProfiles: DoctorProfileRepository,
     private val accessGrants: DocumentAccessGrantRepository
 ) {
+    private val log = LoggerFactory.getLogger(PatientDocumentService::class.java)
+
+    private fun safeFilePathOf(d: PatientDocument): String? {
+        return runCatching { d.filePath }
+            .getOrNull()
+            ?.takeIf { it.isNotBlank() }
+    }
+
     private fun doctorDisplayNameOrFallback(doctor: com.shifa.domain.DoctorProfile): String {
-        val profileName = listOf(doctor.firstName, doctor.lastName)
+        val firstName = runCatching { doctor.firstName }.getOrDefault("")
+        val lastName = runCatching { doctor.lastName }.getOrDefault("")
+        val profileName = listOf(firstName, lastName)
             .map { it.trim() }
             .filter { it.isNotEmpty() }
             .joinToString(" ")
         if (profileName.isNotBlank()) return profileName
 
-        val user = doctor.user
-        val username = user.username?.trim().orEmpty()
-        if (username.isNotEmpty()) return username
-        val email = user.email?.trim().orEmpty()
-        if (email.isNotEmpty()) return email
-        val phone = user.phone?.trim().orEmpty()
-        if (phone.isNotEmpty()) return phone
+        val doctorId = runCatching { doctor.id }.getOrDefault(0L)
+        if (doctorId > 0) return "Doctor #$doctorId"
         return "Doctor"
     }
 
@@ -45,7 +51,7 @@ class PatientDocumentService(
         }
         val patient = d.uploadedByPatientProfile
         if (patient != null) {
-            val fullName = patient.fullName.trim()
+            val fullName = runCatching { patient.fullName }.getOrDefault("").trim()
             return if (fullName.isNotEmpty()) fullName else "Patient"
         }
         return "Unknown"
@@ -56,9 +62,15 @@ class PatientDocumentService(
     fun list(patientId: Long, doctorId: Long): List<PatientDocumentDto> {
         val found = docs.listForPatient(patientId)
         return found
-            .filter { it.filePath?.isNotBlank() == true }
+            .filter { safeFilePathOf(it) != null }
             .filter { !it.isChatAttachment }
-            .map { d -> toDto(d, doctorId) }
+            .mapNotNull { d ->
+                runCatching { toDto(d, doctorId) }
+                    .onFailure { ex ->
+                        log.warn("Skipping invalid doctor document id={} patientId={}: {}", d.id, patientId, ex.message)
+                    }
+                    .getOrNull()
+            }
     }
 
     /**
@@ -70,15 +82,22 @@ class PatientDocumentService(
     fun listForPatientSelf(patientId: Long): List<PatientDocumentDto> {
         val found = docs.listForPatient(patientId)
         return found
-            .filter { it.filePath?.isNotBlank() == true }
+            .filter { safeFilePathOf(it) != null }
             .filter { !it.isChatAttachment }
-            .map { d -> toDtoForPatient(d) }
+            .mapNotNull { d ->
+                runCatching { toDtoForPatient(d) }
+                    .onFailure { ex ->
+                        log.warn("Skipping invalid patient document id={} patientId={}: {}", d.id, patientId, ex.message)
+                    }
+                    .getOrNull()
+            }
     }
 
     private fun toDtoForPatient(d: PatientDocument): PatientDocumentDto {
         val id = requireNotNull(d.id) { "Document must be persisted" }
         val creatorLabel = creatorLabelOf(d)
-        val url = if (d.filePath.isNotBlank()) storage.publicUrlFor(d.filePath) else null
+        val filePath = safeFilePathOf(d)
+        val url = if (filePath != null) storage.publicUrlFor(filePath) else null
         return PatientDocumentDto(
             id = id,
             title = d.title,
@@ -93,7 +112,8 @@ class PatientDocumentService(
         val id = requireNotNull(d.id) { "Document must be persisted" }
         val canView = canDoctorViewDocument(d, doctorId)
         val creatorLabel = creatorLabelOf(d)
-        val url = if (canView && d.filePath.isNotBlank()) storage.publicUrlFor(d.filePath) else null
+        val filePath = safeFilePathOf(d)
+        val url = if (canView && filePath != null) storage.publicUrlFor(filePath) else null
         return PatientDocumentDto(
             id = id,
             title = d.title,
@@ -117,7 +137,7 @@ class PatientDocumentService(
     fun listDocumentsWithAccess(patientId: Long, doctorId: Long): List<PatientDocument> {
         val all = docs.listForPatient(patientId)
         return all
-            .filter { it.filePath?.isNotBlank() == true }
+            .filter { safeFilePathOf(it) != null }
             .filter { !it.isChatAttachment }
             .filter { canDoctorViewDocument(it, doctorId) }
     }
@@ -130,11 +150,11 @@ class PatientDocumentService(
         val list = docs.listForPatient(patientId)
         val doc = list.find { it.id == documentId } ?: return null
         if (!canDoctorViewDocument(doc, doctorId)) return null
-        if (doc.filePath.isBlank()) return null
-        return storage.getFileResource(doc.filePath)
+        val filePath = safeFilePathOf(doc) ?: return null
+        return storage.getFileResource(filePath)
     }
 
-    /** Upload a PDF, persist a row in patient_documents, and return DTO. */
+    /** Upload a document, persist a row in patient_documents, and return DTO. */
     fun upload(
         patientId: Long,
         uploadingDoctorId: Long,
@@ -147,7 +167,7 @@ class PatientDocumentService(
         val doctor = doctorProfiles.findById(uploadingDoctorId).orElseThrow()
         val baseNameForFile = title?.takeIf { it.isNotBlank() }
             ?: (file.originalFilename ?: "document")
-        val saved = storage.savePdf(patientId, file, baseNameForFile)
+        val saved = storage.saveDocument(patientId, file, baseNameForFile)
         val entity = PatientDocument(
             title = title?.takeIf { it.isNotBlank() } ?: baseNameForFile,
             date = date ?: LocalDate.now(),
@@ -171,7 +191,7 @@ class PatientDocumentService(
         val p = profiles.findById(patientId).orElseThrow { IllegalArgumentException("Patient not found: $patientId") }
         val baseNameForFile = title?.takeIf { it.isNotBlank() }
             ?: (file.originalFilename ?: "document")
-        val saved = storage.savePdf(patientId, file, baseNameForFile)
+        val saved = storage.saveDocument(patientId, file, baseNameForFile)
         val entity = PatientDocument(
             title = title?.takeIf { it.isNotBlank() } ?: baseNameForFile,
             date = date ?: LocalDate.now(),
@@ -203,7 +223,7 @@ class PatientDocumentService(
         } else {
             file.originalFilename ?: "document"
         }
-        val saved = storage.savePdf(
+        val saved = storage.saveDocument(
             patientId = requireNotNull(existing.patient?.id) { "Document must have a patient" },
             file = file,
             preferredBaseName = baseName

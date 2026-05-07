@@ -21,9 +21,11 @@ class PatientDocumentStorageService(private val app: AppProperties) {
         val publicUrl: String
     )
 
-    fun savePdf(patientId: Long, file: MultipartFile, preferredBaseName: String?): SaveResult { // <-- Long
-        val safeBase = sanitizeBaseName(preferredBaseName ?: (file.originalFilename ?: "document"))
-        val fileName = "$safeBase.pdf"
+    fun saveDocument(patientId: Long, file: MultipartFile, preferredBaseName: String?): SaveResult {
+        val originalName = file.originalFilename ?: "document"
+        val extension = resolveExtension(file)
+        val safeBase = sanitizeBaseName(preferredBaseName ?: originalName)
+        val fileName = "$safeBase.$extension"
 
         val base = Path.of(app.storageRoot)
         val dir = base.resolve("patientdocuments").resolve(patientId.toString())
@@ -35,6 +37,11 @@ class PatientDocumentStorageService(private val app: AppProperties) {
         val rel = "patientdocuments/$patientId/$fileName"
         val url = "${app.publicBaseUrl.removeSuffix("/")}/$rel"
         return SaveResult(filePathRelative = rel, publicUrl = url)
+    }
+
+    // Backward-compatible alias.
+    fun savePdf(patientId: Long, file: MultipartFile, preferredBaseName: String?): SaveResult {
+        return saveDocument(patientId, file, preferredBaseName)
     }
 
     fun publicUrlFor(filePathRelative: String): String {
@@ -65,11 +72,30 @@ class PatientDocumentStorageService(private val app: AppProperties) {
         return FileSystemResource(fullPath.toFile())
     }
 
+    private fun resolveExtension(file: MultipartFile): String {
+        val fromName = file.originalFilename
+            ?.substringAfterLast('.', "")
+            ?.trim()
+            ?.lowercase(Locale.getDefault())
+            ?.takeIf { it.matches(Regex("[a-z0-9]{1,8}")) }
+        if (fromName != null) return fromName
+
+        return when (file.contentType?.lowercase(Locale.getDefault())) {
+            "application/pdf" -> "pdf"
+            "image/jpeg", "image/jpg" -> "jpg"
+            "image/png" -> "png"
+            "image/gif" -> "gif"
+            "image/webp" -> "webp"
+            else -> "bin"
+        }
+    }
+
     private fun sanitizeBaseName(name: String): String {
         val lower = name.lowercase(Locale.getDefault()).trim()
         val base = lower.substringBeforeLast(".")
-        return base.replace("[^a-z0-9\\-_.]+".toRegex(), "-")
+        val sanitized = base.replace("[^a-z0-9\\-_.]+".toRegex(), "-")
             .replace("[-]{2,}".toRegex(), "-")
             .trim('-', '.')
+        return if (sanitized.isNotEmpty()) sanitized else "document-${System.currentTimeMillis()}"
     }
 }

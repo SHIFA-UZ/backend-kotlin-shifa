@@ -10,10 +10,12 @@ import com.shifa.web.dto.PatientDocumentDto
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
+import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
+import org.springframework.web.server.ResponseStatusException
 import java.time.LocalDate
 
 @RestController
@@ -29,9 +31,10 @@ class PatientDocumentController(
     private fun ensurePatientAccess(doctorId: Long, patientId: Long) {
         if (appointmentRepo.existsByDoctorIdAndPatientId(doctorId, patientId)) return
         val patient = patientsRepo.findById(patientId).orElse(null)
-            ?: throw IllegalArgumentException("Patient not found")
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
         if (patient.createdByDoctor?.id != doctorId) {
-            throw IllegalArgumentException("Patient not found")
+            // Keep message generic to avoid leaking patient existence.
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Patient not found")
         }
     }
 
