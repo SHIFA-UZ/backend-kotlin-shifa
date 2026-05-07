@@ -20,14 +20,23 @@ class Icd10Controller(
     @GetMapping("/search")
     fun search(
         @RequestParam("q") q: String,
-        @RequestParam("limit", required = false, defaultValue = "20") limit: Int
+        @RequestParam("limit", required = false, defaultValue = "20") limit: Int,
+        @RequestParam("lang", required = false, defaultValue = "en") lang: String
     ): ResponseEntity<List<Map<String, String>>> {
         val results = icd10Service.searchByQuery(q, limit)
+        val normalizedLang = lang.lowercase()
         return ResponseEntity.ok(
             results.map { r ->
+                val localizedTitle =
+                    when {
+                        normalizedLang.startsWith("uz") && !r.titleUz.isNullOrBlank() -> r.titleUz
+                        normalizedLang.startsWith("ru") && !r.titleRu.isNullOrBlank() -> r.titleRu
+                        normalizedLang.startsWith("uz") && !r.titleRu.isNullOrBlank() -> r.titleRu
+                        else -> r.title
+                    }
                 buildMap<String, String> {
                     put("code", r.code)
-                    put("title", r.title)
+                    put("title", localizedTitle)
                     r.subtitle?.let { put("subtitle", it) }
                 }
             }

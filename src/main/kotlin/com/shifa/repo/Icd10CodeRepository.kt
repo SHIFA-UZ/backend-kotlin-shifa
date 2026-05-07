@@ -21,6 +21,7 @@ interface Icd10CodeRepository : JpaRepository<Icd10Code, String> {
           c.code as code,
           c.title as title,
           c.title_ru as titleRu,
+          c.title_uz as titleUz,
           c.keywords as keywords,
           c.parent_code as parentCode,
           (
@@ -38,6 +39,7 @@ interface Icd10CodeRepository : JpaRepository<Icd10Code, String> {
             (GREATEST(
               similarity(c.title, :qRaw),
               similarity(COALESCE(c.title_ru, ''), :qRaw),
+              similarity(COALESCE(c.title_uz, ''), :qRaw),
               similarity(COALESCE(c.keywords, ''), :qRaw)
             ) * 80)
           ) as score
@@ -48,6 +50,7 @@ interface Icd10CodeRepository : JpaRepository<Icd10Code, String> {
           OR c.search_tsv @@ websearch_to_tsquery('simple', :qTs)
           OR similarity(c.title, :qRaw) > :simThreshold
           OR similarity(COALESCE(c.title_ru, ''), :qRaw) > :simThreshold
+          OR similarity(COALESCE(c.title_uz, ''), :qRaw) > :simThreshold
           OR similarity(COALESCE(c.keywords, ''), :qRaw) > :simThreshold
         ORDER BY score DESC, c.code ASC
         LIMIT :limit
@@ -67,6 +70,7 @@ interface Icd10SearchRow {
     fun getCode(): String
     fun getTitle(): String
     fun getTitleru(): String? // native alias -> getter is lowercased
+    fun getTitleuz(): String?
     fun getKeywords(): String?
     fun getParentcode(): String?
     fun getScore(): Double

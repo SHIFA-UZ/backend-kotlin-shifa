@@ -9,6 +9,8 @@ import java.text.Normalizer
 data class Icd10SearchResult(
     val code: String,
     val title: String,
+    val titleRu: String? = null,
+    val titleUz: String? = null,
     val subtitle: String? = null
 )
 
@@ -103,7 +105,13 @@ class Icd10Service(
             // Subtitle is future-ready: show parent code if present, otherwise show RU title if distinct.
             val subtitle = r.getParentcode()?.takeIf { it.isNotBlank() }
                 ?: r.getTitleru()?.takeIf { it.isNotBlank() && it != r.getTitle() }
-            Icd10SearchResult(code = r.getCode(), title = r.getTitle(), subtitle = subtitle)
+            Icd10SearchResult(
+                code = r.getCode(),
+                title = r.getTitle(),
+                titleRu = r.getTitleru(),
+                titleUz = r.getTitleuz(),
+                subtitle = subtitle
+            )
         }
     }
 }

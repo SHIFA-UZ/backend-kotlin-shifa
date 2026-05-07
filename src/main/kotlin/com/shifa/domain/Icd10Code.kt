@@ -29,6 +29,10 @@ class Icd10Code(
     @Column(name = "title_ru", columnDefinition = "TEXT")
     var titleRu: String? = null,
 
+    /** Optional Uzbek title for Uzbek UI localization. */
+    @Column(name = "title_uz", columnDefinition = "TEXT")
+    var titleUz: String? = null,
+
     /** Optional synonyms/keywords (can include RU). */
     @Column(name = "keywords", columnDefinition = "TEXT")
     var keywords: String? = null,
