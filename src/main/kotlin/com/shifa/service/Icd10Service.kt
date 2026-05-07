@@ -16,6 +16,40 @@ data class Icd10SearchResult(
 class Icd10Service(
     private val repo: Icd10CodeRepository
 ) {
+    // Common multilingual medical aliases for ICD lookup (EN/RU/UZ transliteration).
+    // This keeps search practical for doctors typing in Uzbek/Russian keyboard habits.
+    private val queryAliases: Map<String, List<String>> = mapOf(
+        "кариес" to listOf("caries", "kariyes"),
+        "kariyes" to listOf("caries", "кариес"),
+        "caries" to listOf("кариес", "kariyes"),
+        "пульпит" to listOf("pulpitis"),
+        "pulpit" to listOf("pulpitis", "пульпит"),
+        "pulpitis" to listOf("пульпит", "pulpit"),
+        "периодонтит" to listOf("periodontitis"),
+        "periodontit" to listOf("periodontitis", "периодонтит"),
+        "periodontitis" to listOf("периодонтит", "periodontit"),
+        "гингивит" to listOf("gingivitis"),
+        "gingivit" to listOf("gingivitis", "гингивит"),
+        "gingivitis" to listOf("гингивит", "gingivit"),
+        "стоматит" to listOf("stomatitis"),
+        "stomatit" to listOf("stomatitis", "стоматит"),
+        "челюсть" to listOf("jaw"),
+        "jag'" to listOf("jaw"),
+        "tish" to listOf("tooth", "teeth"),
+        "zub" to listOf("tooth", "teeth"),
+        "зуб" to listOf("tooth", "teeth"),
+        "milk tooth" to listOf("primary tooth"),
+        "sut tishi" to listOf("primary tooth"),
+        "внчс" to listOf("tmj"),
+        "tmj" to listOf("внчс"),
+        "migren" to listOf("migraine", "мигрень"),
+        "migraine" to listOf("migren", "мигрень"),
+        "гипертония" to listOf("hypertension"),
+        "gipertoniya" to listOf("hypertension", "гипертония"),
+        "диабет" to listOf("diabetes"),
+        "diabet" to listOf("diabetes", "диабет")
+    )
+
     private fun normalizeQuery(qRaw: String): String {
         val trimmed = qRaw.trim()
         if (trimmed.isEmpty()) return ""
@@ -23,6 +57,20 @@ class Icd10Service(
         val collapsed = noPunct.replace(Regex("\\s+"), " ").trim()
         // NFKC helps normalize Unicode variants safely.
         return Normalizer.normalize(collapsed.lowercase(), Normalizer.Form.NFKC)
+    }
+
+    private fun expandQuery(qNorm: String): String {
+        if (qNorm.isBlank()) return qNorm
+        val tokens = qNorm.split(" ").filter { it.isNotBlank() }
+        if (tokens.isEmpty()) return qNorm
+
+        val expanded = LinkedHashSet<String>()
+        expanded.add(qNorm)
+        for (token in tokens) {
+            expanded.add(token)
+            queryAliases[token]?.forEach { expanded.add(it) }
+        }
+        return expanded.joinToString(" ").trim()
     }
 
     private fun toTsQuery(qNorm: String): String {
@@ -38,14 +86,15 @@ class Icd10Service(
 
         val qNorm = normalizeQuery(q)
         if (qNorm.isEmpty()) return emptyList()
+        val qExpanded = expandQuery(qNorm)
 
         // Fuzzy matching is optional but safe; keep threshold moderate.
-        val simThreshold = if (qNorm.length <= 3) 0.6 else 0.35
+        val simThreshold = if (qExpanded.length <= 3) 0.6 else 0.35
 
         val rows = repo.searchRankedNative(
-            qRaw = q,
-            qNorm = qNorm,
-            qTs = toTsQuery(qNorm),
+            qRaw = qExpanded,
+            qNorm = qExpanded,
+            qTs = toTsQuery(qExpanded),
             simThreshold = simThreshold,
             limit = safeLimit
         )
