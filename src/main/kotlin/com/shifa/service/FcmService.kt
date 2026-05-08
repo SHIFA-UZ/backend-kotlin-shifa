@@ -108,6 +108,9 @@ class FcmService {
         notification.appointmentId?.let { data["appointmentId"] = it.toString() }
         notification.documentAccessRequestId?.let { data["documentAccessRequestId"] = it.toString() }
         notification.taskId?.let { data["taskId"] = it.toString() }
+        notification.documentId?.let { data["documentId"] = it.toString() }
+        notification.documentPatientId?.let { data["patientId"] = it.toString() }
+        notification.documentTitle?.let { data["documentTitle"] = it }
         data.putAll(extraData)
         return sendToToken(
             token = fcmToken,
