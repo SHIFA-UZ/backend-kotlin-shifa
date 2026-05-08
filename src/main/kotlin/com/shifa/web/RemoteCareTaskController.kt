@@ -44,6 +44,9 @@ class RemoteCareTaskController(
         val timesPerDay: Int,
         val startTime: String?,
         val intervalHours: Int?,
+        /** Optional explicit list of HH:mm slot times. When non-null/non-empty
+         * this overrides startTime/intervalHours/timesPerDay-based scheduling. */
+        val customTimes: List<String>? = null,
         val morningTime: String?,
         val afternoonTime: String?,
         val eveningTime: String?,
@@ -68,6 +71,7 @@ class RemoteCareTaskController(
         val timesPerDay: Int,
         val startTime: String?,
         val intervalHours: Int?,
+        val customTimes: List<String>? = null,
         val morningTime: String?,
         val afternoonTime: String?,
         val eveningTime: String?,
@@ -97,6 +101,7 @@ class RemoteCareTaskController(
         val timesPerDay: Int,
         val startTime: String?,
         val intervalHours: Int?,
+        val customTimes: List<String>? = null,
         val morningTime: String?,
         val afternoonTime: String?,
         val eveningTime: String?,
@@ -127,9 +132,20 @@ class RemoteCareTaskController(
         val patient = patientRepo.findById(req.patientId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found") }
 
-        val timesPerDay = req.timesPerDay.coerceIn(1, 15)
-        val startTimeParsed = req.startTime?.let { LocalTime.parse(it) }
-        val intervalHours = req.intervalHours?.coerceIn(1, 6)
+        // Custom-times mode: doctor supplied explicit slot times. Validate
+        // and normalize to a sorted, de-duplicated, comma-separated string.
+        // When this is non-null, it drives the daily schedule and timesPerDay
+        // is forced to match the entry count so the rest of the system stays
+        // consistent.
+        val parsedCustomTimes: List<LocalTime>? = parseCustomTimes(req.customTimes)
+        val customTimesStored: String? = parsedCustomTimes?.joinToString(",") { fmtTime(it) }
+
+        val timesPerDay = parsedCustomTimes?.size?.coerceAtLeast(1)
+            ?: req.timesPerDay.coerceIn(1, 15)
+        val startTimeParsed = parsedCustomTimes?.firstOrNull()
+            ?: req.startTime?.let { LocalTime.parse(it) }
+        val intervalHours = if (parsedCustomTimes != null) null else req.intervalHours?.coerceIn(1, 24)
+
         val task = RemoteCareTask(
             doctor = doctor,
             patient = patient,
@@ -139,7 +155,12 @@ class RemoteCareTaskController(
             status = RemoteCareTask.Status.ACTIVE,
             timesPerDay = timesPerDay,
             startTime = startTimeParsed,
-            intervalHours = if (timesPerDay >= 2) (intervalHours ?: 1) else null,
+            intervalHours = if (parsedCustomTimes == null && timesPerDay >= 2) {
+                intervalHours ?: 1
+            } else {
+                null
+            },
+            customTimes = customTimesStored,
             morningTime = req.morningTime?.let { LocalTime.parse(it) },
             afternoonTime = req.afternoonTime?.let { LocalTime.parse(it) },
             eveningTime = req.eveningTime?.let { LocalTime.parse(it) },
@@ -448,26 +469,84 @@ class RemoteCareTaskController(
 
     // ==================== HELPERS ====================
 
+    /**
+     * Parse, validate and normalize a list of HH:mm slot times provided by
+     * the doctor. Returns a sorted, de-duplicated list of [LocalTime] when
+     * the input is non-null and non-empty. Returns null when the doctor
+     * isn't using custom-times mode (so the caller falls back to
+     * startTime/intervalHours-based scheduling).
+     *
+     * Throws a 400 ResponseStatusException for invalid HH:mm strings or for
+     * lists exceeding the maximum slot count (sanity cap of 96 = every 15
+     * minutes for a full day). Empty lists collapse to null.
+     */
+    private fun parseCustomTimes(raw: List<String>?): List<LocalTime>? {
+        if (raw == null) return null
+        val cleaned = raw.mapNotNull { it?.trim()?.takeIf { s -> s.isNotEmpty() } }
+        if (cleaned.isEmpty()) return null
+        if (cleaned.size > 96) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Too many custom times (max 96)")
+        }
+        val parsed = cleaned.map { entry ->
+            try {
+                LocalTime.parse(entry)
+            } catch (e: Exception) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid time '$entry' (expected HH:mm)")
+            }
+        }
+        return parsed.distinct().sorted()
+    }
+
+    /** Convert a [LocalTime] to wire-format HH:mm. */
+    private fun fmtTime(t: LocalTime): String =
+        "%02d:%02d".format(t.hour, t.minute)
+
+    /** Parse the entity's stored comma-separated `customTimes` back into
+     * a list of [LocalTime]. Returns an empty list when the field is null
+     * or blank. */
+    private fun parseStoredCustomTimes(stored: String?): List<LocalTime> {
+        val s = stored?.trim().orEmpty()
+        if (s.isEmpty()) return emptyList()
+        return s.split(',')
+            .mapNotNull { it.trim().takeIf { v -> v.isNotEmpty() } }
+            .mapNotNull {
+                try {
+                    LocalTime.parse(it)
+                } catch (_: Exception) {
+                    null
+                }
+            }
+            .distinct()
+            .sorted()
+    }
+
     private fun generateCheckIns(task: RemoteCareTask) {
         val startDate = task.startDate
         val endDate = task.endDate ?: startDate.plusDays((task.durationDays ?: 30).toLong())
         var currentDate = startDate
 
-        val windowEnd = LocalTime.of(20, 0) // 8 PM
-        val times: List<LocalTime> = if (task.startTime != null) {
+        // Slot generation has three modes (in priority order):
+        //   1. Custom times mode  — explicit list of HH:mm entries used verbatim.
+        //   2. Even-spacing mode  — startTime + intervalHours, capped by timesPerDay
+        //      and by midnight on the same day (so common pharmacy schedules
+        //      like "every 6h × 4" or "every 8h × 3" produce the expected count).
+        //   3. Legacy mode        — morning/afternoon/evening bucket fields.
+        val maxMinExclusive = 24 * 60 // hard same-day cap
+        val storedCustomTimes = parseStoredCustomTimes(task.customTimes)
+        val times: List<LocalTime> = if (storedCustomTimes.isNotEmpty()) {
+            storedCustomTimes
+        } else if (task.startTime != null) {
             val start = task.startTime!!
             val startMin = start.toSecondOfDay() / 60
-            val endMin = windowEnd.toSecondOfDay() / 60
-            if (task.timesPerDay <= 1 || endMin <= startMin) {
+            if (task.timesPerDay <= 1) {
                 listOf(start)
             } else {
-                // 2+ times: use intervalHours (every 1, 2, 3, ... hours) from start until <= 20:00, cap at timesPerDay
-                val intervalH = (task.intervalHours ?: 1).coerceIn(1, 6)
+                val intervalH = (task.intervalHours ?: 1).coerceIn(1, 24)
                 val intervalMinutes = intervalH * 60
                 buildList {
                     var min = startMin
                     var count = 0
-                    while (min <= endMin && count < task.timesPerDay) {
+                    while (count < task.timesPerDay && min < maxMinExclusive) {
                         add(LocalTime.of(min / 60, min % 60))
                         min += intervalMinutes
                         count++
@@ -564,6 +643,9 @@ class RemoteCareTaskController(
             timesPerDay = task.timesPerDay,
             startTime = task.startTime?.toString(),
             intervalHours = task.intervalHours,
+            customTimes = parseStoredCustomTimes(task.customTimes)
+                .map(::fmtTime)
+                .takeIf { it.isNotEmpty() },
             morningTime = task.morningTime?.toString(),
             afternoonTime = task.afternoonTime?.toString(),
             eveningTime = task.eveningTime?.toString(),
@@ -587,6 +669,9 @@ class RemoteCareTaskController(
             timesPerDay = task.timesPerDay,
             startTime = task.startTime?.toString(),
             intervalHours = task.intervalHours,
+            customTimes = parseStoredCustomTimes(task.customTimes)
+                .map(::fmtTime)
+                .takeIf { it.isNotEmpty() },
             morningTime = task.morningTime?.toString(),
             afternoonTime = task.afternoonTime?.toString(),
             eveningTime = task.eveningTime?.toString(),

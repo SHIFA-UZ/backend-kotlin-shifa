@@ -38,13 +38,26 @@ class RemoteCareTask(
     @Column(name = "times_per_day", nullable = false)
     var timesPerDay: Int = 1,
 
-    /** First slot time. With window end 20:00: 1–3 times spread evenly; 4+ use intervalHours. Null = legacy. */
+    /** First slot time of the day. Null = legacy (use morning/afternoon/evening). */
     @Column(name = "start_time")
     var startTime: LocalTime? = null,
 
-    /** When timesPerDay >= 4: hours between consecutive slots (e.g. 1 = every hour, 2 = every 2 hours). */
+    /** When timesPerDay >= 2: hours between consecutive slots (1–24).
+     * Slots are stepped forward from startTime until the [timesPerDay] count is
+     * reached or the slot would cross midnight on the same calendar day.
+     * Ignored when [customTimes] is set. */
     @Column(name = "interval_hours")
     var intervalHours: Int? = null,
+
+    /** Comma-separated list of explicit slot times in HH:mm format (e.g.
+     * "08:00,10:00,12:00,17:00,22:00"). When non-null and non-empty this
+     * fully drives the daily schedule — [intervalHours] is ignored and
+     * [timesPerDay] is informational (kept in sync with the entry count by
+     * the controller). Lets doctors define non-uniform medication
+     * schedules like "every 2h for the first three doses, then every 5h
+     * for the last two". */
+    @Column(name = "custom_times", columnDefinition = "TEXT")
+    var customTimes: String? = null,
 
     @Column(name = "morning_time")
     var morningTime: LocalTime? = null,
