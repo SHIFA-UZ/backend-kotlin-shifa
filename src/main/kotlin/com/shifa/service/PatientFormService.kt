@@ -1,5 +1,6 @@
 package com.shifa.service
 
+import com.shifa.domain.PatientDocumentCategory
 import com.shifa.domain.PatientForm
 import com.shifa.repo.PatientDocumentRepository
 import com.shifa.repo.PatientFormRepository
@@ -125,6 +126,15 @@ class PatientFormService(
             .orElseThrow { IllegalArgumentException("Form not found: $formId") }
         val document = docs.findById(documentId)
             .orElseThrow { IllegalArgumentException("Document not found: $documentId") }
+
+        // Documents that back doctor-side forms (e.g. 025-2) must stay
+        // doctor-private regardless of what category (if any) was supplied at
+        // upload time. We tag them as FORM_025_2 here and force the
+        // team-visibility flag off so the new "share with all doctors of the
+        // patient" rule does not apply to forms.
+        document.category = PatientDocumentCategory.FORM_025_2.code
+        document.isSharedWithTeam = false
+        docs.save(document)
 
         form.document = document
         val saved = forms.save(form)

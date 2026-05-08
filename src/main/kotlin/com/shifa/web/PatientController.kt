@@ -471,7 +471,8 @@ class PatientController(
         @RequestParam("file") file: MultipartFile,
         @RequestParam("title", required = false) title: String?,
         @RequestParam("date", required = false) date: String?,
-        @RequestParam("isChatAttachment", required = false, defaultValue = "false") isChatAttachment: Boolean
+        @RequestParam("isChatAttachment", required = false, defaultValue = "false") isChatAttachment: Boolean,
+        @RequestParam("category", required = false) category: String?
     ): PatientDocumentDto {
         val profile = currentPatientProfile(principal)
         val patientId = profile.id ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient ID not found")
@@ -481,7 +482,8 @@ class PatientController(
             file = file,
             title = title,
             date = docDate,
-            isChatAttachment = isChatAttachment
+            isChatAttachment = isChatAttachment,
+            category = category
         )
     }
 

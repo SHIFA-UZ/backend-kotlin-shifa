@@ -226,10 +226,13 @@ class SecurityConfig(
                 "X-Requested-With"
             )
 
-            // 🔴 IMPORTANT FOR SSE
+            // 🔴 IMPORTANT FOR SSE + document downloads (so the doctor app
+            // can read filename/extension from Content-Disposition on web).
             exposedHeaders = listOf(
                 "Content-Type",
-                "Authorization"
+                "Authorization",
+                "Content-Disposition",
+                "Content-Length"
             )
 
             allowCredentials = true

@@ -36,7 +36,22 @@ open class PatientDocument(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "uploaded_by_patient_profile_id")
-    open var uploadedByPatientProfile: PatientProfile? = null
+    open var uploadedByPatientProfile: PatientProfile? = null,
+
+    /**
+     * Optional uploader-chosen category (e.g. MRI, BLOOD_TEST, FORM_025_2).
+     * Stored as the [PatientDocumentCategory.code] string; null for legacy rows.
+     */
+    @Column(name = "category", columnDefinition = "TEXT")
+    open var category: String? = null,
+
+    /**
+     * When true the document is visible to every doctor that has access to the
+     * patient. Computed at upload time based on uploader role + category, see
+     * PatientDocumentService for the rules.
+     */
+    @Column(name = "is_shared_with_team", nullable = false)
+    open var isSharedWithTeam: Boolean = false
 ) {
     protected constructor() : this(
         id = null,
@@ -46,6 +61,8 @@ open class PatientDocument(
         filePath = "",
         isChatAttachment = false,
         uploadedByDoctor = null,
-        uploadedByPatientProfile = null
+        uploadedByPatientProfile = null,
+        category = null,
+        isSharedWithTeam = false
     )
 }

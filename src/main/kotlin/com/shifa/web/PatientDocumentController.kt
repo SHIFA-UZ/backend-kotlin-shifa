@@ -61,7 +61,8 @@ class PatientDocumentController(
         @RequestParam("file") file: MultipartFile,
         @RequestParam("title", required = false) title: String?,
         @RequestParam("date", required = false) date: String?,
-        @RequestParam("isChatAttachment", required = false, defaultValue = "false") isChatAttachment: Boolean
+        @RequestParam("isChatAttachment", required = false, defaultValue = "false") isChatAttachment: Boolean,
+        @RequestParam("category", required = false) category: String?
     ): ResponseEntity<PatientDocumentDto> {
         ensurePatientAccess(principal.profile.id, patientId)
         val docDate = date?.let(LocalDate::parse)
@@ -71,7 +72,8 @@ class PatientDocumentController(
             file = file,
             title = title,
             date = docDate,
-            isChatAttachment = isChatAttachment
+            isChatAttachment = isChatAttachment,
+            category = category
         )
         return ResponseEntity.ok(dto)
     }

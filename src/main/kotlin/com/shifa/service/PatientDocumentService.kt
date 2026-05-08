@@ -1,6 +1,7 @@
 package com.shifa.service
 
 import com.shifa.domain.PatientDocument
+import com.shifa.domain.PatientDocumentCategory
 import com.shifa.repo.DocumentAccessGrantRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.PatientDocumentRepository
@@ -104,7 +105,9 @@ class PatientDocumentService(
             date = d.date,
             url = url,
             canView = true,
-            creatorLabel = creatorLabel
+            creatorLabel = creatorLabel,
+            category = d.category,
+            isSharedWithTeam = d.isSharedWithTeam
         )
     }
 
@@ -120,14 +123,35 @@ class PatientDocumentService(
             date = d.date,
             url = url,
             canView = canView,
-            creatorLabel = creatorLabel
+            creatorLabel = creatorLabel,
+            category = d.category,
+            isSharedWithTeam = d.isSharedWithTeam
         )
     }
 
+    /**
+     * Visibility rules:
+     *   1. Documents marked as shared with the patient's care team are visible
+     *      to every doctor that already has patient access (patient uploads,
+     *      and doctor uploads tagged with a medical-result category).
+     *   2. Otherwise the creator can always view their own upload.
+     *   3. Otherwise an explicit access grant is required.
+     */
     private fun canDoctorViewDocument(d: PatientDocument, doctorId: Long): Boolean {
+        if (d.isSharedWithTeam) return true
         if (d.uploadedByDoctor?.id == doctorId) return true
         if (d.id != null && accessGrants.existsByDocument_IdAndDoctor_Id(d.id!!, doctorId)) return true
         return false
+    }
+
+    /**
+     * Compute team-visibility for a doctor upload. Doctor uploads are only
+     * shared automatically when tagged with a medical-result category;
+     * doctor-private categories (notes, forms, remote-task documents) and
+     * untagged uploads stay restricted.
+     */
+    private fun shouldShareDoctorUpload(category: PatientDocumentCategory?): Boolean {
+        return category?.isMedicalResult == true
     }
 
     /**
@@ -161,20 +185,27 @@ class PatientDocumentService(
         file: MultipartFile,
         title: String?,
         date: LocalDate?,
-        isChatAttachment: Boolean = false
+        isChatAttachment: Boolean = false,
+        category: String? = null
     ): PatientDocumentDto {
         val p = profiles.findById(patientId).orElseThrow()
         val doctor = doctorProfiles.findById(uploadingDoctorId).orElseThrow()
         val baseNameForFile = title?.takeIf { it.isNotBlank() }
             ?: (file.originalFilename ?: "document")
         val saved = storage.saveDocument(patientId, file, baseNameForFile)
+        val resolvedCategory = PatientDocumentCategory.fromCodeOrNull(category)
         val entity = PatientDocument(
             title = title?.takeIf { it.isNotBlank() } ?: baseNameForFile,
             date = date ?: LocalDate.now(),
             filePath = saved.filePathRelative,
             patient = p,
             isChatAttachment = isChatAttachment,
-            uploadedByDoctor = doctor
+            uploadedByDoctor = doctor,
+            // Chat attachments stay private (legacy behaviour); other uploads
+            // become team-visible only when the doctor tags them as a medical
+            // result (MRI, blood test, ultrasound, ...).
+            category = resolvedCategory?.code,
+            isSharedWithTeam = !isChatAttachment && shouldShareDoctorUpload(resolvedCategory)
         )
         val persisted = docs.save(entity)
         return toDto(persisted, uploadingDoctorId)
@@ -186,12 +217,14 @@ class PatientDocumentService(
         file: MultipartFile,
         title: String?,
         date: LocalDate?,
-        isChatAttachment: Boolean = false
+        isChatAttachment: Boolean = false,
+        category: String? = null
     ): PatientDocumentDto {
         val p = profiles.findById(patientId).orElseThrow { IllegalArgumentException("Patient not found: $patientId") }
         val baseNameForFile = title?.takeIf { it.isNotBlank() }
             ?: (file.originalFilename ?: "document")
         val saved = storage.saveDocument(patientId, file, baseNameForFile)
+        val resolvedCategory = PatientDocumentCategory.fromCodeOrNull(category)
         val entity = PatientDocument(
             title = title?.takeIf { it.isNotBlank() } ?: baseNameForFile,
             date = date ?: LocalDate.now(),
@@ -199,7 +232,11 @@ class PatientDocumentService(
             patient = p,
             isChatAttachment = isChatAttachment,
             uploadedByDoctor = null,
-            uploadedByPatientProfile = p
+            uploadedByPatientProfile = p,
+            category = resolvedCategory?.code,
+            // Patient uploads (non-chat) are always shared with the patient's
+            // doctors per the new visibility rules.
+            isSharedWithTeam = !isChatAttachment
         )
         val persisted = docs.save(entity)
         return toDtoForPatient(persisted)
