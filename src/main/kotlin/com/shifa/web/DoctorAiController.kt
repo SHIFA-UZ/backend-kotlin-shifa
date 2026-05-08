@@ -3,10 +3,12 @@ package com.shifa.web
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.ai.OutputLanguage
 import com.shifa.ai.PatientAiContextBuilder
+import com.shifa.domain.SubscriptionFeature
 import com.shifa.security.DoctorPrincipal
 import com.shifa.service.AiDraftNoteService
 import com.shifa.service.OpenAiResponsesService
 import com.shifa.service.PatientVisitAiSummaryService
+import com.shifa.service.SubscriptionTierService
 import com.shifa.web.dto.DoctorAiRequest
 import kotlinx.coroutines.runBlocking
 import org.springframework.http.MediaType
@@ -26,7 +28,8 @@ class DoctorAiController(
     private val patientAiContextBuilder: PatientAiContextBuilder,
     private val aiDraftNoteService: AiDraftNoteService,
     private val visitSummaryService: PatientVisitAiSummaryService,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val subscriptionTierService: SubscriptionTierService
 ) {
 
     @PostMapping(
@@ -37,6 +40,8 @@ class DoctorAiController(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @RequestBody @Valid request: DoctorAiRequest
     ): SseEmitter {
+
+        subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
 
         val emitter = SseEmitter(0L) // no timeout
 

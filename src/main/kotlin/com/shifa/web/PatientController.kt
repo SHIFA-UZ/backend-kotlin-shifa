@@ -46,7 +46,8 @@ class PatientController(
     private val doctorServicePrices: DoctorServicePriceRepository,
     private val patientDocumentService: PatientDocumentService,
     private val notifications: NotificationRepository,
-    private val fcmService: FcmService
+    private val fcmService: FcmService,
+    private val subscriptionTierService: com.shifa.service.SubscriptionTierService
 ) {
 
     // -------------------- Helper --------------------
@@ -85,7 +86,11 @@ class PatientController(
         val locationCity: String?,
         val locationPostalCode: String?,
         val locationStreetAddress: String?,
-        val timeZone: String?
+        val timeZone: String?,
+        /** Admin-managed subscription tier driving feature gating in the patient app. */
+        val subscriptionTier: String?,
+        /** List of feature codes available to this user under their tier. */
+        val features: List<String>?
     )
 
     data class UpdateProfileRequest(
@@ -166,6 +171,7 @@ class PatientController(
         @AuthenticationPrincipal principal: PatientPrincipal
     ): PatientProfileDto {
         val profile = currentPatientProfile(principal)
+        val owner = profile.user ?: principal.user
         return PatientProfileDto(
             id = profile.id,
             fullName = profile.fullName,
@@ -183,7 +189,9 @@ class PatientController(
             locationCity = profile.locationCity,
             locationPostalCode = profile.locationPostalCode,
             locationStreetAddress = profile.locationStreetAddress,
-            timeZone = profile.timeZone
+            timeZone = profile.timeZone,
+            subscriptionTier = subscriptionTierService.tierOf(owner).name,
+            features = subscriptionTierService.availableFeatures(owner).map { it.name }
         )
     }
 
@@ -216,6 +224,7 @@ class PatientController(
         req.timeZone?.let { profile.timeZone = it.takeIf { tz -> tz.isNotBlank() } }
 
         val saved = patientProfiles.save(profile)
+        val owner = saved.user ?: principal.user
         return PatientProfileDto(
             id = saved.id,
             fullName = saved.fullName,
@@ -233,7 +242,9 @@ class PatientController(
             locationCity = saved.locationCity,
             locationPostalCode = saved.locationPostalCode,
             locationStreetAddress = saved.locationStreetAddress,
-            timeZone = saved.timeZone
+            timeZone = saved.timeZone,
+            subscriptionTier = subscriptionTierService.tierOf(owner).name,
+            features = subscriptionTierService.availableFeatures(owner).map { it.name }
         )
     }
 

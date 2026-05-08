@@ -7,6 +7,7 @@ import com.shifa.ai.SymptomMatcher
 import com.shifa.config.AppProperties
 import com.shifa.domain.DoctorProfile
 import com.shifa.domain.PatientProfile
+import com.shifa.domain.SubscriptionFeature
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.DoctorReviewRepository
 import com.shifa.repo.PatientProfileRepository
@@ -15,6 +16,7 @@ import com.shifa.service.OpenAiResponsesService
 import com.shifa.service.PatientCopilotBookingService
 import com.shifa.service.PatientCopilotContextService
 import com.shifa.service.PatientDaySlotsService
+import com.shifa.service.SubscriptionTierService
 import com.shifa.service.TranscriptionService
 import com.shifa.web.dto.PatientCopilotAiRequest
 import com.shifa.web.dto.PatientCopilotBookAppointmentRequest
@@ -51,7 +53,8 @@ class PatientCopilotController(
     private val copilotContextService: PatientCopilotContextService,
     private val daySlotsService: PatientDaySlotsService,
     private val appProps: AppProperties,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val subscriptionTierService: SubscriptionTierService
 ) {
 
     private fun currentPatientProfile(principal: PatientPrincipal): PatientProfile {
@@ -65,6 +68,14 @@ class PatientCopilotController(
                 HttpStatus.NOT_FOUND,
                 "Patient profile not found for user ${user.id}"
             )
+    }
+
+    /** Patient-side Shifa AI requires PREMIUM tier on the patient account. */
+    private fun requireCopilotAccess(principal: PatientPrincipal) {
+        subscriptionTierService.requireFeature(
+            principal.user,
+            SubscriptionFeature.PATIENT_SHIFA_AI
+        )
     }
 
     private fun normalizeAvatarUrl(avatarUrl: String?): String? {
@@ -134,6 +145,7 @@ class PatientCopilotController(
         @AuthenticationPrincipal principal: PatientPrincipal,
         @RequestBody @Valid request: PatientCopilotAiRequest
     ): SseEmitter {
+        requireCopilotAccess(principal)
         val emitter = SseEmitter(0L)
         val profile = currentPatientProfile(principal)
 
@@ -199,6 +211,7 @@ class PatientCopilotController(
         @RequestParam("file") file: MultipartFile,
         @RequestParam(required = false) languageHint: String?
     ): ResponseEntity<Map<String, String>> {
+        requireCopilotAccess(principal)
         currentPatientProfile(principal)
         if (file.isEmpty) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "file is required")
@@ -226,6 +239,7 @@ class PatientCopilotController(
         @AuthenticationPrincipal principal: PatientPrincipal,
         @RequestBody @Valid body: PatientCopilotSuggestDoctorsRequest
     ): List<Map<String, Any?>> {
+        requireCopilotAccess(principal)
         currentPatientProfile(principal)
         val text = body.symptomsText.trim()
         if (text.isBlank()) return emptyList()
@@ -288,6 +302,7 @@ class PatientCopilotController(
         @AuthenticationPrincipal principal: PatientPrincipal,
         @RequestBody @Valid body: PatientCopilotSuggestFromChatRequest
     ): Map<String, Any?> {
+        requireCopilotAccess(principal)
         val profile = currentPatientProfile(principal)
         val cleaned = body.messages
             .mapNotNull { msg ->
@@ -461,6 +476,7 @@ class PatientCopilotController(
         @AuthenticationPrincipal principal: PatientPrincipal,
         @RequestBody @Valid body: PatientCopilotResolveBookingRequest
     ): Map<String, Any?> {
+        requireCopilotAccess(principal)
         val profile = currentPatientProfile(principal)
         val intent = aiService.resolvePatientBookingIntent(
             messages = body.messages,
@@ -647,6 +663,7 @@ class PatientCopilotController(
         @AuthenticationPrincipal principal: PatientPrincipal,
         @RequestBody @Valid body: PatientCopilotBookAppointmentRequest
     ): Map<String, Any?> {
+        requireCopilotAccess(principal)
         val profile = currentPatientProfile(principal)
         val preferred = Instant.parse(body.preferredStartAt.trim())
         val booked = copilotBookingService.bookNearestToPreferred(

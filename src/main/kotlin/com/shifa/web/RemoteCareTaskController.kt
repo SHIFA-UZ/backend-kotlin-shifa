@@ -3,6 +3,7 @@ package com.shifa.web
 import com.shifa.domain.Notification
 import com.shifa.domain.PatientProfile
 import com.shifa.domain.RemoteCareTask
+import com.shifa.domain.SubscriptionFeature
 import com.shifa.domain.TaskCheckIn
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.NotificationRepository
@@ -12,6 +13,7 @@ import com.shifa.repo.TaskCheckInRepository
 import com.shifa.security.DoctorPrincipal
 import com.shifa.security.PatientPrincipal
 import com.shifa.service.FcmService
+import com.shifa.service.SubscriptionTierService
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
@@ -31,8 +33,17 @@ class RemoteCareTaskController(
     private val patientRepo: PatientProfileRepository,
     private val doctorRepo: DoctorProfileRepository,
     private val notificationRepo: NotificationRepository,
-    private val fcmService: FcmService
+    private val fcmService: FcmService,
+    private val subscriptionTierService: SubscriptionTierService
 ) {
+
+    /** Doctor-side remote-care tasks require PREMIUM. */
+    private fun requireDoctorTaskAccess(principal: DoctorPrincipal) {
+        subscriptionTierService.requireFeature(
+            principal.profile.user,
+            SubscriptionFeature.REMOTE_CARE_TASKS
+        )
+    }
 
     // ==================== DOCTOR ENDPOINTS ====================
 
@@ -128,6 +139,7 @@ class RemoteCareTaskController(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @RequestBody req: CreateTaskRequest
     ): TaskDto {
+        requireDoctorTaskAccess(principal)
         val doctor = principal.profile
         val patient = patientRepo.findById(req.patientId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found") }
@@ -202,6 +214,7 @@ class RemoteCareTaskController(
         @RequestParam(required = false) patientId: Long?,
         @RequestParam(required = false) status: String?
     ): List<TaskDto> {
+        requireDoctorTaskAccess(principal)
         val doctor = principal.profile
         
         val tasks = when {
@@ -229,6 +242,7 @@ class RemoteCareTaskController(
     fun getTemplates(
         @AuthenticationPrincipal principal: DoctorPrincipal
     ): List<TemplateDto> {
+        requireDoctorTaskAccess(principal)
         val doctor = principal.profile
         val tasks = taskRepo.findByDoctorIdOrderByCreatedAtDesc(doctor.id!!)
         val seenNames = mutableSetOf<String>()
@@ -244,6 +258,7 @@ class RemoteCareTaskController(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @PathVariable id: Long
     ): TaskDto {
+        requireDoctorTaskAccess(principal)
         val task = taskRepo.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found") }
         
@@ -260,6 +275,7 @@ class RemoteCareTaskController(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @PathVariable id: Long
     ): TaskProgressDto {
+        requireDoctorTaskAccess(principal)
         val task = taskRepo.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found") }
         if (task.doctor.id != principal.profile.id) {
@@ -275,6 +291,7 @@ class RemoteCareTaskController(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @PathVariable id: Long
     ): List<CheckInDto> {
+        requireDoctorTaskAccess(principal)
         val task = taskRepo.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found") }
         
@@ -291,6 +308,7 @@ class RemoteCareTaskController(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @PathVariable id: Long
     ): TaskDto {
+        requireDoctorTaskAccess(principal)
         val task = taskRepo.findById(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found") }
         

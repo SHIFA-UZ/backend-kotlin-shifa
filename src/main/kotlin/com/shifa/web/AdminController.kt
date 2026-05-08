@@ -1,5 +1,6 @@
 package com.shifa.web
 
+import com.shifa.domain.SubscriptionTier
 import com.shifa.domain.User
 import com.shifa.repo.*
 import com.shifa.security.AdminPrincipal
@@ -31,7 +32,8 @@ class AdminController(
     private val doctorProfileRepository: DoctorProfileRepository,
     private val patientProfileRepository: PatientProfileRepository,
     private val systemConfigRepository: SystemConfigRepository,
-    private val adminCalendarResetService: com.shifa.service.AdminCalendarResetService
+    private val adminCalendarResetService: com.shifa.service.AdminCalendarResetService,
+    private val subscriptionTierService: SubscriptionTierService
 ) {
     
     // ==================== DASHBOARD ====================
@@ -227,7 +229,12 @@ class AdminController(
         val lastLoginAt: String?,
         val failedLoginAttempts: Int,
         val lockedUntil: String?,
+        val subscriptionTier: String,
         val profile: Map<String, Any>?
+    )
+
+    data class UpdateSubscriptionTierRequest(
+        @field:NotBlank val tier: String
     )
     
     @GetMapping("/users")
@@ -496,8 +503,54 @@ class AdminController(
             lastLoginAt = user.lastLoginAt?.toString(),
             failedLoginAttempts = user.failedLoginAttempts ?: 0,
             lockedUntil = user.lockedUntil?.toString(),
+            subscriptionTier = subscriptionTierService.tierOf(user).name,
             profile = profile
         )
+    }
+
+    // ==================== SUBSCRIPTION TIER ====================
+
+    @PatchMapping("/users/{userId}/subscription-tier")
+    fun updateUserSubscriptionTier(
+        @PathVariable userId: Long,
+        @RequestBody @Valid request: UpdateSubscriptionTierRequest,
+        @AuthenticationPrincipal principal: AdminPrincipal,
+        httpRequest: HttpServletRequest
+    ): UserResponse {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot modify users")
+        }
+
+        val tier = try {
+            SubscriptionTier.valueOf(request.tier.trim().uppercase())
+        } catch (e: IllegalArgumentException) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Invalid subscription tier: ${request.tier}. Allowed: BASIC, PRO, PREMIUM."
+            )
+        }
+
+        val previousTier = userManagementService.getUserById(userId).subscriptionTier
+        val updated = subscriptionTierService.setTier(userId, tier)
+
+        auditService.logAction(
+            adminUser = principal.adminProfile.user,
+            actionType = "SUBSCRIPTION_TIER_CHANGED",
+            entityType = "USER",
+            entityId = updated.id,
+            details = mapOf(
+                "previousTier" to previousTier.name,
+                "newTier" to tier.name,
+                "role" to updated.role.name
+            ),
+            request = httpRequest
+        )
+
+        // Force the user to re-authenticate so the next token reflects their new tier on the
+        // client-side. This also drops any in-flight sessions that might be using cached gates.
+        userManagementService.forceLogout(userId, principal.adminProfile.user)
+
+        return toUserResponse(updated)
     }
     
     // ==================== AUDIT LOGS ====================

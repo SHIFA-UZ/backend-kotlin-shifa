@@ -40,7 +40,8 @@ class DoctorController(
     private val appProps: AppProperties,
     private val scheduleValidityService: ScheduleValidityService,
     private val notifications: NotificationRepository,
-    private val fcmService: FcmService
+    private val fcmService: FcmService,
+    private val subscriptionTierService: com.shifa.service.SubscriptionTierService
 ) {
 
     // -------------------- helpers --------------------
@@ -223,6 +224,10 @@ class DoctorController(
                 language = s?.language,
                 twoFA = s?.twoFactor ?: false,
                 encryptedDocs = s?.encryptedDocs ?: true
+            ),
+            "subscription" to mapOf(
+                "tier" to subscriptionTierService.tierOf(d.user).name,
+                "features" to subscriptionTierService.availableFeatures(d.user).map { it.name }
             )
         )
     }

@@ -49,7 +49,16 @@ class User(
     var failedLoginAttempts: Int = 0,
     
     @Column(name = "locked_until")
-    var lockedUntil: OffsetDateTime? = null
+    var lockedUntil: OffsetDateTime? = null,
+
+    /**
+     * Admin-managed subscription tier controlling feature availability. Drives gating in the
+     * doctor and patient apps. PATIENT users may only be PRO or PREMIUM (enforced in
+     * SubscriptionTierService).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "subscription_tier", nullable = false, length = 16)
+    var subscriptionTier: SubscriptionTier = SubscriptionTier.PREMIUM
 ) {
     fun isLocked(): Boolean = lockedUntil != null && lockedUntil!!.isAfter(OffsetDateTime.now())
 

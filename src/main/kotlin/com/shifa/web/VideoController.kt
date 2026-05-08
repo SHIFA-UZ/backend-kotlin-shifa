@@ -1,11 +1,13 @@
 // src/main/kotlin/com/shifa/web/VideoController.kt
 package com.shifa.web
 
+import com.shifa.domain.SubscriptionFeature
 import com.shifa.repo.AppointmentRepository
 import com.shifa.security.DoctorPrincipal
 import java.time.Instant
 import com.shifa.security.PatientPrincipal
 import com.shifa.service.DailyVideoService
+import com.shifa.service.SubscriptionTierService
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
@@ -16,7 +18,8 @@ import org.springframework.web.server.ResponseStatusException
 class VideoController(
     private val dailyVideoService: DailyVideoService,
     private val appointmentRepository: AppointmentRepository,
-    private val patientProfileRepository: com.shifa.repo.PatientProfileRepository
+    private val patientProfileRepository: com.shifa.repo.PatientProfileRepository,
+    private val subscriptionTierService: SubscriptionTierService
 ) {
     private val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
     
@@ -119,6 +122,14 @@ class VideoController(
                 (principal as DoctorPrincipal).profile
                     ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Doctor profile not found")
             } else null
+
+            // Doctors must have at least PRO to use video consultations.
+            if (isDoctor && doctor != null) {
+                subscriptionTierService.requireFeature(
+                    doctor.user,
+                    SubscriptionFeature.VIDEO_CONSULTATION
+                )
+            }
             
             val patient = if (isPatient) {
                 logger.debug("Getting patient profile")

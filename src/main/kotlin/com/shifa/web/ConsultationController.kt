@@ -1,10 +1,12 @@
 package com.shifa.web
 
 import com.shifa.config.ScribeProperties
+import com.shifa.domain.SubscriptionFeature
 import com.shifa.repo.AppointmentRepository
 import com.shifa.security.DoctorPrincipal
 import com.shifa.service.ScribePipelineService
 import com.shifa.service.ScribeRecordingService
+import com.shifa.service.SubscriptionTierService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -25,7 +27,8 @@ class ConsultationController(
     private val scribePipelineService: ScribePipelineService,
     private val scribeRecordingService: ScribeRecordingService,
     private val appointmentRepository: AppointmentRepository,
-    private val scribeProps: ScribeProperties
+    private val scribeProps: ScribeProperties,
+    private val subscriptionTierService: SubscriptionTierService
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -42,6 +45,8 @@ class ConsultationController(
         @RequestParam("language", required = false) language: String?
     ): ResponseEntity<Map<String, Any>> {
         val doctor = principal.profile ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Doctor profile not found")
+
+        subscriptionTierService.requireFeature(doctor.user, SubscriptionFeature.AI_NOTES)
 
         if (file.isEmpty) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Audio file is required")

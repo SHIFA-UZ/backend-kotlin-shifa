@@ -1,9 +1,11 @@
 package com.shifa.web
 
+import com.shifa.domain.SubscriptionFeature
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.DoctorPrincipal
 import com.shifa.service.PatientBriefingService
+import com.shifa.service.SubscriptionTierService
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
@@ -15,7 +17,8 @@ import org.springframework.http.HttpStatus
 class PatientBriefingController(
     private val briefingService: PatientBriefingService,
     private val appointmentRepo: AppointmentRepository,
-    private val patientsRepo: PatientProfileRepository
+    private val patientsRepo: PatientProfileRepository,
+    private val subscriptionTierService: SubscriptionTierService
 ) {
 
     /** Same access rule as document list: appointment with doctor or patient created by doctor. */
@@ -39,6 +42,10 @@ class PatientBriefingController(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @RequestBody(required = false) body: Map<String, Any>?
     ): ResponseEntity<Map<String, Any>> {
+        subscriptionTierService.requireFeature(
+            principal.profile.user,
+            SubscriptionFeature.PATIENT_BRIEFING
+        )
         ensurePatientAccess(principal.profile.id, patientId)
         val language = (body?.get("language") as? String)?.takeIf { it.isNotBlank() } ?: "en"
         return try {
