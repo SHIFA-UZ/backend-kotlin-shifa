@@ -23,6 +23,13 @@ class DoctorService(
     @Column(name = "is_active", nullable = false)
     var isActive: Boolean = true,
 
+    /**
+     * When true, video bookings that select this service are confirmed immediately with
+     * no payment (consultation offering / promo). Toggled by the doctor in Services & Pricing.
+     */
+    @Column(name = "is_free_consultation", nullable = false)
+    var isFreeConsultation: Boolean = false,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
 

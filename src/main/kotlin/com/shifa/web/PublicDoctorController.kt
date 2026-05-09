@@ -33,6 +33,8 @@ class PublicDoctorController(
         val id: Long,
         val title: String,
         val description: String?,
+        /** True when this video-bookable service is free (no patient payment). */
+        val isFreeConsultation: Boolean = false,
         val prices: List<ServicePriceDto>
     )
 
@@ -294,6 +296,7 @@ class PublicDoctorController(
                 id = s.id,
                 title = s.title,
                 description = s.description,
+                isFreeConsultation = s.isFreeConsultation,
                 prices = priceItems
             )
         }

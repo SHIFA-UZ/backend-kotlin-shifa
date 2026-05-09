@@ -10,12 +10,13 @@ class ReminderNotificationScheduler(
 ) {
     private val log = LoggerFactory.getLogger(ReminderNotificationScheduler::class.java)
 
-    /** Run every minute: task reminders (5 min before) and appointment reminders (1 hour before). */
+    /** Run every minute: task, appointment, and pending payment (video) reminders. */
     @Scheduled(fixedRate = 60_000)
     fun runReminders() {
         try {
             reminderNotificationService.sendTaskReminders()
             reminderNotificationService.sendAppointmentReminders()
+            reminderNotificationService.sendPendingConsultationPaymentReminders()
         } catch (e: Exception) {
             log.warn("Reminder scheduler failed: {}", e.message)
         }

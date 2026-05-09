@@ -236,4 +236,24 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         @Param("start") start: Instant,
         @Param("end") end: Instant
     ): List<Appointment>
+
+    /**
+     * Video consultations with payment still pending, starting in [start, end) (UTC).
+     * Used for scheduled payment nudges at 24h / 6h / 1h before start.
+     */
+    @Query(
+        """
+        SELECT DISTINCT a FROM Appointment a
+        JOIN FETCH a.patient
+        JOIN FETCH a.doctor
+        WHERE a.startAt >= :start AND a.startAt < :end
+          AND a.status IN ('REQUESTED', 'CONFIRMED')
+          AND a.paymentStatus = 'PENDING'
+          AND LOWER(a.location) LIKE '%video%'
+        """
+    )
+    fun findPendingPaymentVideoAppointmentsStartingBetween(
+        @Param("start") start: Instant,
+        @Param("end") end: Instant
+    ): List<Appointment>
 }

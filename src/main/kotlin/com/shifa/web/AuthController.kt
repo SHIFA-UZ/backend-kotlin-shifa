@@ -85,7 +85,7 @@ class AuthController(
 
     // ---------- Check existing doctor (for patient app create-account) ----------
     data class CheckExistingDoctorRequest(
-        @field:NotBlank val phone: String,
+        val phone: String? = null,
         val email: String? = null
     )
     data class CheckExistingDoctorResponse(
@@ -94,16 +94,20 @@ class AuthController(
     )
 
     /**
-     * Patient app calls this after user enters phone (and optionally email) on create-account.
+     * Patient app calls this after user enters phone and/or email on create-account.
      * If a DOCTOR user exists with this phone/email, returns their name so the app can offer "Create patient account for this doctor".
      */
     @PostMapping("/check-existing-doctor")
     fun checkExistingDoctor(@RequestBody @Valid req: CheckExistingDoctorRequest): CheckExistingDoctorResponse {
-        val phoneTrimmed = req.phone.trim()
-        val phoneNorm = PhoneNormalizer.normalize(phoneTrimmed)
-        val user = users.findByPhone(phoneTrimmed).orElse(null)
+        val phoneTrimmed = req.phone?.trim()?.takeIf { it.isNotBlank() }
+        val emailTrimmed = req.email?.trim()?.takeIf { it.isNotBlank() }
+        if (phoneTrimmed == null && emailTrimmed == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone or email required")
+        }
+        val phoneNorm = phoneTrimmed?.let { PhoneNormalizer.normalize(it) }
+        val user = phoneTrimmed?.let { users.findByPhone(it).orElse(null) }
             ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
-            ?: req.email?.trim()?.takeIf { it.isNotBlank() }?.let { users.findByEmail(it).orElse(null) }
+            ?: emailTrimmed?.let { users.findByEmail(it).orElse(null) }
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found")
         if (!userRoles.existsByUserIdAndRole(user.id, Role.DOCTOR)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "No doctor account found")
@@ -119,7 +123,7 @@ class AuthController(
 
     // ---------- Check identifier for patient app (phone/email -> doctor | patient | none) ----------
     data class CheckIdentifierRequest(
-        @field:NotBlank val phone: String,
+        val phone: String? = null,
         val email: String? = null
     )
     data class CheckIdentifierResponse(
@@ -133,11 +137,15 @@ class AuthController(
      */
     @PostMapping("/check-identifier")
     fun checkIdentifier(@RequestBody @Valid req: CheckIdentifierRequest): CheckIdentifierResponse {
-        val phoneTrimmed = req.phone.trim()
-        val phoneNorm = PhoneNormalizer.normalize(phoneTrimmed)
-        val user = users.findByPhone(phoneTrimmed).orElse(null)
+        val phoneTrimmed = req.phone?.trim()?.takeIf { it.isNotBlank() }
+        val emailTrimmed = req.email?.trim()?.takeIf { it.isNotBlank() }
+        if (phoneTrimmed == null && emailTrimmed == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone or email required")
+        }
+        val phoneNorm = phoneTrimmed?.let { PhoneNormalizer.normalize(it) }
+        val user = phoneTrimmed?.let { users.findByPhone(it).orElse(null) }
             ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
-            ?: req.email?.trim()?.takeIf { it.isNotBlank() }?.let { users.findByEmail(it).orElse(null) }
+            ?: emailTrimmed?.let { users.findByEmail(it).orElse(null) }
             ?: return CheckIdentifierResponse(type = "none")
         if (userRoles.existsByUserIdAndRole(user.id, Role.DOCTOR)) {
             val doc = doctors.findByUserId(user.id).orElse(null)
@@ -292,7 +300,7 @@ class AuthController(
 
     // ---------- Create patient account for existing doctor ----------
     data class CreatePatientForDoctorRequest(
-        @field:NotBlank val phone: String,
+        val phone: String? = null,
         val email: String? = null,
         val emailOtp: String? = null
     )
@@ -303,7 +311,11 @@ class AuthController(
      */
     @PostMapping("/create-patient-for-doctor")
     fun createPatientForDoctor(@RequestBody @Valid req: CreatePatientForDoctorRequest): TokenResponse {
+        val phoneTrimmed = req.phone?.trim()?.takeIf { it.isNotBlank() }
         val emailTrimmed = req.email?.trim()?.takeIf { it.isNotBlank() }
+        if (phoneTrimmed == null && emailTrimmed == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone or email required")
+        }
         if (emailTrimmed != null && req.emailOtp.isNullOrBlank()) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email OTP required when email is provided")
         }
@@ -312,12 +324,13 @@ class AuthController(
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired email verification code")
             }
         }
-        val phoneTrimmed = req.phone.trim()
-        val phoneNorm = PhoneNormalizer.normalize(phoneTrimmed)
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
-        val user = users.findByPhone(phoneTrimmed).orElse(null)
-            ?: users.findByPhone(phoneNorm).orElse(null)
-            ?: req.email?.trim()?.takeIf { it.isNotBlank() }?.let { users.findByEmail(it).orElse(null) }
+        val phoneNorm = phoneTrimmed?.let { PhoneNormalizer.normalize(it) }
+        if (phoneTrimmed != null && phoneNorm == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
+        }
+        val user = phoneTrimmed?.let { users.findByPhone(it).orElse(null) }
+            ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
+            ?: emailTrimmed?.let { users.findByEmail(it).orElse(null) }
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found")
         if (!user.enabled) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Account is disabled")
@@ -342,10 +355,11 @@ class AuthController(
         val doctorProfile = doctors.findByUserId(user.id).orElse(null)
         val fullName = doctorProfile?.let { "${it.firstName} ${it.lastName}".trim() }
             ?: (user.email ?: user.phone ?: "Patient")
+        val profilePhoneNorm = user.phone?.let { PhoneNormalizer.normalize(it) }
         val patientProfile = com.shifa.domain.PatientProfile(
             fullName = fullName,
             phone = user.phone,
-            phoneNormalized = phoneNorm,
+            phoneNormalized = profilePhoneNorm ?: phoneNorm,
             email = user.email,
             documents = mutableListOf()
         )
@@ -752,8 +766,8 @@ class AuthController(
     data class RegisterPatientRequest(
         @field:NotBlank val firstName: String,
         @field:NotBlank val lastName: String,
-        @field:NotBlank val phone: String,
-        @field:Email val email: String?,
+        val phone: String? = null,
+        @field:NotBlank @field:Email val email: String,
         @field:NotBlank val password: String,
         val birthDate: String? = null,
         val gender: String? = null,
@@ -765,56 +779,61 @@ class AuthController(
 
     /**
      * Creates a PATIENT user, saves PatientProfile, and returns JWT.
-     * When email is provided, emailOtp must be provided and verified (sent via send-email-otp).
+     * Email and emailOtp are required (sent via send-email-otp).
+     * Phone is optional; when provided, uniqueness checks apply.
      * When phoneVerificationIdToken is provided, backend verifies Firebase phone OTP and ensures phone matches.
      */
     @PostMapping("/register-patient")
     fun registerPatient(@RequestBody @Valid r: RegisterPatientRequest): TokenResponse {
-        val emailTrimmed = r.email?.trim()?.takeIf { it.isNotBlank() }
-        if (emailTrimmed != null) {
-            if (r.emailOtp.isNullOrBlank()) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email verification code required")
-            }
-            if (!emailOtpService.verify(emailTrimmed, r.emailOtp!!)) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired email verification code")
-            }
+        val emailTrimmed = r.email.trim().lowercase()
+        if (r.emailOtp.isNullOrBlank()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email verification code required")
         }
-        val phoneNormalizedForCheck = PhoneNormalizer.normalize(r.phone.trim())
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
-        r.phoneVerificationIdToken?.let { idToken ->
-            if (!firebaseAuthService.isConfigured()) {
-                throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Phone verification not configured")
-            }
-            val decoded = firebaseAuthService.verifyIdToken(idToken)
-                .orElseThrow { ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired phone verification") }
-            val tokenPhone = firebaseAuthService.getPhoneNumberByUid(decoded.uid)
-                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone number not found in verification")
-            val tokenPhoneNorm = PhoneNormalizer.normalize(tokenPhone)
-                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone in verification")
-            if (tokenPhoneNorm != phoneNormalizedForCheck) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone number does not match verification")
+        if (!emailOtpService.verify(emailTrimmed, r.emailOtp!!)) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired email verification code")
+        }
+        val phoneRaw = r.phone?.trim()?.takeIf { it.isNotBlank() }
+        val phoneNormalized = phoneRaw?.let { PhoneNormalizer.normalize(it) }
+        if (phoneRaw != null && phoneNormalized == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
+        }
+        if (!r.phoneVerificationIdToken.isNullOrBlank() && phoneNormalized == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone required when phone verification token is provided")
+        }
+        phoneNormalized?.let { phoneNorm ->
+            r.phoneVerificationIdToken?.let { idToken ->
+                if (!firebaseAuthService.isConfigured()) {
+                    throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Phone verification not configured")
+                }
+                val decoded = firebaseAuthService.verifyIdToken(idToken)
+                    .orElseThrow { ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired phone verification") }
+                val tokenPhone = firebaseAuthService.getPhoneNumberByUid(decoded.uid)
+                    ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone number not found in verification")
+                val tokenPhoneNorm = PhoneNormalizer.normalize(tokenPhone)
+                    ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone in verification")
+                if (tokenPhoneNorm != phoneNorm) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone number does not match verification")
+                }
             }
         }
         PasswordPolicy.validate(r.password)?.let { msg ->
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, msg)
         }
-        val phoneNormalized = PhoneNormalizer.normalize(r.phone)
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
-        r.email?.let {
-            if (users.findByEmail(it).isPresent) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email already registered")
+        if (users.findByEmail(emailTrimmed).isPresent) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email already registered")
+        }
+        phoneNormalized?.let { pn ->
+            if (users.findByPhone(pn).isPresent || phoneRaw?.let { users.findByPhone(it).isPresent } == true) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Phone already registered")
             }
-        }
-        if (users.findByPhone(phoneNormalized).isPresent || users.findByPhone(r.phone.trim()).isPresent) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "Phone already registered")
-        }
-        if (patients.findByPhoneNormalized(phoneNormalized).isPresent) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "Patient with this phone number already exists.")
+            if (patients.findByPhoneNormalized(pn).isPresent) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Patient with this phone number already exists.")
+            }
         }
 
         val user = users.save(
             User(
-                email = r.email?.trim(),
+                email = emailTrimmed,
                 phone = phoneNormalized,
                 passwordHash = encoder.encode(r.password),
                 role = Role.PATIENT
@@ -834,7 +853,7 @@ class AuthController(
             fullName = "${r.firstName.trim()} ${r.lastName.trim()}".trim(),
             phone = phoneNormalized,
             phoneNormalized = phoneNormalized,
-            email = r.email?.trim(),
+            email = emailTrimmed,
             address = r.address?.trim(),
             birthDate = r.birthDate?.let { java.time.LocalDate.parse(it) },
             language = r.language?.trim(),
@@ -843,7 +862,7 @@ class AuthController(
         patientProfile.user = user
         patients.save(patientProfile)
 
-        val principal = user.email ?: user.phone!!
+        val principal = emailTrimmed
         val tokenResult = jwt.generate(user.id, principal, user.role.name)
         userSessions.save(
             UserSession(

@@ -28,6 +28,8 @@ class DoctorServiceController(
         val title: String,
         val description: String?,
         val isActive: Boolean,
+        /** When true, video bookings with this service skip payment (free consultation). */
+        val isFreeConsultation: Boolean = false,
         val prices: List<PriceDto> = emptyList()
     )
 
@@ -35,6 +37,7 @@ class DoctorServiceController(
         val title: String,
         val description: String? = null,
         val isActive: Boolean = true,
+        val isFreeConsultation: Boolean = false,
         val prices: List<PriceDto> = emptyList()
     )
 
@@ -50,15 +53,17 @@ class DoctorServiceController(
         @RequestBody body: UpsertServiceRequest
     ): ServiceDto {
         val doctor = principal.profile
+        validateUpsert(body)
         val saved = services.save(
             DoctorService(
                 doctor = doctor,
                 title = body.title.trim(),
                 description = body.description?.trim(),
-                isActive = body.isActive
+                isActive = body.isActive,
+                isFreeConsultation = body.isFreeConsultation
             )
         )
-        syncPrices(saved, body.prices)
+        syncPrices(saved, body.prices, body.isFreeConsultation)
         return saved.toDto()
     }
 
@@ -75,12 +80,14 @@ class DoctorServiceController(
         if (service.doctor.id != doctorId) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Service does not belong to current doctor")
         }
+        validateUpsert(body)
         service.title = body.title.trim()
         service.description = body.description?.trim()
         service.isActive = body.isActive
+        service.isFreeConsultation = body.isFreeConsultation
         service.updatedAt = Instant.now()
         services.save(service)
-        syncPrices(service, body.prices)
+        syncPrices(service, body.prices, body.isFreeConsultation)
         return service.toDto()
     }
 
@@ -100,8 +107,21 @@ class DoctorServiceController(
         services.delete(service)
     }
 
-    private fun syncPrices(service: DoctorService, input: List<PriceDto>) {
+    private fun validateUpsert(body: UpsertServiceRequest) {
+        if (!body.isFreeConsultation) {
+            val valid = body.prices.any { it.amountMinor > 0 && it.currency.isNotBlank() }
+            if (!valid) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Paid services must include at least one price greater than zero"
+                )
+            }
+        }
+    }
+
+    private fun syncPrices(service: DoctorService, input: List<PriceDto>, isFreeConsultation: Boolean) {
         prices.deleteByService_Id(service.id)
+        if (isFreeConsultation) return
         input
             .filter { it.amountMinor > 0 && it.currency.isNotBlank() }
             .forEach {
@@ -124,6 +144,7 @@ class DoctorServiceController(
             title = this.title,
             description = this.description,
             isActive = this.isActive,
+            isFreeConsultation = this.isFreeConsultation,
             prices = servicePrices
         )
     }

@@ -74,7 +74,19 @@ class Notification(
         TASK_CANCELLED,
         GENERAL,
         AI_SCRIBE_READY,
-        AI_VISIT_SUMMARY_READY
+        AI_VISIT_SUMMARY_READY,
+
+        /** Patient: doctor asked to complete payment for a pending video consultation. */
+        CONSULTATION_PAYMENT_REMINDER,
+
+        /** Patient: automated reminder — payment still pending (24h before video consult). */
+        CONSULTATION_PAYMENT_DUE_24H,
+
+        /** Patient: automated reminder — payment still pending (6h before). */
+        CONSULTATION_PAYMENT_DUE_6H,
+
+        /** Patient: automated reminder — payment still pending (1h before). */
+        CONSULTATION_PAYMENT_DUE_1H
     }
 
     fun isRead(): Boolean = readAt != null

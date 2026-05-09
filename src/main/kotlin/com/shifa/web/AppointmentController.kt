@@ -10,6 +10,7 @@ import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ConsultationNoteRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.security.DoctorPrincipal
+import com.shifa.i18n.PatientPaymentPushI18n
 import com.shifa.service.FcmService
 import com.shifa.service.PatientVisitAiSummaryService
 import org.springframework.http.HttpStatus
@@ -217,6 +218,59 @@ class AppointmentController(
         )
         val savedNotif = notifications.save(notif)
         appointment.patient.fcmToken?.let { fcmService.sendPatientNotification(it, savedNotif) }
+    }
+
+    /**
+     * Doctor nudges the patient to pay for a booked video consultation (payment still pending).
+     * Sends in-app notification + FCM; patient tap opens checkout for this appointment.
+     */
+    @PostMapping("/{appointmentId}/notify-payment-reminder")
+    fun notifyPaymentReminder(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @PathVariable appointmentId: Long
+    ) {
+        val doctor = principal.profile
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
+        val appointment = appts.findById(appointmentId)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
+            }
+        if (appointment.doctor.id != doctor.id) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
+        }
+        if (appointment.status == Appointment.Status.CANCELLED ||
+            appointment.status == Appointment.Status.COMPLETED
+        ) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot send payment reminder for this appointment")
+        }
+        if (appointment.paymentStatus != Appointment.PaymentStatus.PENDING) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Payment is not pending for this appointment")
+        }
+        val loc = appointment.location.lowercase()
+        val isVideo = loc.contains("video")
+        if (!isVideo) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Payment reminders are only supported for video consultations"
+            )
+        }
+        val doctorName = "${doctor.firstName ?: ""} ${doctor.lastName ?: ""}".trim()
+        val lang = appointment.patient.language
+        val notif = Notification(
+            patient = appointment.patient,
+            title = PatientPaymentPushI18n.paymentTitle(lang),
+            message = PatientPaymentPushI18n.doctorNudgeBody(lang, doctorName),
+            type = Notification.Type.CONSULTATION_PAYMENT_REMINDER,
+            appointmentId = appointment.id
+        )
+        val savedNotif = notifications.save(notif)
+        appointment.patient.fcmToken?.let {
+            fcmService.sendPatientNotification(
+                it,
+                savedNotif,
+                mapOf("route" to "/bookings/${appointment.id}/pay")
+            )
+        }
     }
 
     /** startAt: ISO 8601 UTC. */

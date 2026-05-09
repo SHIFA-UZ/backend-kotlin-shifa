@@ -398,10 +398,26 @@ class PatientController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service is not active")
         }
         val selectedServicePrice = selectedService?.let { svc ->
-            val prices = doctorServicePrices.findByService_IdOrderByCurrencyAsc(svc.id)
-            prices.firstOrNull()
-                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service has no price configured")
+            if (svc.isFreeConsultation) {
+                null
+            } else {
+                val prices = doctorServicePrices.findByService_IdOrderByCurrencyAsc(svc.id)
+                prices.firstOrNull()
+                    ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service has no price configured")
+            }
         }
+
+        val paymentAmountMinor = when {
+            selectedService?.isFreeConsultation == true -> null
+            selectedServicePrice != null -> selectedServicePrice.amountMinor
+            else -> doctor.consultationPriceMinor
+        }
+        val paymentCurrency = when {
+            selectedService?.isFreeConsultation == true -> null
+            selectedServicePrice != null -> selectedServicePrice.currency
+            else -> doctor.consultationCurrency
+        }
+        val needsPayment = paymentAmountMinor != null
 
         val appointment = Appointment(
             doctor = doctor,
@@ -414,16 +430,16 @@ class PatientController(
             // Business rule:
             // - On-site (no payment required): immediately confirmed.
             // - Paid video: requested until payment webhook marks it paid+confirmed.
-            status = if ((selectedServicePrice?.amountMinor ?: doctor.consultationPriceMinor) != null) {
+            status = if (needsPayment) {
                 Appointment.Status.REQUESTED
             } else {
                 Appointment.Status.CONFIRMED
             },
-            paymentAmountMinor = selectedServicePrice?.amountMinor ?: doctor.consultationPriceMinor,
-            paymentCurrency = selectedServicePrice?.currency ?: doctor.consultationCurrency,
+            paymentAmountMinor = paymentAmountMinor,
+            paymentCurrency = paymentCurrency,
             serviceId = selectedService?.id,
             serviceTitle = selectedService?.title,
-            paymentStatus = if ((selectedServicePrice?.amountMinor ?: doctor.consultationPriceMinor) != null) {
+            paymentStatus = if (needsPayment) {
                 Appointment.PaymentStatus.PENDING
             } else {
                 Appointment.PaymentStatus.NOT_REQUIRED
