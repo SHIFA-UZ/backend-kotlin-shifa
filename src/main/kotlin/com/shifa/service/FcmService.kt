@@ -3,6 +3,8 @@ package com.shifa.service
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
+import com.google.firebase.messaging.AndroidConfig
+import com.google.firebase.messaging.AndroidNotification
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.Message
 import com.shifa.domain.Notification
@@ -45,11 +47,16 @@ class FcmService {
      * Send push notification to the given FCM token.
      * Data map values must be strings (FCM requirement). Safe to call if Firebase is not configured.
      */
+    /**
+     * @param androidChannelId When set, applies [AndroidConfig] with high priority so notifications
+     * are delivered promptly and appear on the correct channel (must match the Flutter app).
+     */
     fun sendToToken(
         token: String,
         title: String,
         body: String,
-        data: Map<String, String>
+        data: Map<String, String>,
+        androidChannelId: String? = null
     ): Boolean {
         if (token.isBlank()) return false
         val messaging = firebaseMessaging ?: run {
@@ -57,7 +64,7 @@ class FcmService {
             return false
         }
         return try {
-            val message = Message.builder()
+            val builder = Message.builder()
                 .setToken(token)
                 .setNotification(
                     com.google.firebase.messaging.Notification.builder()
@@ -66,7 +73,20 @@ class FcmService {
                         .build()
                 )
                 .putAllData(data)
-                .build()
+            if (!androidChannelId.isNullOrBlank()) {
+                builder.setAndroidConfig(
+                    AndroidConfig.builder()
+                        .setPriority(AndroidConfig.Priority.HIGH)
+                        .setNotification(
+                            AndroidNotification.builder()
+                                .setChannelId(androidChannelId)
+                                .setSound("default")
+                                .build()
+                        )
+                        .build()
+                )
+            }
+            val message = builder.build()
             messaging.send(message)
             log.info(
                 "FCM sent (title={}, tokenPrefix={})",
@@ -116,7 +136,8 @@ class FcmService {
             token = fcmToken,
             title = notification.title,
             body = notification.message,
-            data = data
+            data = data,
+            androidChannelId = "shifa_patient_channel",
         )
     }
 

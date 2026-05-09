@@ -7,8 +7,11 @@ import com.shifa.domain.Notification
 import com.shifa.domain.Role
 import com.shifa.repo.*
 import com.shifa.web.dto.*
+import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import java.time.OffsetDateTime
 
 @Service
@@ -22,6 +25,7 @@ class MessageService(
     private val fcmService: FcmService,
     private val appProps: AppProperties
     ) {
+    private val log = LoggerFactory.getLogger(MessageService::class.java)
     
         @Transactional(readOnly = true)
         fun listConversations(doctorUserId: Long): List<ConversationDto> {
@@ -640,35 +644,87 @@ class MessageService(
         conversationId: Long?,
         message: Message
     ) {
-        val chatId = conversationId ?: return
-        try {
-            val doctorName = doctorProfileRepo.findByUserId(senderDoctorUserId)
+        val chatId = conversationId ?: run {
+            log.warn("CHAT_PUSH: skipped (conversation id null)")
+            return
+        }
+        val patientProfileId = recipientPatient.id ?: run {
+            log.warn("CHAT_PUSH: skipped (patient profile id null)")
+            return
+        }
+
+        val doctorName = try {
+            doctorProfileRepo.findByUserId(senderDoctorUserId)
                 .map { "${it.lastName} ${it.firstName}".trim() }
                 .orElse("Doctor")
+        } catch (e: Exception) {
+            log.warn("CHAT_PUSH: doctor name lookup failed: {}", e.message)
+            "Doctor"
+        }
 
-            val body = message.text?.trim()?.takeIf { it.isNotEmpty() } ?: lastMessagePreview(message)
-            val notification = Notification(
-                patient = recipientPatient,
-                doctor = null,
-                title = "New message",
-                message = "$doctorName: $body",
-                type = Notification.Type.CHAT_MESSAGE,
-                appointmentId = null,
-                documentAccessRequestId = null,
-                taskId = null
-            )
-            val savedNotification = notificationRepo.save(notification)
-            fcmService.sendPatientNotification(
-                fcmToken = recipientPatient.fcmToken,
-                notification = savedNotification,
-                extraData = mapOf(
-                    "chatId" to chatId.toString(),
-                    "entityId" to chatId.toString(),
-                    "notificationId" to savedNotification.id.toString()
+        val body = message.text?.trim()?.takeIf { it.isNotEmpty() } ?: lastMessagePreview(message)
+        val notificationRow = try {
+            notificationRepo.save(
+                Notification(
+                    patient = recipientPatient,
+                    doctor = null,
+                    title = "New message",
+                    message = "$doctorName: $body",
+                    type = Notification.Type.CHAT_MESSAGE,
+                    appointmentId = null,
+                    documentAccessRequestId = null,
+                    taskId = null
                 )
             )
-        } catch (_: Exception) {
-            // Never fail message send due to notification issues.
+        } catch (e: Exception) {
+            log.warn("CHAT_PUSH: failed to save notification: {}", e.message, e)
+            return
+        }
+
+        notificationRepo.flush()
+
+        val notificationId = notificationRow.id
+        val extraData = mapOf(
+            "chatId" to chatId.toString(),
+            "entityId" to chatId.toString(),
+            "notificationId" to notificationId.toString()
+        )
+
+        val deliverPush: () -> Unit = lambda@{
+            try {
+                val token = patientProfileRepo.findById(patientProfileId).orElse(null)?.fcmToken
+                if (token.isNullOrBlank()) {
+                    log.info("CHAT_PUSH: no FCM token for patientProfileId={}", patientProfileId)
+                    return@lambda
+                }
+                val notif = notificationRepo.findById(notificationId).orElse(null)
+                if (notif == null) {
+                    log.warn("CHAT_PUSH: notification id={} not found after commit", notificationId)
+                    return@lambda
+                }
+                val ok = fcmService.sendPatientNotification(token, notif, extraData)
+                if (!ok) {
+                    log.warn(
+                        "CHAT_PUSH: FCM sendPatientNotification returned false (patientProfileId={}, notificationId={})",
+                        patientProfileId,
+                        notificationId
+                    )
+                }
+            } catch (e: Exception) {
+                log.warn("CHAT_PUSH: FCM delivery failed: {}", e.message, e)
+            }
+        }
+
+        if (TransactionSynchronizationManager.isSynchronizationActive()) {
+            TransactionSynchronizationManager.registerSynchronization(
+                object : TransactionSynchronization {
+                    override fun afterCommit() {
+                        deliverPush()
+                    }
+                }
+            )
+        } else {
+            deliverPush()
         }
     }
 
