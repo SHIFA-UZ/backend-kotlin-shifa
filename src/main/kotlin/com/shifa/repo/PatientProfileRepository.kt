@@ -5,12 +5,17 @@ import com.shifa.domain.PatientProfile
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import java.util.Optional
 
 // ✅ JpaRepository requires two type parameters: <Entity, ID>
 interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
+
+    @Modifying
+    @Query("update PatientProfile p set p.createdByDoctor = null where p.createdByDoctor.id = :doctorId")
+    fun clearCreatedByDoctor(@Param("doctorId") doctorId: Long): Int
 
     /**
      * Patients visible to a doctor: those with at least one appointment with this doctor,
