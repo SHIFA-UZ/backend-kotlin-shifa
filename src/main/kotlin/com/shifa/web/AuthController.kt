@@ -51,7 +51,8 @@ class AuthController(
     data class CheckExistingPatientRequest(
         @field:NotBlank val firstName: String,
         @field:NotBlank val lastName: String,
-        @field:NotBlank val phone: String
+        val phone: String? = null,
+        val email: String? = null
     )
     data class CheckExistingPatientResponse(
         val found: Boolean,
@@ -61,16 +62,21 @@ class AuthController(
     )
 
     /**
-     * Doctor app calls this after user enters first name, last name, phone.
-     * If a user exists with this phone (e.g. existing patient account), returns found=true and their details
+     * Doctor app calls this after user enters first name, last name, and phone and/or email.
+     * If a user exists with this phone or email (e.g. existing patient account), returns found=true and their details
      * so the UI can show "There is already a patient... we are creating a doctor account" and hide extra fields.
      */
     @PostMapping("/check-existing-patient")
     fun checkExistingPatient(@RequestBody @Valid req: CheckExistingPatientRequest): CheckExistingPatientResponse {
-        val phoneTrimmed = req.phone.trim()
-        val phoneNorm = PhoneNormalizer.normalize(phoneTrimmed)
-        val existingUser = users.findByPhone(phoneTrimmed).orElse(null)
+        val phoneRaw = req.phone?.trim()?.takeIf { it.isNotBlank() }
+        val emailRaw = req.email?.trim()?.takeIf { it.isNotBlank() }
+        if (phoneRaw == null && emailRaw == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone or email required")
+        }
+        val phoneNorm = phoneRaw?.let { PhoneNormalizer.normalize(it) }
+        val existingUser = phoneRaw?.let { users.findByPhone(it).orElse(null) }
             ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
+            ?: emailRaw?.let { users.findByEmail(it).orElse(null) }
             ?: return CheckExistingPatientResponse(found = false)
         val patientProfile = patients.findByUserId(existingUser.id).orElse(null)
         val fullName = patientProfile?.fullName?.takeIf { it.isNotBlank() }
@@ -420,8 +426,8 @@ class AuthController(
     data class RegisterRequest(
         @field:NotBlank val firstName: String,
         @field:NotBlank val lastName: String,
-        @field:NotBlank val phone: String,
-        @field:Email val email: String?,
+        val phone: String? = null,
+        @field:NotBlank @field:Email val email: String,
         @field:NotBlank val password: String,
         @field:NotBlank val key: String,
         /** Optional IANA timezone (e.g. Europe/Berlin). If provided, used for new doctor profile so appointment times are correct. */
@@ -448,10 +454,15 @@ class AuthController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Key already used")
         }
 
-        val phoneTrimmed = r.phone.trim()
-        val emailTrimmed = r.email?.trim()
-        val existingUser = users.findByPhone(phoneTrimmed).orElse(null)
-            ?: emailTrimmed?.let { users.findByEmail(it).orElse(null) }
+        val phoneRaw = r.phone?.trim()?.takeIf { it.isNotBlank() }
+        val phoneNorm = phoneRaw?.let { PhoneNormalizer.normalize(it) }
+        if (phoneRaw != null && phoneNorm == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
+        }
+        val emailTrimmed = r.email.trim().lowercase()
+        val existingUser = phoneRaw?.let { users.findByPhone(it).orElse(null) }
+            ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
+            ?: users.findByEmail(emailTrimmed).orElse(null)
 
         val user = if (existingUser != null) {
             // Existing account (e.g. patient): add DOCTOR role and doctor profile; copy patient avatar if present
@@ -484,15 +495,26 @@ class AuthController(
             }
             existingUser.role = Role.DOCTOR
             existingUser.passwordHash = encoder.encode(r.password)
+            if (existingUser.email.isNullOrBlank()) {
+                existingUser.email = emailTrimmed
+            }
+            if (existingUser.phone.isNullOrBlank() && phoneNorm != null) {
+                existingUser.phone = phoneNorm
+            }
             users.save(existingUser)
             log.info("Added DOCTOR role and profile to existing user ${existingUser.id}")
             existingUser
         } else {
+            if (phoneNorm != null) {
+                if (users.findByPhone(phoneNorm).isPresent || phoneRaw?.let { users.findByPhone(it).isPresent } == true) {
+                    throw ResponseStatusException(HttpStatus.CONFLICT, "Phone already registered")
+                }
+            }
             // New user: create user, DOCTOR role, and doctor profile
             users.save(
                 User(
                     email = emailTrimmed,
-                    phone = phoneTrimmed,
+                    phone = phoneNorm,
                     passwordHash = encoder.encode(r.password),
                     role = Role.DOCTOR
                 )
@@ -516,7 +538,8 @@ class AuthController(
         inv.consumedByUserId = user.id
         invites.save(inv)
 
-        val principal = user.email ?: user.phone!!
+        val principal = user.email?.takeIf { it.isNotBlank() } ?: user.phone
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Account must have email or phone")
         val tokenResult = jwt.generate(user.id, principal, Role.DOCTOR.name)
         userSessions.save(
             UserSession(
