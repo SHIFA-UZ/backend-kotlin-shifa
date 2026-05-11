@@ -91,6 +91,8 @@ class UserDeletionService(
             documentAccessGrantRepository.findByDoctor_Id(doctorId).let { documentAccessGrantRepository.deleteAll(it) }
             doctorSettingsRepository.findByDoctorId(doctorId).ifPresent { doctorSettingsRepository.delete(it) }
             doctorBillingRepository.findByDoctorId(doctorId).ifPresent { doctorBillingRepository.delete(it) }
+            // Patient-owned documents may still reference this doctor as uploader; clear FK before deleting profile.
+            patientDocumentRepository.clearUploadedByDoctor(doctorId)
             doctorProfileRepository.delete(doctor)
         }
 

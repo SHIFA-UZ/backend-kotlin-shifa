@@ -3,11 +3,16 @@ package com.shifa.repo
 
 import com.shifa.domain.PatientDocument
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
 import java.time.LocalDate
 
 interface PatientDocumentRepository : JpaRepository<PatientDocument, Long> {
+
+    @Modifying
+    @Query("update PatientDocument d set d.uploadedByDoctor = null where d.uploadedByDoctor.id = :doctorId")
+    fun clearUploadedByDoctor(@Param("doctorId") doctorId: Long): Int
 
     @Query("select d from PatientDocument d where d.patient.id = :patientId order by d.date desc, d.id desc")
     fun listForPatient(patientId: Long): List<PatientDocument>  // <-- non-null Long
