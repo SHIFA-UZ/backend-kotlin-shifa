@@ -25,14 +25,23 @@ interface Icd10CodeRepository : JpaRepository<Icd10Code, String> {
           c.keywords as keywords,
           c.parent_code as parentCode,
           (
-            -- Hard priority for code matches
+            -- Hard priority for code matches (first token of what the user typed)
             CASE
-              WHEN lower(c.code) = :qNorm THEN 1000
-              WHEN lower(c.code) LIKE (:qNorm || '%') THEN 700
+              WHEN length(trim(:qCore)) > 0 AND lower(c.code) = split_part(lower(trim(:qCore)), ' ', 1) THEN 1000
+              WHEN length(trim(:qCore)) > 0 AND lower(c.code) LIKE (split_part(lower(trim(:qCore)), ' ', 1) || '%') THEN 700
               ELSE 0
             END
             +
-            -- Full-text rank (titles + keywords)
+            -- Incremental / prefix-friendly substring match on localized titles (not whole-token FTS)
+            CASE
+              WHEN length(trim(:qCore)) >= 2 AND lower(coalesce(c.title_uz, '')) LIKE '%' || lower(trim(:qCore)) || '%' THEN 220
+              WHEN length(trim(:qCore)) >= 2 AND lower(coalesce(c.title_ru, '')) LIKE '%' || lower(trim(:qCore)) || '%' THEN 210
+              WHEN length(trim(:qCore)) >= 2 AND lower(c.title) LIKE '%' || lower(trim(:qCore)) || '%' THEN 200
+              WHEN length(trim(:qCore)) >= 2 AND lower(coalesce(c.keywords, '')) LIKE '%' || lower(trim(:qCore)) || '%' THEN 120
+              ELSE 0
+            END
+            +
+            -- Full-text rank (titles + keywords); works best for complete words / synonyms
             (ts_rank_cd(c.search_tsv, websearch_to_tsquery('simple', :qTs)) * 200)
             +
             -- Trigram similarity (typo tolerance)
@@ -45,8 +54,15 @@ interface Icd10CodeRepository : JpaRepository<Icd10Code, String> {
           ) as score
         FROM icd10_codes c
         WHERE
-          -- keep query fast: must match at least one channel
-          lower(c.code) LIKE (:qNorm || '%')
+          -- Partial typing: substring over what the user actually typed (:qCore), min 2 chars to avoid noise
+          (length(trim(:qCore)) >= 2 AND (
+            lower(c.title) LIKE '%' || lower(trim(:qCore)) || '%'
+            OR lower(coalesce(c.title_ru, '')) LIKE '%' || lower(trim(:qCore)) || '%'
+            OR lower(coalesce(c.title_uz, '')) LIKE '%' || lower(trim(:qCore)) || '%'
+            OR lower(coalesce(c.keywords, '')) LIKE '%' || lower(trim(:qCore)) || '%'
+          ))
+          -- ICD code prefix from first typed token (also allows single-letter code exploration)
+          OR (length(trim(:qCore)) > 0 AND lower(c.code) LIKE (split_part(lower(trim(:qCore)), ' ', 1) || '%'))
           OR c.search_tsv @@ websearch_to_tsquery('simple', :qTs)
           OR similarity(c.title, :qRaw) > :simThreshold
           OR similarity(COALESCE(c.title_ru, ''), :qRaw) > :simThreshold
@@ -59,7 +75,7 @@ interface Icd10CodeRepository : JpaRepository<Icd10Code, String> {
     )
     fun searchRankedNative(
         @Param("qRaw") qRaw: String,
-        @Param("qNorm") qNorm: String,
+        @Param("qCore") qCore: String,
         @Param("qTs") qTs: String,
         @Param("simThreshold") simThreshold: Double,
         @Param("limit") limit: Int

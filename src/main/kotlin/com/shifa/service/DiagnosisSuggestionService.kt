@@ -72,8 +72,8 @@ class DiagnosisSuggestionService(
 
             val rows = try {
                 icdRepo.searchRankedNative(
-                    qRaw = qRaw,
-                    qNorm = qNorm,
+                    qRaw = qNorm,
+                    qCore = qNorm,
                     qTs = qNorm.take(120),
                     simThreshold = if (qNorm.length <= 3) 0.6 else 0.35,
                     limit = 20

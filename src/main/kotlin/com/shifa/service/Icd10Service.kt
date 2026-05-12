@@ -95,7 +95,7 @@ class Icd10Service(
 
         val rows = repo.searchRankedNative(
             qRaw = qExpanded,
-            qNorm = qExpanded,
+            qCore = qNorm,
             qTs = toTsQuery(qExpanded),
             simThreshold = simThreshold,
             limit = safeLimit
