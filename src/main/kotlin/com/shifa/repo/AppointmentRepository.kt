@@ -247,7 +247,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         JOIN FETCH a.patient
         JOIN FETCH a.doctor
         WHERE a.startAt >= :start AND a.startAt < :end
-          AND a.status IN ('REQUESTED', 'CONFIRMED')
+          AND a.status IN ('REQUESTED', 'CONFIRMED', 'IN_PROGRESS')
           AND a.paymentStatus = 'PENDING'
           AND LOWER(a.location) LIKE '%video%'
         """

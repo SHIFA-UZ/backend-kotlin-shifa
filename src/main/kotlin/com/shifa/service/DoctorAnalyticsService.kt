@@ -33,6 +33,8 @@ class DoctorAnalyticsService(
         ) + appts.countByDoctor_IdAndStartAtBetweenAndStatus(
             doctorId, dayStart, dayEnd, Appointment.Status.CONFIRMED
         ) + appts.countByDoctor_IdAndStartAtBetweenAndStatus(
+            doctorId, dayStart, dayEnd, Appointment.Status.IN_PROGRESS
+        ) + appts.countByDoctor_IdAndStartAtBetweenAndStatus(
             doctorId, dayStart, dayEnd, Appointment.Status.COMPLETED
         )
         val completedToday = appts.countByDoctor_IdAndStartAtBetweenAndStatus(

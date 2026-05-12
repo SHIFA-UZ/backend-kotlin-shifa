@@ -186,15 +186,8 @@ class VideoController(
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
                 }
             } else if (isPatient && patient != null) {
-                if (appointment.patient == null) {
-                    logger.warn("Appointment ${appointment.id} has no patient assigned - patient cannot join video")
-                    throw ResponseStatusException(
-                        HttpStatus.NOT_FOUND,
-                        "Appointment does not have a patient assigned. Please ensure the appointment is linked to your profile."
-                    )
-                }
-                if (appointment.patient!!.id != patient.id) {
-                    logger.warn("Patient ${patient.id} attempted to access appointment ${appointment.id} belonging to patient ${appointment.patient!!.id}")
+                if (appointment.patient.id != patient.id) {
+                    logger.warn("Patient ${patient.id} attempted to access appointment ${appointment.id} belonging to patient ${appointment.patient.id}")
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this patient")
                 }
                 logger.debug("Patient ${patient.id} verified for appointment ${appointment.id}")
@@ -273,6 +266,9 @@ class VideoController(
             }
 
             logger.info("Returning video token response: roomUrl=$roomUrl, roomName=$roomName")
+
+            markVideoConsultationInProgressIfNeeded(appointment)
+
             return VideoTokenResponse(
                 token = token.token ?: run {
                     logger.error("Token is null after generation")
@@ -293,6 +289,23 @@ class VideoController(
                 "Failed to generate video token: ${e.message ?: e.javaClass.simpleName}",
                 e
             )
+        }
+    }
+
+    /**
+     * First successful video token for a video slot moves appointment to [Appointment.Status.IN_PROGRESS]
+     * so doctor apps can treat an active session as still joinable after nominal end + grace window.
+     */
+    private fun markVideoConsultationInProgressIfNeeded(appointment: com.shifa.domain.Appointment) {
+        if (!appointment.location.lowercase().contains("video")) return
+        when (appointment.status) {
+            com.shifa.domain.Appointment.Status.REQUESTED,
+            com.shifa.domain.Appointment.Status.CONFIRMED -> {
+                appointment.status = com.shifa.domain.Appointment.Status.IN_PROGRESS
+                appointmentRepository.save(appointment)
+                logger.info("Appointment ${appointment.id} marked IN_PROGRESS (video token issued)")
+            }
+            else -> Unit
         }
     }
 

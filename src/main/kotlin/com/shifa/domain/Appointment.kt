@@ -62,6 +62,6 @@ class Appointment(
     @Column(name = "patient_signed_at")
     var patientSignedAt: Instant? = null
 ) {
-    enum class Status { REQUESTED, CONFIRMED, CANCELLED, COMPLETED }
+    enum class Status { REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED }
     enum class PaymentStatus { NOT_REQUIRED, PENDING, PAID, FAILED, REFUNDED }
 }

@@ -147,7 +147,14 @@ class PaymentService(
         payment.updatedAt = Instant.now()
         payment.appointment?.let {
             it.paymentStatus = Appointment.PaymentStatus.PAID
-            it.status = Appointment.Status.CONFIRMED
+            when (it.status) {
+                Appointment.Status.IN_PROGRESS,
+                Appointment.Status.COMPLETED,
+                Appointment.Status.CANCELLED -> Unit
+                else -> {
+                    it.status = Appointment.Status.CONFIRMED
+                }
+            }
             appointmentRepository.save(it)
         }
         return paymentRepository.save(payment)
@@ -162,7 +169,14 @@ class PaymentService(
         payment.updatedAt = Instant.now()
         payment.appointment?.let {
             it.paymentStatus = Appointment.PaymentStatus.PAID
-            it.status = Appointment.Status.CONFIRMED
+            when (it.status) {
+                Appointment.Status.IN_PROGRESS,
+                Appointment.Status.COMPLETED,
+                Appointment.Status.CANCELLED -> Unit
+                else -> {
+                    it.status = Appointment.Status.CONFIRMED
+                }
+            }
             appointmentRepository.save(it)
         }
         return paymentRepository.save(payment)
