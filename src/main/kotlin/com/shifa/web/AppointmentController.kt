@@ -1,6 +1,7 @@
 // src/main/kotlin/com/shifa/web/AppointmentController.kt
 package com.shifa.web
 
+import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.domain.Appointment
 import com.shifa.domain.Notification
@@ -123,6 +124,52 @@ class AppointmentController(
                 createdAt = n.createdAt.toString()
             )
         }
+    }
+
+    /**
+     * Dental specialty visit documentation (teeth × services, discount, notes) as JSON.
+     * GET returns an empty object when nothing was saved yet.
+     */
+    @GetMapping("/{appointmentId}/dental-documentation")
+    fun getDentalDocumentation(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @PathVariable appointmentId: Long
+    ): Map<String, Any?> {
+        val doctor = principal.profile
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
+        val appointment = appts.findById(appointmentId)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
+            }
+        if (appointment.doctor.id != doctor.id) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
+        }
+        val raw = appointment.dentalDocumentation?.trim().orEmpty()
+        if (raw.isEmpty()) return emptyMap()
+        return try {
+            objectMapper.readValue(raw, object : TypeReference<MutableMap<String, Any?>>() {})
+        } catch (_: Exception) {
+            emptyMap()
+        }
+    }
+
+    @PutMapping("/{appointmentId}/dental-documentation")
+    fun putDentalDocumentation(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @PathVariable appointmentId: Long,
+        @RequestBody body: Map<String, Any?>
+    ) {
+        val doctor = principal.profile
+            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
+        val appointment = appts.findById(appointmentId)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
+            }
+        if (appointment.doctor.id != doctor.id) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
+        }
+        appointment.dentalDocumentation = objectMapper.writeValueAsString(body)
+        appts.save(appointment)
     }
 
     /** Pending AI draft notes for this appointment (e.g. AI Scribe). Doctor can confirm or discard from the appointment screen. */

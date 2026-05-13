@@ -60,7 +60,14 @@ class Appointment(
     var patientSignatureImage: String? = null,
 
     @Column(name = "patient_signed_at")
-    var patientSignedAt: Instant? = null
+    var patientSignedAt: Instant? = null,
+
+    /**
+     * JSON payload for dental specialty visit documentation (FDI tooth codes → services, discount, notes).
+     * Schema is owned by the doctor app; see [com.shifa.web.AppointmentController] dental endpoints.
+     */
+    @Column(name = "dental_documentation", columnDefinition = "TEXT")
+    var dentalDocumentation: String? = null
 ) {
     enum class Status { REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED }
     enum class PaymentStatus { NOT_REQUIRED, PENDING, PAID, FAILED, REFUNDED }
