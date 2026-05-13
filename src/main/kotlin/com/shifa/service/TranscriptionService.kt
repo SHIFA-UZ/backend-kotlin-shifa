@@ -32,6 +32,12 @@ class TranscriptionService(
         .readTimeout(Duration.ofSeconds(120))
         .build()
 
+    /**
+     * ISO-style codes OpenAI may reject for whisper-1's `language` field (400 unsupported_language).
+     * Uzbek still transcribes well with auto-detect + [prompt] bias below.
+     */
+    private val whisperLanguageParamRejected = setOf("uz")
+
     data class TranscriptionResult(
         val transcript: String,
         val language: String? = null,
@@ -72,9 +78,9 @@ class TranscriptionService(
         }
 
         normalizedLanguageHint?.let { lang ->
-            // gpt-4o-transcribe currently rejects some ISO codes (e.g. "uz").
-            // Keep explicit language only for Whisper; for GPT models rely on prompt bias.
-            if (isWhisperModel) {
+            // Whisper: optional `language` must be a code OpenAI accepts; omit for uz (API returns 400).
+            // GPT transcribe models: do not send `language` (e.g. uz rejected); use prompt bias only.
+            if (isWhisperModel && lang !in whisperLanguageParamRejected) {
                 requestBodyBuilder.addFormDataPart("language", lang)
             }
             // Latin-Uzbek decoding hint reduces Azerbaijani/Turkish drift on short clips.
