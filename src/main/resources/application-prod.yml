@@ -129,7 +129,7 @@ openai:
   apiKey: ${OPENAI_API_KEY}
   projectId: ${OPENAI_PROJECT_ID}
   model: ${OPENAI_MODEL:gpt-4o-mini}
-  transcription-model: ${OPENAI_TRANSCRIPTION_MODEL:gpt-4o-transcribe}
+  transcription-model: ${OPENAI_TRANSCRIPTION_MODEL:whisper-1}
   url: ${OPENAI_URL:https://api.openai.com/v1/responses}
   temperature: ${OPENAI_TEMPERATURE:0.2}
   maxTokens: ${OPENAI_MAX_TOKENS:600}

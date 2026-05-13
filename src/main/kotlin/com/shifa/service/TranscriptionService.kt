@@ -15,8 +15,9 @@ import java.nio.file.Path
 import java.time.Duration
 
 /**
- * Speech-to-text via OpenAI Audio API ([OpenAiProperties.transcriptionModel]),
- * default **gpt-4o-transcribe** (falls back to whisper-1 if overridden).
+ * Speech-to-text via OpenAI Audio API ([OpenAiProperties.transcriptionModel]).
+ * Default **whisper-1** for complete transcripts; **gpt-4o-transcribe** is optional but may truncate
+ * mid-utterance or near pauses (see OpenAI community reports).
  */
 @Service
 class TranscriptionService(
@@ -57,7 +58,7 @@ class TranscriptionService(
             else -> null
         }
 
-        val modelId = openAiProps.transcriptionModel.trim().ifBlank { "gpt-4o-transcribe" }
+        val modelId = openAiProps.transcriptionModel.trim().ifBlank { "whisper-1" }
         val requestBodyBuilder = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("file", file.name, file.asRequestBody("audio/*".toMediaType()))

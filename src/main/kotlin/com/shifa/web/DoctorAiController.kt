@@ -174,7 +174,7 @@ class DoctorAiController(
     }
 
     /**
-     * Doctor speech-to-text (same stack as patient copilot: [TranscriptionService], default gpt-4o-transcribe).
+     * Doctor speech-to-text (same stack as patient copilot: [TranscriptionService]; default whisper-1 for full transcripts).
      * Multipart field name: [file]. Optional [languageHint] for en/uz/ru bias (Whisper language + prompt for GPT models).
      */
     @PostMapping("/transcribe")
