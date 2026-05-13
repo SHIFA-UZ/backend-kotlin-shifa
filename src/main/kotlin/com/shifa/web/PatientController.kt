@@ -14,6 +14,7 @@ import com.shifa.repo.DoctorServiceRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.PatientPrincipal
+import com.shifa.service.DoctorServicePricing
 import com.shifa.service.FcmService
 import com.shifa.service.PatientDocumentService
 import com.shifa.service.PatientProfileMapper
@@ -401,8 +402,8 @@ class PatientController(
             if (svc.isFreeConsultation) {
                 null
             } else {
-                val prices = doctorServicePrices.findByService_IdOrderByCurrencyAsc(svc.id)
-                prices.firstOrNull()
+                val priceRows = doctorServicePrices.findByService_IdOrderByCurrencyAsc(svc.id)
+                DoctorServicePricing.pickPaymentPrice(priceRows, locationRef?.id)
                     ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service has no price configured")
             }
         }

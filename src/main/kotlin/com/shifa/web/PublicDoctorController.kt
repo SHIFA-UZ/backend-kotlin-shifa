@@ -4,6 +4,7 @@ package com.shifa.web
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.config.AppProperties
 import com.shifa.domain.DoctorProfile
+import com.shifa.domain.DoctorService
 import com.shifa.repo.DoctorServicePriceRepository
 import com.shifa.repo.DoctorServiceRepository
 import com.shifa.repo.DoctorLocationRepository
@@ -26,7 +27,9 @@ class PublicDoctorController(
 ) {
     data class ServicePriceDto(
         val amountMinor: Long,
-        val currency: String
+        val currency: String,
+        /** Null means the default price row for all locations (unless overridden per location). */
+        val locationId: Long? = null
     )
 
     data class ServiceDto(
@@ -35,6 +38,9 @@ class PublicDoctorController(
         val description: String?,
         /** True when this video-bookable service is free (no patient payment). */
         val isFreeConsultation: Boolean = false,
+        val groupId: Long? = null,
+        val groupName: String? = null,
+        val groupSortOrder: Int? = null,
         val prices: List<ServicePriceDto>
     )
 
@@ -288,15 +294,27 @@ class PublicDoctorController(
     }
 
     private fun mapServiceItems(doctorId: Long): List<ServiceDto> {
-        return doctorServices.findByDoctorIdAndIsActiveTrueOrderByCreatedAtAsc(doctorId).map { s ->
+        val list = doctorServices.findByDoctorIdAndIsActiveTrueOrderByCreatedAtAsc(doctorId)
+        return list.sortedWith(
+            compareBy<DoctorService> { it.group?.sortOrder ?: Int.MAX_VALUE }
+                .thenBy { it.group?.id ?: Long.MAX_VALUE }
+                .thenBy { it.createdAt }
+        ).map { s ->
             val priceItems = doctorServicePrices.findByService_IdOrderByCurrencyAsc(s.id).map {
-                ServicePriceDto(amountMinor = it.amountMinor, currency = it.currency)
+                ServicePriceDto(
+                    amountMinor = it.amountMinor,
+                    currency = it.currency,
+                    locationId = it.location?.id
+                )
             }
             ServiceDto(
                 id = s.id,
                 title = s.title,
                 description = s.description,
                 isFreeConsultation = s.isFreeConsultation,
+                groupId = s.group?.id,
+                groupName = s.group?.name,
+                groupSortOrder = s.group?.sortOrder,
                 prices = priceItems
             )
         }

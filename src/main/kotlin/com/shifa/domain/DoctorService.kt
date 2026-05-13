@@ -30,6 +30,10 @@ class DoctorService(
     @Column(name = "is_free_consultation", nullable = false)
     var isFreeConsultation: Boolean = false,
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "group_id")
+    var group: DoctorServiceGroup? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
 

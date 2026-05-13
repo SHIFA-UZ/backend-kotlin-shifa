@@ -14,6 +14,11 @@ class DoctorServicePrice(
     @JoinColumn(name = "service_id", nullable = false)
     val service: DoctorService,
 
+    /** When null, this row is the default price for all practice locations (unless overridden). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "location_id")
+    var location: DoctorLocation? = null,
+
     @Column(name = "amount_minor", nullable = false)
     var amountMinor: Long,
 

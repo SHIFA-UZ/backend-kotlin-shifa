@@ -1,12 +1,16 @@
 package com.shifa.web
 
 import com.shifa.domain.DoctorService
+import com.shifa.domain.DoctorServiceGroup
 import com.shifa.domain.DoctorServicePrice
+import com.shifa.repo.DoctorLocationRepository
+import com.shifa.repo.DoctorServiceGroupRepository
 import com.shifa.repo.DoctorServicePriceRepository
 import com.shifa.repo.DoctorServiceRepository
 import com.shifa.security.DoctorPrincipal
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import java.time.Instant
@@ -15,12 +19,16 @@ import java.time.Instant
 @RequestMapping("/api/doctors/me/services")
 class DoctorServiceController(
     private val services: DoctorServiceRepository,
-    private val prices: DoctorServicePriceRepository
+    private val prices: DoctorServicePriceRepository,
+    private val locations: DoctorLocationRepository,
+    private val groups: DoctorServiceGroupRepository
 ) {
     data class PriceDto(
         val id: Long? = null,
         val amountMinor: Long,
-        val currency: String
+        val currency: String,
+        /** When null, this price applies to all locations unless a location-specific row exists. */
+        val locationId: Long? = null
     )
 
     data class ServiceDto(
@@ -30,6 +38,9 @@ class DoctorServiceController(
         val isActive: Boolean,
         /** When true, video bookings with this service skip payment (free consultation). */
         val isFreeConsultation: Boolean = false,
+        val groupId: Long? = null,
+        val groupName: String? = null,
+        val groupSortOrder: Int? = null,
         val prices: List<PriceDto> = emptyList()
     )
 
@@ -38,29 +49,36 @@ class DoctorServiceController(
         val description: String? = null,
         val isActive: Boolean = true,
         val isFreeConsultation: Boolean = false,
+        val groupId: Long? = null,
         val prices: List<PriceDto> = emptyList()
     )
 
     @GetMapping
+    @Transactional(readOnly = true)
     fun list(@AuthenticationPrincipal principal: DoctorPrincipal): List<ServiceDto> {
         val doctorId = principal.profile.id ?: return emptyList()
-        return services.findByDoctorIdOrderByCreatedAtAsc(doctorId).map { it.toDto() }
+        return services.findByDoctorIdOrderByCreatedAtAsc(doctorId)
+            .sortedWith(serviceDisplayOrder())
+            .map { it.toDto() }
     }
 
     @PostMapping
+    @Transactional
     fun create(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @RequestBody body: UpsertServiceRequest
     ): ServiceDto {
         val doctor = principal.profile
-        validateUpsert(body)
+        validateUpsert(body, doctor.id!!)
+        val group = resolveGroup(doctor.id!!, body.groupId)
         val saved = services.save(
             DoctorService(
                 doctor = doctor,
                 title = body.title.trim(),
                 description = body.description?.trim(),
                 isActive = body.isActive,
-                isFreeConsultation = body.isFreeConsultation
+                isFreeConsultation = body.isFreeConsultation,
+                group = group
             )
         )
         syncPrices(saved, body.prices, body.isFreeConsultation)
@@ -68,6 +86,7 @@ class DoctorServiceController(
     }
 
     @PatchMapping("/{serviceId}")
+    @Transactional
     fun update(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @PathVariable serviceId: Long,
@@ -80,11 +99,12 @@ class DoctorServiceController(
         if (service.doctor.id != doctorId) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Service does not belong to current doctor")
         }
-        validateUpsert(body)
+        validateUpsert(body, doctorId)
         service.title = body.title.trim()
         service.description = body.description?.trim()
         service.isActive = body.isActive
         service.isFreeConsultation = body.isFreeConsultation
+        service.group = resolveGroup(doctorId, body.groupId)
         service.updatedAt = Instant.now()
         services.save(service)
         syncPrices(service, body.prices, body.isFreeConsultation)
@@ -93,6 +113,7 @@ class DoctorServiceController(
 
     @DeleteMapping("/{serviceId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
     fun delete(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @PathVariable serviceId: Long
@@ -107,7 +128,18 @@ class DoctorServiceController(
         services.delete(service)
     }
 
-    private fun validateUpsert(body: UpsertServiceRequest) {
+    private fun resolveGroup(doctorId: Long, groupId: Long?): DoctorServiceGroup? {
+        if (groupId == null) return null
+        val g = groups.findById(groupId).orElseThrow {
+            ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown service group")
+        }
+        if (g.doctor.id != doctorId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Group does not belong to current doctor")
+        }
+        return g
+    }
+
+    private fun validateUpsert(body: UpsertServiceRequest, doctorId: Long) {
         if (!body.isFreeConsultation) {
             val valid = body.prices.any { it.amountMinor > 0 && it.currency.isNotBlank() }
             if (!valid) {
@@ -117,6 +149,26 @@ class DoctorServiceController(
                 )
             }
         }
+        if (body.prices.isNotEmpty()) {
+            val keys = body.prices.map {
+                it.currency.trim().uppercase() to it.locationId
+            }
+            if (keys.size != keys.distinct().size) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Duplicate price for the same currency and location scope"
+                )
+            }
+            body.prices.forEach { p ->
+                val locId = p.locationId ?: return@forEach
+                val loc = locations.findById(locId).orElseThrow {
+                    ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown location for price row")
+                }
+                if (loc.doctor.id != doctorId) {
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "Location does not belong to current doctor")
+                }
+            }
+        }
     }
 
     private fun syncPrices(service: DoctorService, input: List<PriceDto>, isFreeConsultation: Boolean) {
@@ -124,12 +176,25 @@ class DoctorServiceController(
         if (isFreeConsultation) return
         input
             .filter { it.amountMinor > 0 && it.currency.isNotBlank() }
-            .forEach {
+            .forEach { dto ->
+                val loc = dto.locationId?.let { lid ->
+                    locations.findById(lid).orElseThrow {
+                        ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown location for price row")
+                    }.also {
+                        if (it.doctor.id != service.doctor.id) {
+                            throw ResponseStatusException(
+                                HttpStatus.FORBIDDEN,
+                                "Location does not belong to current doctor"
+                            )
+                        }
+                    }
+                }
                 prices.save(
                     DoctorServicePrice(
                         service = service,
-                        amountMinor = it.amountMinor,
-                        currency = it.currency.trim().uppercase()
+                        location = loc,
+                        amountMinor = dto.amountMinor,
+                        currency = dto.currency.trim().uppercase()
                     )
                 )
             }
@@ -137,7 +202,12 @@ class DoctorServiceController(
 
     private fun DoctorService.toDto(): ServiceDto {
         val servicePrices = prices.findByService_IdOrderByCurrencyAsc(this.id).map {
-            PriceDto(id = it.id, amountMinor = it.amountMinor, currency = it.currency)
+            PriceDto(
+                id = it.id,
+                amountMinor = it.amountMinor,
+                currency = it.currency,
+                locationId = it.location?.id
+            )
         }
         return ServiceDto(
             id = this.id,
@@ -145,7 +215,15 @@ class DoctorServiceController(
             description = this.description,
             isActive = this.isActive,
             isFreeConsultation = this.isFreeConsultation,
+            groupId = this.group?.id,
+            groupName = this.group?.name,
+            groupSortOrder = this.group?.sortOrder,
             prices = servicePrices
         )
     }
+
+    private fun serviceDisplayOrder(): Comparator<DoctorService> =
+        compareBy<DoctorService> { it.group?.sortOrder ?: Int.MAX_VALUE }
+            .thenBy { it.group?.id ?: Long.MAX_VALUE }
+            .thenBy { it.createdAt }
 }
