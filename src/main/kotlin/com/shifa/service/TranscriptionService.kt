@@ -15,9 +15,8 @@ import java.nio.file.Path
 import java.time.Duration
 
 /**
- * Speech-to-text via OpenAI Audio API ([OpenAiProperties.transcriptionModel]).
- * Default **whisper-1** for complete transcripts; **gpt-4o-transcribe** is optional but may truncate
- * mid-utterance or near pauses (see OpenAI community reports).
+ * Speech-to-text via OpenAI Audio API ([OpenAiProperties.transcriptionModel]),
+ * default **gpt-4o-transcribe** (falls back to whisper-1 if overridden).
  */
 @Service
 class TranscriptionService(
@@ -31,12 +30,6 @@ class TranscriptionService(
         .writeTimeout(Duration.ofSeconds(120))
         .readTimeout(Duration.ofSeconds(120))
         .build()
-
-    /**
-     * ISO-style codes OpenAI may reject for whisper-1's `language` field (400 unsupported_language).
-     * Uzbek still transcribes well with auto-detect + [prompt] bias below.
-     */
-    private val whisperLanguageParamRejected = setOf("uz")
 
     data class TranscriptionResult(
         val transcript: String,
@@ -64,7 +57,7 @@ class TranscriptionService(
             else -> null
         }
 
-        val modelId = openAiProps.transcriptionModel.trim().ifBlank { "whisper-1" }
+        val modelId = openAiProps.transcriptionModel.trim().ifBlank { "gpt-4o-transcribe" }
         val requestBodyBuilder = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("file", file.name, file.asRequestBody("audio/*".toMediaType()))
@@ -78,9 +71,9 @@ class TranscriptionService(
         }
 
         normalizedLanguageHint?.let { lang ->
-            // Whisper: optional `language` must be a code OpenAI accepts; omit for uz (API returns 400).
-            // GPT transcribe models: do not send `language` (e.g. uz rejected); use prompt bias only.
-            if (isWhisperModel && lang !in whisperLanguageParamRejected) {
+            // gpt-4o-transcribe currently rejects some ISO codes (e.g. "uz").
+            // Keep explicit language only for Whisper; for GPT models rely on prompt bias.
+            if (isWhisperModel) {
                 requestBodyBuilder.addFormDataPart("language", lang)
             }
             // Latin-Uzbek decoding hint reduces Azerbaijani/Turkish drift on short clips.

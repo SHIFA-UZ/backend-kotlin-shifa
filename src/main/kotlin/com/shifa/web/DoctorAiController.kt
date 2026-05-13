@@ -174,8 +174,8 @@ class DoctorAiController(
     }
 
     /**
-     * Doctor speech-to-text (same stack as patient copilot: [TranscriptionService]; default whisper-1 for full transcripts).
-     * Multipart field name: [file]. Optional [languageHint] for en/uz/ru bias (Whisper language + prompt for GPT models).
+     * Doctor speech-to-text (same stack as patient copilot: [TranscriptionService]).
+     * Multipart field name: [file]. Optional [languageHint] overrides profile language for Whisper (en/uz/ru).
      */
     @PostMapping("/transcribe")
     fun transcribe(

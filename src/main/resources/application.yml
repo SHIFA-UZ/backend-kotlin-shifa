@@ -105,7 +105,7 @@ openai:
   apiKey: ${OPENAI_API_KEY:}    # Set in environment or .env file
   projectId: ${OPENAI_PROJECT_ID:}
   model: gpt-4o-mini
-  transcription-model: ${OPENAI_TRANSCRIPTION_MODEL:whisper-1}
+  transcription-model: ${OPENAI_TRANSCRIPTION_MODEL:gpt-4o-transcribe}
   url: https://api.openai.com/v1/responses
   temperature: 0.2
   maxTokens: 600
