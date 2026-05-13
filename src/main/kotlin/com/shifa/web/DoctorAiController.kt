@@ -1,7 +1,6 @@
 package com.shifa.web
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.shifa.ai.OutputLanguage
 import com.shifa.ai.PatientAiContextBuilder
 import com.shifa.domain.SubscriptionFeature
 import com.shifa.security.DoctorPrincipal
@@ -9,6 +8,7 @@ import com.shifa.service.AiDraftNoteService
 import com.shifa.service.OpenAiResponsesService
 import com.shifa.service.PatientVisitAiSummaryService
 import com.shifa.service.SubscriptionTierService
+import com.shifa.service.TranscriptionService
 import com.shifa.web.dto.DoctorAiRequest
 import kotlinx.coroutines.runBlocking
 import org.springframework.http.MediaType
@@ -20,6 +20,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
 import java.util.NoSuchElementException
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import org.springframework.web.multipart.MultipartFile
+import java.nio.file.Files
 
 @RestController
 @RequestMapping("/api/ai")
@@ -29,7 +31,8 @@ class DoctorAiController(
     private val aiDraftNoteService: AiDraftNoteService,
     private val visitSummaryService: PatientVisitAiSummaryService,
     private val objectMapper: ObjectMapper,
-    private val subscriptionTierService: SubscriptionTierService
+    private val subscriptionTierService: SubscriptionTierService,
+    private val transcriptionService: TranscriptionService
 ) {
 
     @PostMapping(
@@ -168,5 +171,34 @@ class DoctorAiController(
             "patientId" to (draft.patientId ?: ""),
             "consultationId" to (draft.consultationId ?: "")
         ))
+    }
+
+    /**
+     * Doctor speech-to-text (same stack as patient copilot: [TranscriptionService], default gpt-4o-transcribe).
+     * Multipart field name: [file]. Optional [languageHint] for en/uz/ru bias (Whisper language + prompt for GPT models).
+     */
+    @PostMapping("/transcribe")
+    fun transcribe(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestParam("file") file: MultipartFile,
+        @RequestParam(required = false) languageHint: String?
+    ): ResponseEntity<Map<String, String>> {
+        subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.SPEECH_TO_TEXT)
+        if (file.isEmpty) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "file is required")
+        }
+        if (file.size > 25 * 1024 * 1024) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Audio file exceeds 25 MB limit")
+        }
+        val suffix = file.originalFilename?.let { "_" + it.replace(Regex("[^a-zA-Z0-9._-]"), "_") } ?: ".m4a"
+        val temp = Files.createTempFile("doctor_stt_", suffix)
+        try {
+            file.transferTo(temp.toFile())
+            val hint = languageHint?.takeIf { it.isNotBlank() }
+            val result = transcriptionService.transcribe(temp, hint)
+            return ResponseEntity.ok(mapOf("text" to result.transcript))
+        } finally {
+            Files.deleteIfExists(temp)
+        }
     }
 }
