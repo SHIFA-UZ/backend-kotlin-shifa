@@ -65,6 +65,15 @@ class TranscriptionService(
             // gpt-4o-transcribe supports json | text; verbose_json is for whisper-1.
             .addFormDataPart("response_format", "json")
 
+        // OpenAI: chunking_strategy=auto uses loudness normalization + server VAD so pauses / filler
+        // do not truncate gpt-4o-transcribe output the way single-block mode sometimes does.
+        val useGptTranscribeChunking =
+            modelId.contains("gpt-4o", ignoreCase = true) &&
+                modelId.contains("transcribe", ignoreCase = true)
+        if (useGptTranscribeChunking) {
+            requestBodyBuilder.addFormDataPart("chunking_strategy", "auto")
+        }
+
         val isWhisperModel = modelId.startsWith("whisper", ignoreCase = true)
         if (isWhisperModel) {
             requestBodyBuilder.addFormDataPart("temperature", "0")
