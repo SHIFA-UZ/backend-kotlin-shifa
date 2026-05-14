@@ -11,6 +11,9 @@ import java.util.*
 
 interface UserRepository : JpaRepository<User, Long>, UserRepositoryCustom {
     fun findByEmail(email: String): Optional<User>
+
+    /** Case-insensitive match for login / registration (email column may be mixed case from legacy data). */
+    fun findByEmailIgnoreCase(email: String): Optional<User>
     fun findByPhone(phone: String): Optional<User>
     fun findByUsername(username: String): Optional<User>
     fun findByRole(role: Role, pageable: Pageable): Page<User>

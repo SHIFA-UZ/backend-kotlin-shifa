@@ -4,6 +4,8 @@ import com.shifa.domain.*
 import com.shifa.repo.*
 import com.shifa.security.JwtService
 import com.shifa.util.PhoneNormalizer
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.time.ZoneOffset
 import com.shifa.security.PasswordPolicy
 import jakarta.validation.Valid
@@ -44,15 +46,18 @@ class AuthController(
      * UI: show "Next" if valid, else show error.
      */
     @PostMapping("/verify-key")
-    fun verifyKey(@RequestBody @Valid req: VerifyKeyRequest) =
-        VerifyKeyResponse(invites.findByKeyCode(req.key.trim())?.consumed == false)
+    fun verifyKey(@RequestBody @Valid req: VerifyKeyRequest): VerifyKeyResponse {
+        val key = invites.findByKeyCode(req.key.trim())
+        return VerifyKeyResponse(key != null && key.isValid())
+    }
 
     // ---------- Check existing patient (for doctor registration UX) ----------
     data class CheckExistingPatientRequest(
         @field:NotBlank val firstName: String,
         @field:NotBlank val lastName: String,
+        /** Optional; when set, used together with email to detect an existing patient account. */
         val phone: String? = null,
-        val email: String? = null
+        @field:NotBlank @field:Email val email: String
     )
     data class CheckExistingPatientResponse(
         val found: Boolean,
@@ -62,21 +67,18 @@ class AuthController(
     )
 
     /**
-     * Doctor app calls this after user enters first name, last name, and phone and/or email.
-     * If a user exists with this phone or email (e.g. existing patient account), returns found=true and their details
+     * Doctor app calls this after user enters first name, last name, email, and optional phone.
+     * If a user exists with this phone (when provided) or email (e.g. existing patient account), returns found=true and their details
      * so the UI can show "There is already a patient... we are creating a doctor account" and hide extra fields.
      */
     @PostMapping("/check-existing-patient")
     fun checkExistingPatient(@RequestBody @Valid req: CheckExistingPatientRequest): CheckExistingPatientResponse {
         val phoneRaw = req.phone?.trim()?.takeIf { it.isNotBlank() }
-        val emailRaw = req.email?.trim()?.takeIf { it.isNotBlank() }
-        if (phoneRaw == null && emailRaw == null) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone or email required")
-        }
         val phoneNorm = phoneRaw?.let { PhoneNormalizer.normalize(it) }
+        val emailNorm = req.email.trim().lowercase()
         val existingUser = phoneRaw?.let { users.findByPhone(it).orElse(null) }
             ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
-            ?: emailRaw?.let { users.findByEmail(it).orElse(null) }
+            ?: users.findByEmailIgnoreCase(emailNorm).orElse(null)
             ?: return CheckExistingPatientResponse(found = false)
         val patientProfile = patients.findByUserId(existingUser.id).orElse(null)
         val fullName = patientProfile?.fullName?.takeIf { it.isNotBlank() }
@@ -426,6 +428,7 @@ class AuthController(
     data class RegisterRequest(
         @field:NotBlank val firstName: String,
         @field:NotBlank val lastName: String,
+        /** Optional. When omitted or blank, the account is created/linked using email only (must still be unique when set). */
         val phone: String? = null,
         @field:NotBlank @field:Email val email: String,
         @field:NotBlank val password: String,
@@ -453,6 +456,9 @@ class AuthController(
         if (inv.consumed) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Key already used")
         }
+        if (inv.isExpired()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Key expired")
+        }
 
         val phoneRaw = r.phone?.trim()?.takeIf { it.isNotBlank() }
         val phoneNorm = phoneRaw?.let { PhoneNormalizer.normalize(it) }
@@ -460,11 +466,63 @@ class AuthController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
         }
         val emailTrimmed = r.email.trim().lowercase()
-        val existingUser = phoneRaw?.let { users.findByPhone(it).orElse(null) }
-            ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
-            ?: users.findByEmail(emailTrimmed).orElse(null)
+
+        inv.emailSentTo?.trim()?.lowercase()?.takeIf { it.isNotBlank() }?.let { intended ->
+            if (emailTrimmed != intended) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Use the email address your invitation was sent to, or request a new invitation."
+                )
+            }
+        }
+
+        val byPhoneRaw = phoneRaw?.let { users.findByPhone(it).orElse(null) }
+        val byPhoneNorm = phoneNorm?.let { users.findByPhone(it).orElse(null) }
+        val byPhone = byPhoneRaw ?: byPhoneNorm
+        val byEmail = users.findByEmailIgnoreCase(emailTrimmed).orElse(null)
+
+        if (byPhone != null && byEmail != null && byPhone.id != byEmail.id) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "The phone number and email belong to different accounts. Use the matching phone and email or contact support."
+            )
+        }
+
+        val existingUser = when {
+            byPhone != null -> {
+                val phoneUserEmail = byPhone.email
+                if (!phoneUserEmail.isNullOrBlank() && !phoneUserEmail.trim().equals(emailTrimmed, ignoreCase = true)) {
+                    throw ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This phone number is already registered with a different email address."
+                    )
+                }
+                byPhone
+            }
+            byEmail != null -> byEmail
+            else -> null
+        }
+
+        if (existingUser == null) {
+            val emailHash = sha256Hex(emailTrimmed)
+            if (users.findByEmailOriginalHashAndAccountStatus(emailHash, User.AccountStatus.DELETED).isPresent) {
+                throw ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This email was previously used for a Shifa account. Use a different email or contact support."
+                )
+            }
+        }
 
         val user = if (existingUser != null) {
+            if (phoneNorm != null && !existingUser.phone.isNullOrBlank()) {
+                val ep = existingUser.phone!!.trim()
+                if (ep != phoneNorm && (phoneRaw == null || ep != phoneRaw.trim())) {
+                    throw ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This email is already registered with a different phone number."
+                    )
+                }
+            }
             // Existing account (e.g. patient): add DOCTOR role and doctor profile; copy patient avatar if present
             if (!existingUser.enabled) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Account is disabled.")
@@ -509,6 +567,9 @@ class AuthController(
                 if (users.findByPhone(phoneNorm).isPresent || phoneRaw?.let { users.findByPhone(it).isPresent } == true) {
                     throw ResponseStatusException(HttpStatus.CONFLICT, "Phone already registered")
                 }
+            }
+            if (users.findByEmailIgnoreCase(emailTrimmed).isPresent) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Email already registered")
             }
             // New user: create user, DOCTOR role, and doctor profile
             users.save(
@@ -1101,5 +1162,10 @@ class AuthController(
         val domain = email.substring(at + 1)
         val first = local.firstOrNull() ?: '*'
         return "$first***@$domain"
+    }
+
+    private fun sha256Hex(input: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(StandardCharsets.UTF_8))
+        return bytes.joinToString("") { "%02x".format(it) }
     }
 }
