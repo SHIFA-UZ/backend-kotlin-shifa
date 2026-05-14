@@ -41,5 +41,9 @@ data class PatientFormDto(
     val dentalChart: Map<String, String> = emptyMap(),
     val followups: List<PatientFormFollowupDto> = emptyList(),
 
-    val documentId: Long? = null
+    val documentId: Long? = null,
+
+    val signatureRequested: Boolean = false,
+    val patientSignedAt: String? = null,
+    val patientSignatureImageBase64: String? = null
 )

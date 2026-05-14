@@ -126,6 +126,7 @@ class FcmService {
             "createdAt" to notification.createdAt.toString(),
         )
         notification.appointmentId?.let { data["appointmentId"] = it.toString() }
+        notification.patientFormId?.let { data["patientFormId"] = it.toString() }
         notification.documentAccessRequestId?.let { data["documentAccessRequestId"] = it.toString() }
         notification.taskId?.let { data["taskId"] = it.toString() }
         notification.documentId?.let { data["documentId"] = it.toString() }

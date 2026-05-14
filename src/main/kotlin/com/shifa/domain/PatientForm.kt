@@ -3,6 +3,7 @@ package com.shifa.domain
 import jakarta.persistence.*
 import org.hibernate.annotations.JdbcTypeCode
 import org.hibernate.type.SqlTypes
+import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
 
@@ -105,6 +106,15 @@ open class PatientForm(
     @JoinColumn(name = "document_id")
     open var document: PatientDocument? = null,
 
+    @Column(name = "signature_requested", nullable = false)
+    open var signatureRequested: Boolean = false,
+
+    @Column(name = "patient_signature_image", columnDefinition = "TEXT")
+    open var patientSignatureImage: String? = null,
+
+    @Column(name = "patient_signed_at")
+    open var patientSignedAt: Instant? = null,
+
     @Column(name = "created_at", nullable = false)
     open var createdAt: OffsetDateTime = OffsetDateTime.now(),
 
@@ -141,6 +151,9 @@ open class PatientForm(
         dentalChart = emptyMap(),
         followups = emptyList(),
         document = null,
+        signatureRequested = false,
+        patientSignatureImage = null,
+        patientSignedAt = null,
         createdAt = OffsetDateTime.now(),
         updatedAt = OffsetDateTime.now()
     )

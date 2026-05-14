@@ -6,6 +6,8 @@ import com.shifa.web.dto.PatientFormDto
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ResponseStatusException
+import org.springframework.http.HttpStatus
 
 @RestController
 @RequestMapping("/api/patients")
@@ -45,6 +47,27 @@ class PatientFormController(
         val clinic = principal.profile.clinic
         val form = formService.create(patientId, request, doctorName, clinic)
         return ResponseEntity.ok(form)
+    }
+
+    @PutMapping("/{patientId}/forms/{formId}/request-signature")
+    fun requestPatientSignature(
+        @PathVariable patientId: Long,
+        @PathVariable formId: Long,
+        @AuthenticationPrincipal principal: DoctorPrincipal
+    ): ResponseEntity<PatientFormDto> {
+        val existing = formService.getById(formId)
+        if (existing.patientId != patientId) {
+            return ResponseEntity.badRequest().build()
+        }
+        return try {
+            ResponseEntity.ok(
+                formService.requestPatientSignature(patientId, formId, principal.profile)
+            )
+        } catch (e: IllegalArgumentException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message, e)
+        } catch (e: IllegalStateException) {
+            throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, e.message, e)
+        }
     }
 
     @PutMapping("/{patientId}/forms/{formId}")

@@ -31,6 +31,10 @@ class Notification(
     @Column(name = "appointment_id")
     val appointmentId: Long? = null,
 
+    /** Patient medical form (e.g. 025-2) requiring signature; use with [Type.SIGNATURE_REQUESTED] when [appointmentId] is null. */
+    @Column(name = "patient_form_id")
+    val patientFormId: Long? = null,
+
     @Column(name = "document_access_request_id")
     val documentAccessRequestId: Long? = null,
 
