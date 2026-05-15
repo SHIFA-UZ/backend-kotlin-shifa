@@ -1036,7 +1036,7 @@ RULES:
 
     /**
      * Single completion for patient briefing. Context may contain multilingual document text.
-     * @param documentContext Patient demographics + document titles and extracted text (may be Uzbek, Russian, English, etc.)
+     * @param documentContext Patient demographics + appointments + 025-2 + consultation notes + PDF excerpts (may be multilingual).
      * @param outputLanguage Preferred language for the briefing: "en", "uz", "ru", etc.
      */
     fun completeBriefing(documentContext: String, outputLanguage: String): String {
@@ -1050,11 +1050,16 @@ RULES:
 You are a medical assistant preparing a concise clinical briefing for a doctor.
 
 RULES:
-- Use ONLY the information provided below: (1) appointment history with this doctor (date, reason, status, location), and (2) document content. The documents may be in multiple languages (e.g. Uzbek, Russian, English). Read and summarize in whatever language it is written; you may produce the briefing in the requested output language or keep key terms in the original language where appropriate.
+- Use ONLY the information provided below: (1) appointment history with this doctor (date, reason, status, location),
+  (2) saved form 025-2 structured entries including per-tooth dental chart rows and narrative clinical fields,
+  (3) consultation notes from visits with this doctor (MANUAL vs AI_DRAFT sources are labeled),
+  and (4) extracted PDF document text. Content may be in multiple languages (e.g. Uzbek, Russian, English).
+  Read and summarize in whatever language it is written; you may produce the briefing in the requested output language
+  or keep key terms in the original language where appropriate.
 - Output language requested: $outputLanguage. Write the briefing in this language when possible, but preserve important clinical terms and findings from the sources.
-- Summarize key information: appointment history (reasons, dates), and from documents: findings, diagnoses, medications, procedures, and other relevant clinical details. Be concise (under 400 words).
+- Summarize key information: appointments, tooth-level findings from 025-2 where present, consultation notes (procedures, assessments, plans), and from PDFs: diagnoses, medications, procedures, and other clinical detail. Be concise (under 400 words).
 - Do NOT diagnose, prescribe, or give medical advice. Only summarize what is provided.
-- If a document is empty or unreadable, skip it. Do not invent content.
+- If a section is empty or unreadable, skip it. Do not invent content.
 - IMPORTANT: Use plain text only. Do NOT use Markdown formatting (no **bold**, no bullet markers like '-', no numbered lists with '1.', no headings with '#'). Write paragraphs and short lists as simple sentences separated by newlines.
 """.trimIndent()
         val payload = mapper.writeValueAsString(

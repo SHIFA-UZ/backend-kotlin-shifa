@@ -75,10 +75,22 @@ fun patientContextPrompt(ctx: PatientAiContext): String {
         ctx.age?.let { append("- Age: $it\n") }
         ctx.language?.let { append("- Language: $it\n") }
 
+        if (ctx.documentPdfExcerpts.isNotEmpty()) {
+            append(
+                "- Patient documents with extracted PDF text (excerpts may be truncated; non-PDF or unreadable files omitted):\n"
+            )
+            ctx.documentPdfExcerpts.forEach { doc ->
+                append("  • Document id ${doc.documentId}: ${doc.title} (${doc.date})\n")
+                doc.excerpt.lineSequence().forEach { ln ->
+                    append("    ").append(ln).append('\n')
+                }
+            }
+        }
+
         if (ctx.documentSummaries.isNotEmpty()) {
-            append("- Documents this doctor can view (title and date only, not full content):\n")
+            append("- Other documents this doctor can view (metadata only; PDF text not included above):\n")
             ctx.documentSummaries.forEach {
-                append("  • ${it.title} (${it.date})\n")
+                append("  • Document id ${it.documentId}: ${it.title} (${it.date})\n")
             }
         }
 
@@ -87,6 +99,49 @@ fun patientContextPrompt(ctx: PatientAiContext): String {
             ctx.appointmentSummaries.forEach { appt ->
                 val reasonPart = appt.reason?.takeIf { it.isNotBlank() }?.let { reason -> ": $reason" } ?: ""
                 append("  • ${appt.date}$reasonPart\n")
+            }
+        }
+
+        if (ctx.form0252Snapshots.isNotEmpty()) {
+            append(
+                "- Saved form 025-2 records for this patient (use for factual recall: tooth chart + visit text; " +
+                    "multiple forms may exist over time):\n"
+            )
+            ctx.form0252Snapshots.forEach { snap ->
+                val numPart = snap.formNumber?.let { n -> " (form #$n)" } ?: ""
+                append("  • Form date ${snap.formDate}$numPart\n")
+                if (snap.dentalChartLines.isNotEmpty()) {
+                    append("    Dental chart (tooth-specific entries only; empty teeth omitted):\n")
+                    snap.dentalChartLines.forEach { line ->
+                        append("      ").append(line).append('\n')
+                    }
+                }
+                if (snap.narrativeLines.isNotEmpty()) {
+                    append("    Clinical / administrative text from the form:\n")
+                    snap.narrativeLines.forEach { line ->
+                        append("      ").append(line).append('\n')
+                    }
+                }
+                if (snap.followUpLines.isNotEmpty()) {
+                    append("    Follow-up visit rows on this form:\n")
+                    snap.followUpLines.forEach { line ->
+                        append("      ").append(line).append('\n')
+                    }
+                }
+            }
+        }
+
+        if (ctx.consultationNoteSnapshots.isNotEmpty()) {
+            append(
+                "- Consultation notes from visits with you (excerpts; may be truncated). " +
+                    "Source tag when present: MANUAL = typed by staff, AI_DRAFT = saved from Shifa AI.\n"
+            )
+            ctx.consultationNoteSnapshots.forEach { note ->
+                val src = note.source?.takeIf { it.isNotBlank() }?.let { s -> " [$s]" } ?: ""
+                append("  • ${note.date}$src\n")
+                note.excerpt.lineSequence().forEach { ln ->
+                    append("    ").append(ln).append('\n')
+                }
             }
         }
 
