@@ -314,8 +314,8 @@ class AuthController(
     )
 
     /**
-     * Patient app: after doctor confirms and verifies OTP (phone via Firebase, email via this),
-     * create PATIENT role + patient profile. They use their doctor password to log in.
+     * Patient app: after doctor confirms and verifies email OTP, create PATIENT role + patient profile.
+     * They use their doctor password to log in.
      */
     @PostMapping("/create-patient-for-doctor")
     fun createPatientForDoctor(@RequestBody @Valid req: CreatePatientForDoctorRequest): TokenResponse {
@@ -858,14 +858,12 @@ class AuthController(
         val address: String? = null,
         val language: String? = null,
         val emailOtp: String? = null,
-        val phoneVerificationIdToken: String? = null
     )
 
     /**
      * Creates a PATIENT user, saves PatientProfile, and returns JWT.
      * Email and emailOtp are required (sent via send-email-otp).
-     * Phone is optional; when provided, uniqueness checks apply.
-     * When phoneVerificationIdToken is provided, backend verifies Firebase phone OTP and ensures phone matches.
+     * Phone is optional profile data only; SMS / Firebase phone OTP is not used for this flow.
      */
     @PostMapping("/register-patient")
     fun registerPatient(@RequestBody @Valid r: RegisterPatientRequest): TokenResponse {
@@ -880,25 +878,6 @@ class AuthController(
         val phoneNormalized = phoneRaw?.let { PhoneNormalizer.normalize(it) }
         if (phoneRaw != null && phoneNormalized == null) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
-        }
-        if (!r.phoneVerificationIdToken.isNullOrBlank() && phoneNormalized == null) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone required when phone verification token is provided")
-        }
-        phoneNormalized?.let { phoneNorm ->
-            r.phoneVerificationIdToken?.let { idToken ->
-                if (!firebaseAuthService.isConfigured()) {
-                    throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Phone verification not configured")
-                }
-                val decoded = firebaseAuthService.verifyIdToken(idToken)
-                    .orElseThrow { ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired phone verification") }
-                val tokenPhone = firebaseAuthService.getPhoneNumberByUid(decoded.uid)
-                    ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone number not found in verification")
-                val tokenPhoneNorm = PhoneNormalizer.normalize(tokenPhone)
-                    ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone in verification")
-                if (tokenPhoneNorm != phoneNorm) {
-                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone number does not match verification")
-                }
-            }
         }
         PasswordPolicy.validate(r.password)?.let { msg ->
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, msg)
@@ -935,7 +914,7 @@ class AuthController(
         // Create patient profile and link to user so doctor app shows "Account already available"
         val patientProfile = com.shifa.domain.PatientProfile(
             fullName = "${r.firstName.trim()} ${r.lastName.trim()}".trim(),
-            phone = phoneNormalized,
+            phone = phoneNormalized ?: phoneRaw,
             phoneNormalized = phoneNormalized,
             email = emailTrimmed,
             address = r.address?.trim(),

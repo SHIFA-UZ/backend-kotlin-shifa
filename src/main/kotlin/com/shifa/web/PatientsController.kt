@@ -84,8 +84,6 @@ class PatientsController(
         @field:NotBlank(message = "Name is required")
         @field:Size(min = 1, max = 255)
         val name: String,
-        @field:NotNull(message = "Phone is required")
-        @field:NotBlank(message = "Phone is required")
         @field:Size(max = 50)
         val phone: String?,
         @field:Email @field:Size(max = 255)
@@ -193,16 +191,20 @@ class PatientsController(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @RequestBody @Valid req: CreatePatientRequest
     ): PatientDto {
-        val phoneTrimmed = req.phone!!.trim()
-        val phoneNormalized = PhoneNormalizer.normalize(phoneTrimmed)
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
-        if (patientsRepo.findByPhoneNormalized(phoneNormalized).isPresent) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "Patient with this phone number already exists.")
+        val phoneTrimmed = req.phone?.trim()?.takeIf { it.isNotEmpty() }
+        val phoneNormalized = phoneTrimmed?.let { PhoneNormalizer.normalize(it) }
+        if (phoneTrimmed != null && phoneNormalized == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
+        }
+        phoneNormalized?.let { pn ->
+            if (patientsRepo.findByPhoneNormalized(pn).isPresent) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Patient with this phone number already exists.")
+            }
         }
 
         val patient = PatientProfile(
             fullName = req.name.trim(),
-            phone = phoneTrimmed,
+            phone = phoneNormalized ?: phoneTrimmed,
             phoneNormalized = phoneNormalized,
             email = req.email?.trim(),
             address = req.address?.trim(),
