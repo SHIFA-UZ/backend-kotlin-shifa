@@ -9,6 +9,10 @@ class OpenAiProperties {
     lateinit var projectId: String
 
     lateinit var model: String
+    /** Embeddings model for clinical RAG (pgvector). */
+    var embeddingModel: String = "text-embedding-3-small"
+    /** Must match DB column `vector(...)` dimension in Flyway [clinical_rag_chunks.embedding]. */
+    var embeddingDimensions: Int = 1536
     /** STT model for /v1/audio/transcriptions (e.g. gpt-4o-transcribe, gpt-4o-mini-transcribe, whisper-1). */
     var transcriptionModel: String = "gpt-4o-transcribe"
     var temperature: Double = 0.2

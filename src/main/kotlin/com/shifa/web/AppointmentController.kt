@@ -13,6 +13,7 @@ import com.shifa.repo.NotificationRepository
 import com.shifa.security.DoctorPrincipal
 import com.shifa.i18n.PatientPaymentPushI18n
 import com.shifa.service.FcmService
+import com.shifa.service.ClinicalRagIndexingService
 import com.shifa.service.PatientVisitAiSummaryService
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -31,7 +32,8 @@ class AppointmentController(
     private val aiDraftNoteRepo: AiDraftNoteRepository,
     private val fcmService: FcmService,
     private val objectMapper: ObjectMapper,
-    private val visitSummaryService: PatientVisitAiSummaryService
+    private val visitSummaryService: PatientVisitAiSummaryService,
+    private val clinicalRagIndexingService: ClinicalRagIndexingService,
 ) {
 
     // -------------------- Doctor: get single appointment (for polling signature status) --------------------
@@ -170,6 +172,7 @@ class AppointmentController(
         }
         appointment.dentalDocumentation = objectMapper.writeValueAsString(body)
         appts.save(appointment)
+        clinicalRagIndexingService.reindexAppointmentDentalDocumentation(appointmentId)
     }
 
     /** Pending AI draft notes for this appointment (e.g. AI Scribe). Doctor can confirm or discard from the appointment screen. */

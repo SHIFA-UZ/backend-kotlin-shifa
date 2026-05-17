@@ -45,7 +45,7 @@ class PatientFormController(
     ): ResponseEntity<PatientFormDto> {
         val doctorName = "${principal.profile.lastName} ${principal.profile.firstName}".trim()
         val clinic = principal.profile.clinic
-        val form = formService.create(patientId, request, doctorName, clinic)
+        val form = formService.create(patientId, request, doctorName, clinic, principal.profile)
         return ResponseEntity.ok(form)
     }
 

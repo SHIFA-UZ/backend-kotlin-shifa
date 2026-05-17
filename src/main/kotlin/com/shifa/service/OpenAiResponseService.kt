@@ -30,7 +30,8 @@ import com.shifa.service.PatientVisitAskResult
 class OpenAiResponsesService(
     private val props: OpenAiProperties,
     private val copilotToolService: PatientCopilotToolService,
-    private val flowController: PatientCopilotFlowController
+    private val flowController: PatientCopilotFlowController,
+    private val clinicalRagRetrievalService: ClinicalRagRetrievalService,
 ) {
     data class ToolCallMessage(
         val id: String,
@@ -131,6 +132,22 @@ patientContext?.let { ctx ->
     systemMessages += mapOf(
         "role" to "system",
         "content" to MedicalPromptBuilder.patientContextPrompt(ctx)
+    )
+}
+
+val latestUserForRag = messages.asReversed()
+    .firstOrNull { it.role.equals("user", ignoreCase = true) }
+    ?.content
+    .orEmpty()
+val ragPrompt = clinicalRagRetrievalService.buildRetrievalSystemPrompt(
+    doctorId = doctor.id,
+    patientId = patientContext?.patientId,
+    latestUserMessage = latestUserForRag,
+)
+if (ragPrompt.isNotBlank()) {
+    systemMessages += mapOf(
+        "role" to "system",
+        "content" to ragPrompt
     )
 }
 

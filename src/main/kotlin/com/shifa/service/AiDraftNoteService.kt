@@ -19,7 +19,8 @@ import java.util.UUID
 class AiDraftNoteService(
     private val draftRepo: AiDraftNoteRepository,
     private val consultationNoteRepo: ConsultationNoteRepository,
-    private val openAiProps: OpenAiProperties
+    private val openAiProps: OpenAiProperties,
+    private val clinicalRagIndexingService: ClinicalRagIndexingService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val mapper = jacksonObjectMapper()
@@ -75,6 +76,7 @@ class AiDraftNoteService(
         val savedNote = consultationNoteRepo.save(note)
         draft.status = AiDraftNote.Status.CONFIRMED
         draftRepo.save(draft)
+        savedNote.id?.let { clinicalRagIndexingService.reindexConsultationNote(it) }
         log.info("AiDraftNote confirmed: draftId={}, doctorId={}, consultationNoteId={}", draftId, doctorId, savedNote.id)
         return savedNote
     }

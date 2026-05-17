@@ -105,7 +105,8 @@ fun patientContextPrompt(ctx: PatientAiContext): String {
         if (ctx.form0252Snapshots.isNotEmpty()) {
             append(
                 "- Saved form 025-2 records for this patient (use for factual recall: tooth chart + visit text; " +
-                    "multiple forms may exist over time):\n"
+                    "multiple forms may exist over time). Tooth numbers use ISO 3950 / FDI (e.g. 22 is upper left lateral incisor). " +
+                    "When the doctor says only a tooth number, assume FDI unless they specify another system:\n"
             )
             ctx.form0252Snapshots.forEach { snap ->
                 val numPart = snap.formNumber?.let { n -> " (form #$n)" } ?: ""
@@ -147,9 +148,29 @@ fun patientContextPrompt(ctx: PatientAiContext): String {
 
         append("\nUse this only for contextual awareness. Do NOT diagnose or change treatment plans.")
     }
-}
+    }
 
-
-
-
+    fun clinicalRagContextPrompt(hits: List<com.shifa.clinical.ClinicalRagSearchHit>): String {
+        return buildString {
+            append(
+                "Semantically retrieved passages from this patient's indexed clinical records " +
+                    "(form 025-2 dental charts and narratives, consultation notes, appointment dental visit documentation). " +
+                    "Distance is cosine distance (lower means a closer match to the doctor's latest question). " +
+                    "Prefer these passages for factual recall about specific teeth or visits; if not documented, say so.\n\n"
+            )
+            hits.forEachIndexed { idx, h ->
+                append("Passage ")
+                append(idx + 1)
+                append(" source=")
+                append(h.sourceType)
+                append(" chunkDbId=")
+                append(h.id)
+                append(" distance=")
+                append(String.format("%.4f", h.distance))
+                append('\n')
+                append(h.contentText.trim().replace("\r\n", "\n").take(1400))
+                append("\n\n")
+            }
+        }
+    }
 }

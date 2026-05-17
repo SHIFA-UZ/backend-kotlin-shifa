@@ -20,7 +20,8 @@ class PatientFormService(
     private val forms: PatientFormRepository,
     private val docs: PatientDocumentRepository,
     private val notifications: NotificationRepository,
-    private val fcmService: FcmService
+    private val fcmService: FcmService,
+    private val clinicalRagIndexingService: ClinicalRagIndexingService,
 ) {
 
     fun list(patientId: Long): List<PatientFormDto> {
@@ -39,7 +40,8 @@ class PatientFormService(
         patientId: Long,
         request: PatientFormDto,
         doctorName: String,
-        doctorClinic: String?
+        doctorClinic: String?,
+        creatingDoctor: DoctorProfile,
     ): PatientFormDto {
         val patient = profiles.findById(patientId)
             .orElseThrow { IllegalArgumentException("Patient not found: $patientId") }
@@ -76,10 +78,12 @@ class PatientFormService(
 
             dentalChart = request.dentalChart,
             followups = normalizeFollowups(request.followups, doctorName),
-            document = null
+            document = null,
+            createdByDoctor = creatingDoctor,
         )
 
         val saved = forms.save(form)
+        saved.id?.let { clinicalRagIndexingService.reindexPatientForm(it) }
         return toDto(saved)
     }
 
@@ -164,6 +168,7 @@ class PatientFormService(
         form.patientSignatureImage = base64
         form.patientSignedAt = Instant.now()
         forms.save(form)
+        clinicalRagIndexingService.reindexPatientForm(formId)
     }
 
     @Transactional
@@ -206,6 +211,7 @@ class PatientFormService(
         form.followups = normalizeFollowups(request.followups, doctorName)
 
         val saved = forms.save(form)
+        saved.id?.let { clinicalRagIndexingService.reindexPatientForm(it) }
         return toDto(saved)
     }
 
@@ -227,11 +233,13 @@ class PatientFormService(
 
         form.document = document
         val saved = forms.save(form)
+        saved.id?.let { clinicalRagIndexingService.reindexPatientForm(it) }
         return toDto(saved)
     }
 
     @Transactional
     fun delete(formId: Long) {
+        clinicalRagIndexingService.deleteChunksForPatientForm(formId)
         forms.deleteById(formId)
     }
 
@@ -291,7 +299,8 @@ class PatientFormService(
             documentId = form.document?.id,
             signatureRequested = form.signatureRequested,
             patientSignedAt = form.patientSignedAt?.toString(),
-            patientSignatureImageBase64 = form.patientSignatureImage
+            patientSignatureImageBase64 = form.patientSignatureImage,
+            createdByDoctorId = form.createdByDoctor?.id,
         )
     }
 }

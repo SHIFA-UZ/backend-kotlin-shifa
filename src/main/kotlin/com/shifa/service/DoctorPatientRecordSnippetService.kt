@@ -78,14 +78,7 @@ class DoctorPatientRecordSnippetService(
     }
 
     private fun formToSnapshot(form: PatientForm): Form0252AiSnapshot {
-        val chart = form.dentalChart ?: emptyMap()
-        val dentalLines = chart.entries
-            .filter { (_, v) -> v.isNotBlank() }
-            .sortedWith(compareBy({ sortableToothKey(it.key) }, { it.key }))
-            .map { (tooth, value) ->
-                val v = value.trim().take(MAX_CHARS_DENTAL_VALUE)
-                "Tooth $tooth: $v"
-            }
+        val dentalLines = com.shifa.clinical.DentalChartExpansion.expandDentalChartToLines(form.dentalChart)
 
         val narrativeLines = mutableListOf<String>()
         fun addLine(label: String, text: String?) {
@@ -131,11 +124,7 @@ class DoctorPatientRecordSnippetService(
             n.plan?.takeIf { it.isNotBlank() }?.let { "Plan: ${it.trim()}" },
         ).joinToString("\n\n")
     }
-
-    private fun sortableToothKey(key: String): Int =
-        key.filter { it.isDigit() }.toIntOrNull() ?: Int.MAX_VALUE
 }
 
-private const val MAX_CHARS_DENTAL_VALUE = 280
 private const val MAX_NARRATIVE_PER_FIELD = 900
 private const val MAX_FOLLOWUP_CLINICAL = 450

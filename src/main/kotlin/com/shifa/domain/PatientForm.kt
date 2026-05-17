@@ -106,6 +106,11 @@ open class PatientForm(
     @JoinColumn(name = "document_id")
     open var document: PatientDocument? = null,
 
+    /** Doctor who created this form record (owner); used for RAG access control on 025-2. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_doctor_id")
+    open var createdByDoctor: DoctorProfile? = null,
+
     @Column(name = "signature_requested", nullable = false)
     open var signatureRequested: Boolean = false,
 
@@ -151,6 +156,7 @@ open class PatientForm(
         dentalChart = emptyMap(),
         followups = emptyList(),
         document = null,
+        createdByDoctor = null,
         signatureRequested = false,
         patientSignatureImage = null,
         patientSignedAt = null,

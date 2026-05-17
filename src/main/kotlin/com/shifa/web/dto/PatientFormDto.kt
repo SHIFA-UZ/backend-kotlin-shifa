@@ -45,5 +45,7 @@ data class PatientFormDto(
 
     val signatureRequested: Boolean = false,
     val patientSignedAt: String? = null,
-    val patientSignatureImageBase64: String? = null
+    val patientSignatureImageBase64: String? = null,
+    /** Doctor who created this form (owner); server-managed for RAG on 025-2. */
+    val createdByDoctorId: Long? = null,
 )

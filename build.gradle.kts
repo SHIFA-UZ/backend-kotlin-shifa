@@ -27,7 +27,7 @@ dependencies {
     // Data JPA + Postgres driver
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-cache")
-    runtimeOnly("org.postgresql:postgresql:42.7.4")
+    implementation("org.postgresql:postgresql:42.7.4")
 
     // We’ll enable Flyway migrations in Step 2	
 	// ⬇️ Use the DB-specific module (Flyway split support out of core)
