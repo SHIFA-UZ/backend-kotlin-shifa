@@ -33,7 +33,8 @@ class AdminController(
     private val patientProfileRepository: PatientProfileRepository,
     private val systemConfigRepository: SystemConfigRepository,
     private val adminCalendarResetService: com.shifa.service.AdminCalendarResetService,
-    private val subscriptionTierService: SubscriptionTierService
+    private val subscriptionTierService: SubscriptionTierService,
+    private val adminClinicService: AdminClinicService,
 ) {
     
     // ==================== DASHBOARD ====================
@@ -552,7 +553,136 @@ class AdminController(
 
         return toUserResponse(updated)
     }
-    
+
+    // ==================== CLINICS (STRUCTURED PRACTICE) ====================
+
+    data class AdminClinicUpsertRequest(
+        @field:NotBlank val name: String,
+        val phone: String? = null,
+        val email: String? = null,
+        val address: String? = null,
+        /** IANA timezone id, e.g. Asia/Tashkent */
+        val timeZone: String? = null,
+    )
+
+    @Suppress("UNUSED_PARAMETER")
+    @GetMapping("/clinics")
+    fun listClinics(
+        @AuthenticationPrincipal principal: AdminPrincipal,
+        @PageableDefault(size = 50, sort = ["name"]) pageable: Pageable
+    ): Page<AdminClinicService.ClinicRow> {
+        return adminClinicService.listPaged(pageable)
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    @GetMapping("/clinics/{clinicId}")
+    fun getClinic(
+        @PathVariable clinicId: Long,
+        @AuthenticationPrincipal principal: AdminPrincipal
+    ): AdminClinicService.ClinicDetail {
+        return adminClinicService.getDetail(clinicId)
+    }
+
+    @PostMapping("/clinics")
+    fun createClinic(
+        @RequestBody @Valid request: AdminClinicUpsertRequest,
+        @AuthenticationPrincipal principal: AdminPrincipal,
+        httpRequest: HttpServletRequest
+    ): AdminClinicService.ClinicDetail {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot create clinics")
+        }
+        val created = adminClinicService.create(
+            name = request.name,
+            phone = request.phone,
+            email = request.email,
+            address = request.address,
+            timeZone = request.timeZone,
+        )
+        auditService.logAction(
+            adminUser = principal.adminProfile.user,
+            actionType = "CLINIC_CREATED",
+            entityType = "CLINIC",
+            entityId = created.id,
+            details = mapOf("name" to created.name),
+            request = httpRequest
+        )
+        return created
+    }
+
+    @PutMapping("/clinics/{clinicId}")
+    fun updateClinic(
+        @PathVariable clinicId: Long,
+        @RequestBody @Valid request: AdminClinicUpsertRequest,
+        @AuthenticationPrincipal principal: AdminPrincipal,
+        httpRequest: HttpServletRequest
+    ): AdminClinicService.ClinicDetail {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot update clinics")
+        }
+        val updated = adminClinicService.update(
+            clinicId = clinicId,
+            name = request.name,
+            phone = request.phone,
+            email = request.email,
+            address = request.address,
+            timeZone = request.timeZone,
+        )
+        auditService.logAction(
+            adminUser = principal.adminProfile.user,
+            actionType = "CLINIC_UPDATED",
+            entityType = "CLINIC",
+            entityId = clinicId,
+            details = mapOf("name" to updated.name),
+            request = httpRequest
+        )
+        return updated
+    }
+
+    @PostMapping("/clinics/{clinicId}/doctors/{doctorProfileId}")
+    fun assignDoctorToClinic(
+        @PathVariable clinicId: Long,
+        @PathVariable doctorProfileId: Long,
+        @AuthenticationPrincipal principal: AdminPrincipal,
+        httpRequest: HttpServletRequest
+    ): AdminClinicService.ClinicDetail {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot assign doctors")
+        }
+        adminClinicService.assignDoctor(clinicId, doctorProfileId)
+        auditService.logAction(
+            adminUser = principal.adminProfile.user,
+            actionType = "DOCTOR_ASSIGNED_TO_CLINIC",
+            entityType = "CLINIC",
+            entityId = clinicId,
+            details = mapOf("doctorProfileId" to doctorProfileId),
+            request = httpRequest
+        )
+        return adminClinicService.getDetail(clinicId)
+    }
+
+    @DeleteMapping("/clinics/{clinicId}/doctors/{doctorProfileId}")
+    fun removeDoctorFromClinic(
+        @PathVariable clinicId: Long,
+        @PathVariable doctorProfileId: Long,
+        @AuthenticationPrincipal principal: AdminPrincipal,
+        httpRequest: HttpServletRequest
+    ): AdminClinicService.ClinicDetail {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot remove doctors")
+        }
+        adminClinicService.removeDoctor(clinicId, doctorProfileId)
+        auditService.logAction(
+            adminUser = principal.adminProfile.user,
+            actionType = "DOCTOR_REMOVED_FROM_CLINIC",
+            entityType = "CLINIC",
+            entityId = clinicId,
+            details = mapOf("doctorProfileId" to doctorProfileId),
+            request = httpRequest
+        )
+        return adminClinicService.getDetail(clinicId)
+    }
+
     // ==================== AUDIT LOGS ====================
     
     @GetMapping("/audit-logs")

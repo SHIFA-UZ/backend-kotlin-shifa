@@ -10,4 +10,8 @@ interface ClinicMembershipRepository : JpaRepository<ClinicMembership, Long> {
     fun findByClinicIdAndActiveTrue(clinicId: Long): List<ClinicMembership>
 
     fun findByUserIdAndClinicIdAndActiveTrue(userId: Long, clinicId: Long): ClinicMembership?
+
+    fun findByDoctorProfile_IdAndActiveTrue(doctorProfileId: Long): List<ClinicMembership>
+
+    fun findByClinic_IdAndUser_Id(clinicId: Long, userId: Long): ClinicMembership?
 }
