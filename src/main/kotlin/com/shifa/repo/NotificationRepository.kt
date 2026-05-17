@@ -12,4 +12,15 @@ interface NotificationRepository : JpaRepository<Notification, Long> {
         appointmentId: Long,
         type: Notification.Type
     ): List<Notification>
+
+    fun existsByPatient_IdAndTreatmentPlanIdAndType(
+        patientId: Long,
+        treatmentPlanId: Long,
+        type: Notification.Type
+    ): Boolean
+
+    fun findFirstByTreatmentPlanIdAndTypeOrderByCreatedAtDesc(
+        treatmentPlanId: Long,
+        type: Notification.Type
+    ): Notification?
 }

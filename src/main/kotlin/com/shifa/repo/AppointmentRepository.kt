@@ -1,6 +1,7 @@
 package com.shifa.repo
 
 import com.shifa.domain.Appointment
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
@@ -255,5 +256,21 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
     fun findPendingPaymentVideoAppointmentsStartingBetween(
         @Param("start") start: Instant,
         @Param("end") end: Instant
+    ): List<Appointment>
+
+    /** Latest completed visits with doctors in roster (for prophylaxis anchor). */
+    @Query(
+        """
+        SELECT a FROM Appointment a
+        WHERE a.patient.id = :patientId
+          AND a.status = 'COMPLETED'
+          AND a.doctor.id IN :doctorIds
+        ORDER BY a.endAt DESC
+        """
+    )
+    fun findCompletedForPatientAmongDoctors(
+        @Param("patientId") patientId: Long,
+        @Param("doctorIds") doctorIds: Collection<Long>,
+        pageable: Pageable
     ): List<Appointment>
 }

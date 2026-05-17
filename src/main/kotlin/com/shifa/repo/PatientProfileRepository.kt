@@ -35,6 +35,23 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
         @Param("doctorId") doctorId: Long,
         pageable: Pageable
     ): Page<PatientProfile>
+
+    /**
+     * Patients visible to any doctor in [doctorIds] (same roster / clinic sharing).
+     */
+    @Query("""
+        SELECT DISTINCT p FROM PatientProfile p
+        WHERE p.id IN (
+            SELECT DISTINCT a.patient.id FROM Appointment a
+            WHERE a.doctor.id IN :doctorIds
+        )
+        OR (p.createdByDoctor IS NOT NULL AND p.createdByDoctor.id IN :doctorIds)
+        ORDER BY p.fullName
+    """)
+    fun findDistinctVisibleToDoctors(
+        @Param("doctorIds") doctorIds: Collection<Long>,
+        pageable: Pageable
+    ): Page<PatientProfile>
     // Use native query with LIMIT to handle duplicate phone/email
     @org.springframework.data.jpa.repository.Query(
         value = "SELECT * FROM patient_profiles WHERE phone = :phone ORDER BY id DESC LIMIT 1",

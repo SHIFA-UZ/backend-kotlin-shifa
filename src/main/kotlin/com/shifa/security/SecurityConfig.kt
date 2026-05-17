@@ -94,16 +94,19 @@ class SecurityConfig(
                 // --- RBAC (NEW): Restrict by role to prevent privilege escalation ---
                 // Patient-only: /api/patients/me/** (patient's own profile, messages, schedule, photo)
                 it.requestMatchers("/api/patients/me/**").hasRole("PATIENT")
-                // Doctor-only: patient list, documents, forms under /api/patients (not /me)
-                it.requestMatchers("/api/patients/**").hasRole("DOCTOR")
-                // Doctor-only: own profile, schedule, calendar, appointments, analytics, tasks, messages
+                // Doctor app + clinic staff: shared patient roster / booking flows
+                it.requestMatchers("/api/patients/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
+                // Doctor-only: own profile & subscription endpoints under /api/doctors/me
                 it.requestMatchers("/api/doctors/me", "/api/doctors/me/**").hasRole("DOCTOR")
-                it.requestMatchers("/api/schedule/**").hasRole("DOCTOR") // Includes /api/schedule/book (doctor books for patient)
+                it.requestMatchers(HttpMethod.POST, "/api/schedule/book").hasAnyRole("DOCTOR", "CLINIC_STAFF")
+                // Staff may GET schedule metadata (read-only); mutations remain doctor-only below.
+                it.requestMatchers(HttpMethod.GET, "/api/schedule/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
+                it.requestMatchers("/api/schedule/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/doctor/analytics/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/doctor/subscription/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/doctor/payments/**").hasRole("DOCTOR")
-                it.requestMatchers("/api/calendar/**").hasRole("DOCTOR")
-                it.requestMatchers("/api/appointments/**").hasRole("DOCTOR")
+                it.requestMatchers("/api/calendar/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
+                it.requestMatchers("/api/appointments/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 it.requestMatchers("/api/consultations/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/messages/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/payments/**").hasRole("PATIENT")
@@ -112,6 +115,9 @@ class SecurityConfig(
                 it.requestMatchers("/api/tasks/**").hasRole("DOCTOR")
                 // Doctor-only: profile photo (doctor upload)
                 it.requestMatchers("/api/profile/**").hasRole("DOCTOR")
+                it.requestMatchers("/api/practice/me", "/api/practice/me/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
+                it.requestMatchers("/api/treatment-plans/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
+                it.requestMatchers("/api/prophylaxis/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 // Shared (authenticated): notifications, AI, video
                 it.requestMatchers("/api/notifications/**", "/api/ai/**", "/api/video/**").authenticated()
 

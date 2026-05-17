@@ -6,8 +6,13 @@ import com.shifa.i18n.PatientPaymentPushI18n
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.NotificationRepository
+import com.shifa.repo.PatientProphylaxisSettingRepository
 import com.shifa.repo.TaskCheckInRepository
+import com.shifa.repo.TreatmentPlanLineRepository
+import com.shifa.repo.TreatmentPlanPaymentRepository
+import com.shifa.repo.TreatmentPlanRepository
 import org.slf4j.LoggerFactory
+import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -26,6 +31,10 @@ class ReminderNotificationService(
     private val appointmentRepository: AppointmentRepository,
     private val doctorProfileRepository: DoctorProfileRepository,
     private val fcmService: FcmService,
+    private val treatmentPlans: TreatmentPlanRepository,
+    private val treatmentPlanLines: TreatmentPlanLineRepository,
+    private val treatmentPlanPayments: TreatmentPlanPaymentRepository,
+    private val prophylaxisSettings: PatientProphylaxisSettingRepository,
 ) {
     private val log = LoggerFactory.getLogger(ReminderNotificationService::class.java)
 
@@ -192,6 +201,110 @@ class ReminderNotificationService(
                         e.message
                     )
                 }
+            }
+        }
+    }
+
+    /** Outstanding balances on active treatment plans — with cooldown via previous notifications. */
+    @Transactional
+    fun sendTreatmentPlanPaymentReminders() {
+        val plans = treatmentPlans.findAll().filter { it.status == com.shifa.domain.TreatmentPlan.Status.ACTIVE }
+        for (plan in plans) {
+            try {
+                val lineRows = treatmentPlanLines.findByPlan_IdOrderBySortOrderAscIdAsc(plan.id)
+                val total = lineRows.sumOf { (it.unitPriceMinor * it.quantity - it.discountMinor).coerceAtLeast(0) }
+                val paid = treatmentPlanPayments.findByPlan_IdOrderByRecordedAtAsc(plan.id).sumOf { it.amountMinor }
+                val owed = (total - paid).coerceAtLeast(0)
+                if (owed <= 0L) continue
+                val cooldownDays = (plan.paymentReminderDays ?: 7).toLong().coerceAtLeast(1L)
+                val last = notificationRepository.findFirstByTreatmentPlanIdAndTypeOrderByCreatedAtDesc(
+                    plan.id,
+                    Notification.Type.TREATMENT_PLAN_PAYMENT_REMINDER
+                )
+                if (last != null && last.createdAt.isAfter(
+                        Instant.now().minus(cooldownDays, ChronoUnit.DAYS)
+                    )
+                ) {
+                    continue
+                }
+                val patient = plan.patient
+                val pid = patient.id ?: continue
+                if (notificationRepository.existsByPatient_IdAndTreatmentPlanIdAndType(
+                        pid,
+                        plan.id,
+                        Notification.Type.TREATMENT_PLAN_PAYMENT_REMINDER
+                    ) && last != null && last.createdAt.isAfter(Instant.now().minus(1, ChronoUnit.HOURS))
+                ) {
+                    continue
+                }
+                val notification = Notification(
+                    patient = patient,
+                    doctor = plan.attendingDoctor,
+                    title = "Payment pending",
+                    message = "You have an outstanding balance on your treatment plan. Please contact your clinic.",
+                    type = Notification.Type.TREATMENT_PLAN_PAYMENT_REMINDER,
+                    treatmentPlanId = plan.id
+                )
+                val saved = notificationRepository.save(notification)
+                patient.fcmToken?.let {
+                    fcmService.sendPatientNotification(
+                        it,
+                        saved,
+                        mapOf("route" to "/bookings/treatment-plan/${plan.id}")
+                    )
+                }
+                log.info("Treatment plan payment reminder sent planId={} patient={}", plan.id, pid)
+            } catch (e: Exception) {
+                log.warn("Treatment plan reminder failed plan id={}: {}", plan.id, e.message)
+            }
+        }
+    }
+
+    /** Recall / prophylaxis reminders anchored on last completed visit with doctors in the same clinic. */
+    @Transactional
+    fun sendProphylaxisReminders() {
+        val settings = prophylaxisSettings.findAllByEnabledTrue()
+        val now = Instant.now()
+        for (st in settings) {
+            try {
+                val clinicId = st.clinic.id
+                val doctorIds = doctorProfileRepository.findAllByPracticeClinic_Id(clinicId).mapNotNull { it.id }
+                if (doctorIds.isEmpty()) continue
+                val patientId = st.patient.id ?: continue
+                val latest = appointmentRepository.findCompletedForPatientAmongDoctors(
+                    patientId,
+                    doctorIds,
+                    PageRequest.of(0, 1)
+                ).firstOrNull() ?: continue
+                val anchor = latest.endAt
+                val due = anchor.atZone(java.time.ZoneOffset.UTC).toLocalDate()
+                    .plusMonths(st.intervalMonths.toLong())
+                    .atStartOfDay(java.time.ZoneOffset.UTC)
+                    .toInstant()
+                if (due.isAfter(now)) continue
+                val lastSent = st.lastSentAt?.toInstant()
+                if (lastSent != null && lastSent.isAfter(now.minus(14, ChronoUnit.DAYS))) continue
+                val notification = Notification(
+                    patient = st.patient,
+                    doctor = null,
+                    title = "Time for a visit",
+                    message = "It has been more than ${st.intervalMonths} months since your last completed visit. Please book an appointment with your clinic.",
+                    type = Notification.Type.PROPHYLAXIS_REMINDER,
+                    treatmentPlanId = null
+                )
+                val saved = notificationRepository.save(notification)
+                st.patient.fcmToken?.let {
+                    fcmService.sendPatientNotification(
+                        it,
+                        saved,
+                        mapOf("route" to "/bookings")
+                    )
+                }
+                st.lastSentAt = java.time.OffsetDateTime.now()
+                prophylaxisSettings.save(st)
+                log.info("Prophylaxis reminder sent patient={} clinic={}", patientId, clinicId)
+            } catch (e: Exception) {
+                log.warn("Prophylaxis reminder failed setting id={}: {}", st.id, e.message)
             }
         }
     }

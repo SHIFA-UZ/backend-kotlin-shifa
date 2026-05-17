@@ -14,6 +14,11 @@ class Appointment(
     @ManyToOne @JoinColumn(name="patient_id", nullable = false)
     val patient: PatientProfile,
 
+    /** User (doctor or clinic staff) who created this booking when acting on behalf of [doctor]. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "booked_by_user_id")
+    var bookedByUser: User? = null,
+
     @Column(name="start_at", nullable = false)
     var startAt: Instant,
 

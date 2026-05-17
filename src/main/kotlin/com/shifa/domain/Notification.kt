@@ -53,6 +53,9 @@ class Notification(
     @Column(name = "document_title", length = 512)
     val documentTitle: String? = null,
 
+    @Column(name = "treatment_plan_id")
+    val treatmentPlanId: Long? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
 
@@ -90,7 +93,16 @@ class Notification(
         CONSULTATION_PAYMENT_DUE_6H,
 
         /** Patient: automated reminder — payment still pending (1h before). */
-        CONSULTATION_PAYMENT_DUE_1H
+        CONSULTATION_PAYMENT_DUE_1H,
+
+        /** Patient: outstanding balance on a treatment plan. */
+        TREATMENT_PLAN_PAYMENT_REMINDER,
+
+        /** Patient: treatment plan was updated by the clinic. */
+        TREATMENT_PLAN_UPDATED,
+
+        /** Patient: preventive visit reminder from clinic/doctor settings. */
+        PROPHYLAXIS_REMINDER
     }
 
     fun isRead(): Boolean = readAt != null

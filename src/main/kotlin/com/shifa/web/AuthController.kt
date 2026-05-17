@@ -34,7 +34,8 @@ class AuthController(
     private val userManagementService: com.shifa.service.UserManagementService,
     private val userRoles: com.shifa.repo.UserRoleRepository,
     private val firebaseAuthService: com.shifa.service.FirebaseAuthService,
-    private val emailOtpService: com.shifa.service.EmailOtpService
+    private val emailOtpService: com.shifa.service.EmailOtpService,
+    private val clinicMemberships: ClinicMembershipRepository
 ) {
     private val log = LoggerFactory.getLogger(AuthController::class.java)
     // ---------- VerifyKey ----------
@@ -704,49 +705,46 @@ class AuthController(
 
         // App-based role enforcement (multi-role support)
         val appType = app?.lowercase() ?: request.getHeader("X-App")?.lowercase()
-        val requiredRole = when (appType) {
-            "doctor" -> Role.DOCTOR
-            "patient" -> Role.PATIENT
-            else -> null // No app specified, use primary role (backward compatibility)
+
+        when (appType) {
+            "doctor" -> {
+                val okDoctorApp = userHasAppRole(user, Role.DOCTOR) || userHasAppRole(user, Role.CLINIC_STAFF)
+                if (!okDoctorApp) {
+                    userActivityService.logActivity(
+                        user = user,
+                        activityType = "LOGIN",
+                        success = false,
+                        failureReason = "Missing doctor app role",
+                        request = request
+                    )
+                    throw ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "Access denied: Doctor app requires DOCTOR or CLINIC_STAFF role"
+                    )
+                }
+            }
+            "patient" -> {
+                if (!userHasAppRole(user, Role.PATIENT)) {
+                    userActivityService.logActivity(
+                        user = user,
+                        activityType = "LOGIN",
+                        success = false,
+                        failureReason = "Patient account required",
+                        request = request
+                    )
+                    throw ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "You need to create a patient account first. Use Create Account in the patient app and link your doctor account."
+                    )
+                }
+            }
         }
 
-		if (requiredRole != null) {
-			val hasRole = userHasAppRole(user, requiredRole)
-
-			if (!hasRole) {
-				if (requiredRole == Role.PATIENT) {
-					// Doctors must create a patient account first (via create-account flow); do not auto-create
-					userActivityService.logActivity(
-						user = user,
-						activityType = "LOGIN",
-						success = false,
-						failureReason = "Patient account required",
-						request = request
-					)
-					throw ResponseStatusException(
-						HttpStatus.FORBIDDEN,
-						"You need to create a patient account first. Use Create Account in the patient app and link your doctor account."
-					)
-				} else {
-					// Doctor/Admin app requires the role - reject if missing
-					userActivityService.logActivity(
-						user = user,
-						activityType = "LOGIN",
-						success = false,
-						failureReason = "Missing required role: ${requiredRole.name}",
-						request = request
-					)
-					throw ResponseStatusException(
-						HttpStatus.FORBIDDEN,
-						"Access denied: This app requires ${requiredRole.name} role"
-					)
-				}
-			}
-		}
-
-		// Determine which role to use for token (use required role if specified, else primary role)
-		val tokenRole = requiredRole ?: user.role
-		
+        val tokenRole = when (appType) {
+            "doctor" -> if (userHasAppRole(user, Role.DOCTOR)) Role.DOCTOR else Role.CLINIC_STAFF
+            "patient" -> Role.PATIENT
+            else -> user.role
+        }
 		val principal = user.username ?: user.email ?: user.phone!!
 		val tokenResult = jwt.generate(user.id, principal, tokenRole.name)
 		userSessions.save(
@@ -1115,8 +1113,15 @@ class AuthController(
         when (appType) {
             "doctor" -> {
                 val hasDoctorRole = userHasAppRole(user, Role.DOCTOR)
-                if (!hasDoctorRole || doctors.findByUserId(user.id).isEmpty) {
+                val hasStaff = userHasAppRole(user, Role.CLINIC_STAFF)
+                if (!hasDoctorRole && !hasStaff) {
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "No doctor app access")
+                }
+                if (hasDoctorRole && doctors.findByUserId(user.id).isEmpty) {
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "No doctor account found")
+                }
+                if (!hasDoctorRole && hasStaff && clinicMemberships.findByUserIdAndActiveTrue(user.id).isEmpty()) {
+                    throw ResponseStatusException(HttpStatus.FORBIDDEN, "No clinic membership found for staff account")
                 }
             }
             "patient" -> {

@@ -4,9 +4,12 @@ package com.shifa.web
 import com.shifa.domain.Appointment
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DoctorLocationRepository
+import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.repo.PatientProfileRepository
+import com.shifa.repo.UserRepository
 import com.shifa.security.DoctorPrincipal
+import com.shifa.service.ClinicAccessService
 import com.shifa.service.FcmService
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -23,6 +26,9 @@ class BookingController(
     private val appts: AppointmentRepository,
     private val notifications: NotificationRepository,
     private val doctorLocations: DoctorLocationRepository,
+    private val doctors: DoctorProfileRepository,
+    private val users: UserRepository,
+    private val clinicAccess: ClinicAccessService,
     private val fcmService: FcmService
 ) {
 
@@ -35,7 +41,9 @@ class BookingController(
         val reason: String?,
         val isVideo: Boolean,
         /** Optional structured location FK. Required when doctor has multiple locations and !isVideo. */
-        val locationId: Long? = null
+        val locationId: Long? = null,
+        /** Calendar doctor receiving the booking (defaults to authenticated doctor). */
+        val resourceDoctorId: Long? = null
     )
 
     /** startAt/endAt: ISO 8601 UTC. */
@@ -54,13 +62,21 @@ class BookingController(
 
     @PostMapping
     fun book(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @RequestBody b: BookReq
     ): ApptDto {
 
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
+        clinicAccess.assertPracticeActor(principal)
 
+        val resourceDoctorId = b.resourceDoctorId ?: when (principal) {
+            is DoctorPrincipal -> principal.profile.id
+            else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, "resourceDoctorId is required")
+        }
+        clinicAccess.assertCanViewDoctorCalendar(principal, resourceDoctorId)
+
+        val doctor = doctors.findById(resourceDoctorId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found")
+        }
         val patientId = b.patientId
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "patientId is required")
 
@@ -68,6 +84,8 @@ class BookingController(
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found: $patientId")
             }
+
+        clinicAccess.assertPatientVisible(principal, patientId)
 
         val startAt = Instant.parse(b.startAt)
         val endAt = startAt.plusSeconds(b.slotMinutes * 60L)
@@ -105,10 +123,13 @@ class BookingController(
             else -> "Clinic"
         }
 
+        val bookedBy = users.findById(clinicAccess.resolveBookingActorUserId(principal)).orElse(null)
+
         val saved = appts.save(
             Appointment(
                 doctor = doctor,
                 patient = patient,
+                bookedByUser = bookedBy,
                 startAt = startAt,
                 endAt = endAt,
                 location = location,

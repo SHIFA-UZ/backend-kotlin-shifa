@@ -15,6 +15,7 @@ import com.shifa.service.OpenAiResponsesService
 import com.shifa.service.PatientCopilotBookingService
 import com.shifa.service.PatientCopilotContextService
 import com.shifa.service.PatientDaySlotsService
+import com.shifa.service.SubscriptionTierService
 import com.shifa.service.TranscriptionService
 import com.shifa.web.dto.AiMessageDto
 import com.shifa.web.dto.PatientBookingIntentResolution
@@ -50,7 +51,8 @@ class PatientCopilotControllerResolveBookingTest {
             copilotContextService = mock(PatientCopilotContextService::class.java),
             daySlotsService = daySlots,
             appProps = AppProperties(),
-            objectMapper = jacksonObjectMapper()
+            objectMapper = jacksonObjectMapper(),
+            subscriptionTierService = mock(SubscriptionTierService::class.java),
         )
     }
 

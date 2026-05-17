@@ -10,7 +10,7 @@ import com.shifa.repo.AiDraftNoteRepository
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ConsultationNoteRepository
 import com.shifa.repo.NotificationRepository
-import com.shifa.security.DoctorPrincipal
+import com.shifa.service.ClinicAccessService
 import com.shifa.i18n.PatientPaymentPushI18n
 import com.shifa.service.FcmService
 import com.shifa.service.ClinicalRagIndexingService
@@ -34,6 +34,7 @@ class AppointmentController(
     private val objectMapper: ObjectMapper,
     private val visitSummaryService: PatientVisitAiSummaryService,
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
+    private val clinicAccess: ClinicAccessService,
 ) {
 
     // -------------------- Doctor: get single appointment (for polling signature status) --------------------
@@ -57,18 +58,14 @@ class AppointmentController(
 
     @GetMapping("/{appointmentId}")
     fun getById(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long
     ): AppointmentDto {
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
-        if (appointment.doctor.id != doctor.id) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
-        }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
         return AppointmentDto(
             id = appointment.id,
             patientId = appointment.patient?.id,
@@ -102,18 +99,14 @@ class AppointmentController(
 
     @GetMapping("/{appointmentId}/consultation-notes")
     fun getConsultationNotes(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long
     ): List<ConsultationNoteDto> {
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
-        if (appointment.doctor.id != doctor.id) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
-        }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
         val notes = consultationNoteRepo.findByAppointmentIdOrderByCreatedAtAsc(appointmentId)
         return notes.map { n ->
             ConsultationNoteDto(
@@ -134,18 +127,14 @@ class AppointmentController(
      */
     @GetMapping("/{appointmentId}/dental-documentation")
     fun getDentalDocumentation(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long
     ): Map<String, Any?> {
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
-        if (appointment.doctor.id != doctor.id) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
-        }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
         val raw = appointment.dentalDocumentation?.trim().orEmpty()
         if (raw.isEmpty()) return emptyMap()
         return try {
@@ -157,19 +146,15 @@ class AppointmentController(
 
     @PutMapping("/{appointmentId}/dental-documentation")
     fun putDentalDocumentation(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long,
         @RequestBody body: Map<String, Any?>
     ) {
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
-        if (appointment.doctor.id != doctor.id) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
-        }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
         appointment.dentalDocumentation = objectMapper.writeValueAsString(body)
         appts.save(appointment)
         clinicalRagIndexingService.reindexAppointmentDentalDocumentation(appointmentId)
@@ -193,18 +178,14 @@ class AppointmentController(
 
     @GetMapping("/{appointmentId}/draft-notes")
     fun getDraftNotes(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long
     ): List<DraftNoteDto> {
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
-        if (appointment.doctor.id != doctor.id) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
-        }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
         val drafts = aiDraftNoteRepo.findByConsultationIdAndStatusOrderByCreatedAtDesc(
             appointmentId,
             AiDraftNote.Status.GENERATED
@@ -243,22 +224,19 @@ class AppointmentController(
 
     @PutMapping("/{appointmentId}/request-signature")
     fun requestSignature(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long
     ) {
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
-        if (appointment.doctor.id != doctor.id) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
-        }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
         appointment.signatureRequested = true
         appts.save(appointment)
 
-        val doctorName = "${doctor.firstName ?: ""} ${doctor.lastName ?: ""}".trim().ifEmpty { "Doctor" }
+        val doctorName =
+            "${appointment.doctor.firstName ?: ""} ${appointment.doctor.lastName ?: ""}".trim().ifEmpty { "Doctor" }
         val notif = Notification(
             patient = appointment.patient,
             title = "Signature Requested",
@@ -276,18 +254,14 @@ class AppointmentController(
      */
     @PostMapping("/{appointmentId}/notify-payment-reminder")
     fun notifyPaymentReminder(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long
     ) {
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
-        if (appointment.doctor.id != doctor.id) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
-        }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
         if (appointment.status == Appointment.Status.CANCELLED ||
             appointment.status == Appointment.Status.COMPLETED
         ) {
@@ -304,7 +278,8 @@ class AppointmentController(
                 "Payment reminders are only supported for video consultations"
             )
         }
-        val doctorName = "${doctor.firstName ?: ""} ${doctor.lastName ?: ""}".trim()
+        val doctorName =
+            "${appointment.doctor.firstName ?: ""} ${appointment.doctor.lastName ?: ""}".trim()
         val lang = appointment.patient.language
         val notif = Notification(
             patient = appointment.patient,
@@ -331,21 +306,15 @@ class AppointmentController(
 
     @DeleteMapping("/{appointmentId}")
     fun cancel(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long
     ) {
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
-
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
 
-        // Verify the appointment belongs to this doctor
-        if (appointment.doctor.id != doctor.id) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
-        }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
 
         // Past appointments cannot be cancelled
         if (appointment.startAt.isBefore(Instant.now())) {
@@ -356,7 +325,7 @@ class AppointmentController(
         appointment.status = Appointment.Status.CANCELLED
         appts.save(appointment)
 
-        val zone = ZoneId.of(doctor.timeZone)
+        val zone = ZoneId.of(appointment.doctor.timeZone)
         val startLdt = appointment.startAt.atZone(zone).toLocalDateTime()
         val monthName = startLdt.month.name.lowercase().replaceFirstChar { it.uppercase() }
         val dateStr = "${startLdt.dayOfMonth} $monthName ${startLdt.year}"
@@ -374,21 +343,15 @@ class AppointmentController(
 
     @PutMapping("/{appointmentId}/complete")
     fun complete(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long
     ) {
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
-
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
 
-        // Verify the appointment belongs to this doctor
-        if (appointment.doctor.id != doctor.id) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
-        }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
 
         // Mark appointment as completed
         appointment.status = Appointment.Status.COMPLETED
@@ -402,22 +365,16 @@ class AppointmentController(
 
     @PutMapping("/{appointmentId}/change")
     fun changeSlot(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long,
         @RequestBody req: ChangeSlotReq
     ) {
-        val doctor = principal.profile
-            ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
-
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
 
-        // Verify the appointment belongs to this doctor
-        if (appointment.doctor.id != doctor.id) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this doctor")
-        }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
 
         // Past appointments cannot be changed
         if (appointment.startAt.isBefore(Instant.now())) {
@@ -430,10 +387,10 @@ class AppointmentController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot move appointment to a past date or time")
         }
         val newEndAt = newStartAt.plusSeconds(req.slotMinutes * 60L)
-        val zone = ZoneId.of(doctor.timeZone)
+        val zone = ZoneId.of(appointment.doctor.timeZone)
 
         // Check for overlaps for the doctor (excluding the current appointment)
-        val overlapping = appts.findOverlapping(doctor.id!!, newStartAt, newEndAt)
+        val overlapping = appts.findOverlapping(appointment.doctor.id!!, newStartAt, newEndAt)
             .filter { it.id != appointmentId }
         
         if (overlapping.isNotEmpty()) {

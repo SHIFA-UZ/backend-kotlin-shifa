@@ -33,7 +33,7 @@ class SubscriptionTierService(
     private fun featuresForRole(role: Role): Set<SubscriptionFeature> = when (role) {
         Role.ADMIN -> SubscriptionFeature.entries.toSet()
         Role.PATIENT -> patientOnlyFeatures
-        Role.DOCTOR -> SubscriptionFeature.entries.toSet() - patientOnlyFeatures
+        Role.DOCTOR, Role.CLINIC_STAFF -> SubscriptionFeature.entries.toSet() - patientOnlyFeatures
     }
 
     /** Resolve a user's effective tier. Admins are always treated as PREMIUM. */
@@ -81,7 +81,7 @@ class SubscriptionTierService(
                     "Patients can only be assigned PRO or PREMIUM."
                 )
             }
-            Role.DOCTOR -> { /* all three tiers are valid */ }
+            Role.DOCTOR, Role.CLINIC_STAFF -> { /* all three tiers are valid */ }
         }
 
         user.subscriptionTier = tier

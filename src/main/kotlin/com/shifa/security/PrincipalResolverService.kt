@@ -22,7 +22,8 @@ class PrincipalResolverService(
     private val users: UserRepository,
     private val userRoles: UserRoleRepository,
     private val doctorProfiles: DoctorProfileRepository,
-    private val adminProfiles: AdminProfileRepository
+    private val adminProfiles: AdminProfileRepository,
+    private val clinicMemberships: com.shifa.repo.ClinicMembershipRepository
 ) {
 
     /**
@@ -62,6 +63,13 @@ class PrincipalResolverService(
                 }
                 DoctorPrincipal(profile = doctorProfile, authorities = authorities)
             }
+            Role.CLINIC_STAFF -> {
+                val memberships = clinicMemberships.findByUserIdAndActiveTrue(user.id)
+                if (memberships.isEmpty()) {
+                    throw UsernameNotFoundException("Clinic membership not found for staff user ${user.id}")
+                }
+                ClinicStaffPrincipal(user = user, memberships = memberships, authorities = authorities)
+            }
             Role.PATIENT -> PatientPrincipal(user = user, authorities = authorities)
         }
     }
@@ -79,6 +87,13 @@ class PrincipalResolverService(
                     UsernameNotFoundException("Doctor profile not found for user ${user.id}")
                 }
                 DoctorPrincipal(profile = doctorProfile, authorities = authorities)
+            }
+            Role.CLINIC_STAFF -> {
+                val memberships = clinicMemberships.findByUserIdAndActiveTrue(user.id)
+                if (memberships.isEmpty()) {
+                    throw UsernameNotFoundException("Clinic membership not found for staff user ${user.id}")
+                }
+                ClinicStaffPrincipal(user = user, memberships = memberships, authorities = authorities)
             }
             Role.PATIENT -> PatientPrincipal(user = user, authorities = authorities)
         }

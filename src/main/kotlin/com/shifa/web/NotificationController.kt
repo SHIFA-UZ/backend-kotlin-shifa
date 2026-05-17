@@ -6,6 +6,7 @@ import com.shifa.domain.Notification
 import com.shifa.repo.DocumentAccessRequestRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.repo.PatientProfileRepository
+import com.shifa.security.ClinicStaffPrincipal
 import com.shifa.security.DoctorPrincipal
 import com.shifa.security.PatientPrincipal
 import org.springframework.http.HttpStatus
@@ -51,7 +52,8 @@ class NotificationController(
         val documentTitle: String? = null,
         val requestingDoctorName: String? = null,
         val createdAt: String,
-        val readAt: String?
+        val readAt: String?,
+        val treatmentPlanId: Long? = null,
     )
 
     @GetMapping
@@ -59,6 +61,7 @@ class NotificationController(
         @AuthenticationPrincipal principal: Any
     ): List<NotificationDto> {
         val notifs = when (principal) {
+            is ClinicStaffPrincipal -> emptyList()
             is DoctorPrincipal -> notifications.findByDoctor_IdOrderByCreatedAtDesc(principal.profile.id)
             is PatientPrincipal -> {
                 val patient = currentPatientProfile(principal)
@@ -105,7 +108,8 @@ class NotificationController(
                 documentTitle = documentTitle,
                 requestingDoctorName = requestingDoctorName,
                 createdAt = n.createdAt.toString(),
-                readAt = n.readAt?.toString()
+                readAt = n.readAt?.toString(),
+                treatmentPlanId = n.treatmentPlanId
             )
         }
     }
@@ -115,6 +119,7 @@ class NotificationController(
         @AuthenticationPrincipal principal: Any
     ): Map<String, Int> {
         val notifs = when (principal) {
+            is ClinicStaffPrincipal -> emptyList()
             is DoctorPrincipal -> notifications.findByDoctor_IdOrderByCreatedAtDesc(principal.profile.id)
             is PatientPrincipal -> {
                 val patient = currentPatientProfile(principal)
@@ -156,6 +161,7 @@ class NotificationController(
         @AuthenticationPrincipal principal: Any
     ) {
         val notifs = when (principal) {
+            is ClinicStaffPrincipal -> emptyList()
             is DoctorPrincipal -> notifications.findByDoctor_IdOrderByCreatedAtDesc(principal.profile.id)
             is PatientPrincipal -> {
                 val patient = currentPatientProfile(principal)

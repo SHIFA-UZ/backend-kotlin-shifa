@@ -5,6 +5,8 @@ import org.springframework.data.jpa.repository.JpaRepository
 import java.util.*
 
 interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
+    fun findAllByPracticeClinic_Id(clinicId: Long): List<DoctorProfile>
+
     fun findByUserId(userId: Long): Optional<DoctorProfile>
     
     // Search doctors by query string (name, email, phone, profession, clinic) - only enabled (non-disabled) doctors

@@ -17,6 +17,8 @@ class ReminderNotificationScheduler(
             reminderNotificationService.sendTaskReminders()
             reminderNotificationService.sendAppointmentReminders()
             reminderNotificationService.sendPendingConsultationPaymentReminders()
+            reminderNotificationService.sendTreatmentPlanPaymentReminders()
+            reminderNotificationService.sendProphylaxisReminders()
         } catch (e: Exception) {
             log.warn("Reminder scheduler failed: {}", e.message)
         }

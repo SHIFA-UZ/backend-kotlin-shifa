@@ -66,6 +66,14 @@ class DoctorProfile(
     var telegram: String? = null,
     var instagram: String? = null,
 
+    /**
+     * Structured practice clinic (multi-doctor roster). Nullable for solo doctors / legacy rows.
+     * Legacy free-text workplace name remains in [clinic].
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "clinic_id")
+    var practiceClinic: Clinic? = null,
+
     /** FCM token for doctor web/app push notifications. Set by doctor app on login, cleared on logout. */
     @Column(name = "fcm_token")
     var fcmToken: String? = null,

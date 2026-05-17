@@ -17,7 +17,8 @@ class UserDetailsServiceImpl(
     private val users: UserRepository,
     private val doctorProfiles: DoctorProfileRepository,
     private val adminProfiles: AdminProfileRepository,
-    private val userRoles: UserRoleRepository
+    private val userRoles: UserRoleRepository,
+    private val clinicMemberships: com.shifa.repo.ClinicMembershipRepository
 ) : UserDetailsService {
 
     override fun loadUserByUsername(username: String): UserDetails {
@@ -74,6 +75,13 @@ class UserDetailsServiceImpl(
                     user = user,
                     authorities = authorities
                 )
+            }
+            Role.CLINIC_STAFF -> {
+                val memberships = clinicMemberships.findByUserIdAndActiveTrue(user.id)
+                if (memberships.isEmpty()) {
+                    throw UsernameNotFoundException("Clinic membership not found for staff user ${user.id}")
+                }
+                ClinicStaffPrincipal(user = user, memberships = memberships, authorities = authorities)
             }
         }
     }

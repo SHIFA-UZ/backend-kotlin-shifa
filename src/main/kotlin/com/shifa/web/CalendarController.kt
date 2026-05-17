@@ -3,13 +3,18 @@ package com.shifa.web
 
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DateSpecificScheduleRuleRepository
+import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.WeeklyScheduleRuleRepository
+import com.shifa.security.ClinicStaffPrincipal
 import com.shifa.security.DoctorPrincipal
+import com.shifa.service.ClinicAccessService
 import com.shifa.service.PatientProfileMapper
 import com.shifa.service.ScheduleValidityService
 import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ResponseStatusException
 import java.time.*
 
 @RestController
@@ -18,8 +23,10 @@ class CalendarController(
     private val rulesRepo: WeeklyScheduleRuleRepository,
     private val dateSpecificRulesRepo: DateSpecificScheduleRuleRepository,
     private val appts: AppointmentRepository,
+    private val doctors: DoctorProfileRepository,
     private val profileMapper: PatientProfileMapper,
-    private val scheduleValidityService: ScheduleValidityService
+    private val scheduleValidityService: ScheduleValidityService,
+    private val clinicAccess: ClinicAccessService
 ) {
     private val logger = LoggerFactory.getLogger(CalendarController::class.java)
 
@@ -44,21 +51,30 @@ class CalendarController(
 
     @GetMapping
     fun byDay(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @RequestParam day: String,
-        @RequestParam(required = false) locationId: Long?
+        @RequestParam(required = false) locationId: Long?,
+        @RequestParam(required = false) doctorId: Long?
     ): List<EntryDto> {
 
-        val doctor = principal.profile
-        val doctorId = doctor.id
-        
+        clinicAccess.assertPracticeActor(principal)
+        val targetDoctorId = doctorId ?: when (principal) {
+            is DoctorPrincipal -> principal.profile.id
+            else -> throw ResponseStatusException(HttpStatus.BAD_REQUEST, "doctorId is required")
+        }
+        clinicAccess.assertCanViewDoctorCalendar(principal, targetDoctorId)
+
+        val doctor = doctors.findById(targetDoctorId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found")
+        }
+        val doctorIdResolved = doctor.id!!
         // Defensive check: Ensure doctor ID is valid (should never be <= 0 for a real doctor)
-        if (doctorId <= 0) {
-            logger.error("Invalid doctor ID: $doctorId for user ${doctor.user.id}. Returning empty calendar.")
+        if (doctorIdResolved <= 0) {
+            logger.error("Invalid doctor ID: $doctorIdResolved for user ${doctor.user.id}. Returning empty calendar.")
             return emptyList()
         }
-        
-        logger.debug("Calendar request: doctorId=$doctorId, day=$day")
+
+        logger.debug("Calendar request: doctorId=$doctorIdResolved, day=$day")
         
         val localDate = LocalDate.parse(day)
         val weekday = localDate.dayOfWeek.value
@@ -211,14 +227,14 @@ class CalendarController(
         // CRITICAL: Only return appointments that belong to this specific doctor
         // Add defensive filtering to ensure no cross-doctor data leakage
         val apptsForDay = appts
-            .findOverlapping(doctorId, dayStart, dayEnd)
+            .findOverlapping(doctorIdResolved, dayStart, dayEnd)
             .filter { appointment ->
                 // Defensive check: Ensure appointment belongs to this doctor
-                val belongsToDoctor = appointment.doctor.id == doctorId
+                val belongsToDoctor = appointment.doctor.id == doctorIdResolved
                 if (!belongsToDoctor) {
                     logger.error(
                         "SECURITY: Appointment ${appointment.id} belongs to doctor ${appointment.doctor.id} " +
-                        "but was returned for doctor $doctorId. Filtering out."
+                            "but was returned for doctor $doctorIdResolved. Filtering out."
                     )
                 }
                 // Additional check: Ensure status is valid (not CANCELLED)
@@ -257,7 +273,7 @@ class CalendarController(
                 )
             }
         
-        logger.debug("Found ${apptsForDay.size} appointments for doctor $doctorId on $day")
+        logger.debug("Found ${apptsForDay.size} appointments for doctor $doctorIdResolved on $day")
 
         fun overlaps(a: Instant, b: Instant, c: Instant, d: Instant) =
             a < d && c < b
@@ -273,7 +289,7 @@ class CalendarController(
         val result = (apptsForDay.map { it.dto } + filteredFreeSlots.map { it.dto })
             .sortedBy { Instant.parse(it.startAt) }
         
-        logger.debug("Returning ${result.size} entries (${apptsForDay.size} appointments, ${filteredFreeSlots.size} free slots) for doctor $doctorId on $day")
+        logger.debug("Returning ${result.size} entries (${apptsForDay.size} appointments, ${filteredFreeSlots.size} free slots) for doctor $doctorIdResolved on $day")
         
         return result
     }

@@ -6,7 +6,7 @@ import com.shifa.domain.PatientProfile
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DocumentAccessGrantRepository
 import com.shifa.repo.PatientProfileRepository
-import com.shifa.security.DoctorPrincipal
+import com.shifa.service.ClinicAccessService
 import com.shifa.service.PatientAccountService
 import com.shifa.service.PatientProfileMapper
 import com.shifa.util.PhoneNormalizer
@@ -35,7 +35,8 @@ class PatientsController(
     private val appointmentRepo: AppointmentRepository,
     private val accessGrants: DocumentAccessGrantRepository,
     private val profileMapper: PatientProfileMapper,
-    private val patientAccountService: PatientAccountService
+    private val patientAccountService: PatientAccountService,
+    private val clinicAccess: ClinicAccessService
 ) {
     companion object {
         private val logger = LoggerFactory.getLogger(PatientsController::class.java)
@@ -129,13 +130,15 @@ class PatientsController(
     @GetMapping
     @Transactional(readOnly = true)
     fun getAllPatients(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PageableDefault(size = 50) pageable: Pageable
     ): List<PatientDto> {
         return try {
-            val doctorId = principal.profile.id
-            val patients = patientsRepo.findDistinctByDoctorAppointments(doctorId, pageable).content
-            patients.map { toDto(it, doctorId) }
+            val doctorIds = clinicAccess.doctorIdsForPatientDirectory(principal)
+            if (doctorIds.isEmpty()) return emptyList()
+            val vid = viewerDoctorId(principal)
+            val patients = patientsRepo.findDistinctVisibleToDoctors(doctorIds, pageable).content
+            patients.map { toDto(it, vid) }
         } catch (e: Exception) {
             logger.error("Failed to load patient list for doctor: {}", e.message, e)
             emptyList()
@@ -149,11 +152,13 @@ class PatientsController(
     @GetMapping("/for-assignment")
     @Transactional(readOnly = true)
     fun getPatientsForAssignment(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @PageableDefault(size = 500) pageable: Pageable
     ): List<PatientAssignmentDto> {
+        val doctorIds = clinicAccess.doctorIdsForPatientDirectory(principal)
+        if (doctorIds.isEmpty()) return emptyList()
         val sort = if (pageable.sort.isSorted) pageable.sort else Sort.by(Sort.Direction.ASC, "fullName")
-        val patients = patientsRepo.findAll(PageRequest.of(pageable.pageNumber, pageable.pageSize, sort)).content
+        val patients = patientsRepo.findDistinctVisibleToDoctors(doctorIds, PageRequest.of(pageable.pageNumber, pageable.pageSize, sort)).content
         return patients.map { p ->
             PatientAssignmentDto(
                 id = p.id,
@@ -171,15 +176,13 @@ class PatientsController(
     @Transactional(readOnly = true)
     fun getPatient(
         @PathVariable id: Long,
-        @AuthenticationPrincipal principal: DoctorPrincipal
+        @AuthenticationPrincipal principal: Any
     ): PatientDto {
+        clinicAccess.assertPracticeActor(principal)
+        clinicAccess.assertPatientVisible(principal, id)
         val p = patientsRepo.findById(id)
             .orElseThrow { IllegalArgumentException("Patient not found") }
-        val doctorId = principal.profile.id
-        if (!appointmentRepo.existsByDoctorIdAndPatientId(doctorId, id) && p.createdByDoctor?.id != doctorId) {
-            throw IllegalArgumentException("Patient not found")
-        }
-        return toDto(p, doctorId)
+        return toDto(p, viewerDoctorId(principal))
     }
 
     /**
@@ -188,7 +191,7 @@ class PatientsController(
      */
     @PostMapping
     fun createPatient(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @RequestBody @Valid req: CreatePatientRequest
     ): PatientDto {
         val phoneTrimmed = req.phone?.trim()?.takeIf { it.isNotEmpty() }
@@ -214,10 +217,10 @@ class PatientsController(
             chronicDisease = req.chronicDisease?.trim(),
             documents = mutableListOf<PatientDocument>()
         )
-        patient.createdByDoctor = principal.profile
+        patient.createdByDoctor = clinicAccess.resolveDoctorForPatientCreation(principal)
 
         val saved = patientsRepo.save(patient)
-        return toDto(saved, principal.profile.id)
+        return toDto(saved, viewerDoctorId(principal))
     }
 
     /**
@@ -227,17 +230,18 @@ class PatientsController(
     @PostMapping("/{id}/create-account")
     fun createAccount(
         @PathVariable id: Long,
-        @AuthenticationPrincipal principal: DoctorPrincipal
+        @AuthenticationPrincipal principal: Any
     ): PatientAccountService.AccountCreationResult {
         val p = patientsRepo.findById(id).orElseThrow { IllegalArgumentException("Patient not found") }
-        val doctorId = principal.profile.id
-        if (!appointmentRepo.existsByDoctorIdAndPatientId(doctorId, id) && p.createdByDoctor?.id != doctorId) {
-            throw IllegalArgumentException("Patient not found")
-        }
+        clinicAccess.assertPracticeActor(principal)
+        clinicAccess.assertPatientVisible(principal, id)
         return patientAccountService.createPatientAccount(id)
     }
 
-    // -------------------- Helpers --------------------
+    private fun viewerDoctorId(principal: Any): Long =
+        clinicAccess.resolveActorDoctorProfile(principal)?.id
+            ?: clinicAccess.doctorIdsForPatientDirectory(principal).minOrNull()
+            ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot resolve viewer doctor")
 
     /**
      * PATCH /api/patients/{id}
@@ -246,16 +250,13 @@ class PatientsController(
     @PatchMapping("/{id}")
     fun updatePatient(
         @PathVariable id: Long,
-        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @AuthenticationPrincipal principal: Any,
         @RequestBody @Valid req: UpdatePatientRequest
     ): PatientDto {
         val patient = patientsRepo.findById(id)
             .orElseThrow { IllegalArgumentException("Patient not found") }
-        val doctorId = principal.profile.id
-        if (!appointmentRepo.existsByDoctorIdAndPatientId(doctorId, id) && patient.createdByDoctor?.id != doctorId) {
-            throw IllegalArgumentException("Patient not found")
-        }
-
+        clinicAccess.assertPracticeActor(principal)
+        clinicAccess.assertPatientVisible(principal, id)
         req.name?.let { patient.fullName = it.trim() }
         req.phone?.let { raw ->
             val normalized = PhoneNormalizer.normalize(raw)
@@ -279,7 +280,7 @@ class PatientsController(
         req.chronicDisease?.let { patient.chronicDisease = it.trim().takeIf { it.isNotEmpty() } }
 
         val saved = patientsRepo.save(patient)
-        return toDto(saved, principal.profile.id)
+        return toDto(saved, viewerDoctorId(principal))
     }
 
     private fun toDto(p: PatientProfile, doctorId: Long): PatientDto {
