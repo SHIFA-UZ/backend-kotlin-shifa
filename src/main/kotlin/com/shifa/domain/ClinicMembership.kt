@@ -37,6 +37,12 @@ class ClinicMembership(
     enum class MembershipRole {
         OWNER,
         DOCTOR,
-        STAFF
+        STAFF,
+        /** Administrative access to clinic roster and operations (full patient list per product rules). */
+        CLINIC_ADMIN,
+        /** Front desk — full clinic patient roster and scheduling. */
+        RECEPTIONIST,
+        /** Limited operational access (defaults to scoped roster like a doctor in workspace APIs). */
+        NURSE,
     }
 }

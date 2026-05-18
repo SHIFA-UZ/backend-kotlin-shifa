@@ -97,5 +97,57 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
         "SELECT p FROM PatientProfile p JOIN FETCH p.user WHERE p.id = :id"
     )
     fun findByIdWithUser(@Param("id") id: Long): Optional<PatientProfile>
+
+    /** Full clinic roster: patients with any non-cancelled appointment with a clinic doctor. */
+    @Query(
+        """
+        SELECT DISTINCT p FROM PatientProfile p
+        WHERE p.id IN (
+            SELECT DISTINCT a.patient.id FROM Appointment a
+            WHERE a.doctor.id IN :clinicDoctorIds AND a.status != 'CANCELLED'
+        )
+        AND (
+            :q IS NULL OR :q = '' OR
+            LOWER(p.fullName) LIKE LOWER(CONCAT('%', :q, '%')) OR
+            LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', :q, '%')) OR
+            LOWER(COALESCE(p.email, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+        )
+        ORDER BY p.fullName
+        """
+    )
+    fun findClinicRosterForDoctors(
+        @Param("clinicDoctorIds") clinicDoctorIds: Collection<Long>,
+        @Param("q") q: String?,
+        pageable: Pageable
+    ): Page<PatientProfile>
+
+    /**
+     * Doctor-scoped clinic roster: patients who saw this doctor at the clinic, or were created by this doctor.
+     * NURSE/DOCTOR product rules default to scoped visibility.
+     */
+    @Query(
+        """
+        SELECT DISTINCT p FROM PatientProfile p
+        WHERE (
+            p.id IN (
+                SELECT DISTINCT a.patient.id FROM Appointment a
+                WHERE a.doctor.id = :actorDoctorId AND a.status != 'CANCELLED'
+            )
+            OR p.createdByDoctor.id = :actorDoctorId
+        )
+        AND (
+            :q IS NULL OR :q = '' OR
+            LOWER(p.fullName) LIKE LOWER(CONCAT('%', :q, '%')) OR
+            LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', :q, '%')) OR
+            LOWER(COALESCE(p.email, '')) LIKE LOWER(CONCAT('%', :q, '%'))
+        )
+        ORDER BY p.fullName
+        """
+    )
+    fun findClinicRosterScopedToDoctor(
+        @Param("actorDoctorId") actorDoctorId: Long,
+        @Param("q") q: String?,
+        pageable: Pageable
+    ): Page<PatientProfile>
 }
 

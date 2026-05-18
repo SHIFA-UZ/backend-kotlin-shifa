@@ -22,6 +22,7 @@ import org.hibernate.Hibernate
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
+import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
@@ -124,7 +125,8 @@ class PatientsController(
 
     /**
      * GET /api/patients
-     * Returns only patients that have at least one (past or future) appointment with the current doctor.
+     * "My patients" directory: patients who have had at least one non-cancelled appointment with a doctor
+     * in the caller's practice/clinic (same scope as clinic roster). Excludes walk-ins / profiles with no visits yet.
      * Never returns 500: patients without user accounts or with broken relations are returned with minimal DTOs.
      */
     @GetMapping
@@ -137,7 +139,7 @@ class PatientsController(
             val doctorIds = clinicAccess.doctorIdsForPatientDirectory(principal)
             if (doctorIds.isEmpty()) return emptyList()
             val vid = viewerDoctorId(principal)
-            val patients = patientsRepo.findDistinctVisibleToDoctors(doctorIds, pageable).content
+            val patients = patientsRepo.findClinicRosterForDoctors(doctorIds, null, pageable).content
             patients.map { toDto(it, vid) }
         } catch (e: Exception) {
             logger.error("Failed to load patient list for doctor: {}", e.message, e)
@@ -147,18 +149,18 @@ class PatientsController(
 
     /**
      * GET /api/patients/for-assignment
-     * Returns all patients as id+name only (for calendar assign-patient: search by id or name).
+     * Full patient profile directory for calendar booking: every stored patient (paginated), including first-time /
+     * never-seen-here profiles. Narrow "my patients" for charts lives on GET /api/patients instead.
      */
     @GetMapping("/for-assignment")
     @Transactional(readOnly = true)
     fun getPatientsForAssignment(
         @AuthenticationPrincipal principal: Any,
-        @PageableDefault(size = 500) pageable: Pageable
-    ): List<PatientAssignmentDto> {
-        val doctorIds = clinicAccess.doctorIdsForPatientDirectory(principal)
-        if (doctorIds.isEmpty()) return emptyList()
+        @PageableDefault(size = 500, sort = ["fullName"], direction = Sort.Direction.ASC) pageable: Pageable
+    ): Page<PatientAssignmentDto> {
+        clinicAccess.assertPracticeActor(principal)
         val sort = if (pageable.sort.isSorted) pageable.sort else Sort.by(Sort.Direction.ASC, "fullName")
-        val patients = patientsRepo.findDistinctVisibleToDoctors(doctorIds, PageRequest.of(pageable.pageNumber, pageable.pageSize, sort)).content
+        val patients = patientsRepo.findAll(PageRequest.of(pageable.pageNumber, pageable.pageSize, sort))
         return patients.map { p ->
             PatientAssignmentDto(
                 id = p.id,

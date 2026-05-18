@@ -85,7 +85,8 @@ class BookingController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found: $patientId")
             }
 
-        clinicAccess.assertPatientVisible(principal, patientId)
+        // Intentionally do not require prior visits / created-by-doctor link: calendar may book walk-ins and
+        // profiles that are not yet on GET /api/patients (visited-only directory).
 
         val startAt = Instant.parse(b.startAt)
         val endAt = startAt.plusSeconds(b.slotMinutes * 60L)

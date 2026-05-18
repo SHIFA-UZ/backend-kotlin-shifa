@@ -273,4 +273,34 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         @Param("doctorIds") doctorIds: Collection<Long>,
         pageable: Pageable
     ): List<Appointment>
+
+    @Query(
+        """
+        SELECT COUNT(a) FROM Appointment a
+        WHERE a.doctor.id IN :doctorIds
+          AND a.startAt >= :start
+          AND a.startAt < :end
+          AND a.status != 'CANCELLED'
+        """
+    )
+    fun countByDoctorIdsAndStartAtBetween(
+        @Param("doctorIds") doctorIds: Collection<Long>,
+        @Param("start") start: Instant,
+        @Param("end") end: Instant
+    ): Long
+
+    @Query(
+        """
+        SELECT COUNT(DISTINCT a.patient.id) FROM Appointment a
+        WHERE a.doctor.id IN :doctorIds
+          AND a.startAt >= :start
+          AND a.startAt < :end
+          AND a.status != 'CANCELLED'
+        """
+    )
+    fun countDistinctPatientsByDoctorIdsAndStartAtBetween(
+        @Param("doctorIds") doctorIds: Collection<Long>,
+        @Param("start") start: Instant,
+        @Param("end") end: Instant
+    ): Long
 }

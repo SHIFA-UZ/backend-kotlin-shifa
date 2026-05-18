@@ -6,6 +6,7 @@ import com.shifa.domain.DoctorProfile
 import com.shifa.domain.Role
 import com.shifa.domain.User
 import com.shifa.repo.AppointmentRepository
+import com.shifa.repo.ClinicMembershipRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.ClinicStaffPrincipal
@@ -23,8 +24,9 @@ class ClinicAccessServiceTest {
     private val doctors = mock(DoctorProfileRepository::class.java)
     private val appointments = mock(AppointmentRepository::class.java)
     private val patients = mock(PatientProfileRepository::class.java)
+    private val memberships = mock(ClinicMembershipRepository::class.java)
 
-    private val service = ClinicAccessService(doctors, appointments, patients)
+    private val service = ClinicAccessService(doctors, appointments, patients, memberships)
 
     private fun doctorUser(id: Long) =
         User(id = id, passwordHash = "x", role = Role.DOCTOR, enabled = true)

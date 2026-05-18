@@ -8,6 +8,7 @@ import com.shifa.domain.UserRole
 import com.shifa.config.StaticResourceConfig
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.InvitationKeyRepository
+import com.shifa.repo.ClinicMembershipRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.repo.UserRepository
 import com.shifa.repo.UserRoleRepository
@@ -86,6 +87,9 @@ class AuthForgotPasswordAppScopeTest {
     lateinit var emailOtpService: EmailOtpService
 
     @MockBean
+    lateinit var clinicMemberships: ClinicMembershipRepository
+
+    @MockBean
     lateinit var principalResolverService: PrincipalResolverService
 
     @Test
@@ -129,7 +133,7 @@ class AuthForgotPasswordAppScopeTest {
                 .content("""{"identifier":"patient-only@example.com","app":"doctor"}""")
         )
             .andExpect(status().isForbidden)
-            .andExpect(content().string(containsString("No doctor account found")))
+            .andExpect(content().string(containsString("No doctor app access")))
 
         verifyNoInteractions(emailOtpService)
     }

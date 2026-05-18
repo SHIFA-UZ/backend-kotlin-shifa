@@ -2,6 +2,7 @@ package com.shifa.service
 
 import com.shifa.domain.DoctorProfile
 import com.shifa.repo.AppointmentRepository
+import com.shifa.repo.ClinicMembershipRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.ClinicStaffPrincipal
@@ -14,7 +15,8 @@ import org.springframework.web.server.ResponseStatusException
 class ClinicAccessService(
     private val doctors: DoctorProfileRepository,
     private val appointments: AppointmentRepository,
-    private val patients: PatientProfileRepository
+    private val patients: PatientProfileRepository,
+    private val memberships: ClinicMembershipRepository,
 ) {
 
     fun resolveActorDoctorProfile(principal: Any): DoctorProfile? =
@@ -102,9 +104,13 @@ class ClinicAccessService(
         assertPracticeActor(principal)
         when (principal) {
             is DoctorPrincipal -> {
-                val cid = principal.profile.practiceClinic?.id
-                    ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, "Doctor is not assigned to a clinic")
-                if (cid != clinicId) throw ResponseStatusException(HttpStatus.FORBIDDEN)
+                val practiceId = principal.profile.practiceClinic?.id
+                val member = memberships.findByUserIdAndClinicIdAndActiveTrue(
+                    principal.profile.user.id,
+                    clinicId,
+                )
+                val ok = practiceId == clinicId || member != null
+                if (!ok) throw ResponseStatusException(HttpStatus.FORBIDDEN)
             }
             is ClinicStaffPrincipal -> {
                 if (!principal.clinicIds().contains(clinicId)) throw ResponseStatusException(HttpStatus.FORBIDDEN)

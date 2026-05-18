@@ -116,6 +116,8 @@ class SecurityConfig(
                 // Doctor-only: profile photo (doctor upload)
                 it.requestMatchers("/api/profile/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/practice/me", "/api/practice/me/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
+                it.requestMatchers("/api/me/clinics").hasAnyRole("DOCTOR", "CLINIC_STAFF")
+                it.requestMatchers("/api/clinics/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 it.requestMatchers("/api/treatment-plans/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 it.requestMatchers("/api/prophylaxis/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 // Shared (authenticated): notifications, AI, video
