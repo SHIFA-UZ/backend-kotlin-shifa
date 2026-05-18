@@ -158,26 +158,16 @@ class ClinicWorkspaceService(
 
     fun listPatients(principal: Any, clinicId: Long, q: String?, pageable: Pageable): Page<ClinicPatientRow> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
-        val role = resolveWorkspaceRole(principal, clinicId)
         val clinicDoctorProfiles = doctors.findAllByPracticeClinic_Id(clinicId)
         val clinicDoctorIds = clinicDoctorProfiles.mapNotNull { it.id }
 
         val trimmedQ = q?.trim()?.takeIf { it.isNotEmpty() }
 
         val page: Page<PatientProfile> =
-            if (shouldUseFullClinicPatientRoster(role, principal)) {
-                if (clinicDoctorIds.isEmpty()) {
-                    Page.empty(pageable)
-                } else {
-                    patients.findClinicRosterForDoctors(clinicDoctorIds, trimmedQ, pageable)
-                }
+            if (clinicDoctorIds.isEmpty()) {
+                Page.empty(pageable)
             } else {
-                val actorDoctorId = clinicAccess.resolveActorDoctorProfile(principal)?.id
-                    ?: throw ResponseStatusException(
-                        HttpStatus.FORBIDDEN,
-                        "This view requires a doctor profile (try another role or account).",
-                    )
-                patients.findClinicRosterScopedToDoctor(actorDoctorId, trimmedQ, pageable)
+                patients.findClinicRosterForDoctors(clinicDoctorIds, trimmedQ, pageable)
             }
 
         return page.map { p ->
@@ -187,61 +177,6 @@ class ClinicWorkspaceService(
                 phone = p.phone,
                 email = p.email,
             )
-        }
-    }
-
-    /**
-     * Workspace visibility for patient roster.
-     * Staff in operational roles see the full clinic visitor list.
-     * Doctors (and doctor-role memberships) see patients they treated or added.
-     */
-    private fun shouldUseFullClinicPatientRoster(role: ClinicMembership.MembershipRole?, principal: Any): Boolean {
-        if (role == null) return false
-        if (principal is ClinicStaffPrincipal) {
-            return when (role) {
-                ClinicMembership.MembershipRole.OWNER,
-                ClinicMembership.MembershipRole.CLINIC_ADMIN,
-                ClinicMembership.MembershipRole.RECEPTIONIST,
-                ClinicMembership.MembershipRole.STAFF,
-                ClinicMembership.MembershipRole.NURSE,
-                -> true
-                ClinicMembership.MembershipRole.DOCTOR -> false
-            }
-        }
-        if (principal !is DoctorPrincipal) return false
-        return when (role) {
-            ClinicMembership.MembershipRole.OWNER,
-            ClinicMembership.MembershipRole.CLINIC_ADMIN,
-            ClinicMembership.MembershipRole.RECEPTIONIST,
-            ClinicMembership.MembershipRole.STAFF,
-            -> true
-            ClinicMembership.MembershipRole.DOCTOR,
-            ClinicMembership.MembershipRole.NURSE,
-            -> false
-        }
-    }
-
-    private fun resolveWorkspaceRole(principal: Any, clinicId: Long): ClinicMembership.MembershipRole? {
-        return when (principal) {
-            is DoctorPrincipal -> {
-                val explicit = memberships.findByUserIdAndClinicIdAndActiveTrue(
-                    principal.profile.user.id,
-                    clinicId,
-                )
-                if (explicit != null) return explicit.membershipRole
-                val cid = principal.profile.practiceClinic?.id
-                if (cid != null && cid == clinicId) {
-                    ClinicMembership.MembershipRole.DOCTOR
-                } else {
-                    null
-                }
-            }
-            is ClinicStaffPrincipal -> {
-                principal.memberships
-                    .firstOrNull { it.active && it.clinic.id == clinicId }
-                    ?.membershipRole
-            }
-            else -> null
         }
     }
 }

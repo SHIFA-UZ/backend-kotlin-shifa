@@ -168,6 +168,18 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         @Param("dayEnd") dayEnd: Instant
     ): Long
 
+    /** True if the patient has a non-cancelled visit with any of the given clinic doctors (clinic roster link). */
+    @Query(
+        """
+        SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END FROM Appointment a
+        WHERE a.patient.id = :patientId AND a.status != 'CANCELLED' AND a.doctor.id IN :doctorIds
+        """
+    )
+    fun existsNonCancelledByPatientIdAndDoctorIds(
+        @Param("patientId") patientId: Long,
+        @Param("doctorIds") doctorIds: Collection<Long>,
+    ): Boolean
+
     /** True if the doctor has at least one appointment (past or future) with this patient. */
     fun existsByDoctorIdAndPatientId(doctorId: Long, patientId: Long): Boolean =
         countByDoctor_IdAndPatient_Id(doctorId, patientId) > 0

@@ -47,8 +47,7 @@ class ProphylaxisController(
         @RequestParam clinicId: Long
     ): SettingDto? {
         clinicAccess.assertPracticeActor(principal)
-        clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
-        clinicAccess.assertPatientVisible(principal, patientId)
+        clinicAccess.assertPatientLinkedToClinic(principal, patientId, clinicId)
         val s = settingsRepo.findByPatient_IdAndClinic_Id(patientId, clinicId) ?: return null
         return SettingDto(
             patientId = s.patient.id,
@@ -66,8 +65,7 @@ class ProphylaxisController(
         @RequestBody @Valid body: UpsertSettingRequest
     ): SettingDto {
         clinicAccess.assertPracticeActor(principal)
-        clinicAccess.assertPrincipalMayAccessClinic(principal, body.clinicId)
-        clinicAccess.assertPatientVisible(principal, body.patientId)
+        clinicAccess.assertPatientLinkedToClinic(principal, body.patientId, body.clinicId)
         val clinic = clinics.findById(body.clinicId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Clinic not found")
         }

@@ -34,6 +34,11 @@ class DoctorService(
     @JoinColumn(name = "group_id")
     var group: DoctorServiceGroup? = null,
 
+    /** When set, this row is provisioned from a clinic treatment catalog item (managed in clinic workspace). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "source_catalog_item_id")
+    var sourceCatalogItem: TreatmentPlanCatalogItem? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
 

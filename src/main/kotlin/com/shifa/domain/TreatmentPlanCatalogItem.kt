@@ -34,6 +34,9 @@ class TreatmentPlanCatalogItem(
     @Column(name = "sort_order", nullable = false)
     var sortOrder: Int = 0,
 
+    @Column(name = "applies_to_all_doctors", nullable = false)
+    var appliesToAllDoctors: Boolean = true,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: OffsetDateTime = OffsetDateTime.now(),
 

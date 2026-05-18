@@ -9,6 +9,7 @@ import com.shifa.repo.PatientProfileRepository
 import com.shifa.service.ClinicAccessService
 import com.shifa.service.PatientAccountService
 import com.shifa.service.PatientProfileMapper
+import com.shifa.security.DoctorPrincipal
 import com.shifa.util.PhoneNormalizer
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -125,8 +126,9 @@ class PatientsController(
 
     /**
      * GET /api/patients
-     * "My patients" directory: patients who have had at least one non-cancelled appointment with a doctor
-     * in the caller's practice/clinic (same scope as clinic roster). Excludes walk-ins / profiles with no visits yet.
+     * "My patients" directory for a logged-in doctor: patients this doctor saw (non-cancelled appointments)
+     * or created. Clinic-wide combined roster is on GET /api/clinics/{clinicId}/patients (workspace).
+     * Clinic staff still get the union of patients tied to any doctor in their assigned clinics.
      * Never returns 500: patients without user accounts or with broken relations are returned with minimal DTOs.
      */
     @GetMapping
@@ -136,10 +138,17 @@ class PatientsController(
         @PageableDefault(size = 50) pageable: Pageable
     ): List<PatientDto> {
         return try {
-            val doctorIds = clinicAccess.doctorIdsForPatientDirectory(principal)
-            if (doctorIds.isEmpty()) return emptyList()
             val vid = viewerDoctorId(principal)
-            val patients = patientsRepo.findClinicRosterForDoctors(doctorIds, null, pageable).content
+            val patients =
+                when (principal) {
+                    is DoctorPrincipal ->
+                        patientsRepo.findClinicRosterScopedToDoctor(principal.profile.id, null, pageable).content
+                    else -> {
+                        val doctorIds = clinicAccess.doctorIdsForPatientDirectory(principal)
+                        if (doctorIds.isEmpty()) return emptyList()
+                        patientsRepo.findClinicRosterForDoctors(doctorIds, null, pageable).content
+                    }
+                }
             patients.map { toDto(it, vid) }
         } catch (e: Exception) {
             logger.error("Failed to load patient list for doctor: {}", e.message, e)
@@ -172,16 +181,21 @@ class PatientsController(
 
     /**
      * GET /api/patients/{id}
-     * Returns details for a single patient. Allowed if the patient has an appointment with the current doctor or was created by them.
+     * Optional [clinicId]: when set, patient must be linked to that clinic roster (workspace). Otherwise "my patients" directory rules apply.
      */
     @GetMapping("/{id}")
     @Transactional(readOnly = true)
     fun getPatient(
         @PathVariable id: Long,
-        @AuthenticationPrincipal principal: Any
+        @AuthenticationPrincipal principal: Any,
+        @RequestParam(required = false) clinicId: Long?,
     ): PatientDto {
         clinicAccess.assertPracticeActor(principal)
-        clinicAccess.assertPatientVisible(principal, id)
+        if (clinicId != null) {
+            clinicAccess.assertPatientLinkedToClinic(principal, id, clinicId)
+        } else {
+            clinicAccess.assertPatientVisible(principal, id)
+        }
         val p = patientsRepo.findById(id)
             .orElseThrow { IllegalArgumentException("Patient not found") }
         return toDto(p, viewerDoctorId(principal))

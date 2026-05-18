@@ -32,11 +32,7 @@ class ClinicAccessService(
     fun doctorIdsForPatientDirectory(principal: Any): List<Long> {
         assertPracticeActor(principal)
         return when (principal) {
-            is DoctorPrincipal -> {
-                val cid = principal.profile.practiceClinic?.id
-                if (cid != null) doctors.findAllByPracticeClinic_Id(cid).map { it.id }
-                else listOf(principal.profile.id)
-            }
+            is DoctorPrincipal -> listOfNotNull(principal.profile.id)
             is ClinicStaffPrincipal -> {
                 val ids = linkedSetOf<Long>()
                 for (clinicId in principal.clinicIds()) {
@@ -118,4 +114,28 @@ class ClinicAccessService(
             else -> throw ResponseStatusException(HttpStatus.FORBIDDEN)
         }
     }
+
+    /**
+     * Patient is linked to [clinicId] if they were created by a practice doctor at that clinic or have a
+     * non-cancelled appointment with such a doctor (same rule as [com.shifa.repo.PatientProfileRepository.findClinicRosterForDoctors]).
+     */
+    fun assertPatientLinkedToClinic(principal: Any, patientId: Long, clinicId: Long) {
+        assertPracticeActor(principal)
+        assertPrincipalMayAccessClinic(principal, clinicId)
+        val clinicDoctorIds = doctors.findAllByPracticeClinic_Id(clinicId).mapNotNull { it.id }
+        if (clinicDoctorIds.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
+        }
+        val p = patients.findById(patientId).orElse(null)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
+        val createdBy = p.createdByDoctor?.id
+        if (createdBy != null && clinicDoctorIds.contains(createdBy)) return
+        if (appointments.existsNonCancelledByPatientIdAndDoctorIds(patientId, clinicDoctorIds)) return
+        throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
+    }
+
+    /** Any practice doctor at [clinicId] (lowest id) for staff document visibility delegation. Caller must already enforce clinic access. */
+    fun delegateDoctorProfileIdForClinic(clinicId: Long): Long =
+        doctors.findAllByPracticeClinic_Id(clinicId).minByOrNull { it.id!! }?.id
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No doctor in clinic")
 }

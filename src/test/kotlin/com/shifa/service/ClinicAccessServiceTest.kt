@@ -3,6 +3,7 @@ package com.shifa.service
 import com.shifa.domain.Clinic
 import com.shifa.domain.ClinicMembership
 import com.shifa.domain.DoctorProfile
+import com.shifa.domain.PatientProfile
 import com.shifa.domain.Role
 import com.shifa.domain.User
 import com.shifa.repo.AppointmentRepository
@@ -11,12 +12,16 @@ import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.ClinicStaffPrincipal
 import com.shifa.security.DoctorPrincipal
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import org.springframework.http.HttpStatus
 import org.springframework.security.core.authority.SimpleGrantedAuthority
+import org.springframework.web.server.ResponseStatusException
 import java.util.Optional
 
 class ClinicAccessServiceTest {
@@ -78,5 +83,96 @@ class ClinicAccessServiceTest {
         `when`(doctors.findById(102L)).thenReturn(Optional.of(doc))
 
         assertTrue(service.canViewDoctorCalendar(staffPrincipal, 102L))
+    }
+
+    @Test
+    fun `patient directory for doctor is only self not all clinic doctors`() {
+        val clinic = Clinic(id = 10L, name = "Alpha")
+        val userA = doctorUser(1L)
+        val docA = DoctorProfile(id = 101L, user = userA, firstName = "A", lastName = "One", practiceClinic = clinic)
+
+        val ids = service.doctorIdsForPatientDirectory(doctorPrincipal(docA))
+        assertEquals(listOf(101L), ids)
+    }
+
+    @Test
+    fun `assertPatientLinkedToClinic allows patient created by clinic doctor`() {
+        val clinic = Clinic(id = 10L, name = "Alpha")
+        val userA = doctorUser(1L)
+        val docA = DoctorProfile(
+            id = 101L,
+            user = userA,
+            firstName = "A",
+            lastName = "One",
+            practiceClinic = clinic,
+        )
+        val patient = PatientProfile(id = 555L, fullName = "Pat", createdByDoctor = docA)
+
+        `when`(doctors.findAllByPracticeClinic_Id(10L)).thenReturn(listOf(docA))
+        `when`(patients.findById(555L)).thenReturn(Optional.of(patient))
+
+        service.assertPatientLinkedToClinic(doctorPrincipal(docA), 555L, 10L)
+    }
+
+    @Test
+    fun `assertPatientLinkedToClinic allows patient with non-cancelled appointment to clinic doctor`() {
+        val clinic = Clinic(id = 10L, name = "Alpha")
+        val userA = doctorUser(1L)
+        val userB = doctorUser(2L)
+        val docA = DoctorProfile(
+            id = 101L,
+            user = userA,
+            firstName = "A",
+            lastName = "One",
+            practiceClinic = clinic,
+        )
+        val docB = DoctorProfile(
+            id = 102L,
+            user = userB,
+            firstName = "B",
+            lastName = "Two",
+            practiceClinic = clinic,
+        )
+        val patient = PatientProfile(id = 555L, fullName = "Pat", createdByDoctor = docB)
+
+        `when`(doctors.findAllByPracticeClinic_Id(10L)).thenReturn(listOf(docA, docB))
+        `when`(patients.findById(555L)).thenReturn(Optional.of(patient))
+        `when`(
+            appointments.existsNonCancelledByPatientIdAndDoctorIds(555L, listOf(101L, 102L)),
+        ).thenReturn(true)
+
+        service.assertPatientLinkedToClinic(doctorPrincipal(docA), 555L, 10L)
+    }
+
+    @Test
+    fun `assertPatientLinkedToClinic denies when patient not linked to clinic roster`() {
+        val clinic = Clinic(id = 10L, name = "Alpha")
+        val otherClinic = Clinic(id = 99L, name = "Other")
+        val userA = doctorUser(1L)
+        val userZ = doctorUser(9L)
+        val docA = DoctorProfile(
+            id = 101L,
+            user = userA,
+            firstName = "A",
+            lastName = "One",
+            practiceClinic = clinic,
+        )
+        val outsideDoc = DoctorProfile(
+            id = 999L,
+            user = userZ,
+            firstName = "Z",
+            lastName = "Out",
+            practiceClinic = otherClinic,
+        )
+        val patient = PatientProfile(id = 555L, fullName = "Pat", createdByDoctor = outsideDoc)
+
+        `when`(doctors.findAllByPracticeClinic_Id(10L)).thenReturn(listOf(docA))
+        `when`(patients.findById(555L)).thenReturn(Optional.of(patient))
+        `when`(appointments.existsNonCancelledByPatientIdAndDoctorIds(555L, listOf(101L))).thenReturn(false)
+
+        val ex = assertThrows(ResponseStatusException::class.java) {
+            service.assertPatientLinkedToClinic(doctorPrincipal(docA), 555L, 10L)
+        }
+        assertEquals(HttpStatus.NOT_FOUND, ex.statusCode)
     }
 }

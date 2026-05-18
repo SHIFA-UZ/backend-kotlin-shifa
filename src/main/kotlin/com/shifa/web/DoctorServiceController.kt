@@ -38,6 +38,8 @@ class DoctorServiceController(
         val isActive: Boolean,
         /** When true, video bookings with this service skip payment (free consultation). */
         val isFreeConsultation: Boolean = false,
+        /** Managed via clinic workspace catalog; cannot be edited here. */
+        val clinicManaged: Boolean = false,
         val groupId: Long? = null,
         val groupName: String? = null,
         val groupSortOrder: Int? = null,
@@ -99,6 +101,12 @@ class DoctorServiceController(
         if (service.doctor.id != doctorId) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Service does not belong to current doctor")
         }
+        if (service.sourceCatalogItem != null) {
+            throw ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "This service is managed by the clinic catalog. Edit it under Clinic → Services.",
+            )
+        }
         validateUpsert(body, doctorId)
         service.title = body.title.trim()
         service.description = body.description?.trim()
@@ -124,6 +132,12 @@ class DoctorServiceController(
         }
         if (service.doctor.id != doctorId) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Service does not belong to current doctor")
+        }
+        if (service.sourceCatalogItem != null) {
+            throw ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "This service is managed by the clinic catalog. Edit it under Clinic → Services.",
+            )
         }
         services.delete(service)
     }
@@ -215,6 +229,7 @@ class DoctorServiceController(
             description = this.description,
             isActive = this.isActive,
             isFreeConsultation = this.isFreeConsultation,
+            clinicManaged = this.sourceCatalogItem != null,
             groupId = this.group?.id,
             groupName = this.group?.name,
             groupSortOrder = this.group?.sortOrder,

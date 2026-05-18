@@ -7,6 +7,7 @@ import com.shifa.domain.TreatmentPlanPayment
 import com.shifa.domain.TreatmentPlanCatalogItem
 import com.shifa.repo.*
 import com.shifa.service.ClinicAccessService
+import com.shifa.service.ClinicCatalogService
 import com.shifa.service.FcmService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
@@ -23,6 +24,7 @@ import java.time.OffsetDateTime
 @RequestMapping("/api/treatment-plans")
 class TreatmentPlanController(
     private val clinicAccess: ClinicAccessService,
+    private val clinicCatalog: ClinicCatalogService,
     private val clinics: ClinicRepository,
     private val patients: PatientProfileRepository,
     private val doctors: DoctorProfileRepository,
@@ -43,7 +45,9 @@ class TreatmentPlanController(
         val defaultPriceMinor: Long,
         val currency: String,
         val active: Boolean,
-        val sortOrder: Int
+        val sortOrder: Int,
+        val appliesToAllDoctors: Boolean,
+        val assignedDoctorProfileIds: List<Long>,
     )
 
     data class UpsertCatalogItemRequest(
@@ -53,7 +57,20 @@ class TreatmentPlanController(
         @field:Min(0) val defaultPriceMinor: Long,
         val currency: String = "UZS",
         val active: Boolean = true,
-        val sortOrder: Int = 0
+        val sortOrder: Int = 0,
+        val appliesToAllDoctors: Boolean = true,
+        val assignedDoctorProfileIds: List<Long> = emptyList(),
+    )
+
+    data class PatchCatalogItemRequest(
+        val code: String? = null,
+        val title: String? = null,
+        @field:Min(0) val defaultPriceMinor: Long? = null,
+        val currency: String? = null,
+        val active: Boolean? = null,
+        val sortOrder: Int? = null,
+        val appliesToAllDoctors: Boolean? = null,
+        val assignedDoctorProfileIds: List<Long>? = null,
     )
 
     data class TreatmentPlanSummaryDto(
@@ -141,24 +158,34 @@ class TreatmentPlanController(
         }
     }
 
+    private fun toCatalogItemDto(item: TreatmentPlanCatalogItem): CatalogItemDto {
+        val assigned =
+            if (item.appliesToAllDoctors) {
+                emptyList()
+            } else {
+                clinicCatalog.explicitAssignmentIds(item.id)
+            }
+        return CatalogItemDto(
+            id = item.id,
+            clinicId = item.clinic.id!!,
+            code = item.code,
+            title = item.title,
+            defaultPriceMinor = item.defaultPriceMinor,
+            currency = item.currency,
+            active = item.active,
+            sortOrder = item.sortOrder,
+            appliesToAllDoctors = item.appliesToAllDoctors,
+            assignedDoctorProfileIds = assigned,
+        )
+    }
+
     @GetMapping("/catalog-items")
     fun listCatalog(
         @AuthenticationPrincipal principal: Any,
         @RequestParam clinicId: Long
     ): List<CatalogItemDto> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
-        return catalogRepo.findByClinic_IdAndActiveTrueOrderBySortOrderAscIdAsc(clinicId).map {
-            CatalogItemDto(
-                id = it.id,
-                clinicId = it.clinic.id,
-                code = it.code,
-                title = it.title,
-                defaultPriceMinor = it.defaultPriceMinor,
-                currency = it.currency,
-                active = it.active,
-                sortOrder = it.sortOrder
-            )
-        }
+        return catalogRepo.findByClinic_IdOrderByActiveDescSortOrderAscIdAsc(clinicId).map { toCatalogItemDto(it) }
     }
 
     @PostMapping("/catalog-items")
@@ -171,6 +198,11 @@ class TreatmentPlanController(
         val clinic = clinics.findById(req.clinicId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Clinic not found")
         }
+        clinicCatalog.validateAssignment(
+            req.clinicId,
+            req.appliesToAllDoctors,
+            req.assignedDoctorProfileIds,
+        )
         val saved = catalogRepo.save(
             TreatmentPlanCatalogItem(
                 clinic = clinic,
@@ -179,19 +211,76 @@ class TreatmentPlanController(
                 defaultPriceMinor = req.defaultPriceMinor,
                 currency = req.currency,
                 active = req.active,
-                sortOrder = req.sortOrder
+                sortOrder = req.sortOrder,
+                appliesToAllDoctors = req.appliesToAllDoctors,
             )
         )
-        return CatalogItemDto(
-            id = saved.id,
-            clinicId = saved.clinic.id,
-            code = saved.code,
-            title = saved.title,
-            defaultPriceMinor = saved.defaultPriceMinor,
-            currency = saved.currency,
-            active = saved.active,
-            sortOrder = saved.sortOrder
-        )
+        if (req.appliesToAllDoctors) {
+            clinicCatalog.replaceExplicitAssignments(saved, emptyList())
+        } else {
+            clinicCatalog.replaceExplicitAssignments(saved, req.assignedDoctorProfileIds)
+        }
+        clinicCatalog.syncCatalogItemToDoctorServices(saved)
+        return toCatalogItemDto(saved)
+    }
+
+    @PatchMapping("/catalog-items/{catalogItemId}")
+    @Transactional
+    fun patchCatalogItem(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable catalogItemId: Long,
+        @RequestBody body: PatchCatalogItemRequest,
+    ): CatalogItemDto {
+        val item = catalogRepo.findById(catalogItemId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Catalog item not found")
+        }
+        val clinicId = item.clinic.id!!
+        clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
+
+        body.code?.let { raw ->
+            item.code = raw.trim().takeIf { it.isNotEmpty() }
+        }
+        body.title?.let {
+            val t = it.trim()
+            if (t.isEmpty()) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Title required")
+            item.title = t
+        }
+        body.defaultPriceMinor?.let { item.defaultPriceMinor = it }
+        body.currency?.let { c ->
+            val t = c.trim()
+            if (t.isNotEmpty()) item.currency = t
+        }
+        body.active?.let { item.active = it }
+        body.sortOrder?.let { item.sortOrder = it }
+        item.updatedAt = OffsetDateTime.now()
+
+        when {
+            body.appliesToAllDoctors == true -> {
+                item.appliesToAllDoctors = true
+                clinicCatalog.replaceExplicitAssignments(item, emptyList())
+            }
+            body.assignedDoctorProfileIds != null -> {
+                clinicCatalog.validateAssignment(clinicId, false, body.assignedDoctorProfileIds)
+                item.appliesToAllDoctors = false
+                clinicCatalog.replaceExplicitAssignments(item, body.assignedDoctorProfileIds)
+            }
+            body.appliesToAllDoctors == false -> {
+                if (item.appliesToAllDoctors) {
+                    val ids =
+                        body.assignedDoctorProfileIds ?: throw ResponseStatusException(
+                            HttpStatus.BAD_REQUEST,
+                            "assignedDoctorProfileIds required when switching off all-doctors mode",
+                        )
+                    clinicCatalog.validateAssignment(clinicId, false, ids)
+                    item.appliesToAllDoctors = false
+                    clinicCatalog.replaceExplicitAssignments(item, ids)
+                }
+            }
+        }
+
+        catalogRepo.save(item)
+        clinicCatalog.syncCatalogItemToDoctorServices(item)
+        return toCatalogItemDto(item)
     }
 
     @PostMapping
