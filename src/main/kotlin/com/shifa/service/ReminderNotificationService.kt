@@ -205,43 +205,35 @@ class ReminderNotificationService(
         }
     }
 
-    /** Outstanding balances on active treatment plans — with cooldown via previous notifications. */
+    /**
+     * Outstanding balances on active treatment plans — sends at most once per 7 days
+     * (or per [paymentReminderDays] if set). Uses denormalized [remainingAmountMinor]
+     * and [lastPaymentReminderSentAt] for efficiency. Also covers overdue installment items.
+     */
     @Transactional
     fun sendTreatmentPlanPaymentReminders() {
-        val plans = treatmentPlans.findAll().filter { it.status == com.shifa.domain.TreatmentPlan.Status.ACTIVE }
-        for (plan in plans) {
+        val activePlans = treatmentPlans.findByStatusIn(
+            listOf(
+                com.shifa.domain.TreatmentPlan.Status.ACTIVE,
+                com.shifa.domain.TreatmentPlan.Status.IN_PROGRESS
+            )
+        )
+        val now = Instant.now()
+        for (plan in activePlans) {
             try {
-                val lineRows = treatmentPlanLines.findByPlan_IdOrderBySortOrderAscIdAsc(plan.id)
-                val total = lineRows.sumOf { (it.unitPriceMinor * it.quantity - it.discountMinor).coerceAtLeast(0) }
-                val paid = treatmentPlanPayments.findByPlan_IdOrderByRecordedAtAsc(plan.id).sumOf { it.amountMinor }
-                val owed = (total - paid).coerceAtLeast(0)
-                if (owed <= 0L) continue
+                if (plan.remainingAmountMinor <= 0L) continue
                 val cooldownDays = (plan.paymentReminderDays ?: 7).toLong().coerceAtLeast(1L)
-                val last = notificationRepository.findFirstByTreatmentPlanIdAndTypeOrderByCreatedAtDesc(
-                    plan.id,
-                    Notification.Type.TREATMENT_PLAN_PAYMENT_REMINDER
-                )
-                if (last != null && last.createdAt.isAfter(
-                        Instant.now().minus(cooldownDays, ChronoUnit.DAYS)
-                    )
-                ) {
+                val lastSent = plan.lastPaymentReminderSentAt
+                if (lastSent != null && lastSent.toInstant().isAfter(now.minus(cooldownDays, ChronoUnit.DAYS))) {
                     continue
                 }
                 val patient = plan.patient
                 val pid = patient.id ?: continue
-                if (notificationRepository.existsByPatient_IdAndTreatmentPlanIdAndType(
-                        pid,
-                        plan.id,
-                        Notification.Type.TREATMENT_PLAN_PAYMENT_REMINDER
-                    ) && last != null && last.createdAt.isAfter(Instant.now().minus(1, ChronoUnit.HOURS))
-                ) {
-                    continue
-                }
                 val notification = Notification(
                     patient = patient,
                     doctor = plan.attendingDoctor,
-                    title = "Payment pending",
-                    message = "You have an outstanding balance on your treatment plan. Please contact your clinic.",
+                    title = "Payment reminder",
+                    message = "You have an outstanding balance on your treatment plan. Please arrange payment at the clinic.",
                     type = Notification.Type.TREATMENT_PLAN_PAYMENT_REMINDER,
                     treatmentPlanId = plan.id
                 )
@@ -253,6 +245,8 @@ class ReminderNotificationService(
                         mapOf("route" to "/bookings/treatment-plan/${plan.id}")
                     )
                 }
+                plan.lastPaymentReminderSentAt = java.time.OffsetDateTime.now()
+                treatmentPlans.save(plan)
                 log.info("Treatment plan payment reminder sent planId={} patient={}", plan.id, pid)
             } catch (e: Exception) {
                 log.warn("Treatment plan reminder failed plan id={}: {}", plan.id, e.message)

@@ -32,5 +32,31 @@ class TreatmentPlanLine(
     var currency: String = "UZS",
 
     @Column(name = "sort_order", nullable = false)
-    var sortOrder: Int = 0
-)
+    var sortOrder: Int = 0,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_doctor_id")
+    var assignedDoctor: DoctorProfile? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "linked_appointment_id")
+    var linkedAppointment: Appointment? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false, length = 32)
+    var status: LineStatus = LineStatus.PLANNED,
+
+    @Column(name = "specialty_metadata", columnDefinition = "TEXT")
+    var specialtyMetadata: String? = null,
+
+    @Column(columnDefinition = "TEXT")
+    var notes: String? = null
+) {
+    enum class LineStatus {
+        PLANNED,
+        SCHEDULED,
+        IN_PROGRESS,
+        COMPLETED,
+        CANCELLED
+    }
+}

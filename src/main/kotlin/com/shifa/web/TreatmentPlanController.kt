@@ -9,6 +9,7 @@ import com.shifa.repo.*
 import com.shifa.service.ClinicAccessService
 import com.shifa.service.ClinicCatalogService
 import com.shifa.service.FcmService
+import com.shifa.service.TreatmentPlanFinanceService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
@@ -25,6 +26,7 @@ import java.time.OffsetDateTime
 class TreatmentPlanController(
     private val clinicAccess: ClinicAccessService,
     private val clinicCatalog: ClinicCatalogService,
+    private val financeService: TreatmentPlanFinanceService,
     private val clinics: ClinicRepository,
     private val patients: PatientProfileRepository,
     private val doctors: DoctorProfileRepository,
@@ -77,6 +79,8 @@ class TreatmentPlanController(
         val id: Long,
         val clinicId: Long,
         val patientId: Long?,
+        val title: String?,
+        val diagnosis: String?,
         val status: String,
         val notes: String?,
         val paymentReminderDays: Int?,
@@ -100,6 +104,8 @@ class TreatmentPlanController(
         @field:NotNull val clinicId: Long,
         @field:NotNull val patientId: Long,
         val attendingDoctorId: Long?,
+        val title: String?,
+        val diagnosis: String?,
         val notes: String?,
         val paymentReminderDays: Int?
     )
@@ -127,6 +133,8 @@ class TreatmentPlanController(
             id = plan.id,
             clinicId = plan.clinic.id,
             patientId = plan.patient.id,
+            title = plan.title,
+            diagnosis = plan.diagnosis,
             status = plan.status.name,
             notes = plan.notes,
             paymentReminderDays = plan.paymentReminderDays,
@@ -311,6 +319,8 @@ class TreatmentPlanController(
                 patient = patient,
                 attendingDoctor = attending,
                 status = TreatmentPlan.Status.DRAFT,
+                title = req.title?.trim(),
+                diagnosis = req.diagnosis?.trim(),
                 notes = req.notes?.trim(),
                 paymentReminderDays = req.paymentReminderDays,
                 createdByUser = user
@@ -367,8 +377,9 @@ class TreatmentPlanController(
         }
         plan.updatedAt = OffsetDateTime.now()
         plans.save(plan)
+        financeService.recalculatePlanTotals(planId)
         notifyPatient(plan, Notification.Type.TREATMENT_PLAN_UPDATED, "Treatment plan updated", "Your clinic updated your treatment plan. Please review payment details in the app.")
-        return toSummary(plan)
+        return toSummary(plans.findById(planId).orElseThrow())
     }
 
     @PatchMapping("/{planId}/status")
@@ -416,7 +427,9 @@ class TreatmentPlanController(
         )
         plan.updatedAt = OffsetDateTime.now()
         plans.save(plan)
-        val owed = toSummary(plan).owedMinor
+        financeService.recalculatePlanTotals(planId)
+        val refreshedPlan = plans.findById(planId).orElseThrow()
+        val owed = refreshedPlan.remainingAmountMinor
         if (owed > 0) {
             notifyPatient(
                 plan,
