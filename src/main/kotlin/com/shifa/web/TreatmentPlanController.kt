@@ -2,15 +2,18 @@ package com.shifa.web
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.shifa.domain.Appointment
 import com.shifa.domain.Notification
 import com.shifa.domain.TreatmentPlan
 import com.shifa.domain.TreatmentPlanLine
 import com.shifa.domain.TreatmentPlanPayment
 import com.shifa.domain.TreatmentPlanCatalogItem
 import com.shifa.repo.*
+import com.shifa.repo.DoctorLocationRepository
 import com.shifa.service.ClinicAccessService
 import com.shifa.service.ClinicCatalogService
 import com.shifa.service.FcmService
+import com.shifa.service.PatientDaySlotsService
 import com.shifa.service.TreatmentPlanFinanceService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
@@ -42,6 +45,8 @@ class TreatmentPlanController(
     private val notifications: NotificationRepository,
     private val fcmService: FcmService,
     private val objectMapper: ObjectMapper,
+    private val doctorLocations: DoctorLocationRepository,
+    private val patientDaySlots: PatientDaySlotsService,
 ) {
 
     data class CatalogItemDto(
@@ -87,6 +92,7 @@ class TreatmentPlanController(
         val patientName: String?,
         val attendingDoctorId: Long?,
         val attendingDoctorName: String?,
+        val attendingDoctors: List<DoctorRef>,
         val title: String?,
         val diagnosis: String?,
         val status: String,
@@ -156,6 +162,8 @@ class TreatmentPlanController(
         @field:NotNull val clinicId: Long,
         @field:NotNull val patientId: Long,
         val attendingDoctorId: Long?,
+        /** Optional full list of doctors attached to this plan. */
+        val attendingDoctorIds: List<Long>? = null,
         val title: String?,
         val diagnosis: String?,
         val notes: String?,
@@ -170,7 +178,22 @@ class TreatmentPlanController(
         val notes: String? = null,
         val paymentReminderDays: Int? = null,
         val attendingDoctorId: Long? = null,
+        /** When non-null replaces the full doctor list on the plan. */
+        val attendingDoctorIds: List<Long>? = null,
         val symptoms: List<String>? = null,
+    )
+
+    data class DoctorRef(val id: Long, val name: String)
+
+    data class BookSlotReq(
+        @field:NotNull val doctorId: Long,
+        /** ISO-8601 instant, e.g. "2026-06-12T09:00:00Z". */
+        @field:NotBlank val startAt: String,
+        @field:Min(5) val slotMinutes: Int = 30,
+        val locationId: Long? = null,
+        /** When set, the booked appointment is also linked to this plan line. */
+        val lineId: Long? = null,
+        val notes: String? = null,
     )
 
     data class PatchPlanStatusRequest(val status: TreatmentPlan.Status)
@@ -218,6 +241,9 @@ class TreatmentPlanController(
         val patientName = plan.patient.fullName.trim().takeIf { it.isNotEmpty() }
         val doctor = plan.attendingDoctor
         val doctorName = doctor?.let { "${it.firstName} ${it.lastName}".trim() }
+        val doctorRefs = plan.attendingDoctors
+            .map { DoctorRef(it.id!!, "${it.firstName} ${it.lastName}".trim()) }
+            .sortedBy { it.name.lowercase() }
         return TreatmentPlanSummaryDto(
             id = plan.id,
             clinicId = plan.clinic.id!!,
@@ -225,6 +251,7 @@ class TreatmentPlanController(
             patientName = patientName,
             attendingDoctorId = doctor?.id,
             attendingDoctorName = doctorName,
+            attendingDoctors = doctorRefs,
             title = plan.title,
             diagnosis = plan.diagnosis,
             status = plan.status.name,
@@ -496,12 +523,21 @@ class TreatmentPlanController(
         val patient = patients.findById(req.patientId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
         }
-        val attending = req.attendingDoctorId?.let {
-            doctors.findById(it).orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found") }
-                .also { d ->
-                    clinicAccess.assertCanViewDoctorCalendar(principal, d.id!!)
-                }
+        // Resolve every requested doctor and de-duplicate while keeping the
+        // caller-provided order so the first id can play the role of the
+        // back-compat "primary" attending doctor.
+        val combinedIds = buildList {
+            req.attendingDoctorIds?.let { addAll(it) }
+            req.attendingDoctorId?.let { add(it) }
+        }.distinct()
+        val resolvedDoctors = combinedIds.map { docId ->
+            val d = doctors.findById(docId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor $docId not found")
+            }
+            clinicAccess.assertCanViewDoctorCalendar(principal, d.id!!)
+            d
         }
+        val attending = resolvedDoctors.firstOrNull()
         val uid = clinicAccess.resolveBookingActorUserId(principal)
         val user = users.findById(uid).orElse(null)
         val symptomsJson = req.symptoms?.takeIf { it.isNotEmpty() }?.let { objectMapper.writeValueAsString(it) }
@@ -510,6 +546,7 @@ class TreatmentPlanController(
                 clinic = clinic,
                 patient = patient,
                 attendingDoctor = attending,
+                attendingDoctors = resolvedDoctors.toMutableSet(),
                 status = TreatmentPlan.Status.DRAFT,
                 title = req.title?.trim(),
                 symptoms = symptomsJson,
@@ -570,6 +607,25 @@ class TreatmentPlanController(
             val d = doctors.findById(aid).orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND) }
             clinicAccess.assertCanViewDoctorCalendar(principal, d.id!!)
             plan.attendingDoctor = d
+            // Ensure the primary is also part of the explicit doctor set.
+            if (plan.attendingDoctors.none { it.id == d.id }) plan.attendingDoctors.add(d)
+        }
+        body.attendingDoctorIds?.let { ids ->
+            val resolved = ids.distinct().map { docId ->
+                val d = doctors.findById(docId).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor $docId not found")
+                }
+                clinicAccess.assertCanViewDoctorCalendar(principal, d.id!!)
+                d
+            }
+            plan.attendingDoctors.clear()
+            plan.attendingDoctors.addAll(resolved)
+            // Keep primary in sync: prefer the previously-set primary if it's
+            // still in the list, otherwise fall back to the first entry.
+            val primaryStillPresent = plan.attendingDoctor?.let { current ->
+                resolved.any { it.id == current.id }
+            } ?: false
+            if (!primaryStillPresent) plan.attendingDoctor = resolved.firstOrNull()
         }
         body.symptoms?.let { s ->
             plan.symptoms = s.takeIf { it.isNotEmpty() }?.let { objectMapper.writeValueAsString(it) }
@@ -710,6 +766,201 @@ class TreatmentPlanController(
         plans.save(plan)
         notifyPatient(plan, Notification.Type.TREATMENT_PLAN_UPDATED, "Treatment plan status", "Your treatment plan status is now ${body.status.name}.")
         return toSummary(plan)
+    }
+
+    // -- Free-slot lookup + multi-slot booking for the plan wizard -----------
+
+    data class PlanDoctorLocationDto(
+        val id: Long,
+        val label: String,
+        val clinic: String?,
+        val address: String?,
+        val isPrimary: Boolean,
+    )
+
+    /**
+     * Practice locations for [doctorId], for the treatment-plan wizard slot
+     * picker. When a doctor has several locations the client must choose one
+     * before loading free slots for that site.
+     */
+    @GetMapping("/doctor-locations")
+    @Transactional(readOnly = true)
+    fun doctorLocations(
+        @AuthenticationPrincipal principal: Any,
+        @RequestParam clinicId: Long,
+        @RequestParam doctorId: Long,
+    ): List<PlanDoctorLocationDto> {
+        clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
+        clinicAccess.assertCanViewDoctorCalendar(principal, doctorId)
+        val doctor = doctors.findById(doctorId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found")
+        }
+        val structured = doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(doctor.id!!)
+        if (structured.isNotEmpty()) {
+            return structured.map { loc ->
+                PlanDoctorLocationDto(
+                    id = loc.id!!,
+                    label = loc.label,
+                    clinic = loc.clinic,
+                    address = loc.address,
+                    isPrimary = loc.isPrimary,
+                )
+            }
+        }
+        val hasLegacy = !doctor.clinic.isNullOrBlank() ||
+            !doctor.address.isNullOrBlank() ||
+            doctor.latitude != null ||
+            !doctor.locationCity.isNullOrBlank()
+        if (!hasLegacy) return emptyList()
+        return listOf(
+            PlanDoctorLocationDto(
+                id = -1L,
+                label = doctor.clinic ?: "Main clinic",
+                clinic = doctor.clinic,
+                address = doctor.address,
+                isPrimary = true,
+            ),
+        )
+    }
+
+    /**
+     * Returns bookable free slots for [doctorId] on [day]. Wraps
+     * [PatientDaySlotsService] but is exposed under the treatment-plan namespace
+     * with a non-patient principal so the doctor app's plan wizard can browse
+     * availability for any doctor in the clinic.
+     */
+    @GetMapping("/free-slots")
+    @Transactional(readOnly = true)
+    fun freeSlots(
+        @AuthenticationPrincipal principal: Any,
+        @RequestParam clinicId: Long,
+        @RequestParam doctorId: Long,
+        @RequestParam day: String,
+        @RequestParam(required = false) locationId: Long?,
+    ): List<PatientDaySlotsService.AvailableSlotDto> {
+        clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
+        clinicAccess.assertCanViewDoctorCalendar(principal, doctorId)
+        val doctor = doctors.findById(doctorId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found")
+        }
+        val date = try {
+            java.time.LocalDate.parse(day)
+        } catch (e: Exception) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid day (expected YYYY-MM-DD)")
+        }
+        return patientDaySlots.availableSlotsForDay(doctor, date, locationId)
+    }
+
+    /**
+     * Books a batch of free slots against this plan's patient atomically.
+     *
+     * Each entry creates a [Appointment] for `plan.patient` with the requested
+     * doctor at the requested instant, status [Appointment.Status.CONFIRMED]
+     * (the clinic is booking on the patient's behalf so there is no need for
+     * a separate confirmation step). If [BookSlotReq.lineId] is supplied the
+     * appointment is also linked to that plan line, and conflict detection
+     * mirrors the patient self-booking endpoint so two patients can't end up
+     * in the same slot.
+     */
+    @PostMapping("/{planId}/book-slots")
+    @Transactional
+    fun bookSlots(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable planId: Long,
+        @RequestBody @Valid body: List<BookSlotReq>,
+    ): TreatmentPlanDetailDto {
+        if (body.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No slots to book")
+        }
+        val plan = plans.findById(planId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found")
+        }
+        clinicAccess.assertPrincipalMayAccessClinic(principal, plan.clinic.id!!)
+        clinicAccess.assertPatientVisible(principal, plan.patient.id!!)
+        val uid = clinicAccess.resolveBookingActorUserId(principal)
+        val bookedBy = users.findById(uid).orElse(null)
+
+        for (slot in body) {
+            val doctor = doctors.findById(slot.doctorId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor ${slot.doctorId} not found")
+            }
+            clinicAccess.assertCanViewDoctorCalendar(principal, doctor.id!!)
+
+            val startInstant = try {
+                java.time.Instant.parse(slot.startAt)
+            } catch (e: Exception) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Bad startAt for slot")
+            }
+            val endInstant = startInstant.plusSeconds(slot.slotMinutes * 60L)
+
+            if (appts.findOverlapping(doctor.id!!, startInstant, endInstant).isNotEmpty()) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Slot already taken for doctor ${doctor.id}")
+            }
+            if (appts.findOverlappingForPatient(plan.patient.id!!, startInstant, endInstant).isNotEmpty()) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Patient already has an appointment overlapping this slot")
+            }
+
+            // Pick the structured location either from the request or the
+            // doctor's primary location, then resolve a human-readable label.
+            val locationRef = slot.locationId?.let { lid ->
+                doctorLocations.findById(lid).orElseThrow {
+                    ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid locationId")
+                }.also { dl ->
+                    if (dl.doctor.id != doctor.id) {
+                        throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Location does not belong to doctor")
+                    }
+                }
+            } ?: doctorLocations.findByDoctorIdAndIsPrimaryTrue(doctor.id!!).orElse(null)
+                ?: doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(doctor.id!!).firstOrNull()
+
+            val locationLabel = locationRef?.clinic?.takeIf { it.isNotBlank() }
+                ?: locationRef?.label
+                ?: (doctor.clinic ?: "Clinic")
+
+            val appt = Appointment(
+                doctor = doctor,
+                patient = plan.patient,
+                bookedByUser = bookedBy,
+                startAt = startInstant,
+                endAt = endInstant,
+                location = locationLabel,
+                locationRef = locationRef,
+                reason = slot.notes?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: plan.title?.let { "Treatment plan: $it" }
+                    ?: "Treatment plan",
+                status = Appointment.Status.CONFIRMED,
+            )
+            val savedAppt = appts.save(appt)
+
+            slot.lineId?.let { lineId ->
+                val line = linesRepo.findById(lineId).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Line $lineId not found")
+                }
+                if (line.plan.id != planId) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Line does not belong to this plan")
+                }
+                line.linkedAppointment = savedAppt
+                linesRepo.save(line)
+                savedAppt.linkedTreatmentPlanLine = line
+                appts.save(savedAppt)
+            }
+
+            // Ensure the slot's doctor is part of the plan's doctor set so the
+            // plan-list UI surfaces every collaborator involved.
+            if (plan.attendingDoctors.none { it.id == doctor.id }) {
+                plan.attendingDoctors.add(doctor)
+            }
+        }
+
+        plan.updatedAt = OffsetDateTime.now()
+        plans.save(plan)
+        notifyPatient(
+            plan,
+            Notification.Type.TREATMENT_PLAN_UPDATED,
+            "Visits scheduled",
+            "Your clinic scheduled new visits as part of your treatment plan.",
+        )
+        return toDetail(plans.findById(planId).orElseThrow())
     }
 
     @PostMapping("/{planId}/payments")

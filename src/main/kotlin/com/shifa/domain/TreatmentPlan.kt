@@ -21,6 +21,21 @@ class TreatmentPlan(
     @JoinColumn(name = "attending_doctor_id")
     var attendingDoctor: DoctorProfile? = null,
 
+    /**
+     * Full set of doctors attached to this treatment plan. A long-running plan
+     * frequently includes work from several specialists; this collection records
+     * every one of them. The scalar [attendingDoctor] is kept as the "primary"
+     * for back-compat and is mirrored from the first element of this set when
+     * the plan is created/updated.
+     */
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "treatment_plan_doctors",
+        joinColumns = [JoinColumn(name = "treatment_plan_id")],
+        inverseJoinColumns = [JoinColumn(name = "doctor_profile_id")],
+    )
+    var attendingDoctors: MutableSet<DoctorProfile> = mutableSetOf(),
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 32)
     var status: Status = Status.DRAFT,
