@@ -685,12 +685,27 @@ class ClinicFinanceController(
         @PathVariable clinicId: Long,
         @RequestBody @Valid req: CreateInstallmentRequest,
     ): InstallmentPlanDto {
+        val log = org.slf4j.LoggerFactory.getLogger(ClinicFinanceController::class.java)
+        log.info(
+            "installment-plans POST clinicId={} planId={} total={} rows={} freq={}",
+            clinicId,
+            req.treatmentPlanId,
+            req.totalAmountMinor,
+            req.scheduleItems?.size,
+            req.frequency,
+        )
+
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         val tp = treatmentPlans.findById(req.treatmentPlanId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Treatment plan not found")
         }
         if (tp.clinic.id != clinicId) throw ResponseStatusException(HttpStatus.NOT_FOUND)
-        financeAccess.assertCanManagePatientFinance(principal, clinicId, tp.patient.id!!)
+        val patientId = tp.patient.id
+            ?: throw ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Treatment plan ${req.treatmentPlanId} has no patient id",
+            )
+        financeAccess.assertCanManagePatientFinance(principal, clinicId, patientId)
 
         val uid = clinicAccess.resolveBookingActorUserId(principal)
         val user = users.findById(uid).orElse(null)
@@ -702,6 +717,15 @@ class ClinicFinanceController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "At least 2 schedule rows required")
         }
 
+        val frequency = try {
+            InstallmentPlan.Frequency.valueOf(req.frequency.uppercase())
+        } catch (e: IllegalArgumentException) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Unknown frequency '${req.frequency}'. Allowed: WEEKLY, BIWEEKLY, MONTHLY, CUSTOM",
+            )
+        }
+
         val plan = try {
             installmentService.createInstallmentPlan(
                 treatmentPlanId = req.treatmentPlanId,
@@ -709,20 +733,40 @@ class ClinicFinanceController(
                     totalAmountMinor = req.totalAmountMinor,
                     currency = req.currency,
                     numInstallments = if (sched != null) sched.size else req.numInstallments,
-                    frequency = InstallmentPlan.Frequency.valueOf(req.frequency.uppercase()),
+                    frequency = frequency,
                     startDate = req.startDate,
                     notes = req.notes?.trim(),
                     scheduleItems = sched,
                 ),
                 createdByUser = user,
             )
+        } catch (e: ResponseStatusException) {
+            throw e
         } catch (e: IllegalArgumentException) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message)
+        } catch (e: Exception) {
+            log.error(
+                "Installment service failed clinicId={} planId={} -> {}",
+                clinicId,
+                req.treatmentPlanId,
+                e.javaClass.simpleName,
+                e,
+            )
+            throw ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Failed to save installments: ${e.javaClass.simpleName}",
+            )
         }
 
-        val clinic = clinics.findById(clinicId).orElseThrow()
-        user?.let {
-            auditService.log(clinic, it, "CREATE", "INSTALLMENT_PLAN", plan.id)
+        val clinic = clinics.findById(clinicId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Clinic $clinicId not found")
+        }
+        try {
+            user?.let {
+                auditService.log(clinic, it, "CREATE", "INSTALLMENT_PLAN", plan.id)
+            }
+        } catch (e: Exception) {
+            log.warn("Audit log failed for installment plan {}: {}", plan.id, e.message)
         }
 
         val items = installmentItems.findByInstallmentPlan_IdOrderBySequenceNumberAsc(plan.id)

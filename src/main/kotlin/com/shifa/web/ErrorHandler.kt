@@ -71,14 +71,24 @@ class ErrorHandler(
 
     @ExceptionHandler(Exception::class)
     fun handleException(e: Exception): ResponseEntity<Map<String, Any>> {
-        // SECURITY (NEW): In production, never expose internal messages or stack traces to client
+        // SECURITY: In production we still do NOT leak the exception message
+        // (it may contain SQL fragments, file paths, PII, etc.), but the
+        // exception class name alone is safe and dramatically improves
+        // diagnosability when only the client log is available (e.g.
+        // "Internal server error: DataIntegrityViolationException").
         val isProd = activeProfile.contains("prod")
         if (isProd) {
-            log.error("Unhandled exception (message not exposed to client): {}", e.message, e)
+            log.error(
+                "Unhandled exception {} (message not exposed to client): {}",
+                e.javaClass.simpleName,
+                e.message,
+                e,
+            )
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(mapOf(
                     "error" to 500,
-                    "message" to "Internal server error",
+                    "message" to "Internal server error: ${e.javaClass.simpleName}",
+                    "exceptionClass" to e.javaClass.simpleName,
                     "status" to 500
                 ))
         }
@@ -86,6 +96,7 @@ class ErrorHandler(
             .body(mapOf(
                 "error" to 500,
                 "message" to (e.message ?: "Internal server error"),
+                "exceptionClass" to e.javaClass.simpleName,
                 "status" to 500
             ))
     }
