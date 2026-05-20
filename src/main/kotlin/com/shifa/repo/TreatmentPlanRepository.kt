@@ -7,4 +7,8 @@ interface TreatmentPlanRepository : JpaRepository<TreatmentPlan, Long> {
     fun findByClinic_IdAndPatient_IdOrderByCreatedAtDesc(clinicId: Long, patientId: Long): List<TreatmentPlan>
 
     fun findByClinic_IdAndStatus(clinicId: Long, status: TreatmentPlan.Status): List<TreatmentPlan>
+
+    fun findByStatusIn(statuses: List<TreatmentPlan.Status>): List<TreatmentPlan>
+
+    fun findByClinic_IdAndRemainingAmountMinorGreaterThan(clinicId: Long, amount: Long): List<TreatmentPlan>
 }

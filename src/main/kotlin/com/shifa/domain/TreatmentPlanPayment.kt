@@ -27,6 +27,10 @@ class TreatmentPlanPayment(
     var memo: String? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "financial_record_id")
+    var financialRecord: FinancialRecord? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recorded_by_user_id")
     var recordedByUser: User? = null,
 

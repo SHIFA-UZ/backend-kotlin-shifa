@@ -72,7 +72,11 @@ class Appointment(
      * Schema is owned by the doctor app; see [com.shifa.web.AppointmentController] dental endpoints.
      */
     @Column(name = "dental_documentation", columnDefinition = "TEXT")
-    var dentalDocumentation: String? = null
+    var dentalDocumentation: String? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "linked_treatment_plan_line_id")
+    var linkedTreatmentPlanLine: TreatmentPlanLine? = null
 ) {
     enum class Status { REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED }
     enum class PaymentStatus { NOT_REQUIRED, PENDING, PAID, FAILED, REFUNDED }
