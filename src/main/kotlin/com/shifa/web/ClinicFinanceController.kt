@@ -746,7 +746,7 @@ class ClinicFinanceController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message)
         } catch (e: Exception) {
             log.error(
-                "Installment service failed clinicId={} planId={} -> {}",
+                "[INST-STEP service.create] clinicId={} planId={} -> {}",
                 clinicId,
                 req.treatmentPlanId,
                 e.javaClass.simpleName,
@@ -754,13 +754,31 @@ class ClinicFinanceController(
             )
             throw ResponseStatusException(
                 HttpStatus.INTERNAL_SERVER_ERROR,
-                "Failed to save installments: ${e.javaClass.simpleName}",
+                "Step:service.create -> ${e.javaClass.simpleName}: ${e.message?.take(200)}",
             )
         }
 
-        val clinic = clinics.findById(clinicId).orElseThrow {
-            ResponseStatusException(HttpStatus.NOT_FOUND, "Clinic $clinicId not found")
+        // Diagnostic step labels so the client snackbar tells us exactly where
+        // a post-service failure occurs (e.g. audit-log save, notification
+        // save, lazy-load of attendingDoctor, or Spring's final commit).
+        fun stepThrow(step: String, e: Exception): Nothing {
+            log.error("[INST-STEP $step] planId={} -> {}", plan.id, e.javaClass.simpleName, e)
+            throw ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Step:$step -> ${e.javaClass.simpleName}: ${e.message?.take(200)}",
+            )
         }
+
+        val clinic = try {
+            clinics.findById(clinicId).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Clinic $clinicId not found")
+            }
+        } catch (e: ResponseStatusException) {
+            throw e
+        } catch (e: Exception) {
+            stepThrow("clinics.findById", e)
+        }
+
         try {
             user?.let {
                 auditService.log(clinic, it, "CREATE", "INSTALLMENT_PLAN", plan.id)
@@ -769,7 +787,11 @@ class ClinicFinanceController(
             log.warn("Audit log failed for installment plan {}: {}", plan.id, e.message)
         }
 
-        val items = installmentItems.findByInstallmentPlan_IdOrderBySequenceNumberAsc(plan.id)
+        val items = try {
+            installmentItems.findByInstallmentPlan_IdOrderBySequenceNumberAsc(plan.id)
+        } catch (e: Exception) {
+            stepThrow("items.list (auto-flush)", e)
+        }
 
         // Never let a notification / FCM failure roll back installment creation.
         // The installment plan + items are the actual deliverable here; the
@@ -793,15 +815,20 @@ class ClinicFinanceController(
                 )
             }
         } catch (e: Exception) {
-            org.slf4j.LoggerFactory.getLogger(ClinicFinanceController::class.java)
-                .warn(
-                    "Installment plan {} saved but patient notification failed: {}",
-                    plan.id,
-                    e.message,
-                )
+            log.warn(
+                "Installment plan {} saved but patient notification failed: {} {}",
+                plan.id,
+                e.javaClass.simpleName,
+                e.message,
+            )
         }
 
-        return toInstallmentPlanDto(plan, items)
+        val dto = try {
+            toInstallmentPlanDto(plan, items)
+        } catch (e: Exception) {
+            stepThrow("toDto", e)
+        }
+        return dto
     }
 
     @GetMapping("/installment-plans/by-treatment-plan/{treatmentPlanId}")

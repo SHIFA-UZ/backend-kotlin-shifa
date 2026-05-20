@@ -70,7 +70,11 @@ class InstallmentService(
             }
         }
 
-        val plan = installmentPlans.save(
+        // saveAndFlush forces an immediate INSERT so any DB-level error
+        // (constraint, type mismatch, Hibernate AssertionFailure) surfaces
+        // synchronously and is captured by the controller's diagnostic
+        // try/catch instead of being deferred until Spring's tx commit.
+        val plan = installmentPlans.saveAndFlush(
             InstallmentPlan(
                 treatmentPlan = treatmentPlan,
                 totalAmountMinor = request.totalAmountMinor,
@@ -85,7 +89,7 @@ class InstallmentService(
 
         if (custom != null) {
             custom.forEachIndexed { index, row ->
-                installmentItems.save(
+                installmentItems.saveAndFlush(
                     InstallmentItem(
                         installmentPlan = plan,
                         sequenceNumber = index + 1,
@@ -101,7 +105,7 @@ class InstallmentService(
             for (i in 1..request.numInstallments) {
                 val dueDate = calculateDueDate(request.startDate, request.frequency, i - 1)
                 val amount = if (i == request.numInstallments) baseAmount + remainder else baseAmount
-                installmentItems.save(
+                installmentItems.saveAndFlush(
                     InstallmentItem(
                         installmentPlan = plan,
                         sequenceNumber = i,
