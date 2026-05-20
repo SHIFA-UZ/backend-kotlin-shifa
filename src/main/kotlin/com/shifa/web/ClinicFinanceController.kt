@@ -894,17 +894,43 @@ class ClinicFinanceController(
 
         val uid = clinicAccess.resolveBookingActorUserId(principal)
         val user = users.findById(uid).orElse(null)
-        val payment = financeService.recordPaymentAndSync(
-            planId = tp.id,
-            amountMinor = item.amountMinor,
-            currency = item.currency,
-            method = body.method,
-            memo = body.memo?.trim(),
-            recordedByUser = user,
-            financialRecord = null,
-        )
-        val updated = installmentService.markInstallmentPaid(itemId, payment)
-        val clinic = clinics.findById(clinicId).orElseThrow()
+        val log = org.slf4j.LoggerFactory.getLogger(ClinicFinanceController::class.java)
+
+        fun markStep(step: String, e: Exception): Nothing {
+            log.error("[MARK-PAID-STEP $step] itemId={} -> {}", itemId, e.javaClass.simpleName, e)
+            throw ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "Step:$step -> ${e.javaClass.simpleName}: ${e.message?.take(200)}",
+            )
+        }
+
+        val payment = try {
+            financeService.recordPaymentAndSync(
+                planId = tp.id,
+                amountMinor = item.amountMinor,
+                currency = item.currency,
+                method = body.method,
+                memo = body.memo?.trim(),
+                recordedByUser = user,
+                financialRecord = null,
+            )
+        } catch (e: ResponseStatusException) {
+            throw e
+        } catch (e: Exception) {
+            markStep("recordPaymentAndSync", e)
+        }
+
+        val updated = try {
+            installmentService.markInstallmentPaid(itemId, payment)
+        } catch (e: ResponseStatusException) {
+            throw e
+        } catch (e: Exception) {
+            markStep("markInstallmentPaid", e)
+        }
+
+        val clinic = clinics.findById(clinicId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Clinic $clinicId not found")
+        }
         user?.let { auditService.log(clinic, it, "INSTALLMENT_PAID", "INSTALLMENT_ITEM", itemId) }
         return toInstallmentItemDto(updated)
     }
