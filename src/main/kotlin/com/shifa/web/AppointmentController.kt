@@ -378,6 +378,19 @@ class AppointmentController(
             )
         }
 
+        // Auto-derive a VISIT treatment plan from the saved dental documentation
+        // (per-teeth priced services) so finance sees the appointment as an unpaid
+        // ledger entry without prompting the doctor for charges again. Safe to
+        // call even when there is no dental documentation — the service no-ops.
+        val wasAlreadyCompleted = appointment.status == Appointment.Status.COMPLETED
+        if (!wasAlreadyCompleted && cid != null && charges.isNullOrEmpty()) {
+            try {
+                visitChargeService.addDentalChargesFromDocumentation(principal, cid, appointmentId)
+            } catch (e: Exception) {
+                // Never block appointment completion because of finance auto-derivation.
+            }
+        }
+
         appointment.status = Appointment.Status.COMPLETED
         appts.save(appointment)
 

@@ -84,6 +84,9 @@ class TreatmentPlanController(
         val id: Long,
         val clinicId: Long,
         val patientId: Long?,
+        val patientName: String?,
+        val attendingDoctorId: Long?,
+        val attendingDoctorName: String?,
         val title: String?,
         val diagnosis: String?,
         val status: String,
@@ -96,6 +99,8 @@ class TreatmentPlanController(
         val owedMinor: Long,
         val currency: String,
         val planPaymentStatus: String,
+        val createdAt: String?,
+        val updatedAt: String?,
     )
 
     data class AppointmentSummaryDto(
@@ -210,10 +215,16 @@ class TreatmentPlanController(
 
     private fun toSummary(plan: TreatmentPlan): TreatmentPlanSummaryDto {
         val (total, paid, cur) = totals(plan.id)
+        val patientName = plan.patient.fullName.trim().takeIf { it.isNotEmpty() }
+        val doctor = plan.attendingDoctor
+        val doctorName = doctor?.let { "${it.firstName} ${it.lastName}".trim() }
         return TreatmentPlanSummaryDto(
             id = plan.id,
             clinicId = plan.clinic.id!!,
             patientId = plan.patient.id,
+            patientName = patientName,
+            attendingDoctorId = doctor?.id,
+            attendingDoctorName = doctorName,
             title = plan.title,
             diagnosis = plan.diagnosis,
             status = plan.status.name,
@@ -226,6 +237,8 @@ class TreatmentPlanController(
             owedMinor = (total - paid).coerceAtLeast(0),
             currency = cur,
             planPaymentStatus = planPaymentLabel(total, paid),
+            createdAt = plan.createdAt.toString(),
+            updatedAt = plan.updatedAt.toString(),
         )
     }
 
@@ -316,16 +329,53 @@ class TreatmentPlanController(
         )
     }
 
+    /**
+     * Clinic-wide plan list with optional patient / status / free-text filters.
+     *
+     * - When [patientId] is supplied the result is scoped to that patient (legacy
+     *   behaviour required by the per-patient view).
+     * - Otherwise every plan in the clinic is returned, ordered by most-recent
+     *   update first, so the doctor app's "Treatment plans" tab can render a
+     *   ledger without forcing the user to pick a patient first.
+     * - [status] filters by [TreatmentPlan.Status] case-insensitively.
+     * - [q] is a free-text needle matched against the plan title and the
+     *   patient's full name.
+     */
     @GetMapping
+    @Transactional(readOnly = true)
     fun listPlans(
         @AuthenticationPrincipal principal: Any,
         @RequestParam clinicId: Long,
-        @RequestParam patientId: Long,
+        @RequestParam(required = false) patientId: Long? = null,
+        @RequestParam(required = false) status: String? = null,
+        @RequestParam(required = false) q: String? = null,
     ): List<TreatmentPlanSummaryDto> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
-        clinicAccess.assertPatientVisible(principal, patientId)
-        return plans.findByClinic_IdAndPatient_IdOrderByCreatedAtDesc(clinicId, patientId)
+
+        val source = if (patientId != null) {
+            clinicAccess.assertPatientVisible(principal, patientId)
+            plans.findByClinic_IdAndPatient_IdOrderByCreatedAtDesc(clinicId, patientId)
+        } else {
+            plans.findByClinic_IdOrderByUpdatedAtDescIdDesc(clinicId)
+        }
+
+        val statusFilter = status?.trim()?.takeIf { it.isNotEmpty() }
+        val needle = q?.trim()?.takeIf { it.isNotEmpty() }?.lowercase()
+
+        return source
+            .asSequence()
+            .filter { plan ->
+                if (statusFilter == null) true
+                else plan.status.name.equals(statusFilter, ignoreCase = true)
+            }
+            .filter { plan ->
+                if (needle == null) return@filter true
+                val title = plan.title?.lowercase().orEmpty()
+                val pname = plan.patient.fullName.lowercase()
+                title.contains(needle) || pname.contains(needle)
+            }
             .map { toSummary(it) }
+            .toList()
     }
 
     @GetMapping("/catalog-items")
