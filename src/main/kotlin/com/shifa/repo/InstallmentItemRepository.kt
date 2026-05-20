@@ -23,6 +23,17 @@ interface InstallmentItemRepository : JpaRepository<InstallmentItem, Long> {
 
     @Query("""
         SELECT ii FROM InstallmentItem ii
+        JOIN FETCH ii.installmentPlan ip
+        JOIN FETCH ip.treatmentPlan tp
+        JOIN FETCH tp.patient
+        WHERE tp.clinic.id = :clinicId
+          AND ii.status IN ('PENDING', 'OVERDUE', 'PAID')
+        ORDER BY ii.dueDate ASC, ii.sequenceNumber ASC
+    """)
+    fun findActiveByClinic(@Param("clinicId") clinicId: Long): List<InstallmentItem>
+
+    @Query("""
+        SELECT ii FROM InstallmentItem ii
         JOIN ii.installmentPlan ip
         WHERE ip.id = :installmentPlanId
           AND ii.status IN :statuses

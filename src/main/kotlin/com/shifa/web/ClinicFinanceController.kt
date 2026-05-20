@@ -187,6 +187,23 @@ class ClinicFinanceController(
         val notes: String?,
     )
 
+    /** Installment row for the clinic finance "Installments" tab (includes patient/plan context). */
+    data class InstallmentItemListDto(
+        val id: Long,
+        val sequenceNumber: Int,
+        val dueDate: LocalDate,
+        val amountMinor: Long,
+        val currency: String,
+        val status: String,
+        val paidAt: OffsetDateTime?,
+        val notes: String?,
+        val installmentPlanId: Long,
+        val treatmentPlanId: Long,
+        val treatmentPlanTitle: String?,
+        val patientId: Long,
+        val patientName: String,
+    )
+
     data class PatchInstallmentItemRequest(
         val status: String? = null,
         val dueDate: LocalDate? = null,
@@ -598,6 +615,39 @@ class ClinicFinanceController(
         return payments.map { toPaymentDto(it) }
     }
 
+    /**
+     * Lists installment payment rows for the clinic finance tab.
+     *
+     * [filter]: `all` (default), `pending` (upcoming / not yet due), `overdue`, `paid`.
+     * Previously the UI only called `/overdue`, so newly created plans with future
+     * due dates never appeared.
+     */
+    @GetMapping("/installment-items")
+    @Transactional(readOnly = true)
+    fun listInstallmentItems(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable clinicId: Long,
+        @RequestParam(defaultValue = "all") filter: String,
+    ): List<InstallmentItemListDto> {
+        clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
+        val patientFilter = financeAccess.financeReadPatientIdFilter(principal, clinicId)
+        val today = java.time.LocalDate.now()
+        var items = installmentItems.findActiveByClinic(clinicId)
+        if (patientFilter != null) {
+            items = items.filter { it.installmentPlan.treatmentPlan.patient.id in patientFilter }
+        }
+        items = when (filter.lowercase()) {
+            "pending" -> items.filter { it.status == InstallmentItem.Status.PENDING }
+            "overdue" -> items.filter {
+                it.status == InstallmentItem.Status.OVERDUE ||
+                    (it.status == InstallmentItem.Status.PENDING && it.dueDate.isBefore(today))
+            }
+            "paid" -> items.filter { it.status == InstallmentItem.Status.PAID }
+            else -> items
+        }
+        return items.map { toInstallmentItemListDto(it) }
+    }
+
     @GetMapping("/overdue")
     @Transactional(readOnly = true)
     fun getOverdue(
@@ -943,4 +993,24 @@ class ClinicFinanceController(
         paidAt = item.paidAt,
         notes = item.notes,
     )
+
+    private fun toInstallmentItemListDto(item: InstallmentItem): InstallmentItemListDto {
+        val tp = item.installmentPlan.treatmentPlan
+        val patientName = tp.patient.fullName.trim().ifEmpty { "Patient #${tp.patient.id}" }
+        return InstallmentItemListDto(
+            id = item.id,
+            sequenceNumber = item.sequenceNumber,
+            dueDate = item.dueDate,
+            amountMinor = item.amountMinor,
+            currency = item.currency,
+            status = item.status.name,
+            paidAt = item.paidAt,
+            notes = item.notes,
+            installmentPlanId = item.installmentPlan.id,
+            treatmentPlanId = tp.id,
+            treatmentPlanTitle = tp.title,
+            patientId = tp.patient.id!!,
+            patientName = patientName,
+        )
+    }
 }
