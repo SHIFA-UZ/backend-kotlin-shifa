@@ -25,7 +25,7 @@ class ClinicFinanceAccessService(
         return when (role) {
             MembershipRole.OWNER, MembershipRole.CLINIC_ADMIN -> FinanceAccessLevel.FULL
             MembershipRole.RECEPTIONIST -> FinanceAccessLevel.RECORD_PAYMENTS
-            MembershipRole.DOCTOR -> FinanceAccessLevel.VIEW_OWN_PATIENTS
+            MembershipRole.DOCTOR, MembershipRole.NURSE -> FinanceAccessLevel.VIEW_OWN_PATIENTS
             else -> FinanceAccessLevel.NONE
         }
     }
