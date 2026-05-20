@@ -727,22 +727,34 @@ class ClinicFinanceController(
 
         val items = installmentItems.findByInstallmentPlan_IdOrderBySequenceNumberAsc(plan.id)
 
-        val patient = tp.patient
-        val notif = Notification(
-            patient = patient,
-            doctor = tp.attendingDoctor,
-            title = "Payment schedule",
-            message = "Your clinic created a payment plan with ${items.size} installments. Please review due dates in the app.",
-            type = Notification.Type.INSTALLMENT_SCHEDULE_CREATED,
-            treatmentPlanId = tp.id,
-        )
-        val savedNotif = notifications.save(notif)
-        patient.fcmToken?.let {
-            fcmService.sendPatientNotification(
-                it,
-                savedNotif,
-                mapOf("route" to "/bookings/treatment-plan/${tp.id}"),
+        // Never let a notification / FCM failure roll back installment creation.
+        // The installment plan + items are the actual deliverable here; the
+        // patient notification is best-effort.
+        try {
+            val patient = tp.patient
+            val notif = Notification(
+                patient = patient,
+                doctor = tp.attendingDoctor,
+                title = "Payment schedule",
+                message = "Your clinic created a payment plan with ${items.size} installments. Please review due dates in the app.",
+                type = Notification.Type.INSTALLMENT_SCHEDULE_CREATED,
+                treatmentPlanId = tp.id,
             )
+            val savedNotif = notifications.save(notif)
+            patient.fcmToken?.let {
+                fcmService.sendPatientNotification(
+                    it,
+                    savedNotif,
+                    mapOf("route" to "/bookings/treatment-plan/${tp.id}"),
+                )
+            }
+        } catch (e: Exception) {
+            org.slf4j.LoggerFactory.getLogger(ClinicFinanceController::class.java)
+                .warn(
+                    "Installment plan {} saved but patient notification failed: {}",
+                    plan.id,
+                    e.message,
+                )
         }
 
         return toInstallmentPlanDto(plan, items)

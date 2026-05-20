@@ -43,19 +43,30 @@ class InstallmentService(
             ResponseStatusException(HttpStatus.NOT_FOUND, "Treatment plan not found")
         }
         if (request.totalAmountMinor <= 0) {
-            throw IllegalArgumentException("Total amount must be positive")
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Total amount must be positive (got ${request.totalAmountMinor}). " +
+                    "Pick at least one service with a non-zero price.",
+            )
         }
 
         val custom = request.scheduleItems?.takeIf { it.isNotEmpty() }
         val effectiveCount = custom?.size ?: request.numInstallments
         if (effectiveCount < 2) {
-            throw IllegalArgumentException("At least 2 installments required")
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "At least 2 installments required (got $effectiveCount)",
+            )
         }
 
         if (custom != null) {
             val sum = custom.sumOf { it.amountMinor }
             if (sum != request.totalAmountMinor) {
-                throw IllegalArgumentException("Custom installment amounts must sum to totalAmountMinor")
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Installment amounts sum to $sum but the plan total is " +
+                        "${request.totalAmountMinor}. Adjust the rows so they match exactly.",
+                )
             }
         }
 
