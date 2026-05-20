@@ -288,4 +288,4 @@ Tests use JUnit 5, MockMvc, Mockito, and Hamcrest. Controller tests use `@WebMvc
 
 ## License
 
-Private and confidential. All rights reserved.
+Private and confidential. All rights reserved
