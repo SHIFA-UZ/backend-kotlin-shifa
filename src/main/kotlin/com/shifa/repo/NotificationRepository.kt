@@ -23,4 +23,10 @@ interface NotificationRepository : JpaRepository<Notification, Long> {
         treatmentPlanId: Long,
         type: Notification.Type
     ): Notification?
+
+    fun existsByPatient_IdAndInstallmentItemIdAndType(
+        patientId: Long,
+        installmentItemId: Long,
+        type: Notification.Type
+    ): Boolean
 }

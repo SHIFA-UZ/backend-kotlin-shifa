@@ -8,4 +8,11 @@ import org.springframework.data.jpa.repository.JpaRepository
 interface ClinicFinanceAuditLogRepository : JpaRepository<ClinicFinanceAuditLog, Long> {
 
     fun findByClinic_IdOrderByCreatedAtDesc(clinicId: Long, pageable: Pageable): Page<ClinicFinanceAuditLog>
+
+    fun findByClinic_IdAndEntityTypeAndEntityIdOrderByCreatedAtDesc(
+        clinicId: Long,
+        entityType: String,
+        entityId: Long,
+        pageable: Pageable,
+    ): Page<ClinicFinanceAuditLog>
 }

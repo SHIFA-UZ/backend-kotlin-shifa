@@ -56,6 +56,9 @@ class Notification(
     @Column(name = "treatment_plan_id")
     val treatmentPlanId: Long? = null,
 
+    @Column(name = "installment_item_id")
+    val installmentItemId: Long? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
 
@@ -102,7 +105,19 @@ class Notification(
         TREATMENT_PLAN_UPDATED,
 
         /** Patient: preventive visit reminder from clinic/doctor settings. */
-        PROPHYLAXIS_REMINDER
+        PROPHYLAXIS_REMINDER,
+
+        /** Patient: installment due in a few days. */
+        INSTALLMENT_DUE_SOON,
+
+        /** Patient: installment due today. */
+        INSTALLMENT_DUE_TODAY,
+
+        /** Patient: installment is overdue. */
+        INSTALLMENT_OVERDUE,
+
+        /** Patient: clinic created a payment installment schedule. */
+        INSTALLMENT_SCHEDULE_CREATED,
     }
 
     fun isRead(): Boolean = readAt != null

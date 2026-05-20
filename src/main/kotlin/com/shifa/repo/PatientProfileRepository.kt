@@ -147,7 +147,18 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
     fun findClinicRosterScopedToDoctor(
         @Param("actorDoctorId") actorDoctorId: Long,
         @Param("q") q: String?,
-        pageable: Pageable
+        pageable: Pageable,
     ): Page<PatientProfile>
-}
 
+    /**
+     * Patients linked to any of [doctorIds] via appointments or created-by.
+     */
+    @Query(
+        """
+        SELECT DISTINCT p.id FROM PatientProfile p
+        WHERE p.id IN (SELECT DISTINCT a.patient.id FROM Appointment a WHERE a.doctor.id IN :doctorIds)
+        OR (p.createdByDoctor IS NOT NULL AND p.createdByDoctor.id IN :doctorIds)
+        """
+    )
+    fun findVisiblePatientIdsLinkedToDoctors(@Param("doctorIds") doctorIds: Collection<Long>): List<Long>
+}

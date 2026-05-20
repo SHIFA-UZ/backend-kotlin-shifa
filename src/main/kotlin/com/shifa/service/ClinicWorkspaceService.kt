@@ -1,5 +1,6 @@
 package com.shifa.service
 
+import com.shifa.domain.Appointment
 import com.shifa.domain.Clinic
 import com.shifa.domain.ClinicMembership
 import com.shifa.domain.PatientProfile
@@ -53,6 +54,15 @@ class ClinicWorkspaceService(
         val fullName: String,
         val phone: String?,
         val email: String?,
+    )
+
+    data class ClinicPatientAppointmentRow(
+        val id: Long,
+        val startAt: String,
+        val endAt: String,
+        val status: String,
+        val doctorProfileId: Long,
+        val doctorName: String,
     )
 
     fun listMyClinics(principal: Any): List<MyClinicSummary> {
@@ -178,5 +188,26 @@ class ClinicWorkspaceService(
                 email = p.email,
             )
         }
+    }
+
+    fun listPatientAppointments(principal: Any, clinicId: Long, patientId: Long): List<ClinicPatientAppointmentRow> {
+        clinicAccess.assertPatientLinkedToClinic(principal, patientId, clinicId)
+        val doctorIds = doctors.findAllByPracticeClinic_Id(clinicId).mapNotNull { it.id }.toSet()
+        if (doctorIds.isEmpty()) return emptyList()
+        return appointments.findByPatientId(patientId)
+            .asSequence()
+            .filter { it.doctor.id != null && doctorIds.contains(it.doctor.id) && it.status != Appointment.Status.CANCELLED }
+            .sortedByDescending { it.startAt }
+            .map {
+                ClinicPatientAppointmentRow(
+                    id = it.id,
+                    startAt = it.startAt.toString(),
+                    endAt = it.endAt.toString(),
+                    status = it.status.name,
+                    doctorProfileId = it.doctor.id!!,
+                    doctorName = "${it.doctor.firstName} ${it.doctor.lastName}",
+                )
+            }
+            .toList()
     }
 }

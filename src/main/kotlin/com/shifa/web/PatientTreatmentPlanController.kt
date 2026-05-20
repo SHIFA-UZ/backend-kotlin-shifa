@@ -1,5 +1,7 @@
 package com.shifa.web
 
+import com.shifa.repo.InstallmentItemRepository
+import com.shifa.repo.InstallmentPlanRepository
 import com.shifa.repo.TreatmentPlanLineRepository
 import com.shifa.repo.TreatmentPlanPaymentRepository
 import com.shifa.repo.TreatmentPlanRepository
@@ -21,16 +23,49 @@ class PatientTreatmentPlanController(
     private val plans: TreatmentPlanRepository,
     private val linesRepo: TreatmentPlanLineRepository,
     private val paymentsRepo: TreatmentPlanPaymentRepository,
+    private val installmentPlans: InstallmentPlanRepository,
+    private val installmentItems: InstallmentItemRepository,
 ) {
+
+    data class PatientPlanLineDto(
+        val title: String,
+        val quantity: Int,
+        val unitPriceMinor: Long,
+        val discountMinor: Long,
+        val lineTotalMinor: Long,
+        val currency: String,
+        val status: String,
+    )
+
+    data class PatientInstallmentItemDto(
+        val sequenceNumber: Int,
+        val dueDate: String,
+        val amountMinor: Long,
+        val currency: String,
+        val status: String,
+    )
+
+    data class PatientInstallmentPlanDto(
+        val id: Long,
+        val status: String,
+        val totalAmountMinor: Long,
+        val currency: String,
+        val items: List<PatientInstallmentItemDto>,
+    )
 
     data class PatientPlanSummaryDto(
         val id: Long,
         val status: String,
+        val title: String?,
+        val diagnosis: String?,
         val notes: String?,
         val totalMinor: Long,
         val paidMinor: Long,
         val owedMinor: Long,
-        val currency: String
+        val currency: String,
+        val planPaymentStatus: String,
+        val lines: List<PatientPlanLineDto>,
+        val installmentPlans: List<PatientInstallmentPlanDto>,
     )
 
     private fun currentPatient(principal: PatientPrincipal) =
@@ -46,7 +81,7 @@ class PatientTreatmentPlanController(
     @Transactional(readOnly = true)
     fun getMyPlan(
         @AuthenticationPrincipal principal: PatientPrincipal,
-        @PathVariable planId: Long
+        @PathVariable planId: Long,
     ): PatientPlanSummaryDto {
         val patient = currentPatient(principal)
         val pid = patient.id ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient profile not found")
@@ -61,14 +96,54 @@ class PatientTreatmentPlanController(
         val total = lineRows.sumOf { (it.unitPriceMinor * it.quantity - it.discountMinor).coerceAtLeast(0) }
         val paid = paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(planId).sumOf { it.amountMinor }
         val owed = (total - paid).coerceAtLeast(0)
+        val payStatus = when {
+            total <= 0L -> "NONE"
+            paid <= 0L -> "UNPAID"
+            paid >= total -> "PAID"
+            else -> "PARTIAL"
+        }
+        val lines = lineRows.map {
+            PatientPlanLineDto(
+                title = it.title,
+                quantity = it.quantity,
+                unitPriceMinor = it.unitPriceMinor,
+                discountMinor = it.discountMinor,
+                lineTotalMinor = (it.unitPriceMinor * it.quantity - it.discountMinor).coerceAtLeast(0),
+                currency = it.currency,
+                status = it.status.name,
+            )
+        }
+        val instPlans = installmentPlans.findByTreatmentPlan_IdOrderByCreatedAtDesc(planId).map { ip ->
+            val items = installmentItems.findByInstallmentPlan_IdOrderBySequenceNumberAsc(ip.id)
+            PatientInstallmentPlanDto(
+                id = ip.id,
+                status = ip.status.name,
+                totalAmountMinor = ip.totalAmountMinor,
+                currency = ip.currency,
+                items = items.map { ii ->
+                    PatientInstallmentItemDto(
+                        sequenceNumber = ii.sequenceNumber,
+                        dueDate = ii.dueDate.toString(),
+                        amountMinor = ii.amountMinor,
+                        currency = ii.currency,
+                        status = ii.status.name,
+                    )
+                },
+            )
+        }
         return PatientPlanSummaryDto(
             id = plan.id,
             status = plan.status.name,
+            title = plan.title,
+            diagnosis = plan.diagnosis,
             notes = plan.notes,
             totalMinor = total,
             paidMinor = paid,
             owedMinor = owed,
-            currency = currency
+            currency = currency,
+            planPaymentStatus = payStatus,
+            lines = lines,
+            installmentPlans = instPlans,
         )
     }
 }

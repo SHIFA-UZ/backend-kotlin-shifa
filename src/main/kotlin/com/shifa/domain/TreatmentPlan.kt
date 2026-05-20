@@ -27,6 +27,14 @@ class TreatmentPlan(
 
     var title: String? = null,
 
+    /** JSON array of symptom tags, e.g. ["pain","sensitivity"]. */
+    @Column(columnDefinition = "TEXT")
+    var symptoms: String? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "plan_kind", nullable = false, length = 32)
+    var planKind: PlanKind = PlanKind.COMPREHENSIVE,
+
     @Column(columnDefinition = "TEXT")
     var diagnosis: String? = null,
 
@@ -68,5 +76,10 @@ class TreatmentPlan(
         IN_PROGRESS,
         COMPLETED,
         CANCELLED
+    }
+
+    enum class PlanKind {
+        COMPREHENSIVE,
+        VISIT,
     }
 }

@@ -2,6 +2,7 @@ package com.shifa.service
 
 import com.shifa.domain.ClinicMembership.MembershipRole
 import com.shifa.repo.ClinicMembershipRepository
+import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.ClinicStaffPrincipal
 import com.shifa.security.DoctorPrincipal
 import org.springframework.http.HttpStatus
@@ -11,6 +12,8 @@ import org.springframework.web.server.ResponseStatusException
 @Service
 class ClinicFinanceAccessService(
     private val memberships: ClinicMembershipRepository,
+    private val clinicAccess: ClinicAccessService,
+    private val patients: PatientProfileRepository,
 ) {
 
     enum class FinanceAccessLevel {
@@ -37,24 +40,31 @@ class ClinicFinanceAccessService(
         }
     }
 
-    fun assertCanRecordPayment(principal: Any, clinicId: Long) {
-        val level = resolveFinanceAccessLevel(principal, clinicId)
-        if (level == FinanceAccessLevel.NONE || level == FinanceAccessLevel.VIEW_OWN_PATIENTS) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot record payments")
+    /**
+     * Payments, installment creation, and non-void invoice updates for a specific patient.
+     * Clinic admins / receptionists: clinic-wide. Doctors / nurses: only visible patients.
+     */
+    fun assertCanManagePatientFinance(principal: Any, clinicId: Long, patientId: Long) {
+        assertCanViewFinance(principal, clinicId)
+        when (resolveFinanceAccessLevel(principal, clinicId)) {
+            FinanceAccessLevel.FULL, FinanceAccessLevel.RECORD_PAYMENTS -> return
+            FinanceAccessLevel.VIEW_OWN_PATIENTS -> clinicAccess.assertPatientVisible(principal, patientId)
+            FinanceAccessLevel.NONE -> throw ResponseStatusException(HttpStatus.FORBIDDEN)
         }
     }
 
-    fun assertCanManageInvoices(principal: Any, clinicId: Long) {
-        val level = resolveFinanceAccessLevel(principal, clinicId)
-        if (level != FinanceAccessLevel.FULL) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot manage invoices")
-        }
-    }
-
-    fun assertCanManageInstallments(principal: Any, clinicId: Long) {
-        val level = resolveFinanceAccessLevel(principal, clinicId)
-        if (level != FinanceAccessLevel.FULL) {
-            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot manage installments")
+    /**
+     * null = full clinic visibility (admin/receptionist); non-null = restrict to these patient IDs.
+     */
+    fun financeReadPatientIdFilter(principal: Any, clinicId: Long): Set<Long>? {
+        assertCanViewFinance(principal, clinicId)
+        return when (resolveFinanceAccessLevel(principal, clinicId)) {
+            FinanceAccessLevel.FULL, FinanceAccessLevel.RECORD_PAYMENTS -> null
+            FinanceAccessLevel.VIEW_OWN_PATIENTS -> {
+                val doctorIds = clinicAccess.doctorIdsForPatientDirectory(principal)
+                patients.findVisiblePatientIdsLinkedToDoctors(doctorIds).toSet()
+            }
+            FinanceAccessLevel.NONE -> throw ResponseStatusException(HttpStatus.FORBIDDEN)
         }
     }
 
@@ -66,13 +76,24 @@ class ClinicFinanceAccessService(
     }
 
     private fun resolveMembershipRole(principal: Any, clinicId: Long): MembershipRole? {
-        val userId = when (principal) {
-            is DoctorPrincipal -> principal.profile.user.id
-            is ClinicStaffPrincipal -> principal.user.id
+        when (principal) {
+            is DoctorPrincipal -> {
+                val practiceId = principal.profile.practiceClinic?.id
+                if (practiceId != null && practiceId == clinicId) {
+                    return MembershipRole.DOCTOR
+                }
+                val userId = principal.profile.user.id
+                val membership = memberships.findByUserIdAndClinicIdAndActiveTrue(userId, clinicId)
+                    ?: return null
+                return membership.membershipRole
+            }
+            is ClinicStaffPrincipal -> {
+                val userId = principal.user.id
+                val membership = memberships.findByUserIdAndClinicIdAndActiveTrue(userId, clinicId)
+                    ?: return null
+                return membership.membershipRole
+            }
             else -> return null
         }
-        val membership = memberships.findByUserIdAndClinicIdAndActiveTrue(userId, clinicId)
-            ?: return null
-        return membership.membershipRole
     }
 }

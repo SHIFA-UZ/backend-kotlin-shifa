@@ -11,12 +11,16 @@ import com.shifa.repo.TaskCheckInRepository
 import com.shifa.repo.TreatmentPlanLineRepository
 import com.shifa.repo.TreatmentPlanPaymentRepository
 import com.shifa.repo.TreatmentPlanRepository
+import com.shifa.repo.InstallmentItemRepository
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
+import java.time.LocalDate
+import java.time.OffsetDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 
@@ -35,6 +39,8 @@ class ReminderNotificationService(
     private val treatmentPlanLines: TreatmentPlanLineRepository,
     private val treatmentPlanPayments: TreatmentPlanPaymentRepository,
     private val prophylaxisSettings: PatientProphylaxisSettingRepository,
+    private val installmentItems: InstallmentItemRepository,
+    private val installmentService: InstallmentService,
 ) {
     private val log = LoggerFactory.getLogger(ReminderNotificationService::class.java)
 
@@ -299,6 +305,85 @@ class ReminderNotificationService(
                 log.info("Prophylaxis reminder sent patient={} clinic={}", patientId, clinicId)
             } catch (e: Exception) {
                 log.warn("Prophylaxis reminder failed setting id={}: {}", st.id, e.message)
+            }
+        }
+    }
+
+    @Transactional
+    fun sendInstallmentDueReminders() {
+        val today = LocalDate.now(ZoneOffset.UTC)
+        installmentService.markPendingInstallmentsOverdue(today)
+
+        fun sendIfNew(
+            item: com.shifa.domain.InstallmentItem,
+            type: Notification.Type,
+            title: String,
+            message: String,
+        ) {
+            val patient = item.installmentPlan.treatmentPlan.patient
+            val pid = patient.id ?: return
+            if (notificationRepository.existsByPatient_IdAndInstallmentItemIdAndType(pid, item.id, type)) return
+            val tp = item.installmentPlan.treatmentPlan
+            val n = Notification(
+                patient = patient,
+                doctor = tp.attendingDoctor,
+                title = title,
+                message = message,
+                type = type,
+                treatmentPlanId = tp.id,
+                installmentItemId = item.id,
+            )
+            val saved = notificationRepository.save(n)
+            patient.fcmToken?.let {
+                fcmService.sendPatientNotification(
+                    it,
+                    saved,
+                    mapOf(
+                        "route" to "/bookings/treatment-plan/${tp.id}",
+                        "installmentItemId" to item.id.toString(),
+                    ),
+                )
+            }
+            item.lastReminderSentAt = OffsetDateTime.now()
+            installmentItems.save(item)
+        }
+
+        val soon = today.plusDays(3)
+        for (item in installmentItems.findAllPendingDueOn(soon)) {
+            try {
+                sendIfNew(
+                    item,
+                    Notification.Type.INSTALLMENT_DUE_SOON,
+                    "Installment coming up",
+                    "An installment of ${item.amountMinor / 100.0} ${item.currency} is due on ${item.dueDate}.",
+                )
+            } catch (e: Exception) {
+                log.warn("Installment due soon failed item={}: {}", item.id, e.message)
+            }
+        }
+        for (item in installmentItems.findAllPendingDueOn(today)) {
+            try {
+                sendIfNew(
+                    item,
+                    Notification.Type.INSTALLMENT_DUE_TODAY,
+                    "Installment due today",
+                    "An installment of ${item.amountMinor / 100.0} ${item.currency} is due today.",
+                )
+            } catch (e: Exception) {
+                log.warn("Installment due today failed item={}: {}", item.id, e.message)
+            }
+        }
+        val overdueBefore = OffsetDateTime.now().minusDays(7)
+        for (item in installmentItems.findOverdueNeedingRemind(overdueBefore)) {
+            try {
+                sendIfNew(
+                    item,
+                    Notification.Type.INSTALLMENT_OVERDUE,
+                    "Installment overdue",
+                    "An installment of ${item.amountMinor / 100.0} ${item.currency} is overdue. Please contact your clinic.",
+                )
+            } catch (e: Exception) {
+                log.warn("Installment overdue notify failed item={}: {}", item.id, e.message)
             }
         }
     }

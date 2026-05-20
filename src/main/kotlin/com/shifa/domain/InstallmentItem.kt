@@ -38,7 +38,10 @@ class InstallmentItem(
     var payment: TreatmentPlanPayment? = null,
 
     @Column(columnDefinition = "TEXT")
-    var notes: String? = null
+    var notes: String? = null,
+
+    @Column(name = "last_reminder_sent_at")
+    var lastReminderSentAt: OffsetDateTime? = null,
 ) {
     enum class Status {
         PENDING,

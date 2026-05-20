@@ -11,4 +11,19 @@ interface TreatmentPlanRepository : JpaRepository<TreatmentPlan, Long> {
     fun findByStatusIn(statuses: List<TreatmentPlan.Status>): List<TreatmentPlan>
 
     fun findByClinic_IdAndRemainingAmountMinorGreaterThan(clinicId: Long, amount: Long): List<TreatmentPlan>
+
+    @org.springframework.data.jpa.repository.Query(
+        """
+        SELECT p FROM TreatmentPlan p
+        WHERE p.clinic.id = :clinicId AND p.patient.id = :patientId
+          AND p.planKind = :planKind
+          AND p.status <> 'CANCELLED'
+        ORDER BY p.createdAt DESC
+        """
+    )
+    fun findActiveVisitPlansForPatient(
+        clinicId: Long,
+        patientId: Long,
+        planKind: TreatmentPlan.PlanKind,
+    ): List<TreatmentPlan>
 }
