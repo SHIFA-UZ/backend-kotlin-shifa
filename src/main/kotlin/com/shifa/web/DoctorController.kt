@@ -13,6 +13,7 @@ import com.shifa.repo.NotificationRepository
 import com.shifa.repo.UserRepository
 import com.shifa.security.DoctorPrincipal
 import com.shifa.service.FcmService
+import com.shifa.service.AdminClinicService
 import com.shifa.service.ScheduleValidityService
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
@@ -41,7 +42,8 @@ class DoctorController(
     private val scheduleValidityService: ScheduleValidityService,
     private val notifications: NotificationRepository,
     private val fcmService: FcmService,
-    private val subscriptionTierService: com.shifa.service.SubscriptionTierService
+    private val subscriptionTierService: com.shifa.service.SubscriptionTierService,
+    private val adminClinicService: AdminClinicService,
 ) {
 
     // -------------------- helpers --------------------
@@ -83,6 +85,7 @@ class DoctorController(
         val gender: String?,
         val address: String?,
         val clinic: String?,
+        val clinicId: Long? = null,
         val profession: String?,
         val avatarUrl: String?,
         val photoUrl: String?,
@@ -248,6 +251,7 @@ class DoctorController(
     // -------------------- PATCH sections --------------------
 
     @PatchMapping("/profile")
+    @Transactional
     fun patchProfile(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @RequestBody body: ProfileDto
@@ -260,7 +264,9 @@ class DoctorController(
         body.dob?.let { d.dob = java.time.LocalDate.parse(it) }
         body.gender?.let { d.gender = it }
         body.address?.let { d.address = it }
-        body.clinic?.let { d.clinic = it }
+        if (body.clinicId == null) {
+            body.clinic?.let { d.clinic = it }
+        }
         body.profession?.let { d.profession = it }
         body.avatarUrl?.let { d.avatarUrl = it }
         body.scheduleValidFrom?.let { d.scheduleValidFrom = java.time.LocalDate.parse(it) }
@@ -283,35 +289,37 @@ class DoctorController(
         body.consultationCurrency?.let { d.consultationCurrency = it.uppercase() }
 
         doctors.save(d)
+        body.clinicId?.let { adminClinicService.assignDoctor(it, d.id!!) }
+        val updated = doctors.findById(d.id!!).orElse(d)
 
         return ProfileDto(
-            firstName = d.firstName,
-            lastName = d.lastName,
-            dob = d.dob?.toString(),
-            gender = d.gender,
-            address = d.address,
-            clinic = d.clinic,
-            profession = d.profession,
-            avatarUrl = d.avatarUrl,
-            photoUrl = normalizeAvatar(d.avatarUrl),
-            scheduleValidFrom = effectiveScheduleFrom(d),
-            scheduleValidUntil = effectiveScheduleUntil(d),
-            biography = d.biography,
-            services = d.services,
-            certificates = d.certificates,
-            telegram = d.telegram,
-            instagram = d.instagram,
-            latitude = d.latitude,
-            longitude = d.longitude,
-            locationCountry = d.locationCountry,
-            locationRegion = d.locationRegion,
-            locationDistrict = d.locationDistrict,
-            locationCity = d.locationCity,
-            locationPostalCode = d.locationPostalCode,
-            locationStreetAddress = d.locationStreetAddress,
-            timeZone = d.timeZone,
-            consultationPriceMinor = d.consultationPriceMinor,
-            consultationCurrency = d.consultationCurrency
+            firstName = updated.firstName,
+            lastName = updated.lastName,
+            dob = updated.dob?.toString(),
+            gender = updated.gender,
+            address = updated.address,
+            clinic = updated.clinic,
+            profession = updated.profession,
+            avatarUrl = updated.avatarUrl,
+            photoUrl = normalizeAvatar(updated.avatarUrl),
+            scheduleValidFrom = effectiveScheduleFrom(updated),
+            scheduleValidUntil = effectiveScheduleUntil(updated),
+            biography = updated.biography,
+            services = updated.services,
+            certificates = updated.certificates,
+            telegram = updated.telegram,
+            instagram = updated.instagram,
+            latitude = updated.latitude,
+            longitude = updated.longitude,
+            locationCountry = updated.locationCountry,
+            locationRegion = updated.locationRegion,
+            locationDistrict = updated.locationDistrict,
+            locationCity = updated.locationCity,
+            locationPostalCode = updated.locationPostalCode,
+            locationStreetAddress = updated.locationStreetAddress,
+            timeZone = updated.timeZone,
+            consultationPriceMinor = updated.consultationPriceMinor,
+            consultationCurrency = updated.consultationCurrency
         )
     }
 
