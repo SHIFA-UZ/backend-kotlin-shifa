@@ -15,6 +15,7 @@ import com.shifa.i18n.PatientPaymentPushI18n
 import com.shifa.service.FcmService
 import com.shifa.service.ClinicalRagIndexingService
 import com.shifa.service.PatientVisitAiSummaryService
+import com.shifa.service.TreatmentPlanStatusService
 import com.shifa.service.VisitChargeService
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -37,6 +38,7 @@ class AppointmentController(
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
     private val clinicAccess: ClinicAccessService,
     private val visitChargeService: VisitChargeService,
+    private val treatmentPlanStatusService: TreatmentPlanStatusService,
 ) {
 
     // -------------------- Doctor: get single appointment (for polling signature status) --------------------
@@ -393,6 +395,17 @@ class AppointmentController(
 
         appointment.status = Appointment.Status.COMPLETED
         appts.save(appointment)
+
+        // If this appointment was the last outstanding visit on any treatment
+        // plan, promote that plan to COMPLETED. The service runs in its own
+        // REQUIRES_NEW transaction and swallows errors, so it cannot block or
+        // roll back this completion call.
+        try {
+            treatmentPlanStatusService.maybeAutoCompletePlansForAppointment(appointmentId)
+        } catch (_: Exception) {
+            // Best-effort: appointment completion must not fail because the
+            // plan-status follow-up failed.
+        }
 
         try {
             visitSummaryService.enqueueGeneration(appointmentId, appointment.patient.language, force = false)
