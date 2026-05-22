@@ -1,5 +1,6 @@
 package com.shifa.service
 
+import com.shifa.domain.Appointment
 import com.shifa.domain.FinancialRecord
 import com.shifa.domain.TreatmentPlan
 import com.shifa.domain.TreatmentPlanPayment
@@ -52,7 +53,8 @@ class TreatmentPlanFinanceService(
         method: TreatmentPlanPayment.PaymentMethod,
         memo: String?,
         recordedByUser: User?,
-        financialRecord: FinancialRecord? = null
+        financialRecord: FinancialRecord? = null,
+        linkedAppointment: Appointment? = null,
     ): TreatmentPlanPayment {
         val plan = plans.findById(planId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found")
@@ -65,7 +67,8 @@ class TreatmentPlanFinanceService(
                 method = method,
                 memo = memo,
                 financialRecord = financialRecord,
-                recordedByUser = recordedByUser
+                recordedByUser = recordedByUser,
+                linkedAppointment = linkedAppointment,
             )
         )
         recalculatePlanTotals(planId)

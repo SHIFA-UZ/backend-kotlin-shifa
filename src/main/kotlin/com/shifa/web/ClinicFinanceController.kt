@@ -133,6 +133,8 @@ class ClinicFinanceController(
         @field:NotNull val method: TreatmentPlanPayment.PaymentMethod,
         val memo: String?,
         val financialRecordId: Long? = null,
+        /** When set, payment applies to Finance → By appointment for this visit only (see ClinicFinanceLedgerService). */
+        val linkedAppointmentId: Long? = null,
     )
 
     data class PaymentHistoryDto(
@@ -148,6 +150,7 @@ class ClinicFinanceController(
         val method: String,
         val memo: String?,
         val financialRecordId: Long?,
+        val linkedAppointmentId: Long?,
         val recordedAt: OffsetDateTime,
     )
 
@@ -562,6 +565,28 @@ class ClinicFinanceController(
         if (plan.clinic.id != clinicId) throw ResponseStatusException(HttpStatus.NOT_FOUND)
         financeAccess.assertCanManagePatientFinance(principal, clinicId, plan.patient.id!!)
 
+        val linkedAppt =
+            req.linkedAppointmentId?.let { aid ->
+                val appt = appts.findById(aid).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $aid")
+                }
+                if (plan.patient.id != appt.patient?.id) {
+                    throw ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Appointment patient does not match treatment plan patient",
+                    )
+                }
+                val touchesPlan =
+                    linesRepo.findByLinkedAppointment_Id(aid).any { it.plan.id == plan.id }
+                if (!touchesPlan) {
+                    throw ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "This appointment has no charges linked to the selected treatment plan",
+                    )
+                }
+                appt
+            }
+
         val uid = clinicAccess.resolveBookingActorUserId(principal)
         val user = users.findById(uid).orElse(null)
 
@@ -579,6 +604,7 @@ class ClinicFinanceController(
             memo = req.memo?.trim(),
             recordedByUser = user,
             financialRecord = fr,
+            linkedAppointment = linkedAppt,
         )
 
         val clinic = clinics.findById(clinicId).orElseThrow()
@@ -1045,9 +1071,15 @@ class ClinicFinanceController(
         if (lines.isEmpty()) return null
         val plan = lines.first().plan
         val visitTotal = lines.sumOf { ledgerService.lineTotal(it) }
-        val planTotal = plan.estimatedTotalMinor.coerceAtLeast(1L)
-        val status = ledgerService.visitPaymentStatus(visitTotal, plan.paidAmountMinor, planTotal)
-        val simple = ledgerService.planSimplePaymentStatus(plan.estimatedTotalMinor, plan.paidAmountMinor)
+        val planEstimated = plan.estimatedTotalMinor.coerceAtLeast(1L)
+        val payments = treatmentPlanPayments.findByPlan_IdOrderByRecordedAtAsc(plan.id)
+        val visitPaid = ledgerService.appointmentAttributedPaidMinorFromPayments(
+            appt.id,
+            visitTotal,
+            planEstimated,
+            payments,
+        )
+        val rowStatus = ledgerService.planSimplePaymentStatus(visitTotal, visitPaid)
         val services = lines.map {
             AppointmentLedgerRowDto.ServiceLineDto(it.title, ledgerService.lineTotal(it))
         }
@@ -1063,8 +1095,8 @@ class ClinicFinanceController(
             services = services,
             visitTotalMinor = visitTotal,
             currency = lines.first().currency,
-            planPaymentStatus = status,
-            planSimplePaymentStatus = simple,
+            planPaymentStatus = rowStatus,
+            planSimplePaymentStatus = rowStatus,
         )
     }
 
@@ -1121,6 +1153,7 @@ class ClinicFinanceController(
         method = p.method.name,
         memo = p.memo,
         financialRecordId = p.financialRecord?.id,
+        linkedAppointmentId = runCatching { p.linkedAppointment?.id }.getOrNull(),
         recordedAt = p.recordedAt,
     )
 

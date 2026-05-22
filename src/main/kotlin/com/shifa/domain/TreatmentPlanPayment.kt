@@ -5,8 +5,7 @@ import java.time.OffsetDateTime
 
 @Entity
 @Table(name = "treatment_plan_payments")
-class TreatmentPlanPayment(
-    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+class TreatmentPlanPayment(    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long = 0,
 
     @ManyToOne(fetch = FetchType.LAZY)
@@ -33,6 +32,11 @@ class TreatmentPlanPayment(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "recorded_by_user_id")
     var recordedByUser: User? = null,
+
+    /** When set, this payment counts toward Finance → By appointment for this visit only (plus pooled share logic). */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "linked_appointment_id")
+    var linkedAppointment: Appointment? = null,
 
     @Column(name = "recorded_at", nullable = false)
     val recordedAt: OffsetDateTime = OffsetDateTime.now()

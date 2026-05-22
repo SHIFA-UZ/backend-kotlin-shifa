@@ -1,13 +1,16 @@
 package com.shifa.service
 
 import com.shifa.domain.TreatmentPlanLine
+import com.shifa.domain.TreatmentPlanPayment
 import com.shifa.repo.TreatmentPlanLineRepository
+import com.shifa.repo.TreatmentPlanPaymentRepository
 import org.springframework.stereotype.Service
 import java.time.Instant
 
 @Service
 class ClinicFinanceLedgerService(
     private val linesRepo: TreatmentPlanLineRepository,
+    private val paymentsRepo: TreatmentPlanPaymentRepository,
 ) {
 
     fun lineTotal(line: TreatmentPlanLine): Long =
@@ -32,6 +35,46 @@ class ClinicFinanceLedgerService(
             planPaid >= planTotal -> "PAID"
             else -> "PARTIAL"
         }
+    }
+
+    /**
+     * Payments explicitly linked to [appointmentId] count only for that visit.
+     * Payments with no appointment link remain in a pool and split across visits proportionally by [visitTotal] / plan total
+     * (legacy / wizard "plan-wide" payments).
+     */
+    fun appointmentAttributedPaidMinorFromAllocations(
+        appointmentId: Long,
+        visitTotal: Long,
+        planTotalMinor: Long,
+        allocations: List<Pair<Long, Long?>>,
+    ): Long {
+        var explicit = 0L
+        var unallocated = 0L
+        for ((amount, apptId) in allocations) {
+            when {
+                apptId == appointmentId -> explicit += amount
+                apptId == null -> unallocated += amount
+            }
+        }
+        val denom = planTotalMinor.coerceAtLeast(1L)
+        return explicit + (unallocated * visitTotal) / denom
+    }
+
+    fun appointmentAttributedPaidMinorFromPayments(
+        appointmentId: Long,
+        visitTotal: Long,
+        planTotalMinor: Long,
+        payments: List<TreatmentPlanPayment>,
+    ): Long {
+        return appointmentAttributedPaidMinorFromAllocations(
+            appointmentId,
+            visitTotal,
+            planTotalMinor,
+            payments.map { p ->
+                val aid = runCatching { p.linkedAppointment?.id }.getOrNull()
+                p.amountMinor to aid
+            },
+        )
     }
 
     fun doctorEarnings(
@@ -60,8 +103,14 @@ class ClinicFinanceLedgerService(
             if (patientFilter != null && patientId != null && patientId !in patientFilter) continue
             val visitTotal = apptLines.sumOf { lineTotal(it) }
             val plan = apptLines.first().plan
-            val planTotal = plan.estimatedTotalMinor.coerceAtLeast(1L)
-            val allocated = (plan.paidAmountMinor * visitTotal) / planTotal
+            val planCap = plan.estimatedTotalMinor.coerceAtLeast(1L)
+            val payments = paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(plan.id)
+            val allocated = appointmentAttributedPaidMinorFromPayments(
+                appt.id,
+                visitTotal,
+                planCap,
+                payments,
+            )
             val agg = byDoctor.getOrPut(doctorId) { MutableAgg(0L, 0L, mutableSetOf()) }
             agg.grossMinor += visitTotal
             agg.collectedMinor += allocated
