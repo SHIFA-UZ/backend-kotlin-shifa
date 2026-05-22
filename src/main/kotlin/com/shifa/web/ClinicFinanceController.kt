@@ -138,6 +138,11 @@ class ClinicFinanceController(
     data class PaymentHistoryDto(
         val id: Long,
         val treatmentPlanId: Long,
+        val patientId: Long?,
+        val patientName: String?,
+        val doctorProfileId: Long?,
+        val doctorName: String?,
+        val treatmentPlanTitle: String?,
         val amountMinor: Long,
         val currency: String,
         val method: String,
@@ -798,9 +803,11 @@ class ClinicFinanceController(
         // patient notification is best-effort.
         try {
             val patient = tp.patient
+            // Patient-only notification — `doctor` stays null so the row does not
+            // leak into the attending doctor's notifications feed.
             val notif = Notification(
                 patient = patient,
-                doctor = tp.attendingDoctor,
+                doctor = null,
                 title = "Payment schedule",
                 message = "Your clinic created a payment plan with ${items.size} installments. Please review due dates in the app.",
                 type = Notification.Type.INSTALLMENT_SCHEDULE_CREATED,
@@ -819,6 +826,26 @@ class ClinicFinanceController(
                 "Installment plan {} saved but patient notification failed: {} {}",
                 plan.id,
                 e.javaClass.simpleName,
+                e.message,
+            )
+        }
+
+        try {
+            val totalScheduled = items.sumOf { it.amountMinor }
+            val firstDue = items.minOfOrNull { it.dueDate }
+            financeService.ensureInstallmentInvoice(
+                treatmentPlan = tp,
+                installmentPlanId = plan.id,
+                totalScheduledMinor = totalScheduled,
+                currency = plan.currency,
+                firstDueDate = firstDue,
+                createdByUser = user,
+            )
+        } catch (e: Exception) {
+            log.warn(
+                "Installment invoice not created planId={} treatmentPlan={}: {}",
+                plan.id,
+                tp.id,
                 e.message,
             )
         }
@@ -985,7 +1012,7 @@ class ClinicFinanceController(
             "Reminder: installment #${item.sequenceNumber} of ${item.amountMinor / 100.0} ${item.currency} is due ${item.dueDate}."
         val notif = Notification(
             patient = patient,
-            doctor = tp.attendingDoctor,
+            doctor = null,
             title = "Installment reminder",
             message = msg,
             type = Notification.Type.TREATMENT_PLAN_PAYMENT_REMINDER,
@@ -1070,6 +1097,25 @@ class ClinicFinanceController(
     private fun toPaymentDto(p: TreatmentPlanPayment) = PaymentHistoryDto(
         id = p.id,
         treatmentPlanId = p.plan.id,
+        patientId = runCatching { p.plan.patient.id }.getOrNull(),
+        patientName = runCatching {
+            p.plan.patient.fullName.trim().ifEmpty {
+                val pid = p.plan.patient.id
+                if (pid != null) "Patient #$pid" else null
+            }
+        }.getOrNull(),
+        doctorProfileId = runCatching { p.plan.attendingDoctor?.id }.getOrNull(),
+        doctorName = runCatching {
+            val d = p.plan.attendingDoctor
+            when {
+                d == null -> null
+                else -> {
+                    val n = "${d.firstName ?: ""} ${d.lastName ?: ""}".trim()
+                    n.ifEmpty { null }
+                }
+            }
+        }.getOrNull(),
+        treatmentPlanTitle = runCatching { p.plan.title?.trim()?.takeIf { it.isNotEmpty() } }.getOrNull(),
         amountMinor = p.amountMinor,
         currency = p.currency,
         method = p.method.name,

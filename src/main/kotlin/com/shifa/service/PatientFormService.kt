@@ -111,7 +111,7 @@ class PatientFormService(
         val doctorName = "${doctor.firstName ?: ""} ${doctor.lastName ?: ""}".trim().ifEmpty { "Doctor" }
         val notif = Notification(
             patient = patient,
-            doctor = doctor,
+            doctor = null,
             title = "Signature Requested",
             message = "Dr. $doctorName is requesting your signature on medical form 025-2.",
             type = Notification.Type.SIGNATURE_REQUESTED,

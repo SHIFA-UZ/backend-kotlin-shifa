@@ -317,9 +317,13 @@ class TreatmentPlanController(
     private fun notifyPatient(plan: TreatmentPlan, type: Notification.Type, title: String, message: String) {
         val patient = plan.patient
         val pid = patient.id ?: return
+        // Patient-only notification: do NOT tag the attending doctor here.
+        // The doctor row is filtered by `doctor_id` in NotificationController, so
+        // including the doctor would surface a patient-facing message in the
+        // doctor's feed (e.g. "Your treatment plan status is now CANCELLED").
         val n = Notification(
             patient = patient,
-            doctor = plan.attendingDoctor,
+            doctor = null,
             title = title,
             message = message,
             type = type,

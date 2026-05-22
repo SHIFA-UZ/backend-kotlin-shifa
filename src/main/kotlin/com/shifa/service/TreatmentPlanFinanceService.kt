@@ -8,10 +8,12 @@ import com.shifa.repo.FinancialRecordRepository
 import com.shifa.repo.TreatmentPlanLineRepository
 import com.shifa.repo.TreatmentPlanPaymentRepository
 import com.shifa.repo.TreatmentPlanRepository
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
+import java.time.LocalDate
 import java.time.OffsetDateTime
 
 @Service
@@ -21,6 +23,8 @@ class TreatmentPlanFinanceService(
     private val paymentsRepo: TreatmentPlanPaymentRepository,
     private val financialRecords: FinancialRecordRepository,
 ) {
+
+    private val log = LoggerFactory.getLogger(javaClass)
 
     @Transactional
     fun recalculatePlanTotals(planId: Long): TreatmentPlan {
@@ -78,6 +82,42 @@ class TreatmentPlanFinanceService(
             financialRecords.save(fr)
         }
 
+        // Best-effort: mirror each plan payment into a RECEIPT doc so Finance →
+        // Records is never empty purely because nobody created manual records.
+        if (financialRecord == null && amountMinor > 0) {
+            try {
+                val notes = mutableListOf("Treatment plan payment · ${method.name}")
+                memo?.trim()?.takeIf { it.isNotEmpty() }?.let { notes += it }
+                val receipt = FinancialRecord(
+                    clinic = plan.clinic,
+                    patient = plan.patient,
+                    treatmentPlan = plan,
+                    recordType = FinancialRecord.RecordType.RECEIPT,
+                    status = FinancialRecord.Status.PAID,
+                    subtotalMinor = amountMinor,
+                    discountMinor = 0,
+                    taxMinor = 0,
+                    totalMinor = amountMinor,
+                    paidMinor = amountMinor,
+                    remainingMinor = 0,
+                    currency = currency,
+                    issuedAt = OffsetDateTime.now(),
+                    notes = notes.joinToString(" · "),
+                    createdByUser = recordedByUser,
+                )
+                val savedReceipt = financialRecords.save(receipt)
+                payment.financialRecord = savedReceipt
+                paymentsRepo.save(payment)
+            } catch (e: Exception) {
+                log.warn(
+                    "Auto RECEIPT financial record skipped for TreatmentPlanPayment id={}: {} {}",
+                    payment.id,
+                    e.javaClass.simpleName,
+                    e.message,
+                )
+            }
+        }
+
         return payment
     }
 
@@ -110,5 +150,46 @@ class TreatmentPlanFinanceService(
             createdByUser = createdByUser
         )
         return financialRecords.save(record)
+    }
+
+    /**
+     * Creates a single ISSUED invoice for a newly created installment schedule
+     * unless one already exists with the marker `Installment plan #…` (idempotent).
+     */
+    fun ensureInstallmentInvoice(
+        treatmentPlan: TreatmentPlan,
+        installmentPlanId: Long,
+        totalScheduledMinor: Long,
+        currency: String,
+        firstDueDate: LocalDate?,
+        createdByUser: User?,
+    ) {
+        val marker = "Installment plan #$installmentPlanId"
+        val existing = financialRecords.findByTreatmentPlan_IdOrderByCreatedAtDesc(treatmentPlan.id)
+            .find { fr ->
+                fr.recordType == FinancialRecord.RecordType.INVOICE &&
+                    fr.notes?.contains(marker, ignoreCase = false) == true
+            }
+        if (existing != null) return
+        if (totalScheduledMinor <= 0L) return
+        val invoice = FinancialRecord(
+            clinic = treatmentPlan.clinic,
+            patient = treatmentPlan.patient,
+            treatmentPlan = treatmentPlan,
+            recordType = FinancialRecord.RecordType.INVOICE,
+            status = FinancialRecord.Status.ISSUED,
+            subtotalMinor = totalScheduledMinor,
+            discountMinor = 0,
+            taxMinor = 0,
+            totalMinor = totalScheduledMinor,
+            paidMinor = 0,
+            remainingMinor = totalScheduledMinor,
+            currency = currency,
+            dueDate = firstDueDate,
+            issuedAt = OffsetDateTime.now(),
+            notes = marker,
+            createdByUser = createdByUser,
+        )
+        financialRecords.save(invoice)
     }
 }

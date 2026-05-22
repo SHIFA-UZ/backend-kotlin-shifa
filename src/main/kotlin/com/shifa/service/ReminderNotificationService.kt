@@ -124,7 +124,7 @@ class ReminderNotificationService(
                 val message = "Your appointment is in about 1 hour. Please be ready."
                 val notification = Notification(
                     patient = patient,
-                    doctor = appointment.doctor,
+                    doctor = null,
                     title = title,
                     message = message,
                     type = Notification.Type.APPOINTMENT_REMINDER,
@@ -177,7 +177,7 @@ class ReminderNotificationService(
                     val message = PatientPaymentPushI18n.paymentDueBody(lang, hoursForCopy)
                     val notification = Notification(
                         patient = patient,
-                        doctor = appointment.doctor,
+                        doctor = null,
                         title = title,
                         message = message,
                         type = type,
@@ -237,7 +237,7 @@ class ReminderNotificationService(
                 val pid = patient.id ?: continue
                 val notification = Notification(
                     patient = patient,
-                    doctor = plan.attendingDoctor,
+                    doctor = null,
                     title = "Payment reminder",
                     message = "You have an outstanding balance on your treatment plan. Please arrange payment at the clinic.",
                     type = Notification.Type.TREATMENT_PLAN_PAYMENT_REMINDER,
@@ -326,7 +326,7 @@ class ReminderNotificationService(
             val tp = item.installmentPlan.treatmentPlan
             val n = Notification(
                 patient = patient,
-                doctor = tp.attendingDoctor,
+                doctor = null,
                 title = title,
                 message = message,
                 type = type,
