@@ -43,6 +43,9 @@ class JwtAuthFilter(
         // 🔴 IMPORTANT: skip CORS preflight
         if (request.method.equals("OPTIONS", ignoreCase = true)) return true
 
+        // Actuator (liveness/readiness): never run JWT logic; matches SecurityConfig permitAll
+        if (path.startsWith("/actuator/")) return true
+
         return false
     }
 

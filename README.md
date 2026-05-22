@@ -252,6 +252,8 @@ Health check timeout is 180 seconds to allow for cold start + Flyway migrations.
 
 ### Docker
 
+The Dockerfile runs the JRE stage with **`Xmx≈1024m`** heap (512m proved too tight for Hibernate + Flyway startup and led to unhealthy deploys—Tomcat never bound before health timeouts). Provision **≥ ~2 GiB RAM** on the Railway service or override `JAVA_TOOL_OPTIONS` only if you know the limit.
+
 ```bash
 docker build -t shifa-api .
 docker run -p 8080:8080 \

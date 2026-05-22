@@ -131,17 +131,10 @@ class SecurityConfig(
 			.securityContext { it.requireExplicitSave(false) }
 
             // --- Custom filters: all added before UsernamePasswordAuthenticationFilter so they have a registered order.
+            // JwtAuthFilter MUST be registered before addFilterAfter(..., JwtAuthFilter::class.java) runs.
             // Order (first to run): securityHeaders -> rateLimit -> jwtAuth -> aiRateLimit -> userRateLimit -> UsernamePassword...
-            .addFilterAfter(
-                aiRateLimitFilter,
-                JwtAuthFilter::class.java
-            )
             .addFilterBefore(
-                userRateLimitFilter,
-                UsernamePasswordAuthenticationFilter::class.java
-            )
-            .addFilterBefore(
-                jwtAuthFilter,
+                securityHeadersFilter,
                 UsernamePasswordAuthenticationFilter::class.java
             )
             .addFilterBefore(
@@ -149,7 +142,15 @@ class SecurityConfig(
                 UsernamePasswordAuthenticationFilter::class.java
             )
             .addFilterBefore(
-                securityHeadersFilter,
+                jwtAuthFilter,
+                UsernamePasswordAuthenticationFilter::class.java
+            )
+            .addFilterAfter(
+                aiRateLimitFilter,
+                JwtAuthFilter::class.java
+            )
+            .addFilterBefore(
+                userRateLimitFilter,
                 UsernamePasswordAuthenticationFilter::class.java
             )
 
