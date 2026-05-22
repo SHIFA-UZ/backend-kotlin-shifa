@@ -341,7 +341,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
     fun countVideoAllTime(@Param("doctorId") doctorId: Long): Long
 
     @Query("SELECT COUNT(a) FROM Appointment a WHERE a.doctor.id = :doctorId")
-    fun countByDoctor_Id(doctor_Id: Long): Long
+    fun countByDoctor_Id(@Param("doctorId") doctorId: Long): Long
 
     fun countByDoctor_IdAndStatus(doctor_Id: Long, status: Appointment.Status): Long
 
