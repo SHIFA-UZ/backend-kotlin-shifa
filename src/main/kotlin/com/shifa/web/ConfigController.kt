@@ -1,5 +1,6 @@
 package com.shifa.web
 
+import com.shifa.config.AppProperties
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -13,7 +14,8 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/public/config")
 class ConfigController(
     @Value("\${GOOGLE_MAPS_API_KEY:}")
-    private val googleMapsApiKey: String
+    private val googleMapsApiKey: String,
+    private val appProperties: AppProperties
 ) {
     
     /**
@@ -23,7 +25,8 @@ class ConfigController(
     @GetMapping
     fun getConfig(): Map<String, String> {
         return mapOf(
-            "googleMapsApiKey" to googleMapsApiKey
+            "googleMapsApiKey" to googleMapsApiKey,
+            "transcriptionFeedbackEnabled" to if (appProperties.transcriptionFeedbackEnabled) "true" else "false"
         )
     }
 }

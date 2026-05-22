@@ -16,6 +16,9 @@ class AppProperties {
 
     // e.g., https://shifa-doctor-staging.web.app
     var frontendUrl: String = ""
+
+    /** When true, clients may POST bad STT samples to QA endpoints (multipart). Default off. */
+    var transcriptionFeedbackEnabled: Boolean = false
 }
 
 @Component

@@ -315,4 +315,36 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         @Param("start") start: Instant,
         @Param("end") end: Instant
     ): Long
+
+    @Query("""
+        SELECT COUNT(DISTINCT a.patient.id) FROM Appointment a WHERE a.doctor.id = :doctorId
+          AND a.status <> 'CANCELLED'
+    """)
+    fun countDistinctPatientsByDoctor(@Param("doctorId") doctorId: Long): Long
+
+    @Query("""
+        SELECT COUNT(a) FROM Appointment a
+        WHERE a.doctor.id = :doctorId
+          AND a.startAt >= :start AND a.startAt < :end
+    """)
+    fun countByDoctorIdAndStartAtBetween(
+        @Param("doctorId") doctorId: Long,
+        @Param("start") start: Instant,
+        @Param("end") end: Instant,
+    ): Long
+
+    @Query("""
+        SELECT COUNT(a) FROM Appointment a
+        WHERE a.doctor.id = :doctorId
+          AND LOWER(a.location) LIKE '%video%'
+    """)
+    fun countVideoAllTime(@Param("doctorId") doctorId: Long): Long
+
+    @Query("SELECT COUNT(a) FROM Appointment a WHERE a.doctor.id = :doctorId")
+    fun countByDoctor_Id(doctor_Id: Long): Long
+
+    fun countByDoctor_IdAndStatus(doctor_Id: Long, status: Appointment.Status): Long
+
+    @Query("SELECT MAX(a.startAt) FROM Appointment a WHERE a.doctor.id = :doctorId")
+    fun findMaxStartAtByDoctorId(@Param("doctorId") doctorId: Long): Instant?
 }

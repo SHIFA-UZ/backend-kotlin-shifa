@@ -124,7 +124,12 @@ class ScribePipelineService(
             log.warn("Scribe pipeline: patientId is null for appointmentId={}, skipping", appointmentId)
             return
         }
-        val transcript = transcriptionService.transcribe(audioPath, languageHint)
+        val hintEffective = languageHint ?: "uz"
+        val transcript = transcriptionService.transcribe(
+            audioPath,
+            hintEffective,
+            TranscriptionPurpose.SCRIBE_PIPELINE
+        )
         if (transcript.transcript.isBlank() || transcript.transcript == "(No speech detected)") {
             log.warn("Empty transcript, skipping draft creation")
             return

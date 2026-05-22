@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
+import java.time.OffsetDateTime
 import java.util.Optional
 
 // ✅ JpaRepository requires two type parameters: <Entity, ID>
@@ -161,4 +162,16 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
         """
     )
     fun findVisiblePatientIdsLinkedToDoctors(@Param("doctorIds") doctorIds: Collection<Long>): List<Long>
+
+    fun countByCreatedByDoctor_Id(createdByDoctorId: Long): Long
+
+    @Query(
+        """SELECT COUNT(p) FROM PatientProfile p WHERE p.createdByDoctor.id = :doctorId 
+           AND p.createdAt >= :start AND p.createdAt < :endExclusive"""
+    )
+    fun countCreatedByDoctorInDateRange(
+        @Param("doctorId") doctorId: Long,
+        @Param("start") start: OffsetDateTime,
+        @Param("endExclusive") endExclusive: OffsetDateTime,
+    ): Long
 }

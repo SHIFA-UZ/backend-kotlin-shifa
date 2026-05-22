@@ -8,6 +8,7 @@ import com.shifa.service.AiDraftNoteService
 import com.shifa.service.OpenAiResponsesService
 import com.shifa.service.PatientVisitAiSummaryService
 import com.shifa.service.SubscriptionTierService
+import com.shifa.service.TranscriptionPurpose
 import com.shifa.service.TranscriptionService
 import com.shifa.web.dto.DoctorAiRequest
 import kotlinx.coroutines.runBlocking
@@ -195,7 +196,7 @@ class DoctorAiController(
         try {
             file.transferTo(temp.toFile())
             val hint = languageHint?.takeIf { it.isNotBlank() }
-            val result = transcriptionService.transcribe(temp, hint)
+            val result = transcriptionService.transcribe(temp, hint, TranscriptionPurpose.VOICE_UPLOAD)
             return ResponseEntity.ok(mapOf("text" to result.transcript))
         } finally {
             Files.deleteIfExists(temp)

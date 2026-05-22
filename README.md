@@ -221,6 +221,11 @@ Never modify an existing migration. In dev, Hibernate `ddl-auto: update` fills g
 | `DB_PASSWORD` / `PGPASSWORD` | `shifa` | Database password (fallback) |
 | `OPENAI_PROJECT_ID` | — | OpenAI project ID |
 | `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model |
+| `OPENAI_TRANSCRIPTION_SEND_LANG` | `true` | Send `language=` to gpt-4o-transcribe; set `false` if API rejects a code |
+| `OPENAI_TRANSCRIPTION_MED_CLEANUP` | `true` | GPT pass to fix medical-term typos on long scribe transcripts |
+| `OPENAI_TRANSCRIPTION_MED_CLEANUP_VOICE` | `false` | Also run cleanup on short mic-upload transcriptions |
+| `OPENAI_TRANSCRIPTION_MED_CLEANUP_MODEL` | `gpt-4o-mini` | Model for cleanup pass |
+| `TRANSCRIPTION_FEEDBACK_ENABLED` | `false` | Enables patient/doctor “report bad transcript” + `transcriptionFeedbackEnabled` in public config |
 | `GOOGLE_MAPS_API_KEY` | — | Google Maps geocoding |
 | `RATE_LIMIT_AUTH_PER_MIN` | `10` | Auth endpoint rate limit |
 | `RATE_LIMIT_GENERAL_PER_MIN` | `200` | General API rate limit |

@@ -53,5 +53,12 @@ object SpecialtyTaxonomy {
         val hit = aliases.entries.firstOrNull { (k, _) -> raw.contains(k) || k.contains(raw) }
         return hit?.value
     }
+
+    /**
+     * Comma-separated specialty / role terms for speech-to-text prompt biasing
+     * (shared with [MedicalBiasPrompt]).
+     */
+    fun speechBiasSpecialtyTerms(): String =
+        aliases.keys.distinct().sorted().joinToString(", ")
 }
 

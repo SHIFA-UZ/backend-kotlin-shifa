@@ -2,6 +2,7 @@ package com.shifa.repo
 
 import com.shifa.domain.DoctorProfile
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.repository.query.Param
 import java.util.*
 
 interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
@@ -44,4 +45,19 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
         "LOWER(d.firstName) LIKE LOWER(CONCAT('%', :q, '%')) OR LOWER(d.lastName) LIKE LOWER(CONCAT('%', :q, '%'))"
     )
     fun findUserIdsBySearch(@org.springframework.data.repository.query.Param("q") q: String): List<Long>
+
+    /** Admin doctor-activity screen: doctors matching name / legacy clinic / structured clinic name */
+    @org.springframework.data.jpa.repository.Query(
+        """
+        SELECT DISTINCT d FROM DoctorProfile d
+        LEFT JOIN FETCH d.practiceClinic pc
+        WHERE (:search IS NULL OR :search = ''
+            OR LOWER(CONCAT(TRIM(d.firstName), ' ', TRIM(d.lastName))) LIKE LOWER(CONCAT('%', :search, '%'))
+            OR LOWER(TRIM(COALESCE(d.clinic,''))) LIKE LOWER(CONCAT('%', :search, '%'))
+            OR LOWER(TRIM(COALESCE(pc.name,''))) LIKE LOWER(CONCAT('%', :search, '%')))
+        """
+    )
+    fun findAllForAdminActivitySearch(
+        @Param("search") search: String?,
+    ): List<DoctorProfile>
 }

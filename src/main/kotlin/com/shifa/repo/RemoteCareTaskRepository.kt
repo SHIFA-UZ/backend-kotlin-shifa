@@ -1,6 +1,7 @@
 package com.shifa.repo
 
 import com.shifa.domain.RemoteCareTask
+import java.time.Instant
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -20,5 +21,32 @@ interface RemoteCareTaskRepository : JpaRepository<RemoteCareTask, Long> {
         @Param("patientId") patientId: Long,
         @Param("status") status: RemoteCareTask.Status,
         @Param("date") date: LocalDate
+    ): List<RemoteCareTask>
+
+    @Query(
+        """SELECT COUNT(t) FROM RemoteCareTask t WHERE t.doctor.id = :doctorId
+           AND t.createdAt >= :start AND t.createdAt < :endExclusive"""
+    )
+    fun countByDoctorInDateRange(
+        @Param("doctorId") doctorId: Long,
+        @Param("start") start: Instant,
+        @Param("endExclusive") endExclusive: Instant,
+    ): Long
+
+    @Query(
+        """SELECT COUNT(t) FROM RemoteCareTask t WHERE t.doctor.id = :doctorId"""
+    )
+    fun countByDoctorAllTime(@Param("doctorId") doctorId: Long): Long
+
+    @Query("SELECT MAX(t.updatedAt) FROM RemoteCareTask t WHERE t.doctor.id = :doctorId")
+    fun findMaxUpdatedAtByDoctorId(@Param("doctorId") doctorId: Long): Instant?
+
+    @Query("""
+        SELECT t FROM RemoteCareTask t WHERE t.doctor.id = :doctorId
+        AND t.createdAt >= :start AND t.createdAt < :endExclusive""")
+    fun listByDoctorCreatedBetween(
+        @Param("doctorId") doctorId: Long,
+        @Param("start") start: Instant,
+        @Param("endExclusive") endExclusive: Instant,
     ): List<RemoteCareTask>
 }

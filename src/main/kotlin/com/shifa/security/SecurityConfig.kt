@@ -21,6 +21,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 @EnableMethodSecurity(prePostEnabled = true) // NEW: Enables @PreAuthorize for defense-in-depth (e.g. controller-level role checks)
 class SecurityConfig(
     private val jwtAuthFilter: JwtAuthFilter,
+    private val aiRateLimitFilter: AiRateLimitFilter,
     private val rateLimitFilter: RateLimitFilter,
     private val userRateLimitFilter: UserRateLimitFilter,
     private val securityHeadersFilter: SecurityHeadersFilter,
@@ -130,7 +131,11 @@ class SecurityConfig(
 			.securityContext { it.requireExplicitSave(false) }
 
             // --- Custom filters: all added before UsernamePasswordAuthenticationFilter so they have a registered order.
-            // Order (first to run): securityHeaders -> rateLimit -> jwtAuth -> userRateLimit -> UsernamePassword...
+            // Order (first to run): securityHeaders -> rateLimit -> jwtAuth -> aiRateLimit -> userRateLimit -> UsernamePassword...
+            .addFilterAfter(
+                aiRateLimitFilter,
+                JwtAuthFilter::class.java
+            )
             .addFilterBefore(
                 userRateLimitFilter,
                 UsernamePasswordAuthenticationFilter::class.java
@@ -240,7 +245,11 @@ class SecurityConfig(
                 "Content-Type",
                 "Authorization",
                 "Content-Disposition",
-                "Content-Length"
+                "Content-Length",
+                "X-RateLimit-Limit",
+                "X-RateLimit-Remaining",
+                "X-RateLimit-Reset",
+                "Retry-After"
             )
 
             allowCredentials = true

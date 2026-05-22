@@ -3,6 +3,7 @@ package com.shifa.domain
 
 import jakarta.persistence.*
 import java.time.LocalDate
+import java.time.OffsetDateTime
 
 @Entity
 @Table(name = "patient_profiles")
@@ -82,6 +83,9 @@ open class PatientProfile(
     @Column(name = "time_zone", length = 64)
     open var timeZone: String? = null,
 
+    @Column(name = "created_at", insertable = false, updatable = false)
+    open var createdAt: OffsetDateTime? = null,
+
     @OneToMany(
         mappedBy = "patient",
         cascade = [CascadeType.ALL],
@@ -113,6 +117,7 @@ open class PatientProfile(
         createdByDoctor = null,
         fcmToken = null,
         timeZone = null,
+        createdAt = null,
         documents = mutableListOf()
     )
 

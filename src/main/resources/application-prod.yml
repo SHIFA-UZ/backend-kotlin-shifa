@@ -100,6 +100,13 @@ app:
       requests-per-minute: ${RATE_LIMIT_AUTH_PER_MIN:10}
     general:
       requests-per-minute: ${RATE_LIMIT_GENERAL_PER_MIN:200}
+    ai:
+      enabled: ${AI_RATE_LIMIT_ENABLED:true}
+      patient-daily-requests: ${AI_RATE_LIMIT_PATIENT_DAILY:30}
+      doctor-daily-requests: ${AI_RATE_LIMIT_DOCTOR_DAILY:100}
+      patient-burst-per-min: ${AI_RATE_LIMIT_PATIENT_BURST_PER_MIN:10}
+      doctor-burst-per-min: ${AI_RATE_LIMIT_DOCTOR_BURST_PER_MIN:20}
+      timezone: ${AI_RATE_LIMIT_TIMEZONE:Asia/Tashkent}
   jwt:
     issuer: ${JWT_ISSUER:shifa}
     # CRITICAL: Use a strong random secret in production!
@@ -123,6 +130,7 @@ app:
   # In Railway: Use /app/storage/images (mounted volume) or /tmp/storage/images (ephemeral)
   # For persistent storage, use Railway Volume mounted at /app/storage
   storageRoot: ${STORAGE_ROOT:/app/storage/images}
+  transcription-feedback-enabled: ${TRANSCRIPTION_FEEDBACK_ENABLED:false}
 
 # OpenAI API configuration
 openai:
@@ -130,10 +138,16 @@ openai:
   projectId: ${OPENAI_PROJECT_ID}
   model: ${OPENAI_MODEL:gpt-4o-mini}
   transcription-model: ${OPENAI_TRANSCRIPTION_MODEL:gpt-4o-transcribe}
+  transcription-send-language-param: ${OPENAI_TRANSCRIPTION_SEND_LANG:true}
+  transcription-medical-cleanup-enabled: ${OPENAI_TRANSCRIPTION_MED_CLEANUP:true}
+  transcription-medical-cleanup-voice-uploads: ${OPENAI_TRANSCRIPTION_MED_CLEANUP_VOICE:false}
+  transcription-medical-cleanup-min-words: 10
+  transcription-medical-cleanup-model: ${OPENAI_TRANSCRIPTION_MED_CLEANUP_MODEL:gpt-4o-mini}
   url: ${OPENAI_URL:https://api.openai.com/v1/responses}
   temperature: ${OPENAI_TEMPERATURE:0.2}
   maxTokens: ${OPENAI_MAX_TOKENS:600}
   requestTimeoutMs: ${OPENAI_REQUEST_TIMEOUT_MS:15000}
+  maxRequestsPerMinute: ${OPENAI_GLOBAL_MAX_REQ_PER_MIN:600}
 
 # Daily.co Video API configuration
 # Get your API key from https://dashboard.daily.co/

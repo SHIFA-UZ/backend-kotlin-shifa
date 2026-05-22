@@ -38,4 +38,28 @@ interface PatientDocumentRepository : JpaRepository<PatientDocument, Long> {
         @Param("docStart") docStart: LocalDate,
         @Param("docEnd") docEnd: LocalDate
     ): Long
+
+    @Query(
+        """SELECT COUNT(d) FROM PatientDocument d WHERE d.uploadedByDoctor IS NOT NULL
+           AND d.uploadedByDoctor.id = :doctorId AND d.date >= :from AND d.date <= :toInclusive"""
+    )
+    fun countByUploadedDoctorAndDocumentDateBetween(
+        @Param("doctorId") doctorId: Long,
+        @Param("from") from: LocalDate,
+        @Param("toInclusive") toInclusive: LocalDate,
+    ): Long
+
+    @Query(
+        """SELECT COUNT(d) FROM PatientDocument d WHERE d.uploadedByDoctor IS NOT NULL AND d.uploadedByDoctor.id = :doctorId"""
+    )
+    fun countUploadedByDoctorAllTime(@Param("doctorId") doctorId: Long): Long
+
+    @Query("""
+        SELECT d FROM PatientDocument d WHERE d.uploadedByDoctor IS NOT NULL AND d.uploadedByDoctor.id = :doctorId
+        AND d.date >= :from AND d.date <= :toInclusive""")
+    fun listUploadedByDoctorInDocumentDateRange(
+        @Param("doctorId") doctorId: Long,
+        @Param("from") from: LocalDate,
+        @Param("toInclusive") toInclusive: LocalDate,
+    ): List<PatientDocument>
 }

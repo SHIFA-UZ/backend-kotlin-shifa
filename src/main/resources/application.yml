@@ -87,6 +87,13 @@ app:
       requests-per-minute: 10
     general:
       requests-per-minute: 200
+    ai:
+      enabled: ${AI_RATE_LIMIT_ENABLED:true}
+      patient-daily-requests: ${AI_RATE_LIMIT_PATIENT_DAILY:30}
+      doctor-daily-requests: ${AI_RATE_LIMIT_DOCTOR_DAILY:100}
+      patient-burst-per-min: ${AI_RATE_LIMIT_PATIENT_BURST_PER_MIN:10}
+      doctor-burst-per-min: ${AI_RATE_LIMIT_DOCTOR_BURST_PER_MIN:20}
+      timezone: ${AI_RATE_LIMIT_TIMEZONE:Asia/Tashkent}
   jwt:
     issuer: "shifa"
     # Development secret - MUST be changed in production!
@@ -97,6 +104,7 @@ app:
   # For Railway: Set PUBLIC_BASE_URL to your Railway app URL (same as API)
   publicBaseUrl: http://localhost:8080  # Changed from 8090 - now served from Spring Boot
   storageRoot: ./public-storage/images
+  transcription-feedback-enabled: ${TRANSCRIPTION_FEEDBACK_ENABLED:false}
 
 # OpenAI configuration
 # In development, these can be set via environment variables
@@ -106,11 +114,17 @@ openai:
   projectId: ${OPENAI_PROJECT_ID:}
   model: gpt-4o-mini
   transcription-model: ${OPENAI_TRANSCRIPTION_MODEL:gpt-4o-transcribe}
+  transcription-send-language-param: ${OPENAI_TRANSCRIPTION_SEND_LANG:true}
+  transcription-medical-cleanup-enabled: ${OPENAI_TRANSCRIPTION_MED_CLEANUP:true}
+  transcription-medical-cleanup-voice-uploads: ${OPENAI_TRANSCRIPTION_MED_CLEANUP_VOICE:false}
+  transcription-medical-cleanup-min-words: 10
+  transcription-medical-cleanup-model: ${OPENAI_TRANSCRIPTION_MED_CLEANUP_MODEL:gpt-4o-mini}
   url: https://api.openai.com/v1/responses
   temperature: 0.2
   maxTokens: 600
   requestTimeoutMs: 15000
   promptVersion: "1"
+  maxRequestsPerMinute: ${OPENAI_GLOBAL_MAX_REQ_PER_MIN:600}
 
 # Daily.co Video API configuration
 # Get your API key from https://dashboard.daily.co/
