@@ -47,6 +47,8 @@ class TreatmentPlanController(
     private val objectMapper: ObjectMapper,
     private val doctorLocations: DoctorLocationRepository,
     private val patientDaySlots: PatientDaySlotsService,
+    private val doctorServices: DoctorServiceRepository,
+    private val doctorServicePrices: DoctorServicePriceRepository,
 ) {
 
     data class CatalogItemDto(
@@ -60,6 +62,36 @@ class TreatmentPlanController(
         val sortOrder: Int,
         val appliesToAllDoctors: Boolean,
         val assignedDoctorProfileIds: List<Long>,
+    )
+
+    /**
+     * Unified service option for the clinic Services tab and the treatment-plan
+     * wizard. Each row is either a clinic-managed catalog item or a
+     * doctor-defined service from the doctor's profile (when that service is
+     * not already mirroring a clinic catalog item).
+     *
+     * - [kind] = "CLINIC_CATALOG" — sourced from `treatment_plan_catalog_items`,
+     *   shared across the clinic. `catalogItemId` is set.
+     * - [kind] = "DOCTOR_SERVICE" — sourced from `doctor_services` (a single
+     *   doctor's own catalog row). `doctorServiceId` is set.
+     *
+     * [offeredByDoctorIds]/[offeredByDoctorNames] tell the UI which doctors of
+     * the clinic offer this service so it can render doctor tags on every line.
+     * The lists carry the **same length and the same order** (paired entries).
+     */
+    data class PlanServiceOptionDto(
+        /** Stable unique key for UI list rendering, e.g. "catalog:42" or "doctor:7:service:123". */
+        val key: String,
+        val kind: String,
+        val catalogItemId: Long?,
+        val doctorServiceId: Long?,
+        val title: String,
+        val code: String?,
+        val defaultPriceMinor: Long,
+        val currency: String,
+        val active: Boolean,
+        val offeredByDoctorIds: List<Long>,
+        val offeredByDoctorNames: List<String>,
     )
 
     data class UpsertCatalogItemRequest(
@@ -416,6 +448,143 @@ class TreatmentPlanController(
     ): List<CatalogItemDto> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         return catalogRepo.findByClinic_IdOrderByActiveDescSortOrderAscIdAsc(clinicId).map { toCatalogItemDto(it) }
+    }
+
+    /**
+     * Unified service catalog combining the clinic-managed catalog with
+     * doctor-defined profile services.
+     *
+     * - When [doctorIds] is null/empty, returns the full set: every clinic
+     *   catalog item + every doctor-only service (not mirroring a catalog row)
+     *   for every doctor practising at the clinic. Used by the Clinic →
+     *   Services tab to show the full picture (so doctor-defined services
+     *   appear without forcing them through clinic-level provisioning first).
+     * - When [doctorIds] is supplied, returns the union of:
+     *     - catalog items that apply to at least one of those doctors
+     *       (either `appliesToAllDoctors = true`, or one of the doctors is in
+     *       the explicit assignment list), and
+     *     - doctor-only services from those same doctors.
+     *   Used by the treatment-plan wizard so the service picker is filtered to
+     *   what the selected attending doctors can actually deliver, and each
+     *   line shows a doctor tag.
+     *
+     * By default inactive doctor services are skipped; clinic catalog rows are
+     * always returned (the UI greys out inactive ones), matching the existing
+     * `/catalog-items` behaviour.
+     */
+    @GetMapping("/plan-services")
+    @Transactional(readOnly = true)
+    fun listPlanServices(
+        @AuthenticationPrincipal principal: Any,
+        @RequestParam clinicId: Long,
+        @RequestParam(required = false) doctorIds: List<Long>? = null,
+        @RequestParam(required = false, defaultValue = "false") includeInactiveDoctorServices: Boolean,
+    ): List<PlanServiceOptionDto> {
+        clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
+
+        val practiceDoctors = doctors.findAllByPracticeClinic_Id(clinicId)
+        val practiceIds = practiceDoctors.mapNotNull { it.id }.toSet()
+        val nameByDoctorId: Map<Long, String> = practiceDoctors.associate { d ->
+            (d.id ?: 0L) to "${d.firstName} ${d.lastName}".trim()
+        }
+
+        val doctorIdFilter = doctorIds?.toSet()?.takeIf { it.isNotEmpty() }
+        if (doctorIdFilter != null) {
+            val unknown = doctorIdFilter - practiceIds
+            if (unknown.isNotEmpty()) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Doctor(s) not in clinic practice: ${unknown.joinToString()}",
+                )
+            }
+        }
+
+        val out = mutableListOf<PlanServiceOptionDto>()
+
+        // --- Clinic catalog items -------------------------------------------
+        val catalogItems = catalogRepo.findByClinic_IdOrderByActiveDescSortOrderAscIdAsc(clinicId)
+        for (item in catalogItems) {
+            val offeredBy: Set<Long> = if (item.appliesToAllDoctors) {
+                practiceIds
+            } else {
+                clinicCatalog.explicitAssignmentIds(item.id).toSet()
+            }
+            if (doctorIdFilter != null && offeredBy.intersect(doctorIdFilter).isEmpty()) {
+                continue
+            }
+            val offeredIds = offeredBy.toList().sorted()
+            out.add(
+                PlanServiceOptionDto(
+                    key = "catalog:${item.id}",
+                    kind = "CLINIC_CATALOG",
+                    catalogItemId = item.id,
+                    doctorServiceId = null,
+                    title = item.title,
+                    code = item.code,
+                    defaultPriceMinor = item.defaultPriceMinor,
+                    currency = item.currency,
+                    active = item.active,
+                    offeredByDoctorIds = offeredIds,
+                    offeredByDoctorNames = offeredIds.map { id ->
+                        nameByDoctorId[id]?.takeIf { it.isNotEmpty() } ?: "Doctor #$id"
+                    },
+                ),
+            )
+        }
+
+        // --- Doctor-only services (not synced from a clinic catalog item) ---
+        val targetDoctorIds = doctorIdFilter ?: practiceIds
+        for (doctorId in targetDoctorIds) {
+            val displayName = nameByDoctorId[doctorId]?.takeIf { it.isNotEmpty() }
+                ?: "Doctor #$doctorId"
+            val services = doctorServices.findByDoctorIdOrderByCreatedAtAsc(doctorId)
+            for (svc in services) {
+                if (svc.sourceCatalogItem != null) continue // already represented by a CLINIC_CATALOG row
+                if (!includeInactiveDoctorServices && !svc.isActive) continue
+
+                val price = pickDoctorServicePrice(svc.id)
+                val amountMinor = price?.amountMinor ?: 0L
+                val currency = price?.currency
+                    ?: svc.sourceCatalogItem?.currency
+                    ?: "UZS"
+                out.add(
+                    PlanServiceOptionDto(
+                        key = "doctor:$doctorId:service:${svc.id}",
+                        kind = "DOCTOR_SERVICE",
+                        catalogItemId = null,
+                        doctorServiceId = svc.id,
+                        title = svc.title,
+                        code = null,
+                        defaultPriceMinor = amountMinor,
+                        currency = currency,
+                        active = svc.isActive,
+                        offeredByDoctorIds = listOf(doctorId),
+                        offeredByDoctorNames = listOf(displayName),
+                    ),
+                )
+            }
+        }
+
+        // Stable display ordering: clinic catalog first (preserving repo
+        // ordering), then doctor services grouped by doctor name then title.
+        return out.sortedWith(
+            compareBy<PlanServiceOptionDto> { it.kind != "CLINIC_CATALOG" }
+                .thenBy { it.offeredByDoctorNames.firstOrNull()?.lowercase().orEmpty() }
+                .thenBy { it.title.lowercase() },
+        )
+    }
+
+    /**
+     * Pick a representative price row for a doctor service. Prefers a row with
+     * no `locationId` (the doctor's default) and falls back to the first row
+     * the repo returns when only per-location prices exist. Used when surfacing
+     * doctor services in the clinic-wide picker, where per-location pricing
+     * isn't shown (the treatment-plan line stores a single unit price anyway).
+     */
+    private fun pickDoctorServicePrice(serviceId: Long): com.shifa.domain.DoctorServicePrice? {
+        val rows = doctorServicePrices.findByService_IdOrderByCurrencyAsc(serviceId)
+        if (rows.isEmpty()) return null
+        return rows.firstOrNull { it.location == null } ?: rows.first()
     }
 
     @PostMapping("/catalog-items")
