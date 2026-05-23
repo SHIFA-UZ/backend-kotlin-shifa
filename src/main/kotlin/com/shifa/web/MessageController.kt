@@ -1,13 +1,15 @@
 package com.shifa.web
 
+import com.shifa.security.ClinicStaffPrincipal
 import com.shifa.security.DoctorPrincipal
 import com.shifa.service.MessageService
 import com.shifa.web.dto.*
 import jakarta.validation.Valid
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
-import org.springframework.web.multipart.MultipartFile
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/api/messages")
@@ -15,20 +17,29 @@ class MessageController(
     private val messageService: MessageService
 ) {
 
+    private fun resolveActorUserId(principal: Any): Long = when (principal) {
+        is DoctorPrincipal -> principal.profile.user.id
+        is ClinicStaffPrincipal -> principal.user.id
+        else -> throw ResponseStatusException(HttpStatus.FORBIDDEN)
+    }
+
     @GetMapping("/conversations")
     fun listConversations(
-        @AuthenticationPrincipal principal: DoctorPrincipal
+        @AuthenticationPrincipal principal: Any
     ): ResponseEntity<List<ConversationDto>> {
-        val conversations = messageService.listConversations(principal.profile.user.id)
+        val conversations = messageService.listConversations(resolveActorUserId(principal))
         return ResponseEntity.ok(conversations)
     }
 
     @GetMapping("/conversations/{conversationId}")
     fun getConversation(
         @PathVariable conversationId: Long,
-        @AuthenticationPrincipal principal: DoctorPrincipal
+        @AuthenticationPrincipal principal: Any
     ): ResponseEntity<ConversationWithMessagesDto> {
-        val result = messageService.getConversationWithMessages(conversationId, principal.profile.user.id)
+        val result = messageService.getConversationWithMessages(
+            conversationId,
+            resolveActorUserId(principal),
+        )
         return ResponseEntity.ok(result)
     }
 
@@ -38,10 +49,10 @@ class MessageController(
     @PostMapping("/conversations/start")
     fun startConversation(
         @RequestBody @Valid request: StartConversationRequest,
-        @AuthenticationPrincipal principal: DoctorPrincipal
+        @AuthenticationPrincipal principal: Any
     ): ResponseEntity<ConversationDto> {
         val conversation = messageService.startOrGetConversation(
-            doctorUserId = principal.profile.user.id,
+            doctorUserId = resolveActorUserId(principal),
             recipientDoctorId = request.recipientDoctorId,
             recipientPatientId = request.recipientPatientId
         )
@@ -51,35 +62,35 @@ class MessageController(
     @PostMapping("/send")
     fun sendMessage(
         @RequestBody @Valid request: SendMessageRequest,
-        @AuthenticationPrincipal principal: DoctorPrincipal
+        @AuthenticationPrincipal principal: Any
     ): ResponseEntity<MessageDto> {
-        val message = messageService.sendMessage(principal.profile.user.id, request)
+        val message = messageService.sendMessage(resolveActorUserId(principal), request)
         return ResponseEntity.ok(message)
     }
 
     @PostMapping("/conversations/{conversationId}/read")
     fun markAsRead(
         @PathVariable conversationId: Long,
-        @AuthenticationPrincipal principal: DoctorPrincipal
+        @AuthenticationPrincipal principal: Any
     ): ResponseEntity<Void> {
-        messageService.markAsRead(conversationId, principal.profile.user.id)
+        messageService.markAsRead(conversationId, resolveActorUserId(principal))
         return ResponseEntity.noContent().build()
     }
 
     @GetMapping("/search")
     fun searchUsers(
         @RequestParam q: String,
-        @AuthenticationPrincipal principal: DoctorPrincipal
+        @AuthenticationPrincipal principal: Any
     ): ResponseEntity<List<UserSearchResultDto>> {
-        val results = messageService.searchUsers(principal.profile.user.id, q)
+        val results = messageService.searchUsers(resolveActorUserId(principal), q)
         return ResponseEntity.ok(results)
     }
 
     @GetMapping("/unread-count")
     fun getUnreadCount(
-        @AuthenticationPrincipal principal: DoctorPrincipal
+        @AuthenticationPrincipal principal: Any
     ): ResponseEntity<Map<String, Long>> {
-        val count = messageService.getUnreadCount(principal.profile.user.id)
+        val count = messageService.getUnreadCount(resolveActorUserId(principal))
         return ResponseEntity.ok(mapOf("count" to count))
     }
 }

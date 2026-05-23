@@ -110,7 +110,7 @@ class SecurityConfig(
                 it.requestMatchers("/api/calendar/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 it.requestMatchers("/api/appointments/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 it.requestMatchers("/api/consultations/**").hasRole("DOCTOR")
-                it.requestMatchers("/api/messages/**").hasRole("DOCTOR")
+                it.requestMatchers("/api/messages/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 it.requestMatchers("/api/payments/**").hasRole("PATIENT")
                 // Patient: own remote care tasks (my-tasks)
                 it.requestMatchers("/api/tasks/my-tasks", "/api/tasks/my-tasks/**").hasRole("PATIENT")
