@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.mail.javamail.JavaMailSender
 import org.springframework.mail.javamail.MimeMessageHelper
 import org.springframework.stereotype.Service
+import org.springframework.web.util.HtmlUtils
 
 @Service
 class EmailSenderService(
@@ -89,5 +90,71 @@ class EmailSenderService(
             <p style="margin: 0; color: #888; font-size: 13px;">If you didn't request this, please ignore this email.</p>
         </body></html>
         """.trimIndent()
+    }
+
+    /**
+     * Invite a receptionist to join a clinic via the doctor app Verify Key screen.
+     */
+    fun sendClinicStaffInvitationEmail(
+        toEmail: String,
+        code: String,
+        clinicName: String,
+        inviterName: String,
+    ) {
+        if (!isConfigured()) {
+            log.warn(
+                "SMTP not configured — clinic invite for {} [{}] code={} clinic={}",
+                toEmail.take(3) + "***",
+                clinicName,
+                code,
+                clinicName
+            )
+            return
+        }
+        val sender = resolvedFrom()
+        log.info(
+            "Sending clinic staff invitation email from={} to={} clinic={}",
+            sender,
+            toEmail.take(3) + "***",
+            clinicName
+        )
+        try {
+            val subject = "Shifa – Invitation to join $clinicName"
+            val safeClinic = HtmlUtils.htmlEscape(clinicName)
+            val safeInviter = HtmlUtils.htmlEscape(inviterName)
+            val body = """
+                <!DOCTYPE html>
+                <html><head><meta charset="UTF-8"></head>
+                <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 480px; margin: 0 auto; padding: 32px 24px; color: #1a1a1a;">
+                    <div style="text-align: center; margin-bottom: 24px;">
+                        <h2 style="color: #0D9488; margin: 0;">Shifa Health</h2>
+                    </div>
+                    <h3 style="margin: 0 0 8px;">Clinic invitation</h3>
+                    <p style="margin: 0 0 16px; color: #555;">$safeInviter invited you to join <strong>$safeClinic</strong> as a receptionist. Open the <strong>Shifa Doctor</strong> app, choose verification with your invitation code, then complete signup.</p>
+                    <div style="background: #F0FDFA; border: 2px solid #0D9488; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 24px;">
+                        <span style="font-size: 28px; font-weight: 700; letter-spacing: 6px; color: #0D9488;">$code</span>
+                    </div>
+                    <p style="margin: 0 0 8px; color: #888; font-size: 13px;">This code expires on the date set by your clinic.</p>
+                    <p style="margin: 0; color: #888; font-size: 13px;">If you were not expecting this, you can ignore this email.</p>
+                </body></html>
+            """.trimIndent()
+            val message = mailSender.createMimeMessage()
+            val helper = MimeMessageHelper(message, true, "UTF-8")
+            helper.setFrom(sender, fromName)
+            helper.setTo(toEmail)
+            helper.setSubject(subject)
+            helper.setText(body, true)
+            mailSender.send(message)
+            log.info("Clinic invitation email sent to {} [{}]", toEmail.take(3) + "***", clinicName)
+        } catch (e: Exception) {
+            log.error(
+                "Failed to send clinic invitation to {} from {}: {} - {}",
+                toEmail.take(3) + "***",
+                sender,
+                e.javaClass.simpleName,
+                e.message
+            )
+            throw RuntimeException("Failed to send invitation email. Please try again later.")
+        }
     }
 }

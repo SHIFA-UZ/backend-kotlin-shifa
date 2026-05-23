@@ -54,6 +54,7 @@ class SecurityConfig(
                 it.requestMatchers(
                     "/api/auth/login",
                     "/api/auth/register",
+                    "/api/auth/register-clinic-staff",
                     "/api/auth/register-patient",
                     "/api/auth/verify-key",
                     "/api/auth/check-existing-patient",

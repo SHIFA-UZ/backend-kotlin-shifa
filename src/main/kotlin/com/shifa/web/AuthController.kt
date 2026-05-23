@@ -35,12 +35,19 @@ class AuthController(
     private val userRoles: com.shifa.repo.UserRoleRepository,
     private val firebaseAuthService: com.shifa.service.FirebaseAuthService,
     private val emailOtpService: com.shifa.service.EmailOtpService,
-    private val clinicMemberships: ClinicMembershipRepository
+    private val clinicMemberships: ClinicMembershipRepository,
+    private val clinics: ClinicRepository,
 ) {
     private val log = LoggerFactory.getLogger(AuthController::class.java)
     // ---------- VerifyKey ----------
     data class VerifyKeyRequest(@field:NotBlank val key: String)
-    data class VerifyKeyResponse(val valid: Boolean)
+    data class VerifyKeyResponse(
+        val valid: Boolean,
+        val purpose: String? = null,
+        val clinicId: Long? = null,
+        val clinicName: String? = null,
+        val emailSentTo: String? = null,
+    )
 
     /**
      * VerifyKeyScreen calls this to check if the one-time key is valid & not consumed.
@@ -48,8 +55,22 @@ class AuthController(
      */
     @PostMapping("/verify-key")
     fun verifyKey(@RequestBody @Valid req: VerifyKeyRequest): VerifyKeyResponse {
-        val key = invites.findByKeyCode(req.key.trim())
-        return VerifyKeyResponse(key != null && key.isValid())
+        val raw = invites.findByKeyCode(req.key.trim())
+        val ok = raw != null && raw.isValid()
+        if (!ok || raw == null) {
+            return VerifyKeyResponse(valid = false)
+        }
+        val cid = raw.clinic?.id
+        val clinicName =
+            cid?.let { id -> clinics.findById(id).map { it.name }.orElse(null) }
+                ?: raw.clinic?.name
+        return VerifyKeyResponse(
+            valid = true,
+            purpose = raw.purpose,
+            clinicId = cid,
+            clinicName = clinicName?.takeIf { it.isNotBlank() },
+            emailSentTo = raw.emailSentTo?.trim()?.takeIf { it.isNotBlank() },
+        )
     }
 
     // ---------- Check existing patient (for doctor registration UX) ----------
@@ -460,6 +481,12 @@ class AuthController(
         if (inv.isExpired()) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Key expired")
         }
+        if (inv.purpose == InvitationKey.PURPOSE_CLINIC_RECEPTIONIST_INVITE) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "This invitation is for clinic staff signup, not doctor registration"
+            )
+        }
 
         val phoneRaw = r.phone?.trim()?.takeIf { it.isNotBlank() }
         val phoneNorm = phoneRaw?.let { PhoneNormalizer.normalize(it) }
@@ -614,6 +641,188 @@ class AuthController(
             token = tokenResult.token,
             forcePasswordReset = user.forcePasswordReset
         )
+    }
+
+    /** Receptionist/clinic staff self-signup via [InvitationKey.PURPOSE_CLINIC_RECEPTIONIST_INVITE]; no [DoctorProfile]. */
+    data class RegisterClinicStaffRequest(
+        @field:NotBlank val firstName: String,
+        @field:NotBlank val lastName: String,
+        val phone: String? = null,
+        @field:NotBlank @field:Email val email: String,
+        @field:NotBlank val password: String,
+        @field:NotBlank val key: String,
+        val timeZone: String? = null,
+    )
+
+    @PostMapping("/register-clinic-staff")
+    fun registerClinicStaff(@RequestBody @Valid r: RegisterClinicStaffRequest): TokenResponse {
+        PasswordPolicy.validate(r.password)?.let { msg ->
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, msg)
+        }
+        val inv = invites.findByKeyCode(r.key.trim())
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid key")
+        if (inv.consumed) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Key already used")
+        }
+        if (inv.isExpired()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Key expired")
+        }
+        if (inv.purpose != InvitationKey.PURPOSE_CLINIC_RECEPTIONIST_INVITE ||
+            inv.clinic == null || inv.membershipRole == null
+        ) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid key for clinic staff registration")
+        }
+        val clinic = clinics.findById(inv.clinic!!.id).orElseThrow {
+            ResponseStatusException(HttpStatus.BAD_REQUEST, "Clinic no longer exists")
+        }
+        val membershipRole =
+            inv.membershipRole ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid invitation")
+
+        val phoneRaw = r.phone?.trim()?.takeIf { it.isNotBlank() }
+        val phoneNorm = phoneRaw?.let { PhoneNormalizer.normalize(it) }
+        if (phoneRaw != null && phoneNorm == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
+        }
+        val emailTrimmed = r.email.trim().lowercase()
+
+        inv.emailSentTo?.trim()?.lowercase()?.takeIf { it.isNotBlank() }?.let { intended ->
+            if (emailTrimmed != intended) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Use the email address your invitation was sent to, or request a new invitation."
+                )
+            }
+        }
+
+        val byPhoneRaw = phoneRaw?.let { users.findByPhone(it).orElse(null) }
+        val byPhoneNorm = phoneNorm?.let { users.findByPhone(it).orElse(null) }
+        val byPhone = byPhoneRaw ?: byPhoneNorm
+        val byEmail = users.findByEmailIgnoreCase(emailTrimmed).orElse(null)
+
+        if (byPhone != null && byEmail != null && byPhone.id != byEmail.id) {
+            throw ResponseStatusException(
+                HttpStatus.CONFLICT,
+                "The phone number and email belong to different accounts. Use the matching phone and email or contact support."
+            )
+        }
+
+        val existingUser = when {
+            byPhone != null -> {
+                val phoneUserEmail = byPhone.email
+                if (!phoneUserEmail.isNullOrBlank() && !phoneUserEmail.trim().equals(emailTrimmed, ignoreCase = true)) {
+                    throw ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This phone number is already registered with a different email address."
+                    )
+                }
+                byPhone
+            }
+            byEmail != null -> byEmail
+            else -> null
+        }
+
+        if (existingUser == null) {
+            val emailHash = sha256Hex(emailTrimmed)
+            if (users.findByEmailOriginalHashAndAccountStatus(emailHash, User.AccountStatus.DELETED).isPresent) {
+                throw ResponseStatusException(
+                    HttpStatus.CONFLICT,
+                    "This email was previously used for a Shifa account. Use a different email or contact support."
+                )
+            }
+        }
+
+        val user = if (existingUser != null) {
+            if (phoneNorm != null && !existingUser.phone.isNullOrBlank()) {
+                val ep = existingUser.phone!!.trim()
+                if (ep != phoneNorm && (phoneRaw == null || ep != phoneRaw.trim())) {
+                    throw ResponseStatusException(
+                        HttpStatus.CONFLICT,
+                        "This email is already registered with a different phone number."
+                    )
+                }
+            }
+            if (!existingUser.enabled) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Account is disabled.")
+            }
+            if (!userRoles.existsByUserIdAndRole(existingUser.id, Role.CLINIC_STAFF)) {
+                userRoles.save(com.shifa.domain.UserRole(user = existingUser, role = Role.CLINIC_STAFF))
+            }
+            existingUser.passwordHash = encoder.encode(r.password)
+            if (existingUser.email.isNullOrBlank()) {
+                existingUser.email = emailTrimmed
+            }
+            if (existingUser.phone.isNullOrBlank() && phoneNorm != null) {
+                existingUser.phone = phoneNorm
+            }
+            users.save(existingUser)
+            log.info("Ensured CLINIC_STAFF role on existing user ${existingUser.id} for clinic signup")
+            existingUser
+        } else {
+            if (phoneNorm != null) {
+                if (users.findByPhone(phoneNorm).isPresent || phoneRaw?.let { users.findByPhone(it).isPresent } == true) {
+                    throw ResponseStatusException(HttpStatus.CONFLICT, "Phone already registered")
+                }
+            }
+            if (users.findByEmailIgnoreCase(emailTrimmed).isPresent) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Email already registered")
+            }
+            users.save(
+                User(
+                    email = emailTrimmed,
+                    phone = phoneNorm,
+                    passwordHash = encoder.encode(r.password),
+                    role = Role.CLINIC_STAFF,
+                ),
+            ).also { newUser ->
+                userRoles.save(com.shifa.domain.UserRole(user = newUser, role = Role.CLINIC_STAFF))
+            }
+        }
+
+        user.staffFirstName = r.firstName.trim()
+        user.staffLastName = r.lastName.trim()
+        val tzEffective = r.timeZone?.takeIf { it.isNotBlank() }
+            ?: user.staffTimeZone?.takeIf { it.isNotBlank() }
+            ?: "UTC"
+        user.staffTimeZone = tzEffective
+        val patientProfile = patients.findByUserId(user.id).orElse(null)
+        val patientPhotoUrl = patientProfile?.photoUrl?.takeIf { it.isNotBlank() }
+        if (user.staffPhotoUrl.isNullOrBlank() && patientPhotoUrl != null) {
+            user.staffPhotoUrl = patientPhotoUrl
+        }
+        users.save(user)
+
+        val existingMembership = clinicMemberships.findByClinic_IdAndUser_Id(clinic.id, user.id)
+        if (existingMembership != null) {
+            existingMembership.membershipRole = membershipRole
+            existingMembership.active = true
+            existingMembership.doctorProfile = null
+            clinicMemberships.save(existingMembership)
+        } else {
+            clinicMemberships.save(
+                com.shifa.domain.ClinicMembership(
+                    clinic = clinic,
+                    user = user,
+                    membershipRole = membershipRole,
+                ),
+            )
+        }
+
+        inv.consumed = true
+        inv.consumedAt = OffsetDateTime.now()
+        inv.consumedByUserId = user.id
+        invites.save(inv)
+
+        val principal = user.email?.takeIf { it.isNotBlank() } ?: user.phone
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Account must have email or phone")
+        val tokenResult = jwt.generate(user.id, principal, Role.CLINIC_STAFF.name)
+        userSessions.save(
+            UserSession(
+                user = user,
+                tokenJti = tokenResult.jti,
+                expiresAt = OffsetDateTime.ofInstant(tokenResult.expiresAt, ZoneOffset.UTC),
+            ),
+        )
+        return TokenResponse(token = tokenResult.token, forcePasswordReset = user.forcePasswordReset)
     }
 
     // ---------- Login ----------

@@ -12,6 +12,16 @@ import java.time.OffsetDateTime
 @Repository
 interface InvitationKeyRepository : JpaRepository<InvitationKey, Long> {
     fun findByKeyCode(keyCode: String): InvitationKey?
+
+    @Query(
+        "SELECT k FROM InvitationKey k WHERE k.clinic.id = :clinicId AND k.purpose = :purpose ORDER BY k.id DESC"
+    )
+    fun findByClinic_IdAndPurpose(
+        @Param("clinicId") clinicId: Long,
+        @Param("purpose") purpose: String,
+    ): List<InvitationKey>
+
+    fun findByIdAndClinic_Id(id: Long, clinicId: Long): InvitationKey?
     
     fun findByConsumedOrderByCreatedAtDesc(consumed: Boolean, pageable: Pageable): Page<InvitationKey>
     

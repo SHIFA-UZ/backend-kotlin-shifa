@@ -1,5 +1,7 @@
 package com.shifa.service
 
+import com.shifa.domain.Clinic
+import com.shifa.domain.ClinicMembership
 import com.shifa.domain.InvitationKey
 import com.shifa.domain.User
 import com.shifa.repo.InvitationKeyRepository
@@ -22,22 +24,26 @@ class InvitationKeyService(
     fun generateKey(
         createdBy: User? = null,
         expiresInDays: Int? = null,
-        purpose: String = "DOCTOR_ONBOARDING",
-        notes: String? = null
+        purpose: String = InvitationKey.PURPOSE_DOCTOR_ONBOARDING,
+        notes: String? = null,
+        clinic: Clinic? = null,
+        membershipRole: ClinicMembership.MembershipRole? = null,
     ): InvitationKey {
         val keyCode = generateUniqueKeyCode()
         val expiresAt = expiresInDays?.let {
             OffsetDateTime.now().plusDays(it.toLong())
         }
-        
+
         val key = InvitationKey(
             keyCode = keyCode,
             createdBy = createdBy,
             expiresAt = expiresAt,
             purpose = purpose,
-            notes = notes
+            notes = notes,
+            clinic = clinic,
+            membershipRole = membershipRole,
         )
-        
+
         return invitationKeyRepository.save(key)
     }
     
@@ -90,7 +96,9 @@ class InvitationKeyService(
             createdBy = createdBy,
             expiresInDays = expiresInDays,
             purpose = oldKey.purpose,
-            notes = "Regenerated from key ${oldKey.keyCode}"
+            notes = "Regenerated from key ${oldKey.keyCode}",
+            clinic = oldKey.clinic,
+            membershipRole = oldKey.membershipRole,
         )
     }
     

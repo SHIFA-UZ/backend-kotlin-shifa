@@ -58,7 +58,20 @@ class User(
      */
     @Enumerated(EnumType.STRING)
     @Column(name = "subscription_tier", nullable = false, length = 16)
-    var subscriptionTier: SubscriptionTier = SubscriptionTier.PREMIUM
+    var subscriptionTier: SubscriptionTier = SubscriptionTier.PREMIUM,
+
+    /** Display name / settings for users with [Role.CLINIC_STAFF] (no [DoctorProfile]). */
+    @Column(name = "staff_first_name")
+    var staffFirstName: String? = null,
+
+    @Column(name = "staff_last_name")
+    var staffLastName: String? = null,
+
+    @Column(name = "staff_time_zone")
+    var staffTimeZone: String? = null,
+
+    @Column(name = "staff_photo_url")
+    var staffPhotoUrl: String? = null,
 ) {
     fun isLocked(): Boolean = lockedUntil != null && lockedUntil!!.isAfter(OffsetDateTime.now())
 

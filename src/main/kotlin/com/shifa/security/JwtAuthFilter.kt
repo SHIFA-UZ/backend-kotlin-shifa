@@ -28,6 +28,7 @@ class JwtAuthFilter(
         val path = request.servletPath
         if (path == "/api/auth/login" || 
             path == "/api/auth/register" || 
+            path == "/api/auth/register-clinic-staff" ||
             path == "/api/auth/register-patient" || 
             path == "/api/auth/verify-key" ||
             path == "/api/auth/check-existing-patient" ||

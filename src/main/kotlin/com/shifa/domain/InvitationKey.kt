@@ -33,11 +33,25 @@ class InvitationKey(
     var emailSentAt: OffsetDateTime? = null,
     
     @Column(nullable = false)
-    var purpose: String = "DOCTOR_ONBOARDING", // DOCTOR_ONBOARDING | PATIENT_INVITE | etc.
+    var purpose: String = "DOCTOR_ONBOARDING",
     
     @Column(columnDefinition = "TEXT")
-    var notes: String? = null
+    var notes: String? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "clinic_id")
+    var clinic: Clinic? = null,
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "membership_role", length = 32)
+    var membershipRole: ClinicMembership.MembershipRole? = null,
 ) {
     fun isExpired(): Boolean = expiresAt != null && expiresAt!!.isBefore(OffsetDateTime.now())
     fun isValid(): Boolean = !consumed && !isExpired()
+
+    companion object {
+        const val PURPOSE_DOCTOR_ONBOARDING = "DOCTOR_ONBOARDING"
+        /** Receptionist (or other clinic staff) signup via clinic invitation. */
+        const val PURPOSE_CLINIC_RECEPTIONIST_INVITE = "CLINIC_RECEPTIONIST_INVITE"
+    }
 }
