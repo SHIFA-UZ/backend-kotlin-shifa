@@ -17,6 +17,7 @@ import com.shifa.security.PatientPrincipal
 import com.shifa.service.DoctorServicePricing
 import com.shifa.service.FcmService
 import com.shifa.service.PatientDocumentService
+import com.shifa.service.SlotAvailabilityService
 import com.shifa.service.PatientProfileMapper
 import com.shifa.web.dto.PatientDocumentDto
 import org.springframework.http.HttpStatus
@@ -48,7 +49,8 @@ class PatientController(
     private val patientDocumentService: PatientDocumentService,
     private val notifications: NotificationRepository,
     private val fcmService: FcmService,
-    private val subscriptionTierService: com.shifa.service.SubscriptionTierService
+    private val subscriptionTierService: com.shifa.service.SubscriptionTierService,
+    private val slotAvailabilityService: SlotAvailabilityService
 ) {
 
     // -------------------- Helper --------------------
@@ -356,7 +358,7 @@ class PatientController(
             )
         }
 
-        // Resolve the structured doctor location (if any). Rules:
+        // Resolve structured location early (needed for consecutive-slot validation and pricing).
         //  - Video consultation -> no locationRef.
         //  - Patient provided a locationId -> must belong to this doctor.
         //  - Multi-location doctor -> require a locationId to avoid ambiguity.
@@ -377,6 +379,17 @@ class PatientController(
             availableLocations.size == 1 -> availableLocations.first()
             else -> null
         }
+        val filterSlotsLocation = when {
+            req.isVideo -> null
+            else -> locationRef?.id
+        }
+        slotAvailabilityService.assertBookableConsecutiveRange(
+            doctor = doctor,
+            startAt = startAt,
+            endAt = endAt,
+            filterLocationId = filterSlotsLocation,
+            excludeAppointmentId = null
+        )
 
         val location = when {
             req.isVideo -> "Video Consultation"

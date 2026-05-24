@@ -11,6 +11,7 @@ import com.shifa.repo.UserRepository
 import com.shifa.security.DoctorPrincipal
 import com.shifa.service.ClinicAccessService
 import com.shifa.service.FcmService
+import com.shifa.service.SlotAvailabilityService
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
@@ -29,7 +30,8 @@ class BookingController(
     private val doctors: DoctorProfileRepository,
     private val users: UserRepository,
     private val clinicAccess: ClinicAccessService,
-    private val fcmService: FcmService
+    private val fcmService: FcmService,
+    private val slotAvailabilityService: SlotAvailabilityService
 ) {
 
     /** startAt: ISO 8601 UTC (e.g. 2026-02-12T13:00:00Z). No timezone guessing. */
@@ -115,6 +117,18 @@ class BookingController(
             doctorLocs.isNotEmpty() -> doctorLocs.firstOrNull { it.isPrimary } ?: doctorLocs.first()
             else -> null
         }
+
+        val filterLocationForSlots = when {
+            b.isVideo -> null
+            else -> locationRef?.id
+        }
+        slotAvailabilityService.assertBookableConsecutiveRange(
+            doctor = doctor,
+            startAt = startAt,
+            endAt = endAt,
+            filterLocationId = filterLocationForSlots,
+            excludeAppointmentId = null
+        )
 
         val location = when {
             b.isVideo -> "Video Consultation"

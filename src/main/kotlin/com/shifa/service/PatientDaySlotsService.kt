@@ -43,7 +43,9 @@ class PatientDaySlotsService(
     fun availableSlotsForDay(
         doctor: DoctorProfile,
         localDate: LocalDate,
-        locationId: Long? = null
+        locationId: Long? = null,
+        /** When resizing / moving an appointment, exclude it so its own time stays "free" for validation. */
+        excludeAppointmentId: Long? = null
     ): List<AvailableSlotDto> {
         val weekday = localDate.dayOfWeek.value
         val zone = ZoneId.of(doctor.timeZone)
@@ -109,6 +111,7 @@ class PatientDaySlotsService(
         // Conflicts are computed against ALL of this doctor's appointments for the day,
         // regardless of location – a doctor can only be in one place at a time.
         val existingAppts = appts.findOverlapping(doctor.id!!, dayStart, dayEnd)
+            .filter { excludeAppointmentId == null || it.id != excludeAppointmentId }
 
         fun overlaps(a: Instant, b: Instant, c: Instant, d: Instant) = a < d && c < b
 
