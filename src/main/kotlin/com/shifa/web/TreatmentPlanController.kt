@@ -41,6 +41,7 @@ class TreatmentPlanController(
     private val paymentsRepo: TreatmentPlanPaymentRepository,
     private val appts: AppointmentRepository,
     private val installmentPlans: InstallmentPlanRepository,
+    private val installmentItems: InstallmentItemRepository,
     private val users: UserRepository,
     private val notifications: NotificationRepository,
     private val fcmService: FcmService,
@@ -164,12 +165,23 @@ class TreatmentPlanController(
         val lineTotalMinor: Long,
     )
 
+    data class InstallmentScheduleRowDto(
+        /** Stable id used by Finance → installments. */
+        val installmentItemId: Long,
+        val sequenceNumber: Int,
+        val dueDate: String,
+        val amountMinor: Long,
+        val currency: String,
+        val status: String,
+    )
+
     data class InstallmentSummaryDto(
         val installmentPlanId: Long,
         val status: String,
         val totalAmountMinor: Long,
         val currency: String,
         val numInstallments: Int,
+        val scheduleRows: List<InstallmentScheduleRowDto> = emptyList(),
     )
 
     data class TreatmentPlanDetailDto(
@@ -330,12 +342,24 @@ class TreatmentPlanController(
 
     private fun toDetail(plan: TreatmentPlan): TreatmentPlanDetailDto {
         val summaries = installmentPlans.findByTreatmentPlan_IdOrderByCreatedAtDesc(plan.id).map { ip ->
+            val schedule =
+                installmentItems.findByInstallmentPlan_IdOrderBySequenceNumberAsc(ip.id).map { ii ->
+                    InstallmentScheduleRowDto(
+                        installmentItemId = ii.id,
+                        sequenceNumber = ii.sequenceNumber,
+                        dueDate = ii.dueDate.toString(),
+                        amountMinor = ii.amountMinor,
+                        currency = ii.currency,
+                        status = ii.status.name,
+                    )
+                }
             InstallmentSummaryDto(
                 installmentPlanId = ip.id,
                 status = ip.status.name,
                 totalAmountMinor = ip.totalAmountMinor,
                 currency = ip.currency,
                 numInstallments = ip.numInstallments,
+                scheduleRows = schedule,
             )
         }
         val lines = linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(plan.id).map { toLineDetail(it) }
