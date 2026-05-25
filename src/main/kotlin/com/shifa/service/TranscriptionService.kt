@@ -93,12 +93,9 @@ class TranscriptionService(
             requestBodyBuilder.addFormDataPart("temperature", "0")
         }
 
-        normalizedLanguageHint?.let { lang ->
-            val sendLanguageParam =
-                isWhisperModel || openAiProps.transcriptionSendLanguageParam
-            if (sendLanguageParam) {
-                requestBodyBuilder.addFormDataPart("language", lang)
-            }
+        val apiLanguageParam = openAiLanguageParam(normalizedLanguageHint, modelId)
+        apiLanguageParam?.let { lang ->
+            requestBodyBuilder.addFormDataPart("language", lang)
         }
 
         val biasPrompt = capTranscriptionPrompt(MedicalBiasPrompt.build(normalizedLanguageHint))
@@ -114,19 +111,73 @@ class TranscriptionService(
             .build()
 
         log.info(
-            "Transcribing audio: {} ({} bytes), model={}, languageHint={}, purpose={}",
+            "Transcribing audio: {} ({} bytes), model={}, languageHint={}, apiLanguage={}, purpose={}",
             file.name,
             file.length(),
             modelId,
             normalizedLanguageHint ?: "auto",
+            apiLanguageParam ?: "prompt-only",
             purpose
         )
 
+        return executeTranscription(request, normalizedLanguageHint, purpose) {
+            if (apiLanguageParam == null) return@executeTranscription null
+            log.info("Retrying transcription without language= param (hint={})", normalizedLanguageHint)
+            val retryBody = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("file", file.name, file.asRequestBody("audio/*".toMediaType()))
+                .addFormDataPart("model", modelId)
+                .addFormDataPart("response_format", "json")
+                .also { builder ->
+                    if (useGptTranscribeChunking) {
+                        builder.addFormDataPart("chunking_strategy", "auto")
+                    }
+                    if (isWhisperModel) {
+                        builder.addFormDataPart("temperature", "0")
+                    }
+                    builder.addFormDataPart("prompt", biasPrompt)
+                }
+                .build()
+            Request.Builder()
+                .url("https://api.openai.com/v1/audio/transcriptions")
+                .addHeader("Authorization", "Bearer ${openAiProps.apiKey}")
+                .addHeader("OpenAI-Project", openAiProps.projectId)
+                .post(retryBody)
+                .build()
+        }
+    }
+
+    /**
+     * Maps UI/profile hints to OpenAI `language=` when the model accepts the code.
+     * Uzbek (`uz`) and other unlisted codes rely on [MedicalBiasPrompt] only — gpt-4o-transcribe
+     * may reject `language=uz` (see README: OPENAI_TRANSCRIPTION_SEND_LANG).
+     */
+    internal fun openAiLanguageParam(normalizedHint: String?, modelId: String): String? {
+        if (normalizedHint.isNullOrBlank()) return null
+        val isWhisperModel = modelId.startsWith("whisper", ignoreCase = true)
+        if (isWhisperModel) return normalizedHint
+        if (!openAiProps.transcriptionSendLanguageParam) return null
+        return when (normalizedHint) {
+            "en", "ru" -> normalizedHint
+            else -> null
+        }
+    }
+
+    private fun executeTranscription(
+        request: Request,
+        normalizedLanguageHint: String?,
+        purpose: TranscriptionPurpose,
+        buildRetryWithoutLanguage: () -> Request?
+    ): TranscriptionResult {
         httpClientTranscribe.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 val body = response.body?.string() ?: ""
                 log.error("OpenAI transcription API error: {} - {}", response.code, body)
-                throw RuntimeException("Transcription failed: ${response.code} - $body")
+                val retry = buildRetryWithoutLanguage()
+                if (retry != null && shouldRetryWithoutLanguage(response.code, body)) {
+                    return executeTranscription(retry, normalizedLanguageHint, purpose) { null }
+                }
+                throw TranscriptionFailedException(response.code, body)
             }
 
             val body = response.body?.string() ?: "{}"
@@ -143,6 +194,17 @@ class TranscriptionService(
             return applyMedicalCleanupIfEnabled(rawOutcome, normalizedLanguageHint, purpose)
         }
     }
+
+    private fun shouldRetryWithoutLanguage(httpCode: Int, body: String): Boolean {
+        if (httpCode !in 400..499) return false
+        val lower = body.lowercase()
+        return lower.contains("language") ||
+            lower.contains("invalid_request_error") ||
+            lower.contains("unsupported_format")
+    }
+
+    class TranscriptionFailedException(val httpCode: Int, val responseBody: String) :
+        RuntimeException("Transcription failed: $httpCode - $responseBody")
 
     private fun capTranscriptionPrompt(prompt: String): String =
         prompt.take(MAX_TRANSCRIPTION_PROMPT_CHARS)

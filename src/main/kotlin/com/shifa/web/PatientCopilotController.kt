@@ -225,7 +225,14 @@ class PatientCopilotController(
         try {
             file.transferTo(temp.toFile())
             val hint = languageHint?.takeIf { it.isNotBlank() }
-            val result = transcriptionService.transcribe(temp, hint, TranscriptionPurpose.VOICE_UPLOAD)
+            val result = try {
+                transcriptionService.transcribe(temp, hint, TranscriptionPurpose.VOICE_UPLOAD)
+            } catch (e: TranscriptionService.TranscriptionFailedException) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Speech recognition failed. Please try again."
+                )
+            }
             return ResponseEntity.ok(mapOf("text" to result.transcript))
         } finally {
             Files.deleteIfExists(temp)
