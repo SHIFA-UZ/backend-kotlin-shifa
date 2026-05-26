@@ -78,6 +78,12 @@ class SecurityConfig(
                 it.requestMatchers("/api/public/**").permitAll() // Public endpoints (doctor listings)
                 it.requestMatchers("/api/webhooks/daily").permitAll() // Daily.co webhook (no auth)
                 it.requestMatchers("/api/webhooks/stripe").permitAll() // Stripe webhook (signature verified)
+                it.requestMatchers("/api/webhooks/click/**").permitAll() // Click Shop API (signature verified)
+                it.requestMatchers(
+                    HttpMethod.GET,
+                    "/api/payments/checkout/success",
+                    "/api/payments/checkout/cancel"
+                ).permitAll() // Returned from Stripe / Click in WebView
                 it.requestMatchers("/actuator/health/**").permitAll() // Health check endpoint
                 it.requestMatchers("/error").permitAll()
 

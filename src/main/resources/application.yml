@@ -145,3 +145,12 @@ stripe:
   webhookSecret: ${STRIPE_WEBHOOK_SECRET:}
   connectRefreshUrl: ${STRIPE_CONNECT_REFRESH_URL:http://localhost:8080/settings/billing}
   connectReturnUrl: ${STRIPE_CONNECT_RETURN_URL:http://localhost:8080/settings/billing}
+
+# Click.uz — video consultation checkout (UZS). Secrets via env in production (never commit).
+click:
+  enabled: ${CLICK_ENABLED:true}
+  merchant-id: ${CLICK_MERCHANT_ID:0}
+  service-id: ${CLICK_SERVICE_ID:0}
+  merchant-user-id: ${CLICK_MERCHANT_USER_ID:0}
+  secret-key: ${CLICK_SECRET_KEY:}
+  pay-base-url: ${CLICK_PAY_BASE_URL:https://my.click.uz/services/pay}
