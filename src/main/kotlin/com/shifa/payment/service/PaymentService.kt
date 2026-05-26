@@ -117,7 +117,17 @@ class PaymentService(
             )
 
         val (usedGateway: PaymentGatewayCode, gatewayResult: GatewayCheckoutResult) =
-            resolveConsultationCheckoutGateway(preferredGateway, gatewayCheckoutRequest)
+            resolveConsultationCheckoutGateway(preferredGateway, gatewayCheckoutRequest, appointment.id)
+
+        log.info(
+            "Consultation checkout using gateway={} appointmentId={} amountMinor={} currency={} externalRef={} preferredGateway={}",
+            usedGateway.name,
+            appointment.id,
+            amountMinor,
+            currency,
+            externalRef,
+            preferredGateway?.name ?: "AUTO"
+        )
 
         val payment = paymentRepository.save(
             Payment(
@@ -151,45 +161,80 @@ class PaymentService(
 
     private fun resolveConsultationCheckoutGateway(
         preferred: PaymentGatewayCode?,
-        req: GatewayCheckoutRequest
+        req: GatewayCheckoutRequest,
+        appointmentId: Long
     ): Pair<PaymentGatewayCode, GatewayCheckoutResult> {
         fun stripe(): Pair<PaymentGatewayCode, GatewayCheckoutResult> =
             PaymentGatewayCode.STRIPE to stripeGateway.createCheckout(req)
 
         return when (preferred) {
             PaymentGatewayCode.STRIPE,
-            PaymentGatewayCode.PAYME -> stripe()
+            PaymentGatewayCode.PAYME -> {
+                log.info(
+                    "Consultation checkout gateway=STRIPE (explicit preferred={}) appointmentId={} externalRef={}",
+                    preferred?.name,
+                    appointmentId,
+                    req.externalRef
+                )
+                stripe()
+            }
 
             PaymentGatewayCode.MANUAL ->
                 PaymentGatewayCode.MANUAL to manualPaymentGateway.createCheckout(req)
 
             PaymentGatewayCode.CLICK,
-            null -> tryClickThenStripeFallback(req)
+            null -> tryClickThenStripeFallback(req, appointmentId)
         }
     }
 
     private fun tryClickThenStripeFallback(
-        req: GatewayCheckoutRequest
+        req: GatewayCheckoutRequest,
+        appointmentId: Long
     ): Pair<PaymentGatewayCode, GatewayCheckoutResult> {
-        if (
-            preferredClickFirst() &&
-            clickProperties.secretKey.isNotBlank() &&
-            clickProperties.merchantId > 0L &&
-            clickProperties.serviceId > 0L
-        ) {
-            try {
-                return PaymentGatewayCode.CLICK to clickGateway.createCheckout(req)
-            } catch (e: Exception) {
-                log.warn("Click checkout failed for ref={}, falling back to Stripe: {}", req.externalRef, e.message)
-            }
+        val skipReason = clickSkipReason()
+        if (skipReason != null) {
+            log.info(
+                "Consultation checkout skipping Click ({}) — using Stripe appointmentId={} externalRef={}",
+                skipReason,
+                appointmentId,
+                req.externalRef
+            )
+            return PaymentGatewayCode.STRIPE to stripeGateway.createCheckout(req)
+        }
+
+        try {
+            val result = clickGateway.createCheckout(req)
+            log.info(
+                "Consultation checkout gateway=CLICK appointmentId={} externalRef={} checkoutHost={}",
+                appointmentId,
+                req.externalRef,
+                checkoutUrlHost(result.checkoutUrl)
+            )
+            return PaymentGatewayCode.CLICK to result
+        } catch (e: Exception) {
+            log.warn(
+                "Consultation checkout Click failed ({}) — falling back to Stripe appointmentId={} externalRef={}",
+                e.message,
+                appointmentId,
+                req.externalRef,
+                e
+            )
         }
         return PaymentGatewayCode.STRIPE to stripeGateway.createCheckout(req)
     }
 
-    private fun preferredClickFirst(): Boolean {
-        if (!clickProperties.enabled) return false
-        return true
+    /** Human-readable reason when Click is not attempted (null = Click should be tried). */
+    private fun clickSkipReason(): String? {
+        if (!clickProperties.enabled) return "CLICK_ENABLED=false"
+        if (clickProperties.secretKey.isBlank()) return "CLICK_SECRET_KEY missing or empty"
+        if (clickProperties.merchantId <= 0L) return "CLICK_MERCHANT_ID not configured"
+        if (clickProperties.serviceId <= 0L) return "CLICK_SERVICE_ID not configured"
+        return null
     }
+
+    private fun checkoutUrlHost(checkoutUrl: String): String =
+        runCatching { java.net.URI(checkoutUrl).host ?: checkoutUrl.take(80) }
+            .getOrElse { checkoutUrl.take(80) }
 
     @Transactional(readOnly = true)
     fun getPaymentStatus(paymentId: Long, userId: Long): Payment {
