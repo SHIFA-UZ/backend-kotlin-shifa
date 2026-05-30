@@ -8,13 +8,16 @@ import com.google.firebase.messaging.AndroidNotification
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.Message
 import com.shifa.domain.Notification
+import com.shifa.repo.AppointmentRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 
 @Service
-class FcmService {
+class FcmService(
+    private val appointments: AppointmentRepository,
+) {
 
     private val log = LoggerFactory.getLogger(FcmService::class.java)
 
@@ -126,6 +129,11 @@ class FcmService {
             "createdAt" to notification.createdAt.toString(),
         )
         notification.appointmentId?.let { data["appointmentId"] = it.toString() }
+        notification.appointmentId?.let { apptId ->
+            appointments.findById(apptId).orElse(null)?.startAt?.let { startAt ->
+                data["appointmentStartAt"] = startAt.toString()
+            }
+        }
         notification.patientFormId?.let { data["patientFormId"] = it.toString() }
         notification.documentAccessRequestId?.let { data["documentAccessRequestId"] = it.toString() }
         notification.taskId?.let { data["taskId"] = it.toString() }
@@ -176,6 +184,11 @@ class FcmService {
             "createdAt" to notification.createdAt.toString(),
         )
         notification.appointmentId?.let { data["appointmentId"] = it.toString() }
+        notification.appointmentId?.let { apptId ->
+            appointments.findById(apptId).orElse(null)?.startAt?.let { startAt ->
+                data["appointmentStartAt"] = startAt.toString()
+            }
+        }
         notification.documentAccessRequestId?.let { data["documentAccessRequestId"] = it.toString() }
         notification.taskId?.let { data["taskId"] = it.toString() }
         notification.documentId?.let { data["documentId"] = it.toString() }

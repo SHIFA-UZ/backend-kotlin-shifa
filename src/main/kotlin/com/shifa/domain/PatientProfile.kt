@@ -21,6 +21,10 @@ open class PatientProfile(
     @Column(name = "phone_normalized")
     open var phoneNormalized: String? = null,
 
+    /** JSON array of extra phone numbers (E.164 or raw); primary stays in [phone]. */
+    @Column(name = "additional_phones")
+    open var additionalPhones: String? = null,
+
     @Column(name = "email")
     open var email: String? = null,
 
@@ -99,6 +103,7 @@ open class PatientProfile(
         fullName = "",
         phone = null,
         phoneNormalized = null,
+        additionalPhones = null,
         email = null,
         address = null,
         latitude = null,

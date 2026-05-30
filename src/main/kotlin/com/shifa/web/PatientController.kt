@@ -16,6 +16,7 @@ import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.PatientPrincipal
 import com.shifa.service.DoctorServicePricing
 import com.shifa.service.FcmService
+import com.shifa.service.NotificationFormatting
 import com.shifa.service.PatientDocumentService
 import com.shifa.service.SlotAvailabilityService
 import com.shifa.service.PatientProfileMapper
@@ -463,11 +464,16 @@ class PatientController(
         val saved = appointments.save(appointment)
 
         // Notify doctor that patient booked a new appointment.
+        val bookedMessage = NotificationFormatting.patientBookedMessage(
+            patientName = profile.fullName ?: "Patient",
+            startAt = saved.startAt,
+            timeZone = doctor.timeZone,
+        )
         val notif = Notification(
             patient = null,
             doctor = doctor,
             title = "New Appointment Booked",
-            message = "Patient ${profile.fullName} booked an appointment.",
+            message = bookedMessage,
             type = Notification.Type.APPOINTMENT_BOOKED_BY_PATIENT,
             appointmentId = saved.id
         )

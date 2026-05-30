@@ -34,6 +34,7 @@ import kotlin.math.min
 
 @Service
 class AdminDoctorActivityService(
+    private val earlyPartnerContractService: EarlyPartnerContractService,
     private val doctorProfileRepository: DoctorProfileRepository,
     private val appointmentRepository: AppointmentRepository,
     private val patientProfileRepository: PatientProfileRepository,
@@ -103,7 +104,11 @@ class AdminDoctorActivityService(
             searchTrimmed?.takeIf { it.isNotBlank() },
         ).toList()
 
-        val rows = doctors.map { buildRow(it, requestedWindow) }
+        val contractByDoctor =
+            earlyPartnerContractService.contractNumbersByDoctorIds(doctors.map { it.id })
+        val rows = doctors.map { d ->
+            buildRow(d, requestedWindow, contractByDoctor[d.id])
+        }
         val comparator = comparatorFor(sortOneOf)
         val sorted =
             if (dirDescending) rows.sortedWith(comparator.reversed())
@@ -122,7 +127,9 @@ class AdminDoctorActivityService(
         val doctor = doctorProfileRepository.findById(doctorId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found") }
         val requestedWindow = parseOptionalWindow(from, toInclusive)
-        val row = buildRow(doctor, requestedWindow)
+        val contractNumber =
+            earlyPartnerContractService.contractNumbersByDoctorIds(listOf(doctor.id))[doctor.id]
+        val row = buildRow(doctor, requestedWindow, contractNumber)
         val chartWindow = computeChartWindow(requestedWindow)
         val daily = buildDailySeries(doctor.id, doctor.user.id, chartWindow)
         return DoctorActivityDetailDto(row = row, dailySeries = daily)
@@ -250,7 +257,11 @@ class AdminDoctorActivityService(
         )
         else appointmentRepository.countByDoctor_IdAndStatus(doctorId, st)
 
-    internal fun buildRow(doctor: DoctorProfile, rowWindow: BoundedWindow?): DoctorActivityRowDto {
+    internal fun buildRow(
+        doctor: DoctorProfile,
+        rowWindow: BoundedWindow?,
+        earlyPartnerContractNumber: String? = null,
+    ): DoctorActivityRowDto {
         val id = doctor.id
         val userId = doctor.user.id
         val w = rowWindow
@@ -341,6 +352,7 @@ class AdminDoctorActivityService(
             aiRequests = aiRequests,
             aiDraftNotes = aiDraftNotes.toInt(),
             lastActiveAt = lastInstant?.toString(),
+            earlyPartnerContractNumber = earlyPartnerContractNumber,
         )
     }
 

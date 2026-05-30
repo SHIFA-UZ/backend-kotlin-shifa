@@ -154,11 +154,17 @@ class PatientCopilotBookingService(
             )
         )
 
+        val bookedMessage = NotificationFormatting.patientBookedMessage(
+            patientName = patient.fullName ?: "Patient",
+            startAt = saved.startAt,
+            timeZone = doctor.timeZone,
+            suffix = "(Shifa AI)",
+        )
         val notif = Notification(
             patient = null,
             doctor = doctor,
             title = "New Appointment Booked",
-            message = "Patient ${patient.fullName} booked an appointment (Shifa AI).",
+            message = bookedMessage,
             type = Notification.Type.APPOINTMENT_BOOKED_BY_PATIENT,
             appointmentId = saved.id
         )

@@ -11,6 +11,7 @@ import com.shifa.service.PatientAccountService
 import com.shifa.service.PatientProfileMapper
 import com.shifa.security.DoctorPrincipal
 import com.shifa.util.PhoneNormalizer
+import com.shifa.util.PatientPhones
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
@@ -50,6 +51,7 @@ class PatientsController(
         val id: Long?,
         val name: String,
         val phone: String?,
+        val phones: List<String> = emptyList(),
         val email: String?,
         val address: String?, // Legacy field - will be populated from structured location if available
         val birthDate: String?,
@@ -89,6 +91,7 @@ class PatientsController(
         val name: String,
         @field:Size(max = 50)
         val phone: String?,
+        val phones: List<@Size(max = 50) String>? = null,
         @field:Email @field:Size(max = 255)
         val email: String?,
         @field:Size(max = 500)
@@ -108,6 +111,7 @@ class PatientsController(
         val name: String?,
         @field:Size(max = 50)
         val phone: String?,
+        val phones: List<@Size(max = 50) String>? = null,
         @field:Email @field:Size(max = 255)
         val email: String?,
         @field:Size(max = 500)
@@ -121,6 +125,43 @@ class PatientsController(
         @field:Size(max = 1000)
         val chronicDisease: String?
     )
+
+    private fun resolvePhoneInputs(phone: String?, phones: List<String>?): List<String> {
+        val fromList = phones.orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
+        if (fromList.isNotEmpty()) return fromList
+        val single = phone?.trim()?.takeIf { it.isNotEmpty() }
+        return if (single != null) listOf(single) else emptyList()
+    }
+
+    private fun assertPhonesAvailable(rawPhones: List<String>, excludePatientId: Long? = null) {
+        val seen = mutableSetOf<String>()
+        rawPhones.forEach { raw ->
+            val normalized = PhoneNormalizer.normalize(raw)
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number: $raw")
+            if (!seen.add(normalized)) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Duplicate phone number in request.")
+            }
+            val existing = patientsRepo.findByPhoneNormalized(normalized).orElse(null)
+            if (existing != null && existing.id != excludePatientId) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "Patient with this phone number already exists.")
+            }
+        }
+    }
+
+    private fun applyPhonesToPatient(patient: PatientProfile, rawPhones: List<String>) {
+        if (rawPhones.isEmpty()) {
+            patient.phone = null
+            patient.phoneNormalized = null
+            patient.additionalPhones = null
+            return
+        }
+        val normalizedPhones = rawPhones.map { raw ->
+            PhoneNormalizer.normalize(raw) ?: raw.trim()
+        }
+        patient.phone = normalizedPhones.first()
+        patient.phoneNormalized = PhoneNormalizer.normalize(normalizedPhones.first())
+        patient.additionalPhones = PatientPhones.serializeAdditional(normalizedPhones.drop(1))
+    }
 
     // -------------------- Endpoints --------------------
 
@@ -210,21 +251,11 @@ class PatientsController(
         @AuthenticationPrincipal principal: Any,
         @RequestBody @Valid req: CreatePatientRequest
     ): PatientDto {
-        val phoneTrimmed = req.phone?.trim()?.takeIf { it.isNotEmpty() }
-        val phoneNormalized = phoneTrimmed?.let { PhoneNormalizer.normalize(it) }
-        if (phoneTrimmed != null && phoneNormalized == null) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
-        }
-        phoneNormalized?.let { pn ->
-            if (patientsRepo.findByPhoneNormalized(pn).isPresent) {
-                throw ResponseStatusException(HttpStatus.CONFLICT, "Patient with this phone number already exists.")
-            }
-        }
+        val rawPhones = resolvePhoneInputs(req.phone, req.phones)
+        assertPhonesAvailable(rawPhones)
 
         val patient = PatientProfile(
             fullName = req.name.trim(),
-            phone = phoneNormalized ?: phoneTrimmed,
-            phoneNormalized = phoneNormalized,
             email = req.email?.trim(),
             address = req.address?.trim(),
             birthDate = req.birthDate?.let { LocalDate.parse(it) },
@@ -233,6 +264,7 @@ class PatientsController(
             chronicDisease = req.chronicDisease?.trim(),
             documents = mutableListOf<PatientDocument>()
         )
+        applyPhonesToPatient(patient, rawPhones)
         patient.createdByDoctor = clinicAccess.resolveDoctorForPatientCreation(principal)
 
         val saved = patientsRepo.save(patient)
@@ -274,19 +306,10 @@ class PatientsController(
         clinicAccess.assertPracticeActor(principal)
         clinicAccess.assertPatientVisible(principal, id)
         req.name?.let { patient.fullName = it.trim() }
-        req.phone?.let { raw ->
-            val normalized = PhoneNormalizer.normalize(raw)
-            if (normalized != null) {
-                val existing = patientsRepo.findByPhoneNormalized(normalized).orElse(null)
-                if (existing != null && existing.id != patient.id) {
-                    throw ResponseStatusException(HttpStatus.CONFLICT, "Patient with this phone number already exists.")
-                }
-                patient.phone = normalized
-                patient.phoneNormalized = normalized
-            } else {
-                patient.phone = raw.trim().takeIf { it.isNotEmpty() }
-                patient.phoneNormalized = null
-            }
+        if (req.phones != null || req.phone != null) {
+            val rawPhones = resolvePhoneInputs(req.phone, req.phones)
+            assertPhonesAvailable(rawPhones, excludePatientId = patient.id)
+            applyPhonesToPatient(patient, rawPhones)
         }
         req.email?.let { patient.email = it.trim() }
         req.address?.let { patient.address = it.trim() }
@@ -310,10 +333,12 @@ class PatientsController(
 
     /** Minimal DTO when full mapping fails (e.g. patient has no user account or broken relations). Never throws. */
     private fun toDtoMinimal(p: PatientProfile): PatientDto {
+        val allPhones = PatientPhones.allPhones(p.phone, p.additionalPhones)
         return PatientDto(
             id = p.id,
             name = p.fullName,
             phone = p.phone,
+            phones = allPhones,
             email = p.email,
             address = p.address,
             birthDate = p.birthDate?.toString(),
@@ -372,6 +397,7 @@ class PatientsController(
             id = p.id,
             name = p.fullName,
             phone = p.phone,
+            phones = PatientPhones.allPhones(p.phone, p.additionalPhones),
             email = p.email,
             address = legacyAddress,
             birthDate = p.birthDate?.toString(),

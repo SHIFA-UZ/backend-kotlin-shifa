@@ -28,6 +28,7 @@ data class DoctorActivityRowDto(
     @JsonProperty("aiRequests") val aiRequests: Long,
     @JsonProperty("aiDraftNotes") val aiDraftNotes: Int,
     @JsonProperty("lastActiveAt") val lastActiveAt: String?,
+    @JsonProperty("earlyPartnerContractNumber") val earlyPartnerContractNumber: String? = null,
 )
 
 data class DoctorActivityDetailDto(

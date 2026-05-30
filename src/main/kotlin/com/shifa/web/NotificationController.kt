@@ -6,6 +6,7 @@ import com.shifa.domain.Notification
 import com.shifa.repo.DocumentAccessRequestRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.repo.PatientProfileRepository
+import com.shifa.repo.AppointmentRepository
 import com.shifa.security.ClinicStaffPrincipal
 import com.shifa.security.DoctorPrincipal
 import com.shifa.security.PatientPrincipal
@@ -20,7 +21,8 @@ import java.time.Instant
 class NotificationController(
     private val notifications: NotificationRepository,
     private val patientProfiles: PatientProfileRepository,
-    private val documentAccessRequestRepo: DocumentAccessRequestRepository
+    private val documentAccessRequestRepo: DocumentAccessRequestRepository,
+    private val appointments: AppointmentRepository,
 ) {
 
     private fun currentPatientProfile(principal: PatientPrincipal): com.shifa.domain.PatientProfile {
@@ -54,6 +56,7 @@ class NotificationController(
         val createdAt: String,
         val readAt: String?,
         val treatmentPlanId: Long? = null,
+        val appointmentStartAt: String? = null,
     )
 
     @GetMapping
@@ -90,7 +93,12 @@ class NotificationController(
             } catch (_: Exception) {
                 Triple(null, null, null)
             }
+            val appointment = n.appointmentId?.let { apptId ->
+                appointments.findById(apptId).orElse(null)
+            }
+            val appointmentStartAt = appointment?.startAt?.toString()
             val patientName = docPatientName
+                ?: appointment?.patient?.fullName
                 ?: (if (n.type == Notification.Type.APPOINTMENT_BOOKED_BY_PATIENT) n.patient?.fullName else null)
             NotificationDto(
                 id = n.id,
@@ -109,7 +117,8 @@ class NotificationController(
                 requestingDoctorName = requestingDoctorName,
                 createdAt = n.createdAt.toString(),
                 readAt = n.readAt?.toString(),
-                treatmentPlanId = n.treatmentPlanId
+                treatmentPlanId = n.treatmentPlanId,
+                appointmentStartAt = appointmentStartAt,
             )
         }
     }
