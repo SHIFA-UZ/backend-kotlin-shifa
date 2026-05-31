@@ -8,6 +8,8 @@ import com.shifa.repo.DocumentAccessGrantRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.service.ClinicAccessService
+import com.shifa.i18n.SmsReminderFormatting
+import com.shifa.service.DevSmsService
 import com.shifa.service.DoctorSmsBillingService
 import com.shifa.service.PatientAccountService
 import com.shifa.service.PatientProfileMapper
@@ -44,6 +46,7 @@ class PatientsController(
     private val clinicAccess: ClinicAccessService,
     private val doctorProfiles: DoctorProfileRepository,
     private val doctorSmsBilling: DoctorSmsBillingService,
+    private val devSmsService: DevSmsService,
 ) {
     companion object {
         private val logger = LoggerFactory.getLogger(PatientsController::class.java)
@@ -342,6 +345,66 @@ class PatientsController(
 
         val saved = patientsRepo.save(patient)
         return toDto(saved, viewerDoctorId(principal))
+    }
+
+    /**
+     * POST /api/patients/{id}/send-test-sms
+     * Sends one SMS immediately (DevSMS) for testing; billed like a real reminder.
+     */
+    @PostMapping("/{id}/send-test-sms")
+    fun sendTestSms(
+        @PathVariable id: Long,
+        @AuthenticationPrincipal principal: Any,
+    ): Map<String, Any?> {
+        clinicAccess.assertPracticeActor(principal)
+        clinicAccess.assertPatientVisible(principal, id)
+        val patient = patientsRepo.findById(id)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found") }
+        val doctorId = viewerDoctorId(principal)
+        val doctor = doctorProfiles.findById(doctorId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found")
+        }
+        if (!doctorSmsBilling.isSmsAllowed(doctor)) {
+            throw ResponseStatusException(
+                HttpStatus.FORBIDDEN,
+                "SMS appointment reminders are not enabled for your account. Contact support.",
+            )
+        }
+        if (!devSmsService.isConfigured()) {
+            throw ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "SMS service is not configured (DEVSMS_API_TOKEN missing).",
+            )
+        }
+        val phone = patient.phoneNormalized ?: patient.phone
+        if (phone.isNullOrBlank()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Patient has no phone number")
+        }
+        val doctorName = "${doctor.firstName} ${doctor.lastName}".trim()
+        val message = SmsReminderFormatting.testReminderBody(
+            lang = patient.language,
+            doctorName = doctorName,
+            doctorTimeZone = doctor.timeZone,
+        )
+        val result = devSmsService.sendSms(phone, message)
+        if (!result.success) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_GATEWAY,
+                "Failed to send SMS via DevSMS. Check token, balance, and phone format.",
+            )
+        }
+        doctorSmsBilling.recordSentSms(
+            doctor = doctor,
+            patient = patient,
+            appointmentId = null,
+            devsmsSmsId = result.smsId,
+        )
+        return mapOf(
+            "success" to true,
+            "smsId" to result.smsId,
+            "costMinor" to doctorSmsBilling.pricePerSmsMinor,
+            "currency" to doctorSmsBilling.currency,
+        )
     }
 
     private fun toDto(p: PatientProfile, doctorId: Long): PatientDto {
