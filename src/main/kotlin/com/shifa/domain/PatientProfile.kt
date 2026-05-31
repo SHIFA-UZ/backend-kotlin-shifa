@@ -70,6 +70,15 @@ open class PatientProfile(
     @Column(name = "chronic_disease")
     open var chronicDisease: String? = null,
 
+    @Column(name = "gender", length = 20)
+    open var gender: String? = null,
+
+    @Column(name = "blood_group", length = 10)
+    open var bloodGroup: String? = null,
+
+    @Column(name = "allergies", length = 1000)
+    open var allergies: String? = null,
+
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id")
     open var user: User? = null,
@@ -122,6 +131,9 @@ open class PatientProfile(
         language = null,
         photoUrl = null,
         chronicDisease = null,
+        gender = null,
+        bloodGroup = null,
+        allergies = null,
         user = null,
         createdByDoctor = null,
         fcmToken = null,

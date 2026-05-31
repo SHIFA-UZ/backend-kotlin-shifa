@@ -1,0 +1,4 @@
+ALTER TABLE patient_profiles
+    ADD COLUMN IF NOT EXISTS gender VARCHAR(20),
+    ADD COLUMN IF NOT EXISTS blood_group VARCHAR(10),
+    ADD COLUMN IF NOT EXISTS allergies VARCHAR(1000);

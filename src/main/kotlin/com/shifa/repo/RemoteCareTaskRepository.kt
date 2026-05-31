@@ -49,4 +49,15 @@ interface RemoteCareTaskRepository : JpaRepository<RemoteCareTask, Long> {
         @Param("start") start: Instant,
         @Param("endExclusive") endExclusive: Instant,
     ): List<RemoteCareTask>
+
+    @Query(
+        """
+        SELECT DISTINCT t.patient.id FROM RemoteCareTask t
+        WHERE t.status = :status AND t.patient.id IN :patientIds
+        """
+    )
+    fun findActiveTaskPatientIdsIn(
+        @Param("patientIds") patientIds: Collection<Long>,
+        @Param("status") status: RemoteCareTask.Status = RemoteCareTask.Status.ACTIVE,
+    ): List<Long>
 }

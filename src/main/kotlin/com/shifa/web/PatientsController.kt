@@ -7,6 +7,8 @@ import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DocumentAccessGrantRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.PatientProfileRepository
+import com.shifa.repo.PatientProphylaxisSettingRepository
+import com.shifa.repo.RemoteCareTaskRepository
 import com.shifa.service.ClinicAccessService
 import com.shifa.i18n.SmsReminderFormatting
 import com.shifa.service.DevSmsService
@@ -47,6 +49,8 @@ class PatientsController(
     private val doctorProfiles: DoctorProfileRepository,
     private val doctorSmsBilling: DoctorSmsBillingService,
     private val devSmsService: DevSmsService,
+    private val prophylaxisSettingsRepo: PatientProphylaxisSettingRepository,
+    private val remoteCareTaskRepo: RemoteCareTaskRepository,
 ) {
     companion object {
         private val logger = LoggerFactory.getLogger(PatientsController::class.java)
@@ -79,6 +83,13 @@ class PatientsController(
         val timeZone: String? = null,
         /** DevSMS ~24h before each future appointment. */
         val smsReminderEnabled: Boolean = false,
+        val gender: String? = null,
+        val bloodGroup: String? = null,
+        val allergies: String? = null,
+        /** ACTIVE | AT_RISK | FOLLOW_UP — computed for roster display. */
+        val clinicalStatus: String = "ACTIVE",
+        val atRisk: Boolean = false,
+        val followUpRequired: Boolean = false,
     )
 
     data class DocumentDto(
@@ -112,7 +123,13 @@ class PatientsController(
         @field:Size(max = 2048)
         val photoUrl: String?,
         @field:Size(max = 1000)
-        val chronicDisease: String?
+        val chronicDisease: String?,
+        @field:Size(max = 20)
+        val gender: String? = null,
+        @field:Size(max = 10)
+        val bloodGroup: String? = null,
+        @field:Size(max = 1000)
+        val allergies: String? = null,
     )
 
     data class UpdatePatientRequest(
@@ -134,6 +151,12 @@ class PatientsController(
         @field:Size(max = 1000)
         val chronicDisease: String?,
         val smsReminderEnabled: Boolean? = null,
+        @field:Size(max = 20)
+        val gender: String? = null,
+        @field:Size(max = 10)
+        val bloodGroup: String? = null,
+        @field:Size(max = 1000)
+        val allergies: String? = null,
     )
 
     private fun resolvePhoneInputs(phone: String?, phones: List<String>?): List<String> {
@@ -200,7 +223,8 @@ class PatientsController(
                         patientsRepo.findClinicRosterForDoctors(doctorIds, null, pageable).content
                     }
                 }
-            patients.map { toDto(it, vid) }
+            val clinicalContext = buildClinicalContext(patients.mapNotNull { it.id })
+            patients.map { toDto(it, vid, clinicalContextFor(it.id, clinicalContext)) }
         } catch (e: Exception) {
             logger.error("Failed to load patient list for doctor: {}", e.message, e)
             emptyList()
@@ -249,7 +273,7 @@ class PatientsController(
         }
         val p = patientsRepo.findById(id)
             .orElseThrow { IllegalArgumentException("Patient not found") }
-        return toDto(p, viewerDoctorId(principal))
+        return toDto(p, viewerDoctorId(principal), clinicalContextFor(p.id, buildClinicalContext(listOfNotNull(p.id))))
     }
 
     /**
@@ -272,13 +296,16 @@ class PatientsController(
             language = req.language?.trim(),
             photoUrl = req.photoUrl?.trim(),
             chronicDisease = req.chronicDisease?.trim(),
+            gender = req.gender?.trim(),
+            bloodGroup = req.bloodGroup?.trim(),
+            allergies = req.allergies?.trim(),
             documents = mutableListOf<PatientDocument>()
         )
         applyPhonesToPatient(patient, rawPhones)
         patient.createdByDoctor = clinicAccess.resolveDoctorForPatientCreation(principal)
 
         val saved = patientsRepo.save(patient)
-        return toDto(saved, viewerDoctorId(principal))
+        return toDto(saved, viewerDoctorId(principal), clinicalContextFor(saved.id, buildClinicalContext(listOfNotNull(saved.id))))
     }
 
     /**
@@ -327,6 +354,9 @@ class PatientsController(
         req.language?.let { patient.language = it.trim() }
         req.photoUrl?.let { patient.photoUrl = it.trim() }
         req.chronicDisease?.let { patient.chronicDisease = it.trim().takeIf { it.isNotEmpty() } }
+        req.gender?.let { patient.gender = it.trim().takeIf { it.isNotEmpty() } }
+        req.bloodGroup?.let { patient.bloodGroup = it.trim().takeIf { it.isNotEmpty() } }
+        req.allergies?.let { patient.allergies = it.trim().takeIf { it.isNotEmpty() } }
         req.smsReminderEnabled?.let { enabled ->
             if (enabled) {
                 val doctorId = viewerDoctorId(principal)
@@ -344,7 +374,7 @@ class PatientsController(
         }
 
         val saved = patientsRepo.save(patient)
-        return toDto(saved, viewerDoctorId(principal))
+        return toDto(saved, viewerDoctorId(principal), clinicalContextFor(saved.id, buildClinicalContext(listOfNotNull(saved.id))))
     }
 
     /**
@@ -406,18 +436,58 @@ class PatientsController(
         )
     }
 
-    private fun toDto(p: PatientProfile, doctorId: Long): PatientDto {
+    private data class ClinicalContext(
+        val prophylaxisPatientIds: Set<Long>,
+        val activeTaskPatientIds: Set<Long>,
+    )
+
+    private fun buildClinicalContext(patientIds: List<Long>): ClinicalContext {
+        if (patientIds.isEmpty()) {
+            return ClinicalContext(emptySet(), emptySet())
+        }
+        val prophylaxis = prophylaxisSettingsRepo.findEnabledPatientIdsIn(patientIds).toSet()
+        val activeTasks = remoteCareTaskRepo.findActiveTaskPatientIdsIn(patientIds).toSet()
+        return ClinicalContext(prophylaxis, activeTasks)
+    }
+
+    private fun clinicalContextFor(patientId: Long?, context: ClinicalContext): ClinicalContext =
+        if (patientId == null) ClinicalContext(emptySet(), emptySet()) else context
+
+    private fun resolveClinicalFlags(
+        p: PatientProfile,
+        context: ClinicalContext,
+    ): Triple<String, Boolean, Boolean> {
+        val chronic = p.chronicDisease?.trim()?.takeIf { it.isNotEmpty() && !it.equals("none", ignoreCase = true) }
+        val atRisk = chronic != null
+        val followUpRequired = p.id != null && (
+            p.id!! in context.prophylaxisPatientIds ||
+                p.id!! in context.activeTaskPatientIds
+            )
+        val status = when {
+            atRisk -> "AT_RISK"
+            followUpRequired -> "FOLLOW_UP"
+            else -> "ACTIVE"
+        }
+        return Triple(status, atRisk, followUpRequired)
+    }
+
+    private fun toDto(
+        p: PatientProfile,
+        doctorId: Long,
+        context: ClinicalContext = ClinicalContext(emptySet(), emptySet()),
+    ): PatientDto {
         return try {
-            toDtoInternal(p, doctorId)
+            toDtoInternal(p, doctorId, context)
         } catch (e: Exception) {
             logger.warn("Failed to map patient to DTO (patientId={}, doctorId={}): {} - returning minimal DTO", p.id, doctorId, e.message, e)
-            toDtoMinimal(p)
+            toDtoMinimal(p, context)
         }
     }
 
     /** Minimal DTO when full mapping fails (e.g. patient has no user account or broken relations). Never throws. */
-    private fun toDtoMinimal(p: PatientProfile): PatientDto {
+    private fun toDtoMinimal(p: PatientProfile, context: ClinicalContext = ClinicalContext(emptySet(), emptySet())): PatientDto {
         val allPhones = PatientPhones.allPhones(p.phone, p.additionalPhones)
+        val (clinicalStatus, atRisk, followUpRequired) = resolveClinicalFlags(p, context)
         return PatientDto(
             id = p.id,
             name = p.fullName,
@@ -440,10 +510,20 @@ class PatientsController(
             locationStreetAddress = p.locationStreetAddress,
             timeZone = p.timeZone,
             smsReminderEnabled = p.smsReminderEnabled,
+            gender = p.gender,
+            bloodGroup = p.bloodGroup,
+            allergies = p.allergies,
+            clinicalStatus = clinicalStatus,
+            atRisk = atRisk,
+            followUpRequired = followUpRequired,
         )
     }
 
-    private fun toDtoInternal(p: PatientProfile, doctorId: Long): PatientDto {
+    private fun toDtoInternal(
+        p: PatientProfile,
+        doctorId: Long,
+        context: ClinicalContext,
+    ): PatientDto {
         // Force Hibernate to load the documents collection while the session is open
         Hibernate.initialize(p.documents)
 
@@ -478,6 +558,8 @@ class PatientsController(
             emptyList()
         }
 
+        val (clinicalStatus, atRisk, followUpRequired) = resolveClinicalFlags(p, context)
+
         return PatientDto(
             id = p.id,
             name = p.fullName,
@@ -500,6 +582,12 @@ class PatientsController(
             locationStreetAddress = p.locationStreetAddress,
             timeZone = p.timeZone,
             smsReminderEnabled = p.smsReminderEnabled,
+            gender = p.gender,
+            bloodGroup = p.bloodGroup,
+            allergies = p.allergies,
+            clinicalStatus = clinicalStatus,
+            atRisk = atRisk,
+            followUpRequired = followUpRequired,
         )
     }
 
