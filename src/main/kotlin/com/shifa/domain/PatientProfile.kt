@@ -87,6 +87,10 @@ open class PatientProfile(
     @Column(name = "time_zone", length = 64)
     open var timeZone: String? = null,
 
+    /** When true, patient receives DevSMS ~24h before each future appointment. */
+    @Column(name = "sms_reminder_enabled", nullable = false)
+    open var smsReminderEnabled: Boolean = false,
+
     @Column(name = "created_at", insertable = false, updatable = false)
     open var createdAt: OffsetDateTime? = null,
 
@@ -122,6 +126,7 @@ open class PatientProfile(
         createdByDoctor = null,
         fcmToken = null,
         timeZone = null,
+        smsReminderEnabled = false,
         createdAt = null,
         documents = mutableListOf()
     )

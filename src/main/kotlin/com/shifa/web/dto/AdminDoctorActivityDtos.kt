@@ -29,6 +29,11 @@ data class DoctorActivityRowDto(
     @JsonProperty("aiDraftNotes") val aiDraftNotes: Int,
     @JsonProperty("lastActiveAt") val lastActiveAt: String?,
     @JsonProperty("earlyPartnerContractNumber") val earlyPartnerContractNumber: String? = null,
+    @JsonProperty("smsRemindersAllowed") val smsRemindersAllowed: Boolean = false,
+    @JsonProperty("smsSentCount") val smsSentCount: Long = 0,
+    @JsonProperty("smsOwedMinor") val smsOwedMinor: Long = 0,
+    @JsonProperty("smsCurrency") val smsCurrency: String = "UZS",
+    @JsonProperty("smsPricePerUnitMinor") val smsPricePerUnitMinor: Long = 500,
 )
 
 data class DoctorActivityDetailDto(

@@ -86,5 +86,9 @@ class DoctorProfile(
     var consultationPriceMinor: Long? = null,
 
     @Column(name = "consultation_currency", length = 3)
-    var consultationCurrency: String? = null
+    var consultationCurrency: String? = null,
+
+    /** Admin-granted permission to enable patient SMS appointment reminders. */
+    @Column(name = "sms_reminders_allowed", nullable = false)
+    var smsRemindersAllowed: Boolean = false,
 )

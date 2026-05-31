@@ -108,7 +108,8 @@ class DoctorController(
         /** IANA time zone id (e.g. Europe/Berlin). Used for scheduling and calendar. */
         val timeZone: String?,
         val consultationPriceMinor: Long?,
-        val consultationCurrency: String?
+        val consultationCurrency: String?,
+        val smsRemindersAllowed: Boolean = false,
     )
 
     data class ContactDto(
@@ -207,7 +208,8 @@ class DoctorController(
                 locationStreetAddress = d.locationStreetAddress,
                 timeZone = d.timeZone,
                 consultationPriceMinor = d.consultationPriceMinor,
-                consultationCurrency = d.consultationCurrency
+                consultationCurrency = d.consultationCurrency,
+                smsRemindersAllowed = d.smsRemindersAllowed,
             ),
             "contact" to ContactDto(
                 phone = d.user.phone ?: "",

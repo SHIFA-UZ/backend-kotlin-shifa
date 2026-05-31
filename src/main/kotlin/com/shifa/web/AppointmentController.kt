@@ -474,8 +474,12 @@ class AppointmentController(
 
         val oldStartLdt = appointment.startAt.atZone(zone).toLocalDateTime()
         val newStartLdt = newStartAt.atZone(zone).toLocalDateTime()
+        val startChanged = appointment.startAt != newStartAt
         appointment.startAt = newStartAt
         appointment.endAt = newEndAt
+        if (startChanged) {
+            appointment.smsReminderSentAt = null
+        }
         appts.save(appointment)
 
         val oldMonthName = oldStartLdt.month.name.lowercase().replaceFirstChar { it.uppercase() }

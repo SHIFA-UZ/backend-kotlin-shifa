@@ -3,6 +3,7 @@ package com.shifa.service
 import com.shifa.domain.Appointment
 import com.shifa.domain.Notification
 import com.shifa.i18n.PatientPaymentPushI18n
+import com.shifa.i18n.SmsReminderFormatting
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.NotificationRepository
@@ -41,6 +42,8 @@ class ReminderNotificationService(
     private val prophylaxisSettings: PatientProphylaxisSettingRepository,
     private val installmentItems: InstallmentItemRepository,
     private val installmentService: InstallmentService,
+    private val devSmsService: DevSmsService,
+    private val doctorSmsBillingService: DoctorSmsBillingService,
 ) {
     private val log = LoggerFactory.getLogger(ReminderNotificationService::class.java)
 
@@ -57,6 +60,9 @@ class ReminderNotificationService(
      * Symmetric minute tolerance so a 60s scheduler run hits the window once.
      */
     private val paymentDueToleranceMinutes = 10L
+
+    /** DevSMS appointment reminder: ~24 hours before start (UTC window). */
+    private val smsReminderHoursOffset = 24L
 
     @Transactional
     fun sendTaskReminders() {
@@ -139,6 +145,54 @@ class ReminderNotificationService(
                 log.info("Appointment reminder sent for appointment id={} patient={}", appointment.id, patient.id)
             } catch (e: Exception) {
                 log.warn("Appointment reminder failed for appointment id={}: {}", appointment.id, e.message)
+            }
+        }
+    }
+
+    /**
+     * DevSMS: send one text ~24 hours before appointment start for patients with [PatientProfile.smsReminderEnabled].
+     */
+    @Transactional
+    fun sendAppointmentSmsReminders() {
+        if (!devSmsService.isConfigured()) return
+        val now = Instant.now()
+        val center = now.plus(smsReminderHoursOffset, ChronoUnit.HOURS)
+        val windowStart = center.minus(paymentDueToleranceMinutes, ChronoUnit.MINUTES)
+        val windowEnd = center.plus(paymentDueToleranceMinutes, ChronoUnit.MINUTES)
+        val appointments = appointmentRepository.findAppointmentsForSmsReminder(windowStart, windowEnd)
+        for (appointment in appointments) {
+            try {
+                val patient = appointment.patient
+                if (!patient.smsReminderEnabled) continue
+                val phone = patient.phoneNormalized ?: patient.phone
+                if (phone.isNullOrBlank()) {
+                    log.warn("SMS reminder skip: no phone for patient id={}", patient.id)
+                    continue
+                }
+                val doctor = appointment.doctor
+                val doctorName = "${doctor.firstName} ${doctor.lastName}".trim()
+                val zone = doctor.timeZone?.takeIf { it.isNotBlank() } ?: "UTC"
+                val message = SmsReminderFormatting.appointmentReminderBody(
+                    lang = patient.language,
+                    doctorName = doctorName,
+                    startAt = appointment.startAt,
+                    timeZone = zone,
+                    location = appointment.location,
+                )
+                val sendResult = devSmsService.sendSms(phone, message)
+                if (sendResult.success) {
+                    doctorSmsBillingService.recordSentSms(
+                        doctor = doctor,
+                        patient = patient,
+                        appointmentId = appointment.id,
+                        devsmsSmsId = sendResult.smsId,
+                    )
+                    appointment.smsReminderSentAt = Instant.now()
+                    appointmentRepository.save(appointment)
+                    log.info("SMS reminder sent for appointment id={} patient={}", appointment.id, patient.id)
+                }
+            } catch (e: Exception) {
+                log.warn("SMS reminder failed for appointment id={}: {}", appointment.id, e.message)
             }
         }
     }

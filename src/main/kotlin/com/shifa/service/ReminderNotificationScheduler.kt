@@ -16,6 +16,7 @@ class ReminderNotificationScheduler(
         try {
             reminderNotificationService.sendTaskReminders()
             reminderNotificationService.sendAppointmentReminders()
+            reminderNotificationService.sendAppointmentSmsReminders()
             reminderNotificationService.sendPendingConsultationPaymentReminders()
             reminderNotificationService.sendTreatmentPlanPaymentReminders()
             reminderNotificationService.sendInstallmentDueReminders()

@@ -27,3 +27,12 @@ data class DoctorEngagementDto(
     val activePatients: Int,
     val documentsReceived: Int
 )
+
+/** GET /api/doctor/analytics/sms-usage */
+data class DoctorSmsUsageDto(
+    val sentCount: Long,
+    val totalCostMinor: Long,
+    val currency: String,
+    val pricePerSmsMinor: Long,
+    val smsRemindersAllowed: Boolean,
+)

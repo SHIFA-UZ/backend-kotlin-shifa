@@ -2,7 +2,10 @@ package com.shifa.web
 
 import com.shifa.security.DoctorPrincipal
 import com.shifa.service.DoctorAnalyticsService
+import com.shifa.web.dto.DoctorSmsUsageDto
+import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.ResponseEntity
+import java.time.LocalDate
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
@@ -48,5 +51,17 @@ class DoctorAnalyticsController(
     fun engagement(@AuthenticationPrincipal principal: DoctorPrincipal) =
         principal.profile?.let { doctor ->
             ResponseEntity.ok(analytics.engagement(doctor))
+        } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Doctor profile not found")
+
+    @GetMapping("/sms-usage")
+    fun smsUsage(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate?,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate?,
+    ): ResponseEntity<DoctorSmsUsageDto> =
+        principal.profile?.let { doctor ->
+            ResponseEntity.ok(analytics.smsUsage(doctor, from, to))
         } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Doctor profile not found")
 }

@@ -2,7 +2,12 @@ package com.shifa.web
 
 import com.shifa.security.AdminPrincipal
 import com.shifa.service.AdminDoctorActivityService
+import com.shifa.service.DoctorSmsBillingService
 import com.shifa.service.EarlyPartnerContractService
+import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.PatchMapping
+import org.springframework.web.bind.annotation.RequestBody
+import org.springframework.web.server.ResponseStatusException
 import com.shifa.web.dto.DoctorActivityDetailDto
 import com.shifa.web.dto.DoctorActivityRowDto
 import com.shifa.web.dto.EarlyPartnerContractIssueDto
@@ -22,7 +27,10 @@ import java.time.LocalDate
 class AdminDoctorActivityController(
     private val adminDoctorActivityService: AdminDoctorActivityService,
     private val earlyPartnerContractService: EarlyPartnerContractService,
+    private val doctorSmsBillingService: DoctorSmsBillingService,
 ) {
+
+    data class SmsRemindersAllowedRequest(val allowed: Boolean)
 
     /** List doctor activity aggregates (pagination + sorting in memory after filter). Read-only admins allowed. */
     @Suppress("UNUSED_PARAMETER")
@@ -64,6 +72,23 @@ class AdminDoctorActivityController(
             doctorId = doctorId,
             from = from,
             toInclusive = to,
+        )
+    }
+
+    /** Grant or revoke permission for a doctor to enable patient SMS appointment reminders. */
+    @PatchMapping("/{doctorId}/sms-reminders-allowed")
+    fun setSmsRemindersAllowed(
+        @AuthenticationPrincipal principal: AdminPrincipal,
+        @PathVariable doctorId: Long,
+        @RequestBody body: SmsRemindersAllowedRequest,
+    ): Map<String, Any> {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot change SMS settings")
+        }
+        val doctor = doctorSmsBillingService.setSmsRemindersAllowed(doctorId, body.allowed)
+        return mapOf(
+            "doctorId" to doctor.id,
+            "smsRemindersAllowed" to doctor.smsRemindersAllowed,
         )
     }
 

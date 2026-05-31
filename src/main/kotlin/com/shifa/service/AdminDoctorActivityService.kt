@@ -45,6 +45,7 @@ class AdminDoctorActivityService(
     private val patientFormRepository: PatientFormRepository,
     private val aiUsageCounterRepository: AiUsageCounterRepository,
     private val aiDraftNoteRepository: AiDraftNoteRepository,
+    private val doctorSmsBillingService: DoctorSmsBillingService,
 ) {
 
     companion object {
@@ -106,8 +107,9 @@ class AdminDoctorActivityService(
 
         val contractByDoctor =
             earlyPartnerContractService.contractNumbersByDoctorIds(doctors.map { it.id })
+        val smsByDoctor = doctorSmsBillingService.aggregateMapForWindow(requestedWindow)
         val rows = doctors.map { d ->
-            buildRow(d, requestedWindow, contractByDoctor[d.id])
+            buildRow(d, requestedWindow, contractByDoctor[d.id], smsByDoctor[d.id])
         }
         val comparator = comparatorFor(sortOneOf)
         val sorted =
@@ -129,7 +131,8 @@ class AdminDoctorActivityService(
         val requestedWindow = parseOptionalWindow(from, toInclusive)
         val contractNumber =
             earlyPartnerContractService.contractNumbersByDoctorIds(listOf(doctor.id))[doctor.id]
-        val row = buildRow(doctor, requestedWindow, contractNumber)
+        val smsByDoctor = doctorSmsBillingService.aggregateMapForWindow(requestedWindow)
+        val row = buildRow(doctor, requestedWindow, contractNumber, smsByDoctor[doctor.id])
         val chartWindow = computeChartWindow(requestedWindow)
         val daily = buildDailySeries(doctor.id, doctor.user.id, chartWindow)
         return DoctorActivityDetailDto(row = row, dailySeries = daily)
@@ -261,6 +264,7 @@ class AdminDoctorActivityService(
         doctor: DoctorProfile,
         rowWindow: BoundedWindow?,
         earlyPartnerContractNumber: String? = null,
+        smsStats: Pair<Long, Long>? = null,
     ): DoctorActivityRowDto {
         val id = doctor.id
         val userId = doctor.user.id
@@ -353,6 +357,11 @@ class AdminDoctorActivityService(
             aiDraftNotes = aiDraftNotes.toInt(),
             lastActiveAt = lastInstant?.toString(),
             earlyPartnerContractNumber = earlyPartnerContractNumber,
+            smsRemindersAllowed = doctor.smsRemindersAllowed,
+            smsSentCount = smsStats?.first ?: 0L,
+            smsOwedMinor = smsStats?.second ?: 0L,
+            smsCurrency = doctorSmsBillingService.currency,
+            smsPricePerUnitMinor = doctorSmsBillingService.pricePerSmsMinor,
         )
     }
 

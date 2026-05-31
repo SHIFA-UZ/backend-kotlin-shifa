@@ -5,8 +5,10 @@ import com.shifa.domain.PatientDocument
 import com.shifa.domain.PatientProfile
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DocumentAccessGrantRepository
+import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.service.ClinicAccessService
+import com.shifa.service.DoctorSmsBillingService
 import com.shifa.service.PatientAccountService
 import com.shifa.service.PatientProfileMapper
 import com.shifa.security.DoctorPrincipal
@@ -39,7 +41,9 @@ class PatientsController(
     private val accessGrants: DocumentAccessGrantRepository,
     private val profileMapper: PatientProfileMapper,
     private val patientAccountService: PatientAccountService,
-    private val clinicAccess: ClinicAccessService
+    private val clinicAccess: ClinicAccessService,
+    private val doctorProfiles: DoctorProfileRepository,
+    private val doctorSmsBilling: DoctorSmsBillingService,
 ) {
     companion object {
         private val logger = LoggerFactory.getLogger(PatientsController::class.java)
@@ -69,7 +73,9 @@ class PatientsController(
         val locationPostalCode: String? = null,
         val locationStreetAddress: String? = null,
         /** IANA timezone for remote task schedule (e.g. Europe/Berlin). Doctor enters times in this zone. */
-        val timeZone: String? = null
+        val timeZone: String? = null,
+        /** DevSMS ~24h before each future appointment. */
+        val smsReminderEnabled: Boolean = false,
     )
 
     data class DocumentDto(
@@ -123,7 +129,8 @@ class PatientsController(
         @field:Size(max = 2048)
         val photoUrl: String?,
         @field:Size(max = 1000)
-        val chronicDisease: String?
+        val chronicDisease: String?,
+        val smsReminderEnabled: Boolean? = null,
     )
 
     private fun resolvePhoneInputs(phone: String?, phones: List<String>?): List<String> {
@@ -317,6 +324,21 @@ class PatientsController(
         req.language?.let { patient.language = it.trim() }
         req.photoUrl?.let { patient.photoUrl = it.trim() }
         req.chronicDisease?.let { patient.chronicDisease = it.trim().takeIf { it.isNotEmpty() } }
+        req.smsReminderEnabled?.let { enabled ->
+            if (enabled) {
+                val doctorId = viewerDoctorId(principal)
+                val doctor = doctorProfiles.findById(doctorId).orElseThrow {
+                    ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found")
+                }
+                if (!doctorSmsBilling.isSmsAllowed(doctor)) {
+                    throw ResponseStatusException(
+                        HttpStatus.FORBIDDEN,
+                        "SMS appointment reminders are not enabled for your account. Contact support.",
+                    )
+                }
+            }
+            patient.smsReminderEnabled = enabled
+        }
 
         val saved = patientsRepo.save(patient)
         return toDto(saved, viewerDoctorId(principal))
@@ -354,7 +376,8 @@ class PatientsController(
             locationCity = p.locationCity,
             locationPostalCode = p.locationPostalCode,
             locationStreetAddress = p.locationStreetAddress,
-            timeZone = p.timeZone
+            timeZone = p.timeZone,
+            smsReminderEnabled = p.smsReminderEnabled,
         )
     }
 
@@ -413,7 +436,8 @@ class PatientsController(
             locationCity = p.locationCity,
             locationPostalCode = p.locationPostalCode,
             locationStreetAddress = p.locationStreetAddress,
-            timeZone = p.timeZone
+            timeZone = p.timeZone,
+            smsReminderEnabled = p.smsReminderEnabled,
         )
     }
 

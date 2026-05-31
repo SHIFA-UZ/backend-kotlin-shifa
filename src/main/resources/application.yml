@@ -146,6 +146,14 @@ stripe:
   connectRefreshUrl: ${STRIPE_CONNECT_REFRESH_URL:http://localhost:8080/settings/billing}
   connectReturnUrl: ${STRIPE_CONNECT_RETURN_URL:http://localhost:8080/settings/billing}
 
+# DevSMS — patient appointment SMS reminders (UZ). Token via env in production (never commit).
+devsms:
+  api-token: ${DEVSMS_API_TOKEN:}
+  base-url: ${DEVSMS_BASE_URL:https://devsms.uz/api}
+  sender-from: ${DEVSMS_SENDER_FROM:4546}
+  price-per-sms-minor: ${DEVSMS_PRICE_PER_SMS_MINOR:500}
+  billing-currency: ${DEVSMS_BILLING_CURRENCY:UZS}
+
 # Click.uz — video consultation checkout (UZS). Secrets via env in production (never commit).
 click:
   enabled: ${CLICK_ENABLED:true}

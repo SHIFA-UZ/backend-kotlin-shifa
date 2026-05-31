@@ -8,6 +8,7 @@ import com.shifa.web.dto.AppointmentTrendPointDto
 import com.shifa.web.dto.ConsultationTypesDto
 import com.shifa.web.dto.DoctorAnalyticsOverviewDto
 import com.shifa.web.dto.DoctorEngagementDto
+import com.shifa.web.dto.DoctorSmsUsageDto
 import org.springframework.stereotype.Service
 import java.time.Instant
 import java.time.LocalDate
@@ -21,7 +22,8 @@ import java.time.format.DateTimeFormatter
 @Service
 class DoctorAnalyticsService(
     private val appts: AppointmentRepository,
-    private val patientDocs: PatientDocumentRepository
+    private val patientDocs: PatientDocumentRepository,
+    private val doctorSmsBillingService: DoctorSmsBillingService,
 ) {
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
@@ -94,6 +96,30 @@ class DoctorAnalyticsService(
         return DoctorEngagementDto(
             activePatients = activePatients,
             documentsReceived = documentsReceived
+        )
+    }
+
+    /** SMS reminders sent in optional date range (defaults to last 30 days in doctor TZ). */
+    fun smsUsage(
+        doctor: DoctorProfile,
+        from: LocalDate?,
+        toInclusive: LocalDate?,
+    ): DoctorSmsUsageDto {
+        val (fromDate, toDate) = when {
+            from != null && toInclusive != null -> from to toInclusive
+            else -> {
+                val zone = java.time.ZoneId.of(doctor.timeZone)
+                val today = LocalDate.now(zone)
+                today.minusDays(29) to today
+            }
+        }
+        val summary = doctorSmsBillingService.summaryForDoctor(doctor.id, fromDate, toDate)
+        return DoctorSmsUsageDto(
+            sentCount = summary.sentCount,
+            totalCostMinor = summary.totalCostMinor,
+            currency = summary.currency,
+            pricePerSmsMinor = summary.pricePerSmsMinor,
+            smsRemindersAllowed = doctor.smsRemindersAllowed,
         )
     }
 

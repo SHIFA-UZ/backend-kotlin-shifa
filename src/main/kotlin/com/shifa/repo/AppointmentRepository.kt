@@ -250,6 +250,24 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         @Param("end") end: Instant
     ): List<Appointment>
 
+    /** Appointments ~24h ahead for DevSMS when patient has SMS reminders enabled. */
+    @Query(
+        """
+        SELECT a FROM Appointment a
+        JOIN FETCH a.patient p
+        JOIN FETCH a.doctor d
+        WHERE a.startAt >= :start AND a.startAt < :end
+          AND a.status != 'CANCELLED'
+          AND a.smsReminderSentAt IS NULL
+          AND p.smsReminderEnabled = true
+          AND d.smsRemindersAllowed = true
+        """
+    )
+    fun findAppointmentsForSmsReminder(
+        @Param("start") start: Instant,
+        @Param("end") end: Instant
+    ): List<Appointment>
+
     /**
      * Video consultations with payment still pending, starting in [start, end) (UTC).
      * Used for scheduled payment nudges at 24h / 6h / 1h before start.

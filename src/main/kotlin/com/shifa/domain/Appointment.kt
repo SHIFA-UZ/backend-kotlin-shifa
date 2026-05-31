@@ -76,7 +76,11 @@ class Appointment(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "linked_treatment_plan_line_id")
-    var linkedTreatmentPlanLine: TreatmentPlanLine? = null
+    var linkedTreatmentPlanLine: TreatmentPlanLine? = null,
+
+    /** Set when DevSMS 24h reminder was sent; cleared on reschedule. */
+    @Column(name = "sms_reminder_sent_at")
+    var smsReminderSentAt: Instant? = null
 ) {
     enum class Status { REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED }
     enum class PaymentStatus { NOT_REQUIRED, PENDING, PAID, FAILED, REFUNDED }
