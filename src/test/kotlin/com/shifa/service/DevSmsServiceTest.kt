@@ -1,5 +1,6 @@
 package com.shifa.service
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.config.DevSmsProperties
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -10,7 +11,7 @@ import org.junit.jupiter.api.Test
 class DevSmsServiceTest {
 
     private val service = DevSmsService(
-        DevSmsProperties(apiToken = "", baseUrl = "https://devsms.uz/api", senderFrom = "4546")
+        DevSmsProperties(apiToken = "", baseUrl = "https://devsms.uz/api", senderFrom = "")
     )
 
     @Test
@@ -26,13 +27,36 @@ class DevSmsServiceTest {
     }
 
     @Test
+    fun `formatPhoneForDevSms prepends 998 for local uz mobile`() {
+        assertEquals("998902078994", service.formatPhoneForDevSms("902078994"))
+    }
+
+    @Test
     fun `sendSms returns false when not configured`() {
-        assertFalse(service.sendSms("998901234567", "test").success)
+        val result = service.sendSms("998901234567", "test")
+        assertFalse(result.success)
+        assertEquals("SMS service not configured", result.errorMessage)
     }
 
     @Test
     fun `isConfigured true when token present`() {
         val configured = DevSmsService(DevSmsProperties(apiToken = "secret"))
         assertTrue(configured.isConfigured())
+    }
+
+    @Test
+    fun `parseDevSmsResponse trims leading whitespace and reads error field`() {
+        val body = "\n\n\n{\"success\":false,\"error\":\"Balans yetarli emas\"}\n"
+        val parsed = service.parseDevSmsResponse(body)
+        assertFalse(parsed.success)
+        assertEquals("Balans yetarli emas", parsed.errorMessage)
+    }
+
+    @Test
+    fun `parseDevSmsResponse reads success payload`() {
+        val body = "{\"success\":true,\"data\":{\"sms_id\":42}}"
+        val parsed = service.parseDevSmsResponse(body)
+        assertTrue(parsed.success)
+        assertEquals("42", parsed.smsId)
     }
 }

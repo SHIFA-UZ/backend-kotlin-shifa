@@ -388,10 +388,9 @@ class PatientsController(
         )
         val result = devSmsService.sendSms(phone, message)
         if (!result.success) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_GATEWAY,
-                "Failed to send SMS via DevSMS. Check token, balance, and phone format.",
-            )
+            val detail = result.errorMessage?.trim()?.takeIf { it.isNotEmpty() }
+                ?: "Failed to send SMS via DevSMS. Check token, balance, and phone format."
+            throw ResponseStatusException(HttpStatus.BAD_GATEWAY, detail)
         }
         doctorSmsBilling.recordSentSms(
             doctor = doctor,

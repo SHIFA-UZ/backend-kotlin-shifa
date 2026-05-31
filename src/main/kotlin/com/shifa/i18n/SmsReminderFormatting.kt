@@ -2,7 +2,6 @@ package com.shifa.i18n
 
 import com.shifa.service.NotificationFormatting
 import java.time.Instant
-import java.time.temporal.ChronoUnit
 
 object SmsReminderFormatting {
 
@@ -29,18 +28,17 @@ object SmsReminderFormatting {
         }
     }
 
-    /** Immediate test SMS from patient profile (sample reminder wording). */
+    /** Short immediate test SMS from patient profile (single SMS part). */
     fun testReminderBody(
         lang: String?,
         doctorName: String,
         doctorTimeZone: String,
     ): String {
-        val sampleStart = Instant.now().plus(1, ChronoUnit.DAYS)
-        val sample = appointmentReminderBody(lang, doctorName, sampleStart, doctorTimeZone, "Klinika")
+        val doctor = doctorName.trim().ifEmpty { "—" }
         return when (code(lang)) {
-            "uz" -> "Shifa test SMS. Namuna: $sample"
-            "ru" -> "Shifa тест SMS. Пример: $sample"
-            else -> "Shifa test SMS. Sample: $sample"
+            "uz" -> "Shifa test SMS. $doctor bilan eslatma xizmati yoqilgan."
+            "ru" -> "Shifa тест SMS. Напоминания для $doctor включены."
+            else -> "Shifa test SMS. Reminders for $doctor are enabled."
         }
     }
 }

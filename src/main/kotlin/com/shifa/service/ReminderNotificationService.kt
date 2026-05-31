@@ -190,6 +190,12 @@ class ReminderNotificationService(
                     appointment.smsReminderSentAt = Instant.now()
                     appointmentRepository.save(appointment)
                     log.info("SMS reminder sent for appointment id={} patient={}", appointment.id, patient.id)
+                } else {
+                    log.warn(
+                        "SMS reminder DevSMS failed for appointment id={}: {}",
+                        appointment.id,
+                        sendResult.errorMessage ?: "unknown error",
+                    )
                 }
             } catch (e: Exception) {
                 log.warn("SMS reminder failed for appointment id={}: {}", appointment.id, e.message)
