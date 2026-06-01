@@ -11,6 +11,7 @@ import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ConsultationNoteRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.service.ClinicAccessService
+import com.shifa.service.AppointmentCancellationService
 import com.shifa.i18n.PatientPaymentPushI18n
 import com.shifa.service.FcmService
 import com.shifa.service.ClinicalRagIndexingService
@@ -41,6 +42,7 @@ class AppointmentController(
     private val visitChargeService: VisitChargeService,
     private val treatmentPlanStatusService: TreatmentPlanStatusService,
     private val slotAvailabilityService: SlotAvailabilityService,
+    private val appointmentCancellationService: AppointmentCancellationService,
 ) {
 
     // -------------------- Doctor: get single appointment (for polling signature status) --------------------
@@ -327,24 +329,9 @@ class AppointmentController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot cancel a past appointment")
         }
 
-        // Cancel the appointment
-        appointment.status = Appointment.Status.CANCELLED
-        appts.save(appointment)
-
-        val zone = ZoneId.of(appointment.doctor.timeZone)
-        val startLdt = appointment.startAt.atZone(zone).toLocalDateTime()
-        val monthName = startLdt.month.name.lowercase().replaceFirstChar { it.uppercase() }
-        val dateStr = "${startLdt.dayOfMonth} $monthName ${startLdt.year}"
-        
-        val notif = com.shifa.domain.Notification(
-            patient = appointment.patient,
-            title = "Appointment Cancelled",
-            message = "Doctor has cancelled your appointment on $dateStr. Please make another appointment.",
-            type = com.shifa.domain.Notification.Type.APPOINTMENT_CANCELLED,
-            appointmentId = appointment.id
-        )
-        val savedNotif = notifications.save(notif)
-        appointment.patient.fcmToken?.let { fcmService.sendPatientNotification(it, savedNotif) }
+        if (!appointmentCancellationService.cancelByDoctorManual(appointment)) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment cannot be cancelled")
+        }
     }
 
     data class CompleteAppointmentRequest(

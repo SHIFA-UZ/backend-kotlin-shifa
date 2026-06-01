@@ -4,6 +4,7 @@ import com.shifa.domain.DoctorProfile
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DateSpecificScheduleRuleRepository
 import com.shifa.repo.DoctorProfileRepository
+import com.shifa.repo.ScheduleBlockRepository
 import com.shifa.repo.ScheduleValidityPeriodRepository
 import com.shifa.repo.WeeklyScheduleRuleRepository
 import org.slf4j.LoggerFactory
@@ -21,6 +22,7 @@ class AdminCalendarResetService(
     private val appointmentRepository: AppointmentRepository,
     private val weeklyScheduleRuleRepository: WeeklyScheduleRuleRepository,
     private val dateSpecificScheduleRuleRepository: DateSpecificScheduleRuleRepository,
+    private val scheduleBlockRepository: ScheduleBlockRepository,
     private val scheduleValidityPeriodRepository: ScheduleValidityPeriodRepository
 ) {
     private val log = LoggerFactory.getLogger(AdminCalendarResetService::class.java)
@@ -48,6 +50,7 @@ class AdminCalendarResetService(
         val appointmentsDeleted = appointmentRepository.deleteByDoctorId(doctorId)
         val weeklyDeleted = weeklyScheduleRuleRepository.deleteByDoctorId(doctorId)
         val dateSpecificDeleted = dateSpecificScheduleRuleRepository.deleteByDoctorId(doctorId)
+        val blocksDeleted = scheduleBlockRepository.deleteByDoctorId(doctorId)
 
         val periods = scheduleValidityPeriodRepository.findByDoctorIdOrderByValidFromAsc(doctorId)
         scheduleValidityPeriodRepository.deleteAll(periods)
@@ -58,8 +61,8 @@ class AdminCalendarResetService(
         doctorProfileRepository.save(doctor)
 
         log.info(
-            "RESET_DOCTOR_CALENDAR: Completed for doctorId={}. Deleted: appointments={}, weeklyRules={}, dateSpecificRules={}, validityPeriods={}. Cleared validFrom/validUntil.",
-            doctorId, appointmentsDeleted, weeklyDeleted, dateSpecificDeleted, periods.size
+            "RESET_DOCTOR_CALENDAR: Completed for doctorId={}. Deleted: appointments={}, weeklyRules={}, dateSpecificRules={}, blocks={}, validityPeriods={}. Cleared validFrom/validUntil.",
+            doctorId, appointmentsDeleted, weeklyDeleted, dateSpecificDeleted, blocksDeleted, periods.size
         )
 
         return doctor

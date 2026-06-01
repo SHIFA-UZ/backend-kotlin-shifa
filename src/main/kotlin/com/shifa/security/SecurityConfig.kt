@@ -107,6 +107,8 @@ class SecurityConfig(
                 // Doctor-only: own profile & subscription endpoints under /api/doctors/me
                 it.requestMatchers("/api/doctors/me", "/api/doctors/me/**").hasRole("DOCTOR")
                 it.requestMatchers(HttpMethod.POST, "/api/schedule/book").hasAnyRole("DOCTOR", "CLINIC_STAFF")
+                it.requestMatchers(HttpMethod.POST, "/api/schedule/blocks").hasAnyRole("DOCTOR", "CLINIC_STAFF")
+                it.requestMatchers(HttpMethod.DELETE, "/api/schedule/blocks/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 // Staff may GET schedule metadata (read-only); mutations remain doctor-only below.
                 it.requestMatchers(HttpMethod.GET, "/api/schedule/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 it.requestMatchers("/api/schedule/**").hasRole("DOCTOR")

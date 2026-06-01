@@ -35,7 +35,11 @@ import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 import org.springframework.data.web.PageableDefault
+import com.shifa.domain.Appointment
+import java.time.Instant
 import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
 
 @RestController
 @RequestMapping("/api/patients")
@@ -411,10 +415,29 @@ class PatientsController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Patient has no phone number")
         }
         val doctorName = "${doctor.firstName} ${doctor.lastName}".trim()
+        val zone = doctor.timeZone?.takeIf { it.isNotBlank() } ?: "UTC"
+        val sampleStart = appointmentRepo
+            .findFirstByPatient_IdAndDoctor_IdAndStartAtAfterAndStatusNotOrderByStartAtAsc(
+                id,
+                doctorId,
+                Instant.now(),
+                Appointment.Status.CANCELLED,
+            )?.startAt
+            ?: run {
+                val zoneId = runCatching { ZoneId.of(zone) }.getOrElse { ZoneId.of("UTC") }
+                ZonedDateTime.now(zoneId)
+                    .plusDays(1)
+                    .withHour(10)
+                    .withMinute(0)
+                    .withSecond(0)
+                    .withNano(0)
+                    .toInstant()
+            }
         val message = SmsReminderFormatting.testReminderBody(
-            lang = patient.language,
+            patientName = patient.fullName,
             doctorName = doctorName,
-            doctorTimeZone = doctor.timeZone,
+            startAt = sampleStart,
+            timeZone = zone,
         )
         val result = devSmsService.sendSms(phone, message)
         if (!result.success) {

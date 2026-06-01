@@ -3,6 +3,7 @@ package com.shifa.service
 import com.shifa.domain.DoctorProfile
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DateSpecificScheduleRuleRepository
+import com.shifa.repo.ScheduleBlockRepository
 import com.shifa.repo.WeeklyScheduleRuleRepository
 import org.springframework.stereotype.Service
 import java.time.Instant
@@ -20,6 +21,7 @@ class PatientDaySlotsService(
     private val rulesRepo: WeeklyScheduleRuleRepository,
     private val dateSpecificRulesRepo: DateSpecificScheduleRuleRepository,
     private val appts: AppointmentRepository,
+    private val blocksRepo: ScheduleBlockRepository,
     private val scheduleValidityService: ScheduleValidityService
 ) {
 
@@ -112,11 +114,13 @@ class PatientDaySlotsService(
         // regardless of location – a doctor can only be in one place at a time.
         val existingAppts = appts.findOverlapping(doctor.id!!, dayStart, dayEnd)
             .filter { excludeAppointmentId == null || it.id != excludeAppointmentId }
+        val blocks = blocksRepo.findOverlapping(doctor.id!!, dayStart, dayEnd)
 
         fun overlaps(a: Instant, b: Instant, c: Instant, d: Instant) = a < d && c < b
 
         return freeSlots.filter { (start, end, _) ->
-            existingAppts.none { ap -> overlaps(start, end, ap.startAt, ap.endAt) }
+            existingAppts.none { ap -> overlaps(start, end, ap.startAt, ap.endAt) } &&
+                blocks.none { block -> overlaps(start, end, block.startAt, block.endAt) }
         }.map { (_, _, dto) -> dto }.sortedBy { it.startAt }
     }
 

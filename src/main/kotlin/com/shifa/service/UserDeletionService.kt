@@ -26,6 +26,7 @@ class UserDeletionService(
     private val appointmentRepository: AppointmentRepository,
     private val weeklyScheduleRuleRepository: WeeklyScheduleRuleRepository,
     private val dateSpecificScheduleRuleRepository: DateSpecificScheduleRuleRepository,
+    private val scheduleBlockRepository: ScheduleBlockRepository,
     private val scheduleValidityPeriodRepository: ScheduleValidityPeriodRepository,
     private val doctorReviewRepository: DoctorReviewRepository,
     private val notificationRepository: NotificationRepository,
@@ -74,6 +75,7 @@ class UserDeletionService(
             appointmentRepository.deleteByDoctorId(doctorId)
             weeklyScheduleRuleRepository.deleteByDoctorId(doctorId)
             dateSpecificScheduleRuleRepository.deleteByDoctorId(doctorId)
+            scheduleBlockRepository.deleteByDoctorId(doctorId)
             scheduleValidityPeriodRepository.findByDoctorIdOrderByValidFromAsc(doctorId).let {
                 scheduleValidityPeriodRepository.deleteAll(it)
             }

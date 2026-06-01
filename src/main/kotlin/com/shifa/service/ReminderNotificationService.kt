@@ -173,11 +173,10 @@ class ReminderNotificationService(
                 val doctorName = "${doctor.firstName} ${doctor.lastName}".trim()
                 val zone = doctor.timeZone?.takeIf { it.isNotBlank() } ?: "UTC"
                 val message = SmsReminderFormatting.appointmentReminderBody(
-                    lang = patient.language,
+                    patientName = patient.fullName,
                     doctorName = doctorName,
                     startAt = appointment.startAt,
                     timeZone = zone,
-                    location = appointment.location,
                 )
                 val sendResult = devSmsService.sendSms(phone, message)
                 if (sendResult.success) {

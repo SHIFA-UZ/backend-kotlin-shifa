@@ -4,6 +4,7 @@ package com.shifa.web
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DateSpecificScheduleRuleRepository
 import com.shifa.repo.DoctorProfileRepository
+import com.shifa.repo.ScheduleBlockRepository
 import com.shifa.repo.WeeklyScheduleRuleRepository
 import com.shifa.security.ClinicStaffPrincipal
 import com.shifa.security.DoctorPrincipal
@@ -23,6 +24,7 @@ class CalendarController(
     private val rulesRepo: WeeklyScheduleRuleRepository,
     private val dateSpecificRulesRepo: DateSpecificScheduleRuleRepository,
     private val appts: AppointmentRepository,
+    private val blocksRepo: ScheduleBlockRepository,
     private val doctors: DoctorProfileRepository,
     private val profileMapper: PatientProfileMapper,
     private val scheduleValidityService: ScheduleValidityService,
@@ -31,10 +33,12 @@ class CalendarController(
     private val logger = LoggerFactory.getLogger(CalendarController::class.java)
 
     data class EntryDto(
-        val type: String, // FREE_SLOT | APPOINTMENT
+        val type: String, // FREE_SLOT | APPOINTMENT | BLOCKED
         val startAt: String, // ISO 8601 UTC
         val endAt: String,
         val appointmentId: Long? = null,
+        val blockId: Long? = null,
+        val blockReason: String? = null,
         val patientId: Long? = null,
         val patientName: String? = null,
         val patientPhotoUrl: String? = null,
@@ -282,14 +286,29 @@ class CalendarController(
         val sortedAppts = apptsForDay.sortedBy { it.start }
         
         // Use binary search-like approach for better performance
+        val blocksForDay = blocksRepo.findOverlapping(doctorIdResolved, dayStart, dayEnd)
+
         val filteredFreeSlots = freeSlots.filter { fs ->
-            sortedAppts.none { ap -> overlaps(fs.start, fs.end, ap.start, ap.end) }
+            sortedAppts.none { ap -> overlaps(fs.start, fs.end, ap.start, ap.end) } &&
+                blocksForDay.none { block -> overlaps(fs.start, fs.end, block.startAt, block.endAt) }
         }
 
-        val result = (apptsForDay.map { it.dto } + filteredFreeSlots.map { it.dto })
+        val blockedEntries = blocksForDay.map { block ->
+            val clippedStart = if (block.startAt.isBefore(dayStart)) dayStart else block.startAt
+            val clippedEnd = if (block.endAt.isAfter(dayEnd)) dayEnd else block.endAt
+            EntryDto(
+                type = "BLOCKED",
+                startAt = clippedStart.toString(),
+                endAt = clippedEnd.toString(),
+                blockId = block.id,
+                blockReason = block.reason
+            )
+        }
+
+        val result = (apptsForDay.map { it.dto } + blockedEntries + filteredFreeSlots.map { it.dto })
             .sortedBy { Instant.parse(it.startAt) }
         
-        logger.debug("Returning ${result.size} entries (${apptsForDay.size} appointments, ${filteredFreeSlots.size} free slots) for doctor $doctorIdResolved on $day")
+        logger.debug("Returning ${result.size} entries (${apptsForDay.size} appointments, ${blockedEntries.size} blocks, ${filteredFreeSlots.size} free slots) for doctor $doctorIdResolved on $day")
         
         return result
     }

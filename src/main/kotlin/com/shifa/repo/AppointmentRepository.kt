@@ -103,6 +103,13 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         @Param("doctorId") doctorId: Long
     ): List<Appointment>
 
+    fun findFirstByPatient_IdAndDoctor_IdAndStartAtAfterAndStatusNotOrderByStartAtAsc(
+        patientId: Long,
+        doctorId: Long,
+        startAt: Instant,
+        status: com.shifa.domain.Appointment.Status,
+    ): Appointment?
+
     /**
      * Find appointments by patient ID within date range.
      */
