@@ -85,8 +85,10 @@ class PatientsController(
         val locationStreetAddress: String? = null,
         /** IANA timezone for remote task schedule (e.g. Europe/Berlin). Doctor enters times in this zone. */
         val timeZone: String? = null,
-        /** DevSMS ~24h before each future appointment. */
+        /** DevSMS before each future appointment when enabled. */
         val smsReminderEnabled: Boolean = false,
+        /** Hours before appointment to send SMS (1 or 24). */
+        val smsReminderHoursBefore: Int = 24,
         val gender: String? = null,
         val bloodGroup: String? = null,
         val allergies: String? = null,
@@ -155,6 +157,7 @@ class PatientsController(
         @field:Size(max = 1000)
         val chronicDisease: String?,
         val smsReminderEnabled: Boolean? = null,
+        val smsReminderHoursBefore: Int? = null,
         @field:Size(max = 20)
         val gender: String? = null,
         @field:Size(max = 10)
@@ -413,6 +416,15 @@ class PatientsController(
             }
             patient.smsReminderEnabled = enabled
         }
+        req.smsReminderHoursBefore?.let { hours ->
+            if (hours !in setOf(1, 24)) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "smsReminderHoursBefore must be 1 or 24",
+                )
+            }
+            patient.smsReminderHoursBefore = hours
+        }
 
         val saved = patientsRepo.save(patient)
         return toDto(saved, viewerDoctorId(principal), clinicalContextFor(saved.id, buildClinicalContext(listOfNotNull(saved.id))))
@@ -570,6 +582,7 @@ class PatientsController(
             locationStreetAddress = p.locationStreetAddress,
             timeZone = p.timeZone,
             smsReminderEnabled = p.smsReminderEnabled,
+            smsReminderHoursBefore = p.smsReminderHoursBefore,
             gender = p.gender,
             bloodGroup = p.bloodGroup,
             allergies = p.allergies,
@@ -642,6 +655,7 @@ class PatientsController(
             locationStreetAddress = p.locationStreetAddress,
             timeZone = p.timeZone,
             smsReminderEnabled = p.smsReminderEnabled,
+            smsReminderHoursBefore = p.smsReminderHoursBefore,
             gender = p.gender,
             bloodGroup = p.bloodGroup,
             allergies = p.allergies,

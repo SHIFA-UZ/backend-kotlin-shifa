@@ -62,7 +62,7 @@ class ReminderNotificationService(
     private val paymentDueToleranceMinutes = 10L
 
     /** DevSMS appointment reminder: ~24 hours before start (UTC window). */
-    private val smsReminderHoursOffset = 24L
+    private val smsReminderHourOptions = listOf(24L, 1L)
 
     @Transactional
     fun sendTaskReminders() {
@@ -150,16 +150,27 @@ class ReminderNotificationService(
     }
 
     /**
-     * DevSMS: send one text ~24 hours before appointment start for patients with [PatientProfile.smsReminderEnabled].
+     * DevSMS: send one text before appointment start for patients with [PatientProfile.smsReminderEnabled].
+     * Timing follows [PatientProfile.smsReminderHoursBefore] (1 or 24 hours).
      */
     @Transactional
     fun sendAppointmentSmsReminders() {
         if (!devSmsService.isConfigured()) return
         val now = Instant.now()
-        val center = now.plus(smsReminderHoursOffset, ChronoUnit.HOURS)
-        val windowStart = center.minus(paymentDueToleranceMinutes, ChronoUnit.MINUTES)
-        val windowEnd = center.plus(paymentDueToleranceMinutes, ChronoUnit.MINUTES)
-        val appointments = appointmentRepository.findAppointmentsForSmsReminder(windowStart, windowEnd)
+        for (hoursOffset in smsReminderHourOptions) {
+            val center = now.plus(hoursOffset, ChronoUnit.HOURS)
+            val windowStart = center.minus(paymentDueToleranceMinutes, ChronoUnit.MINUTES)
+            val windowEnd = center.plus(paymentDueToleranceMinutes, ChronoUnit.MINUTES)
+            val appointments = appointmentRepository.findAppointmentsForSmsReminder(
+                windowStart,
+                windowEnd,
+                hoursOffset.toInt(),
+            )
+            sendAppointmentSmsRemindersForBatch(appointments)
+        }
+    }
+
+    private fun sendAppointmentSmsRemindersForBatch(appointments: List<Appointment>) {
         for (appointment in appointments) {
             try {
                 val patient = appointment.patient

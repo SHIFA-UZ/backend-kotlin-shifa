@@ -257,7 +257,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         @Param("end") end: Instant
     ): List<Appointment>
 
-    /** Appointments ~24h ahead for DevSMS when patient has SMS reminders enabled. */
+    /** Appointments in reminder window for DevSMS when patient has SMS reminders enabled. */
     @Query(
         """
         SELECT a FROM Appointment a
@@ -267,12 +267,14 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
           AND a.status != 'CANCELLED'
           AND a.smsReminderSentAt IS NULL
           AND p.smsReminderEnabled = true
+          AND p.smsReminderHoursBefore = :hoursBefore
           AND d.smsRemindersAllowed = true
         """
     )
     fun findAppointmentsForSmsReminder(
         @Param("start") start: Instant,
-        @Param("end") end: Instant
+        @Param("end") end: Instant,
+        @Param("hoursBefore") hoursBefore: Int,
     ): List<Appointment>
 
     /**
