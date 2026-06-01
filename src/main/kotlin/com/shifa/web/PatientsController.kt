@@ -280,6 +280,43 @@ class PatientsController(
         return toDto(p, viewerDoctorId(principal), clinicalContextFor(p.id, buildClinicalContext(listOfNotNull(p.id))))
     }
 
+    data class PatientAppointmentRow(
+        val id: Long,
+        val startAt: String,
+        val endAt: String,
+        val status: String,
+        val location: String?,
+        val isVideo: Boolean,
+        val reason: String?,
+    )
+
+    /**
+     * GET /api/patients/{id}/appointments
+     * Appointment history for this patient with the logged-in doctor (non-cancelled).
+     */
+    @GetMapping("/{id}/appointments")
+    @Transactional(readOnly = true)
+    fun getPatientAppointments(
+        @PathVariable id: Long,
+        @AuthenticationPrincipal principal: Any,
+    ): List<PatientAppointmentRow> {
+        clinicAccess.assertPracticeActor(principal)
+        clinicAccess.assertPatientVisible(principal, id)
+        val doctorId = viewerDoctorId(principal)
+        return appointmentRepo.findByPatientIdAndDoctorIdOrderByStartAtDesc(id, doctorId)
+            .map {
+                PatientAppointmentRow(
+                    id = it.id,
+                    startAt = it.startAt.toString(),
+                    endAt = it.endAt.toString(),
+                    status = it.status.name,
+                    location = it.location,
+                    isVideo = it.location.contains("video", ignoreCase = true),
+                    reason = it.reason,
+                )
+            }
+    }
+
     /**
      * POST /api/patients
      * Creates a new patient.
