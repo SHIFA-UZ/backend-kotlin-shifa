@@ -359,15 +359,17 @@ class RemoteCareTaskController(
         @RequestParam(required = false) status: String?
     ): List<TaskDto> {
         val patient = currentPatientProfile(principal)
-        val today = LocalDate.now()
-        
+
         val tasks = if (status != null) {
-            // If status is specified, use that filter
-            taskRepo.findByPatientIdAndStatus(patient.id!!, RemoteCareTask.Status.valueOf(status.uppercase()))
+            taskRepo.findByPatientIdAndStatus(
+                patient.id!!,
+                RemoteCareTask.Status.valueOf(status.uppercase()),
+            )
         } else {
-            // Default: return all ACTIVE tasks (including future ones)
-            // This uses the updated query that includes tasks starting in the future
-            taskRepo.findActiveTasksForPatient(patient.id!!, RemoteCareTask.Status.ACTIVE, today)
+            // All ACTIVE tasks for this patient (including future start dates and past end dates
+            // while still ACTIVE — patients must see in-progress work until the task completes).
+            taskRepo.findByPatientIdAndStatus(patient.id!!, RemoteCareTask.Status.ACTIVE)
+                .sortedByDescending { it.createdAt }
         }
 
         return tasks.map { toTaskDto(it) }
