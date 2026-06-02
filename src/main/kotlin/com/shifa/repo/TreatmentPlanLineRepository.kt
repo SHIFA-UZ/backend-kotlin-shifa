@@ -59,6 +59,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
         JOIN FETCH a.doctor
         JOIN FETCH a.patient
         JOIN FETCH l.plan p
+        LEFT JOIN FETCH l.assignedDoctor
         WHERE p.clinic.id = :clinicId
           AND l.linkedAppointment IS NOT NULL
           AND a.status <> 'CANCELLED'

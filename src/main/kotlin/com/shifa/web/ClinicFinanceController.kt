@@ -1116,12 +1116,12 @@ class ClinicFinanceController(
         if (lines.isEmpty()) return null
         val plan = lines.first().plan
         val visitTotal = lines.sumOf { ledgerService.lineTotal(it) }
-        val planEstimated = plan.estimatedTotalMinor.coerceAtLeast(1L)
+        val planTotal = ledgerService.planTotalMinor(plan.id).coerceAtLeast(1L)
         val payments = treatmentPlanPayments.findByPlan_IdOrderByRecordedAtAsc(plan.id)
-        val visitPaid = ledgerService.appointmentAttributedPaidMinorFromPayments(
+        val visitPaid = ledgerService.appointmentCollectedMinor(
             appt.id,
             visitTotal,
-            planEstimated,
+            planTotal,
             payments,
         )
         val rowStatus = ledgerService.planSimplePaymentStatus(visitTotal, visitPaid)

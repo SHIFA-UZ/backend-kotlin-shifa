@@ -16,6 +16,16 @@ class ClinicFinanceLedgerService(
     fun lineTotal(line: TreatmentPlanLine): Long =
         (line.unitPriceMinor * line.quantity - line.discountMinor).coerceAtLeast(0)
 
+    /** Sum of all line totals on a plan — used as the denominator for payment allocation. */
+    fun planTotalMinor(planId: Long): Long =
+        linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(planId)
+            .sumOf { lineTotal(it) }
+            .coerceAtLeast(0L)
+
+    /** Resolve which doctor earns credit for a charge line. */
+    fun earningDoctorId(line: TreatmentPlanLine): Long? =
+        line.assignedDoctor?.id ?: line.linkedAppointment?.doctor?.id
+
     /** UI label: UNPAID | PARTIAL | PAID | NONE — proportional allocation of plan payments across visit lines. */
     fun visitPaymentStatus(visitTotal: Long, planPaid: Long, planTotal: Long): String {
         if (visitTotal <= 0L) return "NONE"
@@ -60,6 +70,23 @@ class ClinicFinanceLedgerService(
         return explicit + (unallocated * visitTotal) / denom
     }
 
+    /** Per-visit collected amount, capped at [visitTotal]. */
+    fun appointmentCollectedMinor(
+        appointmentId: Long,
+        visitTotal: Long,
+        planTotalMinor: Long,
+        payments: List<TreatmentPlanPayment>,
+    ): Long {
+        if (visitTotal <= 0L) return 0L
+        val raw = appointmentAttributedPaidMinorFromPayments(
+            appointmentId,
+            visitTotal,
+            planTotalMinor,
+            payments,
+        )
+        return raw.coerceAtMost(visitTotal)
+    }
+
     fun appointmentAttributedPaidMinorFromPayments(
         appointmentId: Long,
         visitTotal: Long,
@@ -95,26 +122,32 @@ class ClinicFinanceLedgerService(
         data class MutableAgg(var grossMinor: Long, var collectedMinor: Long, var visits: MutableSet<Long>)
 
         val byDoctor = mutableMapOf<Long, MutableAgg>()
+        val planTotalCache = mutableMapOf<Long, Long>()
         val byAppt = filtered.groupBy { it.linkedAppointment!!.id }
         for ((_, apptLines) in byAppt) {
             val appt = apptLines.first().linkedAppointment!!
-            val doctorId = appt.doctor.id ?: continue
             val patientId = appt.patient.id
             if (patientFilter != null && patientId != null && patientId !in patientFilter) continue
-            val visitTotal = apptLines.sumOf { lineTotal(it) }
             val plan = apptLines.first().plan
-            val planCap = plan.estimatedTotalMinor.coerceAtLeast(1L)
+            val planCap = planTotalCache.getOrPut(plan.id) { planTotalMinor(plan.id) }.coerceAtLeast(1L)
+            val visitTotal = apptLines.sumOf { lineTotal(it) }
             val payments = paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(plan.id)
-            val allocated = appointmentAttributedPaidMinorFromPayments(
+            val visitCollected = appointmentCollectedMinor(
                 appt.id,
                 visitTotal,
                 planCap,
                 payments,
             )
-            val agg = byDoctor.getOrPut(doctorId) { MutableAgg(0L, 0L, mutableSetOf()) }
-            agg.grossMinor += visitTotal
-            agg.collectedMinor += allocated
-            agg.visits.add(appt.id)
+            for (line in apptLines) {
+                val doctorId = earningDoctorId(line) ?: continue
+                val lineAmount = lineTotal(line)
+                val lineCollected =
+                    if (visitTotal > 0L) (visitCollected * lineAmount) / visitTotal else 0L
+                val agg = byDoctor.getOrPut(doctorId) { MutableAgg(0L, 0L, mutableSetOf()) }
+                agg.grossMinor += lineAmount
+                agg.collectedMinor += lineCollected.coerceAtMost(lineAmount)
+                agg.visits.add(appt.id)
+            }
         }
         return byDoctor.map { (doctorId, agg) ->
             DoctorEarningAgg(
