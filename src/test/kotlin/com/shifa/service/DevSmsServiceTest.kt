@@ -11,8 +11,16 @@ import org.junit.jupiter.api.Test
 class DevSmsServiceTest {
 
     private val service = DevSmsService(
-        DevSmsProperties(apiToken = "", baseUrl = "https://devsms.uz/api", senderFrom = "")
+        DevSmsProperties(apiToken = "", baseUrl = "https://devsms.uz/api", senderFrom = "SHIFA.UZ")
     )
+
+    @Test
+    fun `resolveSenderFrom strips spaces and defaults to SHIFA UZ brand`() {
+        assertEquals("SHIFA.UZ", DevSmsService.resolveSenderFrom("SHIFA UZ"))
+        assertEquals("SHIFA.UZ", DevSmsService.resolveSenderFrom(""))
+        assertEquals("SHIFA.UZ", DevSmsService.resolveSenderFrom("SHIFAUZ"))
+        assertEquals("SHIFA.UZ", DevSmsService.resolveSenderFrom("SHIFA.UZ"))
+    }
 
     @Test
     fun `isConfigured false when token blank`() {

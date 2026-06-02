@@ -65,13 +65,11 @@ class DevSmsService(
             log.warn("DevSMS not configured (DEVSMS_API_TOKEN missing) — would send to {}***", formatted.take(5))
             return DevSmsSendResult(success = false, errorMessage = "SMS service not configured")
         }
+        val sender = resolveSenderFrom(props.senderFrom)
         val payload = buildMap {
             put("phone", formatted)
             put("message", message)
-            val sender = props.senderFrom.trim()
-            if (sender.isNotEmpty()) {
-                put("from", sender)
-            }
+            put("from", sender)
         }
         val bodyJson = mapper.writeValueAsString(payload)
         val base = props.baseUrl.trimEnd('/')
@@ -92,7 +90,7 @@ class DevSmsService(
                         response.code,
                         formatted.take(5),
                         message.length,
-                        props.senderFrom.trim().ifBlank { "(default)" },
+                        sender,
                         detail,
                     )
                     return DevSmsSendResult(success = false, errorMessage = detail)
@@ -145,5 +143,17 @@ class DevSmsService(
             if (text.isNotEmpty()) return text
         }
         return fallback.take(300)
+    }
+
+    companion object {
+        private const val DEFAULT_SENDER = "SHIFA.UZ"
+
+        /** DevSMS alphanumeric sender: no spaces; must match name approved in DevSMS panel. */
+        internal fun resolveSenderFrom(raw: String): String {
+            val normalized = raw.trim().replace(" ", "")
+            if (normalized.isEmpty()) return DEFAULT_SENDER
+            if (normalized.equals("SHIFAUZ", ignoreCase = true)) return DEFAULT_SENDER
+            return normalized
+        }
     }
 }

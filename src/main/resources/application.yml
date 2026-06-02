@@ -147,10 +147,11 @@ stripe:
   connectReturnUrl: ${STRIPE_CONNECT_RETURN_URL:http://localhost:8080/settings/billing}
 
 # DevSMS — patient appointment SMS reminders (UZ). Token via env in production (never commit).
+# sender-from must match the alphanumeric name approved in your DevSMS account (not 4546).
 devsms:
   api-token: ${DEVSMS_API_TOKEN:}
   base-url: ${DEVSMS_BASE_URL:https://devsms.uz/api}
-  sender-from: ${DEVSMS_SENDER_FROM:}
+  sender-from: ${DEVSMS_SENDER_FROM:SHIFA.UZ}
   price-per-sms-minor: ${DEVSMS_PRICE_PER_SMS_MINOR:500}
   billing-currency: ${DEVSMS_BILLING_CURRENCY:UZS}
 
