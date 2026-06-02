@@ -27,13 +27,37 @@ class TreatmentPlanFinanceService(
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    data class PlanLiveTotals(
+        val estimatedMinor: Long,
+        val paidMinor: Long,
+        val remainingMinor: Long,
+        val currency: String,
+    )
+
+    private fun lineTotal(line: com.shifa.domain.TreatmentPlanLine): Long =
+        (line.unitPriceMinor * line.quantity - line.discountMinor).coerceAtLeast(0)
+
+    /** Live totals from lines + payments (same formula as treatment-plan summaries). */
+    fun planLiveTotals(planId: Long): PlanLiveTotals {
+        val lines = linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(planId)
+        val estimated = lines.sumOf { lineTotal(it) }
+        val paid = paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(planId).sumOf { it.amountMinor }
+        val currency = lines.firstOrNull()?.currency ?: "UZS"
+        return PlanLiveTotals(
+            estimatedMinor = estimated,
+            paidMinor = paid,
+            remainingMinor = (estimated - paid).coerceAtLeast(0),
+            currency = currency,
+        )
+    }
+
     @Transactional
     fun recalculatePlanTotals(planId: Long): TreatmentPlan {
         val plan = plans.findById(planId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found")
         }
         val lines = linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(planId)
-        val estimated = lines.sumOf { (it.unitPriceMinor * it.quantity - it.discountMinor).coerceAtLeast(0) }
+        val estimated = lines.sumOf { lineTotal(it) }
         val paid = paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(planId).sumOf { it.amountMinor }
 
         plan.estimatedTotalMinor = estimated

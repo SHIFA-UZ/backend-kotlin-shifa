@@ -261,9 +261,15 @@ class ClinicFinanceController(
         val plans = plansRaw
             .filter { it.status != TreatmentPlan.Status.CANCELLED }
             .filter { patientFilter == null || (it.patient.id != null && it.patient.id in patientFilter) }
-        val totalRevenue = plans.sumOf { it.paidAmountMinor }
-        val totalExpected = plans.sumOf { it.estimatedTotalMinor }
-        val outstandingTreatmentPlans = plans.sumOf { it.remainingAmountMinor }.coerceAtLeast(0L)
+        var totalRevenue = 0L
+        var totalExpected = 0L
+        var outstandingTreatmentPlans = 0L
+        for (plan in plans) {
+            val live = financeService.planLiveTotals(plan.id)
+            totalRevenue += live.paidMinor
+            totalExpected += live.estimatedMinor
+            outstandingTreatmentPlans += live.remainingMinor
+        }
         val collectionRate =
             when {
                 totalExpected > 0L ->
