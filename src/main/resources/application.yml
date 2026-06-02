@@ -151,7 +151,7 @@ stripe:
 devsms:
   api-token: ${DEVSMS_API_TOKEN:}
   base-url: ${DEVSMS_BASE_URL:https://devsms.uz/api}
-  sender-from: ${DEVSMS_SENDER_FROM:SHIFA.UZ}
+  sender-from: ${DEVSMS_SENDER_FROM:SHIFA UZ}
   price-per-sms-minor: ${DEVSMS_PRICE_PER_SMS_MINOR:500}
   billing-currency: ${DEVSMS_BILLING_CURRENCY:UZS}
 

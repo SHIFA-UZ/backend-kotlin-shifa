@@ -146,14 +146,12 @@ class DevSmsService(
     }
 
     companion object {
-        private const val DEFAULT_SENDER = "SHIFA.UZ"
+        /** DevSMS `from` field — same format as API docs (string, e.g. "4546" or "SHIFA UZ"). */
+        const val DEFAULT_SENDER = "SHIFA UZ"
 
-        /** DevSMS alphanumeric sender: no spaces; must match name approved in DevSMS panel. */
         internal fun resolveSenderFrom(raw: String): String {
-            val normalized = raw.trim().replace(" ", "")
-            if (normalized.isEmpty()) return DEFAULT_SENDER
-            if (normalized.equals("SHIFAUZ", ignoreCase = true)) return DEFAULT_SENDER
-            return normalized
+            val trimmed = raw.trim()
+            return trimmed.ifEmpty { DEFAULT_SENDER }
         }
     }
 }
