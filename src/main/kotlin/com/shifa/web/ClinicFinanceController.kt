@@ -22,7 +22,6 @@ import org.springframework.web.server.ResponseStatusException
 import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
-import java.time.YearMonth
 import java.time.ZoneOffset
 
 @RestController
@@ -240,6 +239,8 @@ class ClinicFinanceController(
     fun getDashboard(
         @AuthenticationPrincipal principal: Any,
         @PathVariable clinicId: Long,
+        @RequestParam(required = false) from: String?,
+        @RequestParam(required = false) to: String?,
     ): FinanceDashboardDto {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         val patientFilter = financeAccess.financeReadPatientIdFilter(principal, clinicId)
@@ -255,21 +256,47 @@ class ClinicFinanceController(
             )
         }
 
-        // Treatment-plan KPIs must include PLANS FULLY PAID (remaining == 0), otherwise totals and
-        // collection rates are wildly wrong versus doctor earnings / real payments.
-        val plansRaw = treatmentPlans.findByClinic_IdOrderByUpdatedAtDescIdDesc(clinicId)
-        val plans = plansRaw
-            .filter { it.status != TreatmentPlan.Status.CANCELLED }
-            .filter { patientFilter == null || (it.patient.id != null && it.patient.id in patientFilter) }
+        val fromInst = from?.let { Instant.parse(it) }
+        val toInst = to?.let { Instant.parse(it) }
+        val monthScoped = fromInst != null && toInst != null
+
         var totalRevenue = 0L
         var totalExpected = 0L
-        var outstandingTreatmentPlans = 0L
-        for (plan in plans) {
-            val live = financeService.planLiveTotals(plan.id)
-            totalRevenue += live.paidMinor
-            totalExpected += live.estimatedMinor
-            outstandingTreatmentPlans += live.remainingMinor
+        var outstandingMinor = 0L
+
+        if (monthScoped) {
+            val visits = ledgerService.visitFinanceTotals(clinicId, fromInst, toInst, patientFilter)
+            val gross = visits.sumOf { it.grossMinor }
+            val collected = visits.sumOf { it.collectedMinor }
+            totalRevenue = collected
+            totalExpected = gross
+            outstandingMinor = visits.sumOf { (it.grossMinor - it.collectedMinor).coerceAtLeast(0) }
+        } else {
+            // Treatment-plan KPIs must include PLANS FULLY PAID (remaining == 0), otherwise totals and
+            // collection rates are wildly wrong versus doctor earnings / real payments.
+            val plansRaw = treatmentPlans.findByClinic_IdOrderByUpdatedAtDescIdDesc(clinicId)
+            val plans = plansRaw
+                .filter { it.status != TreatmentPlan.Status.CANCELLED }
+                .filter { patientFilter == null || (it.patient.id != null && it.patient.id in patientFilter) }
+            var outstandingTreatmentPlans = 0L
+            for (plan in plans) {
+                val live = financeService.planLiveTotals(plan.id)
+                totalRevenue += live.paidMinor
+                totalExpected += live.estimatedMinor
+                outstandingTreatmentPlans += live.remainingMinor
+            }
+
+            // Also surface invoice-style debt (optional visibility for clinics using formal records).
+            val outstandingInvoiceAll = financialRecords.findByClinicIdAndStatusInAndRemainingMinorGreaterThanZero(
+                clinicId,
+                listOf(FinancialRecord.Status.ISSUED, FinancialRecord.Status.PARTIALLY_PAID, FinancialRecord.Status.OVERDUE),
+            )
+            val outstandingInvoice = patientFilter?.let { pids -> outstandingInvoiceAll.filter { it.patient.id in pids } } ?: outstandingInvoiceAll
+            val outstandingInvoiceMinor = outstandingInvoice.sumOf { it.remainingMinor.coerceAtLeast(0L) }
+
+            outstandingMinor = outstandingTreatmentPlans + outstandingInvoiceMinor
         }
+
         val collectionRate =
             when {
                 totalExpected > 0L ->
@@ -278,33 +305,36 @@ class ClinicFinanceController(
                 else -> 0.0
             }
 
-        // Also surface invoice-style debt (optional visibility for clinics using formal records).
-        val outstandingInvoiceAll = financialRecords.findByClinicIdAndStatusInAndRemainingMinorGreaterThanZero(
-            clinicId,
-            listOf(FinancialRecord.Status.ISSUED, FinancialRecord.Status.PARTIALLY_PAID, FinancialRecord.Status.OVERDUE),
-        )
-        val outstandingInvoice = patientFilter?.let { pids -> outstandingInvoiceAll.filter { it.patient.id in pids } } ?: outstandingInvoiceAll
-        val outstandingInvoiceMinor = outstandingInvoice.sumOf { it.remainingMinor.coerceAtLeast(0L) }
-
-        val outstandingMinor = outstandingTreatmentPlans + outstandingInvoiceMinor
-
-        val financeInvoiceOverdue = outstandingInvoice.count { it.status == FinancialRecord.Status.OVERDUE }
+        val financeInvoiceOverdue = if (monthScoped) {
+            0
+        } else {
+            val outstandingInvoiceAll = financialRecords.findByClinicIdAndStatusInAndRemainingMinorGreaterThanZero(
+                clinicId,
+                listOf(FinancialRecord.Status.ISSUED, FinancialRecord.Status.PARTIALLY_PAID, FinancialRecord.Status.OVERDUE),
+            )
+            val outstandingInvoice = patientFilter?.let { pids -> outstandingInvoiceAll.filter { it.patient.id in pids } } ?: outstandingInvoiceAll
+            outstandingInvoice.count { it.status == FinancialRecord.Status.OVERDUE }
+        }
         val todayUtc = LocalDate.now(ZoneOffset.UTC)
-        val installmentOverdue = installmentItems.findOverdueByClinic(clinicId, todayUtc)
-            .filter { ii ->
-                patientFilter == null ||
-                    (
-                        runCatching { ii.installmentPlan.treatmentPlan.patient.id }
-                            .getOrNull()
-                            ?.let { pid -> pid in patientFilter }
-                            ?: false
-                        )
-            }
+        val installmentOverdue = if (monthScoped) {
+            emptyList()
+        } else {
+            installmentItems.findOverdueByClinic(clinicId, todayUtc)
+                .filter { ii ->
+                    patientFilter == null ||
+                        (
+                            runCatching { ii.installmentPlan.treatmentPlan.patient.id }
+                                .getOrNull()
+                                ?.let { pid -> pid in patientFilter }
+                                ?: false
+                            )
+                }
+        }
         val overdueCount = financeInvoiceOverdue + installmentOverdue.size
 
-        val monthStart = YearMonth.now().atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC)
-        val monthEnd = YearMonth.now().plusMonths(1).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC)
-        val earnings = ledgerService.doctorEarnings(clinicId, monthStart, monthEnd, patientFilter)
+        val earningsFrom = if (monthScoped) fromInst else null
+        val earningsTo = if (monthScoped) toInst else null
+        val earnings = ledgerService.doctorEarnings(clinicId, earningsFrom, earningsTo, patientFilter)
             .take(10)
             .map {
                 DoctorEarningRowDto(
