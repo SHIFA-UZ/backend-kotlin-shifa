@@ -361,15 +361,18 @@ class RemoteCareTaskController(
         val patient = currentPatientProfile(principal)
 
         val tasks = if (status != null) {
-            taskRepo.findByPatientIdAndStatus(
-                patient.id!!,
-                RemoteCareTask.Status.valueOf(status.uppercase()),
-            )
+            val parsed = RemoteCareTask.Status.valueOf(status.uppercase())
+            if (parsed == RemoteCareTask.Status.COMPLETED) {
+                // Completed tab: include EXPIRED tasks the patient finished or that ended.
+                taskRepo.findByPatientIdOrderByCreatedAtDesc(patient.id!!)
+                    .filter { it.status == RemoteCareTask.Status.COMPLETED || it.status == RemoteCareTask.Status.EXPIRED }
+            } else {
+                taskRepo.findByPatientIdAndStatus(patient.id!!, parsed)
+            }
         } else {
-            // All ACTIVE tasks for this patient (including future start dates and past end dates
-            // while still ACTIVE — patients must see in-progress work until the task completes).
-            taskRepo.findByPatientIdAndStatus(patient.id!!, RemoteCareTask.Status.ACTIVE)
-                .sortedByDescending { it.createdAt }
+            // Default list: every task the patient should see (matches detail/check-in access).
+            taskRepo.findByPatientIdOrderByCreatedAtDesc(patient.id!!)
+                .filter { it.status != RemoteCareTask.Status.CANCELLED }
         }
 
         return tasks.map { toTaskDto(it) }
