@@ -104,6 +104,22 @@ class ClinicFinanceLedgerService(
         )
     }
 
+    /** Loads ledger lines; omit both dates for all-time (matches appointment ledger default scope). */
+    private fun loadLedgerLines(
+        clinicId: Long,
+        from: Instant?,
+        toExclusive: Instant?,
+    ): List<TreatmentPlanLine> {
+        require((from == null) == (toExclusive == null)) {
+            "from and toExclusive must both be set or both omitted"
+        }
+        return if (from == null) {
+            linesRepo.findAllLinesForClinicLedger(clinicId)
+        } else {
+            linesRepo.findLinesForClinicLedgerInRange(clinicId, from, toExclusive!!)
+        }
+    }
+
     /**
      * Per-visit gross/collected totals using the same allocation rules as the appointment ledger.
      * Optional [from] / [toExclusive] filter on appointment.startAt (visit date).
@@ -114,7 +130,7 @@ class ClinicFinanceLedgerService(
         toExclusive: Instant?,
         patientFilter: Set<Long>?,
     ): List<VisitFinanceTotal> {
-        val lines = linesRepo.findLinesForClinicLedger(clinicId, from, toExclusive)
+        val lines = loadLedgerLines(clinicId, from, toExclusive)
         val filtered =
             if (patientFilter == null) lines
             else lines.filter { line ->

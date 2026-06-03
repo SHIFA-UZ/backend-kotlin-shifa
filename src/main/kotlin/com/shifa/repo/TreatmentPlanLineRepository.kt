@@ -68,14 +68,29 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
         LEFT JOIN FETCH l.assignedDoctor
         WHERE p.clinic.id = :clinicId
           AND l.linkedAppointment IS NOT NULL
-          AND a.status <> 'CANCELLED'
-          AND (:from IS NULL OR a.startAt >= :from)
-          AND (:toExclusive IS NULL OR a.startAt < :toExclusive)
+          AND a.status <> com.shifa.domain.Appointment.Status.CANCELLED
         """
     )
-    fun findLinesForClinicLedger(
+    fun findAllLinesForClinicLedger(clinicId: Long): List<TreatmentPlanLine>
+
+    @Query(
+        """
+        SELECT l FROM TreatmentPlanLine l
+        JOIN FETCH l.linkedAppointment a
+        JOIN FETCH a.doctor
+        JOIN FETCH a.patient
+        JOIN FETCH l.plan p
+        LEFT JOIN FETCH l.assignedDoctor
+        WHERE p.clinic.id = :clinicId
+          AND l.linkedAppointment IS NOT NULL
+          AND a.status <> com.shifa.domain.Appointment.Status.CANCELLED
+          AND a.startAt >= :from
+          AND a.startAt < :toExclusive
+        """
+    )
+    fun findLinesForClinicLedgerInRange(
         clinicId: Long,
-        from: java.time.Instant?,
-        toExclusive: java.time.Instant?,
+        from: java.time.Instant,
+        toExclusive: java.time.Instant,
     ): List<TreatmentPlanLine>
 }

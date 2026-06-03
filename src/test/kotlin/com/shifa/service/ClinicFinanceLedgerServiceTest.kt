@@ -11,8 +11,6 @@ import com.shifa.repo.TreatmentPlanPaymentRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.mockito.ArgumentMatchers.eq
-import org.mockito.ArgumentMatchers.isNull
 import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
 import java.time.Instant
@@ -123,7 +121,7 @@ class ClinicFinanceLedgerServiceTest {
         val lineMay = mockLine(101L, 1L, 16L, 202_400L, may)
         val lineJune = mockLine(102L, 2L, 16L, 763_000L, june)
         `when`(
-            linesRepo.findLinesForClinicLedger(eq(1L), isNull(), isNull()),
+            linesRepo.findAllLinesForClinicLedger(1L),
         ).thenReturn(listOf(lineMay, lineJune))
         `when`(linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(1L)).thenReturn(listOf(lineMay))
         `when`(linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(2L)).thenReturn(listOf(lineJune))
@@ -145,9 +143,8 @@ class ClinicFinanceLedgerServiceTest {
         val monthEnd = Instant.parse("2026-07-01T00:00:00Z")
         val lineMay = mockLine(101L, 1L, 16L, 202_400L, may)
         val lineJune = mockLine(102L, 2L, 16L, 763_000L, june)
-        `when`(
-            linesRepo.findLinesForClinicLedger(eq(1L), eq(monthStart), eq(monthEnd)),
-        ).thenReturn(listOf(lineJune))
+        `when`(linesRepo.findLinesForClinicLedgerInRange(1L, monthStart, monthEnd))
+            .thenReturn(listOf(lineJune))
         `when`(linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(2L)).thenReturn(listOf(lineJune))
         `when`(paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(2L)).thenReturn(emptyList())
 
@@ -167,7 +164,7 @@ class ClinicFinanceLedgerServiceTest {
         `when`(paid.amountMinor).thenReturn(763_000L)
         `when`(paid.linkedAppointment).thenReturn(juneAppt)
         `when`(
-            linesRepo.findLinesForClinicLedger(eq(1L), isNull(), isNull()),
+            linesRepo.findAllLinesForClinicLedger(1L),
         ).thenReturn(listOf(lineMay, lineJune))
         `when`(linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(1L)).thenReturn(listOf(lineMay))
         `when`(linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(2L)).thenReturn(listOf(lineJune))

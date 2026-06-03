@@ -13,8 +13,9 @@ interface InstallmentItemRepository : JpaRepository<InstallmentItem, Long> {
 
     @Query("""
         SELECT ii FROM InstallmentItem ii
-        JOIN ii.installmentPlan ip
-        JOIN ip.treatmentPlan tp
+        JOIN FETCH ii.installmentPlan ip
+        JOIN FETCH ip.treatmentPlan tp
+        JOIN FETCH tp.patient
         WHERE tp.clinic.id = :clinicId
           AND ((ii.status = 'OVERDUE') OR (ii.status = 'PENDING' AND ii.dueDate < :today))
         ORDER BY ii.dueDate ASC
