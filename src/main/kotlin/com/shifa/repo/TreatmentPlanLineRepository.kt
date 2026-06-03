@@ -13,13 +13,17 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
         value = """
             SELECT DISTINCT l.linked_appointment_id FROM treatment_plan_lines l
             INNER JOIN treatment_plans p ON l.plan_id = p.id
+            INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
+            AND a.status <> 'CANCELLED'
             ORDER BY l.linked_appointment_id DESC
             """,
         countQuery = """
             SELECT COUNT(DISTINCT l.linked_appointment_id) FROM treatment_plan_lines l
             INNER JOIN treatment_plans p ON l.plan_id = p.id
+            INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
+            AND a.status <> 'CANCELLED'
             """,
         nativeQuery = true,
     )
@@ -34,6 +38,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
+            AND a.status <> 'CANCELLED'
             AND a.patient_id IN (:patientIds)
             ORDER BY l.linked_appointment_id DESC
             """,
@@ -42,6 +47,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
+            AND a.status <> 'CANCELLED'
             AND a.patient_id IN (:patientIds)
             """,
         nativeQuery = true,
@@ -63,13 +69,13 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
         WHERE p.clinic.id = :clinicId
           AND l.linkedAppointment IS NOT NULL
           AND a.status <> 'CANCELLED'
-          AND a.startAt >= :from
-          AND a.startAt < :toExclusive
+          AND (:from IS NULL OR a.startAt >= :from)
+          AND (:toExclusive IS NULL OR a.startAt < :toExclusive)
         """
     )
-    fun findLinesForClinicLedgerInRange(
+    fun findLinesForClinicLedger(
         clinicId: Long,
-        from: java.time.Instant,
-        toExclusive: java.time.Instant,
+        from: java.time.Instant?,
+        toExclusive: java.time.Instant?,
     ): List<TreatmentPlanLine>
 }

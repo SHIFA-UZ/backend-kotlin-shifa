@@ -375,10 +375,9 @@ class ClinicFinanceController(
     ): List<DoctorEarningRowDto> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         val patientFilter = financeAccess.financeReadPatientIdFilter(principal, clinicId)
+        // Null from/to = all billable linked visits (same default scope as appointment ledger).
         val fromInst = from?.let { Instant.parse(it) }
-            ?: YearMonth.now().atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC)
         val toInst = to?.let { Instant.parse(it) }
-            ?: YearMonth.now().plusMonths(1).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC)
         return ledgerService.doctorEarnings(clinicId, fromInst, toInst, patientFilter).map {
             DoctorEarningRowDto(
                 doctorProfileId = it.doctorProfileId,

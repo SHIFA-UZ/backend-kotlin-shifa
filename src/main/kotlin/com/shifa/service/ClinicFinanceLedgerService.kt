@@ -104,13 +104,17 @@ class ClinicFinanceLedgerService(
         )
     }
 
-    fun doctorEarnings(
+    /**
+     * Per-visit gross/collected totals using the same allocation rules as the appointment ledger.
+     * Optional [from] / [toExclusive] filter on appointment.startAt (visit date).
+     */
+    fun visitFinanceTotals(
         clinicId: Long,
-        from: Instant,
-        toExclusive: Instant,
+        from: Instant?,
+        toExclusive: Instant?,
         patientFilter: Set<Long>?,
-    ): List<DoctorEarningAgg> {
-        val lines = linesRepo.findLinesForClinicLedgerInRange(clinicId, from, toExclusive)
+    ): List<VisitFinanceTotal> {
+        val lines = linesRepo.findLinesForClinicLedger(clinicId, from, toExclusive)
         val filtered =
             if (patientFilter == null) lines
             else lines.filter { line ->
@@ -119,26 +123,49 @@ class ClinicFinanceLedgerService(
             }
         if (filtered.isEmpty()) return emptyList()
 
-        data class MutableAgg(var grossMinor: Long, var collectedMinor: Long, var visits: MutableSet<Long>)
-
-        val byDoctor = mutableMapOf<Long, MutableAgg>()
         val planTotalCache = mutableMapOf<Long, Long>()
-        val byAppt = filtered.groupBy { it.linkedAppointment!!.id }
-        for ((_, apptLines) in byAppt) {
+        return filtered.groupBy { it.linkedAppointment!!.id }.map { (apptId, apptLines) ->
             val appt = apptLines.first().linkedAppointment!!
-            val patientId = appt.patient.id
-            if (patientFilter != null && patientId != null && patientId !in patientFilter) continue
             val plan = apptLines.first().plan
             val planCap = planTotalCache.getOrPut(plan.id) { planTotalMinor(plan.id) }.coerceAtLeast(1L)
             val visitTotal = apptLines.sumOf { lineTotal(it) }
             val payments = paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(plan.id)
-            val visitCollected = appointmentCollectedMinor(
-                appt.id,
-                visitTotal,
-                planCap,
-                payments,
+            val visitCollected = appointmentCollectedMinor(apptId, visitTotal, planCap, payments)
+            VisitFinanceTotal(
+                appointmentId = apptId,
+                grossMinor = visitTotal,
+                collectedMinor = visitCollected,
+                lines = apptLines,
             )
-            for (line in apptLines) {
+        }
+    }
+
+    /**
+     * Aggregates doctor earnings from linked appointment charges.
+     *
+     * Scope matches Finance → By appointment: non-cancelled visits with treatment-plan
+     * lines linked to an appointment. [from] / [toExclusive] filter on **appointment.startAt**
+     * (visit date); when both are null, all qualifying visits for the clinic are included.
+     */
+    fun doctorEarnings(
+        clinicId: Long,
+        from: Instant?,
+        toExclusive: Instant?,
+        patientFilter: Set<Long>?,
+    ): List<DoctorEarningAgg> {
+        val visits = visitFinanceTotals(clinicId, from, toExclusive, patientFilter)
+        if (visits.isEmpty()) return emptyList()
+
+        data class MutableAgg(var grossMinor: Long, var collectedMinor: Long, var visits: MutableSet<Long>)
+
+        val byDoctor = mutableMapOf<Long, MutableAgg>()
+        for (visit in visits) {
+            val appt = visit.lines.first().linkedAppointment!!
+            val patientId = appt.patient.id
+            if (patientFilter != null && patientId != null && patientId !in patientFilter) continue
+            val visitTotal = visit.grossMinor
+            val visitCollected = visit.collectedMinor
+            for (line in visit.lines) {
                 val doctorId = earningDoctorId(line) ?: continue
                 val lineAmount = lineTotal(line)
                 val lineCollected =
@@ -159,6 +186,29 @@ class ClinicFinanceLedgerService(
             )
         }.sortedByDescending { it.grossMinor }
     }
+
+    /** Validates that per-doctor totals reconcile with per-visit totals for the same scope. */
+    fun doctorEarningsReconcileWithVisitTotals(
+        clinicId: Long,
+        from: Instant?,
+        toExclusive: Instant?,
+        patientFilter: Set<Long>?,
+    ): Boolean {
+        val visits = visitFinanceTotals(clinicId, from, toExclusive, patientFilter)
+        val earnings = doctorEarnings(clinicId, from, toExclusive, patientFilter)
+        val visitGross = visits.sumOf { it.grossMinor }
+        val visitCollected = visits.sumOf { it.collectedMinor }
+        val doctorGross = earnings.sumOf { it.grossMinor }
+        val doctorCollected = earnings.sumOf { it.collectedMinor }
+        return visitGross == doctorGross && visitCollected == doctorCollected
+    }
+
+    data class VisitFinanceTotal(
+        val appointmentId: Long,
+        val grossMinor: Long,
+        val collectedMinor: Long,
+        val lines: List<TreatmentPlanLine>,
+    )
 
     data class DoctorEarningAgg(
         val doctorProfileId: Long,
