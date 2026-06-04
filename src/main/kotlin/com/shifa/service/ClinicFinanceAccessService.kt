@@ -86,14 +86,17 @@ class ClinicFinanceAccessService(
     private fun resolveMembershipRole(principal: Any, clinicId: Long): MembershipRole? {
         when (principal) {
             is DoctorPrincipal -> {
+                val userId = principal.profile.user.id
+                val membership = memberships.findByUserIdAndClinicIdAndActiveTrue(userId, clinicId)
+                if (membership != null) {
+                    return membership.membershipRole
+                }
+                // Legacy fallback when practice clinic is set but membership row is missing.
                 val practiceId = principal.profile.practiceClinic?.id
                 if (practiceId != null && practiceId == clinicId) {
                     return MembershipRole.DOCTOR
                 }
-                val userId = principal.profile.user.id
-                val membership = memberships.findByUserIdAndClinicIdAndActiveTrue(userId, clinicId)
-                    ?: return null
-                return membership.membershipRole
+                return null
             }
             is ClinicStaffPrincipal -> {
                 val userId = principal.user.id
