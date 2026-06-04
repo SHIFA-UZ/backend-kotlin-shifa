@@ -44,6 +44,7 @@ class ClinicWorkspaceService(
         val membershipRole: String,
         val isPracticeClinic: Boolean,
         val defaultDoctorRevenueSharePercent: Int? = null,
+        val canManageFinanceSettings: Boolean = false,
     )
 
     data class ClinicFinanceSettingsDto(
@@ -146,6 +147,8 @@ class ClinicWorkspaceService(
             membershipRole = membershipRole,
             isPracticeClinic = isPracticeClinic,
             defaultDoctorRevenueSharePercent = c.defaultDoctorRevenueSharePercent,
+            canManageFinanceSettings = membershipRole == ClinicMembership.MembershipRole.OWNER.name ||
+                membershipRole == ClinicMembership.MembershipRole.CLINIC_ADMIN.name,
         )
 
     fun getOverviewStats(principal: Any, clinicId: Long): OverviewStats {

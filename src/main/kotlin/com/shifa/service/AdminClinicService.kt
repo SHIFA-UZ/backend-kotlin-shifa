@@ -168,6 +168,58 @@ class AdminClinicService(
         return getDetail(clinicId)
     }
 
+    @Transactional
+    fun updateMemberRole(
+        clinicId: Long,
+        doctorProfileId: Long,
+        membershipRole: ClinicMembership.MembershipRole,
+    ): ClinicDetail {
+        if (membershipRole !in ALLOWED_DOCTOR_MEMBER_ROLES) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid membership role")
+        }
+        if (!clinics.existsById(clinicId)) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Clinic not found")
+        }
+        val doctor = doctors.findById(doctorProfileId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found")
+        }
+        val practiceId = doctor.practiceClinic?.id
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Doctor is not assigned to any clinic")
+        if (practiceId != clinicId) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Doctor is not in this clinic")
+        }
+        val membership = memberships.findByClinic_IdAndUser_Id(clinicId, doctor.user.id)
+            ?.takeIf { it.active }
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Doctor has no active membership at this clinic")
+
+        if (membership.membershipRole == ClinicMembership.MembershipRole.OWNER &&
+            membershipRole != ClinicMembership.MembershipRole.OWNER
+        ) {
+            val hasOtherOwner = memberships.findByClinicIdAndActiveTrue(clinicId).any {
+                it.membershipRole == ClinicMembership.MembershipRole.OWNER && it.user.id != doctor.user.id
+            }
+            if (!hasOtherOwner) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Clinic must have an owner")
+            }
+        }
+
+        if (membershipRole == ClinicMembership.MembershipRole.OWNER) {
+            memberships.findByClinicIdAndActiveTrue(clinicId)
+                .filter {
+                    it.membershipRole == ClinicMembership.MembershipRole.OWNER &&
+                        it.user.id != doctor.user.id
+                }
+                .forEach {
+                    it.membershipRole = ClinicMembership.MembershipRole.DOCTOR
+                    memberships.save(it)
+                }
+        }
+
+        membership.membershipRole = membershipRole
+        memberships.save(membership)
+        return getDetail(clinicId)
+    }
+
     /** Assign (or move) doctor to clinic: updates practice FK, memberships, legacy clinic label. */
     @Transactional
     fun assignDoctor(clinicId: Long, doctorProfileId: Long) {
@@ -240,5 +292,13 @@ class AdminClinicService(
             "currency must be a 3-letter ISO 4217 code"
         }
         return c
+    }
+
+    companion object {
+        private val ALLOWED_DOCTOR_MEMBER_ROLES = setOf(
+            ClinicMembership.MembershipRole.OWNER,
+            ClinicMembership.MembershipRole.CLINIC_ADMIN,
+            ClinicMembership.MembershipRole.DOCTOR,
+        )
     }
 }

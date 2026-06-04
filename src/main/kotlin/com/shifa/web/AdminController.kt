@@ -1,5 +1,6 @@
 package com.shifa.web
 
+import com.shifa.domain.ClinicMembership
 import com.shifa.domain.SubscriptionTier
 import com.shifa.domain.User
 import com.shifa.repo.*
@@ -567,6 +568,10 @@ class AdminController(
         val currency: String? = null,
     )
 
+    data class AdminClinicMemberRoleRequest(
+        @field:NotBlank val membershipRole: String,
+    )
+
     @Suppress("UNUSED_PARAMETER")
     @GetMapping("/clinics")
     fun listClinics(
@@ -663,6 +668,34 @@ class AdminController(
             request = httpRequest
         )
         return adminClinicService.getDetail(clinicId)
+    }
+
+    @PatchMapping("/clinics/{clinicId}/doctors/{doctorProfileId}/role")
+    fun updateClinicMemberRole(
+        @PathVariable clinicId: Long,
+        @PathVariable doctorProfileId: Long,
+        @RequestBody @Valid request: AdminClinicMemberRoleRequest,
+        @AuthenticationPrincipal principal: AdminPrincipal,
+        httpRequest: HttpServletRequest
+    ): AdminClinicService.ClinicDetail {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot update member roles")
+        }
+        val role = try {
+            ClinicMembership.MembershipRole.valueOf(request.membershipRole.trim().uppercase())
+        } catch (_: IllegalArgumentException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid membership role")
+        }
+        val updated = adminClinicService.updateMemberRole(clinicId, doctorProfileId, role)
+        auditService.logAction(
+            adminUser = principal.adminProfile.user,
+            actionType = "CLINIC_MEMBER_ROLE_UPDATED",
+            entityType = "CLINIC",
+            entityId = clinicId,
+            details = mapOf("doctorProfileId" to doctorProfileId, "membershipRole" to role.name),
+            request = httpRequest
+        )
+        return updated
     }
 
     @DeleteMapping("/clinics/{clinicId}/doctors/{doctorProfileId}")
