@@ -1,6 +1,8 @@
 package com.shifa.domain
 
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.OffsetDateTime
 
 @Entity
@@ -26,7 +28,8 @@ class Clinic(
     var currency: String = "UZS",
 
     /** Default doctor share of generated revenue (0–100); clinic share is the remainder. */
-    @Column(name = "default_doctor_revenue_share_percent", columnDefinition = "SMALLINT")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    @Column(name = "default_doctor_revenue_share_percent")
     var defaultDoctorRevenueSharePercent: Int? = null,
 
     @Column(name = "created_at", nullable = false)

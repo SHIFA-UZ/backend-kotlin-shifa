@@ -1,6 +1,8 @@
 package com.shifa.domain
 
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 import java.time.OffsetDateTime
 
 @Entity
@@ -32,7 +34,8 @@ class ClinicMembership(
     var active: Boolean = true,
 
     /** Per-doctor revenue share override at this clinic (0–100); null uses clinic default. */
-    @Column(name = "doctor_revenue_share_percent", columnDefinition = "SMALLINT")
+    @JdbcTypeCode(SqlTypes.SMALLINT)
+    @Column(name = "doctor_revenue_share_percent")
     var doctorRevenueSharePercent: Int? = null,
 
     @Column(name = "created_at", nullable = false)
