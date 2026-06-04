@@ -32,7 +32,7 @@ class ClinicMembership(
     var active: Boolean = true,
 
     /** Per-doctor revenue share override at this clinic (0–100); null uses clinic default. */
-    @Column(name = "doctor_revenue_share_percent")
+    @Column(name = "doctor_revenue_share_percent", columnDefinition = "SMALLINT")
     var doctorRevenueSharePercent: Int? = null,
 
     @Column(name = "created_at", nullable = false)
