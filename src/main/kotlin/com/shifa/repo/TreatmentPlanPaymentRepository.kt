@@ -12,6 +12,15 @@ interface TreatmentPlanPaymentRepository : JpaRepository<TreatmentPlanPayment, L
     @Query(
         """
         SELECT tpp FROM TreatmentPlanPayment tpp
+        WHERE tpp.plan.id IN :planIds
+        ORDER BY tpp.plan.id ASC, tpp.recordedAt ASC
+        """,
+    )
+    fun findByPlanIdsOrderByRecordedAtAsc(planIds: Collection<Long>): List<TreatmentPlanPayment>
+
+    @Query(
+        """
+        SELECT tpp FROM TreatmentPlanPayment tpp
         JOIN tpp.plan tp
         WHERE tp.clinic.id = :clinicId
           AND tp.status IN :statuses

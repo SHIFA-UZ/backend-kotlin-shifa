@@ -59,6 +59,63 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
     ): org.springframework.data.domain.Page<Long>
 
     @Query(
+        value = """
+            SELECT DISTINCT l.linked_appointment_id FROM treatment_plan_lines l
+            INNER JOIN treatment_plans p ON l.plan_id = p.id
+            INNER JOIN appointments a ON a.id = l.linked_appointment_id
+            WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
+            AND a.status <> 'CANCELLED'
+            AND a.start_at >= :from AND a.start_at < :toExclusive
+            ORDER BY a.start_at DESC, l.linked_appointment_id DESC
+            """,
+        countQuery = """
+            SELECT COUNT(DISTINCT l.linked_appointment_id) FROM treatment_plan_lines l
+            INNER JOIN treatment_plans p ON l.plan_id = p.id
+            INNER JOIN appointments a ON a.id = l.linked_appointment_id
+            WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
+            AND a.status <> 'CANCELLED'
+            AND a.start_at >= :from AND a.start_at < :toExclusive
+            """,
+        nativeQuery = true,
+    )
+    fun findDistinctLinkedAppointmentIdsForClinicInRange(
+        clinicId: Long,
+        from: java.time.Instant,
+        toExclusive: java.time.Instant,
+        pageable: org.springframework.data.domain.Pageable,
+    ): org.springframework.data.domain.Page<Long>
+
+    @Query(
+        value = """
+            SELECT DISTINCT l.linked_appointment_id FROM treatment_plan_lines l
+            INNER JOIN treatment_plans p ON l.plan_id = p.id
+            INNER JOIN appointments a ON a.id = l.linked_appointment_id
+            WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
+            AND a.status <> 'CANCELLED'
+            AND a.patient_id IN (:patientIds)
+            AND a.start_at >= :from AND a.start_at < :toExclusive
+            ORDER BY a.start_at DESC, l.linked_appointment_id DESC
+            """,
+        countQuery = """
+            SELECT COUNT(DISTINCT l.linked_appointment_id) FROM treatment_plan_lines l
+            INNER JOIN treatment_plans p ON l.plan_id = p.id
+            INNER JOIN appointments a ON a.id = l.linked_appointment_id
+            WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
+            AND a.status <> 'CANCELLED'
+            AND a.patient_id IN (:patientIds)
+            AND a.start_at >= :from AND a.start_at < :toExclusive
+            """,
+        nativeQuery = true,
+    )
+    fun findDistinctLinkedAppointmentIdsForClinicAndPatientsInRange(
+        clinicId: Long,
+        patientIds: List<Long>,
+        from: java.time.Instant,
+        toExclusive: java.time.Instant,
+        pageable: org.springframework.data.domain.Pageable,
+    ): org.springframework.data.domain.Page<Long>
+
+    @Query(
         """
         SELECT l FROM TreatmentPlanLine l
         JOIN FETCH l.linkedAppointment a

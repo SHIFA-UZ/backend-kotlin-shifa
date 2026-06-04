@@ -31,6 +31,10 @@ class ClinicMembership(
     @Column(nullable = false)
     var active: Boolean = true,
 
+    /** Per-doctor revenue share override at this clinic (0–100); null uses clinic default. */
+    @Column(name = "doctor_revenue_share_percent")
+    var doctorRevenueSharePercent: Int? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: OffsetDateTime = OffsetDateTime.now()
 ) {

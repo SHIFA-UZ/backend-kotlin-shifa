@@ -21,6 +21,14 @@ class Clinic(
     @Column(name = "time_zone", nullable = false, length = 64)
     var timeZone: String = "Asia/Tashkent",
 
+    /** ISO 4217 code for clinic-wide finance display (e.g. UZS, USD). */
+    @Column(nullable = false, length = 3)
+    var currency: String = "UZS",
+
+    /** Default doctor share of generated revenue (0–100); clinic share is the remainder. */
+    @Column(name = "default_doctor_revenue_share_percent")
+    var defaultDoctorRevenueSharePercent: Int? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: OffsetDateTime = OffsetDateTime.now(),
 

@@ -563,6 +563,8 @@ class AdminController(
         val address: String? = null,
         /** IANA timezone id, e.g. Asia/Tashkent */
         val timeZone: String? = null,
+        /** ISO 4217 code, e.g. UZS */
+        val currency: String? = null,
     )
 
     @Suppress("UNUSED_PARAMETER")
@@ -598,6 +600,7 @@ class AdminController(
             email = request.email,
             address = request.address,
             timeZone = request.timeZone,
+            currency = request.currency,
         )
         auditService.logAction(
             adminUser = principal.adminProfile.user,
@@ -627,6 +630,7 @@ class AdminController(
             email = request.email,
             address = request.address,
             timeZone = request.timeZone,
+            currency = request.currency,
         )
         auditService.logAction(
             adminUser = principal.adminProfile.user,

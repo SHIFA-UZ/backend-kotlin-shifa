@@ -29,6 +29,7 @@ class AdminClinicService(
         val email: String?,
         val address: String?,
         val timeZone: String,
+        val currency: String,
         val doctorCount: Int,
         val updatedAt: String,
     )
@@ -38,6 +39,8 @@ class AdminClinicService(
         val userId: Long,
         val displayName: String,
         val membershipRole: String,
+        val doctorRevenueSharePercent: Int? = null,
+        val effectiveRevenueSharePercent: Int? = null,
     )
 
     data class ClinicDetail(
@@ -47,6 +50,7 @@ class AdminClinicService(
         val email: String?,
         val address: String?,
         val timeZone: String,
+        val currency: String,
         val createdAt: String,
         val updatedAt: String,
         val doctors: List<ClinicDoctorDto>,
@@ -62,6 +66,7 @@ class AdminClinicService(
                 email = c.email,
                 address = c.address,
                 timeZone = c.timeZone,
+                currency = normalizeCurrency(c.currency),
                 doctorCount = count,
                 updatedAt = c.updatedAt.toString(),
             )
@@ -75,13 +80,17 @@ class AdminClinicService(
         val members = doctors.findAllByPracticeClinic_Id(clinicId)
             .sortedBy { "${it.firstName} ${it.lastName}" }
             .map { dp ->
-                val role = memberships.findByClinic_IdAndUser_Id(clinicId, dp.user.id)
-                    ?.takeIf { it.active }?.membershipRole?.name ?: "DOCTOR"
+                val membership = memberships.findByClinic_IdAndUser_Id(clinicId, dp.user.id)
+                    ?.takeIf { it.active }
+                val role = membership?.membershipRole?.name ?: "DOCTOR"
                 ClinicDoctorDto(
                     doctorProfileId = dp.id!!,
                     userId = dp.user.id,
                     displayName = "${dp.firstName} ${dp.lastName}".trim(),
                     membershipRole = role,
+                    doctorRevenueSharePercent = membership?.doctorRevenueSharePercent,
+                    effectiveRevenueSharePercent = membership?.doctorRevenueSharePercent
+                        ?: c.defaultDoctorRevenueSharePercent,
                 )
             }
         return ClinicDetail(
@@ -91,6 +100,7 @@ class AdminClinicService(
             email = c.email,
             address = c.address,
             timeZone = c.timeZone,
+            currency = normalizeCurrency(c.currency),
             createdAt = c.createdAt.toString(),
             updatedAt = c.updatedAt.toString(),
             doctors = members,
@@ -104,6 +114,7 @@ class AdminClinicService(
         email: String?,
         address: String?,
         timeZone: String?,
+        currency: String? = null,
     ): ClinicDetail {
         val trimmed = name.trim()
         if (trimmed.isEmpty()) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Name is required")
@@ -115,6 +126,7 @@ class AdminClinicService(
                 email = email?.trim()?.takeIf { it.isNotEmpty() },
                 address = address?.trim()?.takeIf { it.isNotEmpty() },
                 timeZone = tz,
+                currency = normalizeCurrency(currency ?: "UZS"),
             )
         )
         return getDetail(c.id)
@@ -128,6 +140,7 @@ class AdminClinicService(
         email: String?,
         address: String?,
         timeZone: String?,
+        currency: String? = null,
     ): ClinicDetail {
         val c = clinics.findById(clinicId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Clinic not found")
@@ -142,6 +155,7 @@ class AdminClinicService(
         c.email = email?.trim()?.takeIf { it.isNotEmpty() }
         c.address = address?.trim()?.takeIf { it.isNotEmpty() }
         c.timeZone = tz
+        currency?.let { c.currency = normalizeCurrency(it) }
         c.updatedAt = OffsetDateTime.now()
         clinics.save(c)
 
@@ -218,5 +232,13 @@ class AdminClinicService(
             m.active = false
             memberships.save(m)
         }
+    }
+
+    private fun normalizeCurrency(raw: String): String {
+        val c = raw.trim().uppercase()
+        require(c.length == 3 && c.all { it.isLetter() }) {
+            "currency must be a 3-letter ISO 4217 code"
+        }
+        return c
     }
 }

@@ -1,0 +1,2 @@
+ALTER TABLE clinics
+    ADD COLUMN currency VARCHAR(3) NOT NULL DEFAULT 'UZS';

@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -36,6 +37,32 @@ class ClinicWorkspaceController(
         @PathVariable clinicId: Long,
     ): List<AdminClinicService.ClinicDoctorDto> =
         workspace.listMembers(principal, clinicId)
+
+    data class UpdateFinanceSettingsBody(val defaultDoctorRevenueSharePercent: Int? = null)
+
+    @PatchMapping("/api/clinics/{clinicId}/finance-settings")
+    fun updateFinanceSettings(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable clinicId: Long,
+        @RequestBody body: UpdateFinanceSettingsBody,
+    ): ClinicWorkspaceService.ClinicFinanceSettingsDto =
+        workspace.updateFinanceSettings(principal, clinicId, body.defaultDoctorRevenueSharePercent)
+
+    data class UpdateMemberRevenueShareBody(val doctorRevenueSharePercent: Int? = null)
+
+    @PatchMapping("/api/clinics/{clinicId}/members/{doctorProfileId}/revenue-share")
+    fun updateMemberRevenueShare(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable clinicId: Long,
+        @PathVariable doctorProfileId: Long,
+        @RequestBody body: UpdateMemberRevenueShareBody,
+    ): ClinicWorkspaceService.MemberRevenueShareDto =
+        workspace.updateMemberRevenueShare(
+            principal,
+            clinicId,
+            doctorProfileId,
+            body.doctorRevenueSharePercent,
+        )
 
     @GetMapping("/api/clinics/{clinicId}/patients")
     fun patients(

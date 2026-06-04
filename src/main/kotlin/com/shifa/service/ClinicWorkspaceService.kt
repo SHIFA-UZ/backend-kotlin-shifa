@@ -15,6 +15,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import java.time.ZoneId
 import java.time.ZonedDateTime
@@ -22,23 +23,37 @@ import java.time.ZonedDateTime
 @Service
 class ClinicWorkspaceService(
     private val clinicAccess: ClinicAccessService,
+    private val financeAccess: ClinicFinanceAccessService,
     private val memberships: ClinicMembershipRepository,
     private val clinics: ClinicRepository,
     private val doctors: DoctorProfileRepository,
     private val appointments: AppointmentRepository,
     private val patients: PatientProfileRepository,
     private val adminClinicService: AdminClinicService,
+    private val revenueShareService: DoctorRevenueShareService,
 ) {
 
     data class MyClinicSummary(
         val clinicId: Long,
         val name: String,
         val timeZone: String,
+        val currency: String,
         val phone: String?,
         val email: String?,
         val address: String?,
         val membershipRole: String,
         val isPracticeClinic: Boolean,
+        val defaultDoctorRevenueSharePercent: Int? = null,
+    )
+
+    data class ClinicFinanceSettingsDto(
+        val defaultDoctorRevenueSharePercent: Int?,
+    )
+
+    data class MemberRevenueShareDto(
+        val doctorProfileId: Long,
+        val doctorRevenueSharePercent: Int?,
+        val effectiveRevenueSharePercent: Int?,
     )
 
     data class OverviewStats(
@@ -124,11 +139,13 @@ class ClinicWorkspaceService(
             clinicId = c.id,
             name = c.name,
             timeZone = c.timeZone,
+            currency = c.currency.trim().uppercase().ifEmpty { "UZS" },
             phone = c.phone,
             email = c.email,
             address = c.address,
             membershipRole = membershipRole,
             isPracticeClinic = isPracticeClinic,
+            defaultDoctorRevenueSharePercent = c.defaultDoctorRevenueSharePercent,
         )
 
     fun getOverviewStats(principal: Any, clinicId: Long): OverviewStats {
@@ -164,6 +181,57 @@ class ClinicWorkspaceService(
     fun listMembers(principal: Any, clinicId: Long): List<AdminClinicService.ClinicDoctorDto> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         return adminClinicService.getDetail(clinicId).doctors
+    }
+
+    @Transactional
+    fun updateFinanceSettings(
+        principal: Any,
+        clinicId: Long,
+        defaultDoctorRevenueSharePercent: Int?,
+    ): ClinicFinanceSettingsDto {
+        financeAccess.assertCanManageFinanceSettings(principal, clinicId)
+        revenueShareService.validatePercent(defaultDoctorRevenueSharePercent)
+        val clinic = clinics.findById(clinicId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Clinic not found")
+        }
+        clinic.defaultDoctorRevenueSharePercent = defaultDoctorRevenueSharePercent
+        clinics.save(clinic)
+        return ClinicFinanceSettingsDto(defaultDoctorRevenueSharePercent = clinic.defaultDoctorRevenueSharePercent)
+    }
+
+    @Transactional
+    fun updateMemberRevenueShare(
+        principal: Any,
+        clinicId: Long,
+        doctorProfileId: Long,
+        doctorRevenueSharePercent: Int?,
+    ): MemberRevenueShareDto {
+        financeAccess.assertCanManageFinanceSettings(principal, clinicId)
+        revenueShareService.validatePercent(doctorRevenueSharePercent)
+        val doctor = doctors.findById(doctorProfileId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found")
+        }
+        if (doctor.practiceClinic?.id != clinicId) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Doctor is not assigned to this clinic")
+        }
+        val membership = memberships.findByClinic_IdAndUser_Id(clinicId, doctor.user.id)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Clinic membership not found")
+        if (!membership.active) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Membership is inactive")
+        }
+        revenueShareService.assertMembershipMayHaveRevenueShare(membership)
+        membership.doctorRevenueSharePercent = doctorRevenueSharePercent
+        memberships.save(membership)
+        val clinic = clinics.findById(clinicId).orElseThrow()
+        val effective = revenueShareService.resolveEffectivePercent(
+            membership.doctorRevenueSharePercent,
+            clinic.defaultDoctorRevenueSharePercent,
+        )
+        return MemberRevenueShareDto(
+            doctorProfileId = doctorProfileId,
+            doctorRevenueSharePercent = membership.doctorRevenueSharePercent,
+            effectiveRevenueSharePercent = effective,
+        )
     }
 
     fun listPatients(principal: Any, clinicId: Long, q: String?, pageable: Pageable): Page<ClinicPatientRow> {

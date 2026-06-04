@@ -32,6 +32,7 @@ class ClinicFinanceController(
     private val financeService: TreatmentPlanFinanceService,
     private val installmentService: InstallmentService,
     private val ledgerService: ClinicFinanceLedgerService,
+    private val revenueShareService: DoctorRevenueShareService,
     private val auditService: ClinicFinanceAuditService,
     private val financialRecords: FinancialRecordRepository,
     private val treatmentPlans: TreatmentPlanRepository,
@@ -57,6 +58,10 @@ class ClinicFinanceController(
         val collectionRate: Double,
         val currency: String,
         val doctorEarningsTop: List<DoctorEarningRowDto>,
+        val totalDoctorShareGrossMinor: Long? = null,
+        val totalClinicShareGrossMinor: Long? = null,
+        val totalDoctorShareCollectedMinor: Long? = null,
+        val totalClinicShareCollectedMinor: Long? = null,
     )
 
     data class DoctorEarningRowDto(
@@ -65,6 +70,12 @@ class ClinicFinanceController(
         val grossMinor: Long,
         val collectedMinor: Long,
         val outstandingMinor: Long,
+        val currency: String,
+        val revenueSharePercent: Int? = null,
+        val doctorShareGrossMinor: Long? = null,
+        val clinicShareGrossMinor: Long? = null,
+        val doctorShareCollectedMinor: Long? = null,
+        val clinicShareCollectedMinor: Long? = null,
     )
 
     data class AppointmentLedgerRowDto(
@@ -77,6 +88,7 @@ class ClinicFinanceController(
         val treatmentPlanId: Long,
         val services: List<ServiceLineDto>,
         val visitTotalMinor: Long,
+        val visitCollectedMinor: Long,
         val currency: String,
         val planPaymentStatus: String,
         val planSimplePaymentStatus: String,
@@ -243,6 +255,7 @@ class ClinicFinanceController(
         @RequestParam(required = false) to: String?,
     ): FinanceDashboardDto {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
+        val clinicCurrency = resolveClinicCurrency(clinicId)
         val patientFilter = financeAccess.financeReadPatientIdFilter(principal, clinicId)
 
         if (patientFilter != null && patientFilter.isEmpty()) {
@@ -251,7 +264,7 @@ class ClinicFinanceController(
                 outstandingMinor = 0,
                 overdueCount = 0,
                 collectionRate = 0.0,
-                currency = "UZS",
+                currency = clinicCurrency,
                 doctorEarningsTop = emptyList(),
             )
         }
@@ -265,12 +278,15 @@ class ClinicFinanceController(
         var outstandingMinor = 0L
 
         if (monthScoped) {
-            val visits = ledgerService.visitFinanceTotals(clinicId, fromInst, toInst, patientFilter)
-            val gross = visits.sumOf { it.grossMinor }
-            val collected = visits.sumOf { it.collectedMinor }
-            totalRevenue = collected
-            totalExpected = gross
-            outstandingMinor = visits.sumOf { (it.grossMinor - it.collectedMinor).coerceAtLeast(0) }
+            val metrics = ledgerService.monthScopedDashboardMetrics(
+                clinicId,
+                fromInst!!,
+                toInst!!,
+                patientFilter,
+            )
+            totalRevenue = metrics.totalRevenueMinor
+            totalExpected = metrics.totalExpectedMinor
+            outstandingMinor = metrics.outstandingMinor
         } else {
             // Treatment-plan KPIs must include PLANS FULLY PAID (remaining == 0), otherwise totals and
             // collection rates are wildly wrong versus doctor earnings / real payments.
@@ -334,25 +350,23 @@ class ClinicFinanceController(
 
         val earningsFrom = if (monthScoped) fromInst else null
         val earningsTo = if (monthScoped) toInst else null
-        val earnings = ledgerService.doctorEarnings(clinicId, earningsFrom, earningsTo, patientFilter)
+        val allEarnings = doctorEarningsWithShares(clinicId, earningsFrom, earningsTo, patientFilter)
+        val shareTotals = sumRevenueShareTotals(allEarnings)
+        val earnings = allEarnings
             .take(10)
-            .map {
-                DoctorEarningRowDto(
-                    doctorProfileId = it.doctorProfileId,
-                    visitCount = it.visitCount,
-                    grossMinor = it.grossMinor,
-                    collectedMinor = it.collectedMinor,
-                    outstandingMinor = it.outstandingMinor,
-                )
-            }
+            .map { toDoctorEarningRowDto(it, clinicCurrency) }
 
         return FinanceDashboardDto(
             totalRevenueMinor = totalRevenue,
             outstandingMinor = outstandingMinor,
             overdueCount = overdueCount,
             collectionRate = collectionRate,
-            currency = "UZS",
+            currency = clinicCurrency,
             doctorEarningsTop = earnings,
+            totalDoctorShareGrossMinor = shareTotals?.doctorGross,
+            totalClinicShareGrossMinor = shareTotals?.clinicGross,
+            totalDoctorShareCollectedMinor = shareTotals?.doctorCollected,
+            totalClinicShareCollectedMinor = shareTotals?.clinicCollected,
         )
     }
 
@@ -361,6 +375,8 @@ class ClinicFinanceController(
     fun appointmentLedger(
         @AuthenticationPrincipal principal: Any,
         @PathVariable clinicId: Long,
+        @RequestParam(required = false) from: String?,
+        @RequestParam(required = false) to: String?,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
     ): Map<String, Any> {
@@ -368,11 +384,33 @@ class ClinicFinanceController(
         val patientFilter = financeAccess.financeReadPatientIdFilter(principal, clinicId)
         val pageable = PageRequest.of(page, size)
 
+        val fromInst = from?.let { Instant.parse(it) }
+        val toInst = to?.let { Instant.parse(it) }
+        require((fromInst == null) == (toInst == null)) {
+            "from and to must both be set or both omitted"
+        }
+        val monthScoped = fromInst != null && toInst != null
+
         val apptPage = when {
+            patientFilter?.isEmpty() == true ->
+                org.springframework.data.domain.PageImpl(emptyList<Long>(), pageable, 0)
+            monthScoped && patientFilter == null ->
+                linesRepo.findDistinctLinkedAppointmentIdsForClinicInRange(
+                    clinicId,
+                    fromInst!!,
+                    toInst!!,
+                    pageable,
+                )
+            monthScoped ->
+                linesRepo.findDistinctLinkedAppointmentIdsForClinicAndPatientsInRange(
+                    clinicId,
+                    patientFilter!!.toList(),
+                    fromInst!!,
+                    toInst!!,
+                    pageable,
+                )
             patientFilter == null ->
                 linesRepo.findDistinctLinkedAppointmentIdsForClinic(clinicId, pageable)
-            patientFilter.isEmpty() ->
-                org.springframework.data.domain.PageImpl(emptyList<Long>(), pageable, 0)
             else ->
                 linesRepo.findDistinctLinkedAppointmentIdsForClinicAndPatients(
                     clinicId,
@@ -382,8 +420,32 @@ class ClinicFinanceController(
         }
 
         val rows = mutableListOf<AppointmentLedgerRowDto>()
+        val planIds = mutableSetOf<Long>()
+        data class PreparedRow(
+            val appt: com.shifa.domain.Appointment,
+            val lines: List<com.shifa.domain.TreatmentPlanLine>,
+        )
+        val prepared = mutableListOf<PreparedRow>()
         for (apptId in apptPage.content) {
-            val row = buildAppointmentLedgerRow(apptId, patientFilter) ?: continue
+            val appt = appts.findByIdWithDoctorAndPatient(apptId).orElse(null) ?: continue
+            if (appt.status == com.shifa.domain.Appointment.Status.CANCELLED) continue
+            val patientId = appt.patient.id ?: continue
+            if (patientFilter != null && patientId !in patientFilter) continue
+            val lines = linesRepo.findByLinkedAppointment_Id(apptId)
+            if (lines.isEmpty()) continue
+            planIds += lines.first().plan.id
+            prepared += PreparedRow(appt, lines)
+        }
+        val paymentsByPlanId =
+            if (planIds.isEmpty()) {
+                emptyMap()
+            } else {
+                treatmentPlanPayments.findByPlanIdsOrderByRecordedAtAsc(planIds)
+                    .groupBy { it.plan.id }
+            }
+        val clinicCurrency = resolveClinicCurrency(clinicId)
+        for ((appt, lines) in prepared) {
+            val row = buildAppointmentLedgerRow(appt, lines, paymentsByPlanId, clinicCurrency) ?: continue
             rows += row
         }
 
@@ -404,19 +466,13 @@ class ClinicFinanceController(
         @RequestParam to: String?,
     ): List<DoctorEarningRowDto> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
+        val clinicCurrency = resolveClinicCurrency(clinicId)
         val patientFilter = financeAccess.financeReadPatientIdFilter(principal, clinicId)
         // Null from/to = all billable linked visits (same default scope as appointment ledger).
         val fromInst = from?.let { Instant.parse(it) }
         val toInst = to?.let { Instant.parse(it) }
-        return ledgerService.doctorEarnings(clinicId, fromInst, toInst, patientFilter).map {
-            DoctorEarningRowDto(
-                doctorProfileId = it.doctorProfileId,
-                visitCount = it.visitCount,
-                grossMinor = it.grossMinor,
-                collectedMinor = it.collectedMinor,
-                outstandingMinor = it.outstandingMinor,
-            )
-        }
+        return doctorEarningsWithShares(clinicId, fromInst, toInst, patientFilter)
+            .map { toDoctorEarningRowDto(it, clinicCurrency) }
     }
 
     @GetMapping("/audit")
@@ -1132,28 +1188,69 @@ class ClinicFinanceController(
 
     // --- Mappers ---
 
-    private fun buildAppointmentLedgerRow(
-        appointmentId: Long,
+    private fun doctorEarningsWithShares(
+        clinicId: Long,
+        from: Instant?,
+        toExclusive: Instant?,
         patientFilter: Set<Long>?,
-    ): AppointmentLedgerRowDto? {
-        val appt = appts.findByIdWithDoctorAndPatient(appointmentId).orElse(null) ?: return null
-        if (appt.status == com.shifa.domain.Appointment.Status.CANCELLED) return null
-        val patientId = appt.patient.id ?: return null
-        if (patientFilter != null && patientId !in patientFilter) return null
+    ): List<ClinicFinanceLedgerService.DoctorEarningAgg> {
+        val shareByDoctor = revenueShareService.loadEffectiveShareByDoctorProfileId(clinicId)
+        val earnings = ledgerService.doctorEarnings(clinicId, from, toExclusive, patientFilter)
+        return revenueShareService.applySplits(earnings, shareByDoctor)
+    }
 
-        val lines = linesRepo.findByLinkedAppointment_Id(appointmentId)
+    private fun toDoctorEarningRowDto(
+        agg: ClinicFinanceLedgerService.DoctorEarningAgg,
+        currency: String,
+    ) = DoctorEarningRowDto(
+        doctorProfileId = agg.doctorProfileId,
+        visitCount = agg.visitCount,
+        grossMinor = agg.grossMinor,
+        collectedMinor = agg.collectedMinor,
+        outstandingMinor = agg.outstandingMinor,
+        currency = currency,
+        revenueSharePercent = agg.revenueSharePercent,
+        doctorShareGrossMinor = agg.doctorShareGrossMinor,
+        clinicShareGrossMinor = agg.clinicShareGrossMinor,
+        doctorShareCollectedMinor = agg.doctorShareCollectedMinor,
+        clinicShareCollectedMinor = agg.clinicShareCollectedMinor,
+    )
+
+    private data class RevenueShareTotals(
+        val doctorGross: Long,
+        val clinicGross: Long,
+        val doctorCollected: Long,
+        val clinicCollected: Long,
+    )
+
+    private fun sumRevenueShareTotals(
+        earnings: List<ClinicFinanceLedgerService.DoctorEarningAgg>,
+    ): RevenueShareTotals? {
+        val configured = earnings.filter { it.revenueSharePercent != null }
+        if (configured.isEmpty()) return null
+        return RevenueShareTotals(
+            doctorGross = configured.sumOf { it.doctorShareGrossMinor ?: 0L },
+            clinicGross = configured.sumOf { it.clinicShareGrossMinor ?: 0L },
+            doctorCollected = configured.sumOf { it.doctorShareCollectedMinor ?: 0L },
+            clinicCollected = configured.sumOf { it.clinicShareCollectedMinor ?: 0L },
+        )
+    }
+
+    private fun resolveClinicCurrency(clinicId: Long): String {
+        val c = clinics.findById(clinicId).orElse(null)?.currency?.trim()?.uppercase()
+        return if (c.isNullOrEmpty()) "UZS" else c
+    }
+
+    private fun buildAppointmentLedgerRow(
+        appt: com.shifa.domain.Appointment,
+        lines: List<com.shifa.domain.TreatmentPlanLine>,
+        paymentsByPlanId: Map<Long, List<TreatmentPlanPayment>> = emptyMap(),
+        clinicCurrency: String = "UZS",
+    ): AppointmentLedgerRowDto? {
+        val patientId = appt.patient.id ?: return null
         if (lines.isEmpty()) return null
         val plan = lines.first().plan
-        val visitTotal = lines.sumOf { ledgerService.lineTotal(it) }
-        val planTotal = ledgerService.planTotalMinor(plan.id).coerceAtLeast(1L)
-        val payments = treatmentPlanPayments.findByPlan_IdOrderByRecordedAtAsc(plan.id)
-        val visitPaid = ledgerService.appointmentCollectedMinor(
-            appt.id,
-            visitTotal,
-            planTotal,
-            payments,
-        )
-        val rowStatus = ledgerService.planSimplePaymentStatus(visitTotal, visitPaid)
+        val finance = ledgerService.visitLedgerFinance(appt.id, lines, paymentsByPlanId)
         val services = lines.map {
             AppointmentLedgerRowDto.ServiceLineDto(it.title, ledgerService.lineTotal(it))
         }
@@ -1167,10 +1264,11 @@ class ClinicFinanceController(
             doctorName = "${appt.doctor.firstName} ${appt.doctor.lastName}",
             treatmentPlanId = plan.id,
             services = services,
-            visitTotalMinor = visitTotal,
-            currency = lines.first().currency,
-            planPaymentStatus = rowStatus,
-            planSimplePaymentStatus = rowStatus,
+            visitTotalMinor = finance.visitTotalMinor,
+            visitCollectedMinor = finance.visitCollectedMinor,
+            currency = lines.first().currency.trim().uppercase().ifEmpty { clinicCurrency },
+            planPaymentStatus = finance.paymentStatus,
+            planSimplePaymentStatus = finance.paymentStatus,
         )
     }
 

@@ -104,6 +104,70 @@ class ClinicFinanceLedgerService(
         )
     }
 
+    /** Gross/collected/status for one visit — shared by appointment ledger rows and visit aggregations. */
+    fun visitLedgerFinance(
+        appointmentId: Long,
+        lines: List<TreatmentPlanLine>,
+        paymentsByPlanId: Map<Long, List<TreatmentPlanPayment>> = emptyMap(),
+    ): VisitLedgerFinance {
+        require(lines.isNotEmpty()) { "lines must not be empty" }
+        val plan = lines.first().plan
+        val planCap = planTotalMinor(plan.id).coerceAtLeast(1L)
+        val visitTotal = lines.sumOf { lineTotal(it) }
+        val payments =
+            paymentsByPlanId[plan.id]
+                ?: paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(plan.id)
+        val visitCollected = appointmentCollectedMinor(appointmentId, visitTotal, planCap, payments)
+        val status = planSimplePaymentStatus(visitTotal, visitCollected)
+        return VisitLedgerFinance(
+            visitTotalMinor = visitTotal,
+            visitCollectedMinor = visitCollected,
+            paymentStatus = status,
+        )
+    }
+
+    /** Month-scoped dashboard KPIs derived from visit-level gross/collected totals. */
+    fun monthScopedDashboardMetrics(
+        clinicId: Long,
+        from: Instant,
+        toExclusive: Instant,
+        patientFilter: Set<Long>?,
+    ): MonthScopedFinanceMetrics {
+        val visits = visitFinanceTotals(clinicId, from, toExclusive, patientFilter)
+        val gross = visits.sumOf { it.grossMinor }
+        val collected = visits.sumOf { it.collectedMinor }
+        return MonthScopedFinanceMetrics(
+            totalRevenueMinor = collected,
+            totalExpectedMinor = gross,
+            outstandingMinor = visits.sumOf { (it.grossMinor - it.collectedMinor).coerceAtLeast(0) },
+        )
+    }
+
+    private fun loadPaymentsByPlanIds(planIds: Collection<Long>): Map<Long, List<TreatmentPlanPayment>> {
+        if (planIds.isEmpty()) return emptyMap()
+        return paymentsRepo.findByPlanIdsOrderByRecordedAtAsc(planIds)
+            .groupBy { it.plan.id }
+    }
+
+    private fun computeVisitFinance(
+        appointmentId: Long,
+        apptLines: List<TreatmentPlanLine>,
+        planTotalCache: MutableMap<Long, Long>,
+        paymentsByPlanId: Map<Long, List<TreatmentPlanPayment>>,
+    ): VisitFinanceTotal {
+        val plan = apptLines.first().plan
+        val planCap = planTotalCache.getOrPut(plan.id) { planTotalMinor(plan.id) }.coerceAtLeast(1L)
+        val visitTotal = apptLines.sumOf { lineTotal(it) }
+        val payments = paymentsByPlanId[plan.id].orEmpty()
+        val visitCollected = appointmentCollectedMinor(appointmentId, visitTotal, planCap, payments)
+        return VisitFinanceTotal(
+            appointmentId = appointmentId,
+            grossMinor = visitTotal,
+            collectedMinor = visitCollected,
+            lines = apptLines,
+        )
+    }
+
     /** Loads ledger lines; omit both dates for all-time (matches appointment ledger default scope). */
     private fun loadLedgerLines(
         clinicId: Long,
@@ -139,20 +203,12 @@ class ClinicFinanceLedgerService(
             }
         if (filtered.isEmpty()) return emptyList()
 
+        val byAppointment = filtered.groupBy { it.linkedAppointment!!.id }
+        val planIds = byAppointment.values.map { it.first().plan.id }.toSet()
+        val paymentsByPlanId = loadPaymentsByPlanIds(planIds)
         val planTotalCache = mutableMapOf<Long, Long>()
-        return filtered.groupBy { it.linkedAppointment!!.id }.map { (apptId, apptLines) ->
-            val appt = apptLines.first().linkedAppointment!!
-            val plan = apptLines.first().plan
-            val planCap = planTotalCache.getOrPut(plan.id) { planTotalMinor(plan.id) }.coerceAtLeast(1L)
-            val visitTotal = apptLines.sumOf { lineTotal(it) }
-            val payments = paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(plan.id)
-            val visitCollected = appointmentCollectedMinor(apptId, visitTotal, planCap, payments)
-            VisitFinanceTotal(
-                appointmentId = apptId,
-                grossMinor = visitTotal,
-                collectedMinor = visitCollected,
-                lines = apptLines,
-            )
+        return byAppointment.map { (apptId, apptLines) ->
+            computeVisitFinance(apptId, apptLines, planTotalCache, paymentsByPlanId)
         }
     }
 
@@ -226,11 +282,28 @@ class ClinicFinanceLedgerService(
         val lines: List<TreatmentPlanLine>,
     )
 
+    data class VisitLedgerFinance(
+        val visitTotalMinor: Long,
+        val visitCollectedMinor: Long,
+        val paymentStatus: String,
+    )
+
+    data class MonthScopedFinanceMetrics(
+        val totalRevenueMinor: Long,
+        val totalExpectedMinor: Long,
+        val outstandingMinor: Long,
+    )
+
     data class DoctorEarningAgg(
         val doctorProfileId: Long,
         val visitCount: Int,
         val grossMinor: Long,
         val collectedMinor: Long,
         val outstandingMinor: Long,
+        val revenueSharePercent: Int? = null,
+        val doctorShareGrossMinor: Long? = null,
+        val clinicShareGrossMinor: Long? = null,
+        val doctorShareCollectedMinor: Long? = null,
+        val clinicShareCollectedMinor: Long? = null,
     )
 }

@@ -75,6 +75,14 @@ class ClinicFinanceAccessService(
         }
     }
 
+    fun assertCanManageFinanceSettings(principal: Any, clinicId: Long) {
+        val role = resolveMembershipRole(principal, clinicId)
+            ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, "No clinic membership")
+        if (role != MembershipRole.OWNER && role != MembershipRole.CLINIC_ADMIN) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot manage finance settings")
+        }
+    }
+
     private fun resolveMembershipRole(principal: Any, clinicId: Long): MembershipRole? {
         when (principal) {
             is DoctorPrincipal -> {
