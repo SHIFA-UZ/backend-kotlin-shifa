@@ -75,6 +75,28 @@ class AdminDoctorActivityController(
         )
     }
 
+    data class DoctorSubscriptionBillingRequest(
+        val trialPeriodMonths: Int? = null,
+        val monthlyChargeUsd: Int? = null,
+    )
+
+    /** Update admin-managed trial length and/or monthly charge for a doctor. */
+    @PatchMapping("/{doctorId}/subscription-billing")
+    fun updateSubscriptionBilling(
+        @AuthenticationPrincipal principal: AdminPrincipal,
+        @PathVariable doctorId: Long,
+        @RequestBody body: DoctorSubscriptionBillingRequest,
+    ): DoctorActivityRowDto {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot change subscription billing")
+        }
+        return adminDoctorActivityService.updateSubscriptionBilling(
+            doctorId = doctorId,
+            trialPeriodMonths = body.trialPeriodMonths,
+            monthlyChargeUsd = body.monthlyChargeUsd,
+        )
+    }
+
     /** Grant or revoke permission for a doctor to enable patient SMS appointment reminders. */
     @PatchMapping("/{doctorId}/sms-reminders-allowed")
     fun setSmsRemindersAllowed(

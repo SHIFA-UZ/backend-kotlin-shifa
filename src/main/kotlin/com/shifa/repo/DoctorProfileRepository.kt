@@ -50,6 +50,7 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
     @org.springframework.data.jpa.repository.Query(
         """
         SELECT DISTINCT d FROM DoctorProfile d
+        JOIN FETCH d.user u
         LEFT JOIN FETCH d.practiceClinic pc
         WHERE (:search IS NULL OR :search = ''
             OR LOWER(CONCAT(TRIM(d.firstName), ' ', TRIM(d.lastName))) LIKE LOWER(CONCAT('%', :search, '%'))

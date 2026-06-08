@@ -34,6 +34,11 @@ data class DoctorActivityRowDto(
     @JsonProperty("smsOwedMinor") val smsOwedMinor: Long = 0,
     @JsonProperty("smsCurrency") val smsCurrency: String = "UZS",
     @JsonProperty("smsPricePerUnitMinor") val smsPricePerUnitMinor: Long = 500,
+    @JsonProperty("dateJoinedAt") val dateJoinedAt: String?,
+    @JsonProperty("trialPeriodMonths") val trialPeriodMonths: Int,
+    @JsonProperty("monthlyChargeUsd") val monthlyChargeUsd: Int,
+    @JsonProperty("monthsAfterTrial") val monthsAfterTrial: Int,
+    @JsonProperty("totalDebtUsd") val totalDebtUsd: Int,
 )
 
 data class DoctorActivityDetailDto(

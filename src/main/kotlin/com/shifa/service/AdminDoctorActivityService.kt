@@ -52,6 +52,18 @@ class AdminDoctorActivityService(
         private val UTC = ZoneOffset.UTC
         private val ISO_DATE = DateTimeFormatter.ISO_LOCAL_DATE
         private const val MAX_CHART_DAYS = 366L
+        val ALLOWED_MONTHLY_CHARGES_USD = setOf(15, 20, 25, 30, 35, 40, 45, 50)
+        const val DEFAULT_TRIAL_PERIOD_MONTHS = 6
+        const val DEFAULT_MONTHLY_CHARGE_USD = 30
+
+        fun monthsAfterTrial(dateJoined: LocalDate, trialPeriodMonths: Int, today: LocalDate = LocalDate.now(UTC)): Int {
+            val trialEnd = dateJoined.plusMonths(trialPeriodMonths.toLong())
+            if (!today.isAfter(trialEnd)) return 0
+            return ChronoUnit.MONTHS.between(trialEnd, today).toInt()
+        }
+
+        fun totalDebtUsd(monthsAfterTrial: Int, monthlyChargeUsd: Int): Int =
+            monthsAfterTrial * monthlyChargeUsd
 
         fun toWindow(fromDate: LocalDate, toInclusive: LocalDate): BoundedWindow {
             require(!toInclusive.isBefore(fromDate)) { "Invalid date range" }
@@ -136,6 +148,41 @@ class AdminDoctorActivityService(
         val chartWindow = computeChartWindow(requestedWindow)
         val daily = buildDailySeries(doctor.id, doctor.user.id, chartWindow)
         return DoctorActivityDetailDto(row = row, dailySeries = daily)
+    }
+
+    @Transactional
+    fun updateSubscriptionBilling(
+        doctorId: Long,
+        trialPeriodMonths: Int?,
+        monthlyChargeUsd: Int?,
+    ): DoctorActivityRowDto {
+        if (trialPeriodMonths == null && monthlyChargeUsd == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "At least one field must be provided")
+        }
+        val doctor = doctorProfileRepository.findById(doctorId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found") }
+
+        trialPeriodMonths?.let { months ->
+            if (months !in 1..12) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "trialPeriodMonths must be between 1 and 12")
+            }
+            doctor.adminTrialPeriodMonths = months
+        }
+        monthlyChargeUsd?.let { charge ->
+            if (charge !in ALLOWED_MONTHLY_CHARGES_USD) {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "monthlyChargeUsd must be one of ${ALLOWED_MONTHLY_CHARGES_USD.sorted()}",
+                )
+            }
+            doctor.adminMonthlyChargeUsd = charge
+        }
+
+        doctorProfileRepository.save(doctor)
+        val contractNumber =
+            earlyPartnerContractService.contractNumbersByDoctorIds(listOf(doctor.id))[doctor.id]
+        val smsByDoctor = doctorSmsBillingService.aggregateMapForWindow(null)
+        return buildRow(doctor, null, contractNumber, smsByDoctor[doctor.id])
     }
 
     private fun comparatorFor(sort: String): Comparator<DoctorActivityRowDto> {
@@ -335,6 +382,12 @@ class AdminDoctorActivityService(
 
         val lastInstant = computeLastActiveAllTime(doctor.id, doctor.user.id)
 
+        val dateJoined = doctor.user.createdAt.atZoneSameInstant(UTC).toLocalDate()
+        val trialMonths = doctor.adminTrialPeriodMonths
+        val monthlyCharge = doctor.adminMonthlyChargeUsd
+        val billableMonths = monthsAfterTrial(dateJoined, trialMonths)
+        val debtUsd = totalDebtUsd(billableMonths, monthlyCharge)
+
         return DoctorActivityRowDto(
             doctorId = id,
             doctorName = "${doctor.firstName.trim()} ${doctor.lastName.trim()}".trim(),
@@ -362,6 +415,11 @@ class AdminDoctorActivityService(
             smsOwedMinor = smsStats?.second ?: 0L,
             smsCurrency = doctorSmsBillingService.currency,
             smsPricePerUnitMinor = doctorSmsBillingService.pricePerSmsMinor,
+            dateJoinedAt = dateJoined.format(ISO_DATE),
+            trialPeriodMonths = trialMonths,
+            monthlyChargeUsd = monthlyCharge,
+            monthsAfterTrial = billableMonths,
+            totalDebtUsd = debtUsd,
         )
     }
 

@@ -91,4 +91,12 @@ class DoctorProfile(
     /** Admin-granted permission to enable patient SMS appointment reminders. */
     @Column(name = "sms_reminders_allowed", nullable = false)
     var smsRemindersAllowed: Boolean = false,
+
+    /** Admin-managed trial length (months) for subscription billing on the activity screen. */
+    @Column(name = "admin_trial_period_months", nullable = false)
+    var adminTrialPeriodMonths: Int = 6,
+
+    /** Admin-managed monthly platform charge in USD after trial. */
+    @Column(name = "admin_monthly_charge_usd", nullable = false)
+    var adminMonthlyChargeUsd: Int = 30,
 )
