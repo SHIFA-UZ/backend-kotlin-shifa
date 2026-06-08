@@ -81,6 +81,7 @@ class ClinicWorkspaceService(
         val doctorName: String,
     )
 
+    @Transactional(readOnly = true)
     fun listMyClinics(principal: Any): List<MyClinicSummary> {
         clinicAccess.assertPracticeActor(principal)
         return when (principal) {
@@ -91,8 +92,9 @@ class ClinicWorkspaceService(
     }
 
     private fun myClinicsForStaff(p: ClinicStaffPrincipal): List<MyClinicSummary> {
-        return p.memberships
-            .filter { it.active }
+        // Re-fetch with clinic JOIN FETCH — principal memberships are detached once the
+        // security filter transaction ends (open-in-view is false in prod/qa).
+        return memberships.findByUserIdAndActiveTrueWithClinic(p.user.id)
             .map { m ->
                 toSummary(
                     m.clinic,
@@ -105,8 +107,10 @@ class ClinicWorkspaceService(
 
     private fun myClinicsForDoctor(p: DoctorPrincipal): List<MyClinicSummary> {
         val userId = p.profile.user.id
-        val practiceId = p.profile.practiceClinic?.id
-        val rows = memberships.findByUserIdAndActiveTrue(userId)
+        val practiceId = doctors.findByUserIdWithPracticeClinic(userId)
+            .orElse(p.profile)
+            .practiceClinic?.id
+        val rows = memberships.findByUserIdAndActiveTrueWithClinic(userId)
         val seenClinicIds = linkedSetOf<Long>()
         val out = mutableListOf<MyClinicSummary>()
 

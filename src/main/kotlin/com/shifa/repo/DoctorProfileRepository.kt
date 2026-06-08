@@ -9,6 +9,13 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
     fun findAllByPracticeClinic_Id(clinicId: Long): List<DoctorProfile>
 
     fun findByUserId(userId: Long): Optional<DoctorProfile>
+
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT d FROM DoctorProfile d LEFT JOIN FETCH d.practiceClinic WHERE d.user.id = :userId"
+    )
+    fun findByUserIdWithPracticeClinic(
+        @org.springframework.data.repository.query.Param("userId") userId: Long,
+    ): Optional<DoctorProfile>
     
     // Search doctors by query string (name, email, phone, profession, clinic) - only enabled (non-disabled) doctors
     @org.springframework.data.jpa.repository.Query(
