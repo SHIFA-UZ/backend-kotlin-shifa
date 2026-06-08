@@ -1,6 +1,8 @@
 package com.shifa.domain
 
 import jakarta.persistence.*
+import org.hibernate.annotations.JdbcTypeCode
+import org.hibernate.type.SqlTypes
 
 @Entity @Table(name = "doctor_profiles")
 class DoctorProfile(
@@ -93,10 +95,12 @@ class DoctorProfile(
     var smsRemindersAllowed: Boolean = false,
 
     /** Admin-managed trial length (months) for subscription billing on the activity screen. */
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "admin_trial_period_months", nullable = false)
     var adminTrialPeriodMonths: Int = 6,
 
     /** Admin-managed monthly platform charge in USD after trial. */
+    @JdbcTypeCode(SqlTypes.SMALLINT)
     @Column(name = "admin_monthly_charge_usd", nullable = false)
     var adminMonthlyChargeUsd: Int = 30,
 )
