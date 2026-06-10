@@ -51,8 +51,14 @@ spring:
       mail:
         smtp:
           auth: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
           starttls:
             enable: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
     from: ${MAIL_FROM:noreply@shifa.health}
     from-name: ${MAIL_FROM_NAME:Shifa Health}
 
@@ -74,6 +80,9 @@ logging:
 server:
   # Railway uses PORT environment variable, fallback to SERVER_PORT or 8080
   port: ${PORT:${SERVER_PORT:8080}}
+  tomcat:
+    threads:
+      max: 300
   # Production security headers
   error:
     include-message: never

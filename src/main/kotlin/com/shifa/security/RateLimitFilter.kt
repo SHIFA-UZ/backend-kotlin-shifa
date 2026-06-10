@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.Ordered
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
+import org.springframework.web.cors.CorsUtils
 import org.springframework.web.filter.OncePerRequestFilter
 import java.time.Duration
 import java.util.concurrent.ConcurrentHashMap
@@ -57,14 +58,21 @@ class RateLimitFilter(
         return map.getOrPut(key) { createBucket(limit) }
     }
 
+    override fun shouldNotFilter(request: HttpServletRequest): Boolean =
+        CorsUtils.isPreFlightRequest(request) ||
+            request.method.equals("OPTIONS", ignoreCase = true)
+
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
         val path = request.requestURI
-        // Skip rate limiting for health/error so orchestrators and error pages are not throttled
-        if (path.startsWith("/actuator/health") || path == "/error") {
+        // Skip rate limiting for health/error/CORS preflight
+        if (request.method.equals("OPTIONS", ignoreCase = true) ||
+            path.startsWith("/actuator/health") ||
+            path == "/error"
+        ) {
             filterChain.doFilter(request, response)
             return
         }

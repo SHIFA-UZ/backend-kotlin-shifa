@@ -26,23 +26,30 @@ class EmailOtpService(
      * Generate a code, persist it, and send the email. Returns true on success.
      * Rate-limited: max 5 codes per email+purpose per hour.
      */
-    @Transactional
     fun sendCode(email: String, purpose: String): Boolean {
         val normalized = email.trim().lowercase()
-        val oneHourAgo = OffsetDateTime.now().minusHours(1)
-        val recentCount = repo.countByEmailAndPurposeAndCreatedAtAfter(normalized, purpose, oneHourAgo)
-        if (recentCount >= 5) {
-            log.warn("Rate limit reached for {} [{}]", normalized.take(3) + "***", purpose)
-            return false
-        }
-        val code = generateCode()
-        repo.save(EmailVerificationCode(
-            email = normalized,
-            code = code,
-            purpose = purpose
-        ))
+        val code = persistNewCode(normalized, purpose) ?: return false
         emailSender.sendOtpEmail(normalized, code, purpose)
         return true
+    }
+
+    @Transactional
+    fun persistNewCode(email: String, purpose: String): String? {
+        val oneHourAgo = OffsetDateTime.now().minusHours(1)
+        val recentCount = repo.countByEmailAndPurposeAndCreatedAtAfter(email, purpose, oneHourAgo)
+        if (recentCount >= 5) {
+            log.warn("Rate limit reached for {} [{}]", email.take(3) + "***", purpose)
+            return null
+        }
+        val code = generateCode()
+        repo.save(
+            EmailVerificationCode(
+                email = email,
+                code = code,
+                purpose = purpose,
+            )
+        )
+        return code
     }
 
     /**

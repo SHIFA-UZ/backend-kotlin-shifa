@@ -6,6 +6,7 @@ import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.core.Ordered
 import org.springframework.stereotype.Component
+import org.springframework.web.cors.CorsUtils
 import org.springframework.web.filter.OncePerRequestFilter
 
 /**
@@ -22,6 +23,9 @@ class SecurityHeadersFilter(
 
     private val isProduction: Boolean
         get() = activeProfile.contains("prod")
+
+    override fun shouldNotFilter(request: HttpServletRequest): Boolean =
+        CorsUtils.isPreFlightRequest(request)
 
     override fun doFilterInternal(
         request: HttpServletRequest,

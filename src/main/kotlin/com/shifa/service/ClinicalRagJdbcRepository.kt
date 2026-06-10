@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.BatchPreparedStatementSetter
 import org.springframework.jdbc.core.ConnectionCallback
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
+import org.springframework.transaction.annotation.Transactional
 import java.sql.PreparedStatement
 import java.util.Locale
 
@@ -13,6 +14,19 @@ import java.util.Locale
 class ClinicalRagJdbcRepository(
     private val jdbcTemplate: JdbcTemplate,
 ) {
+
+    @Transactional
+    fun replaceChunks(
+        patientId: Long,
+        sourceType: String,
+        sourceRecordId: Long,
+        chunks: List<Pair<String, FloatArray>>,
+    ) {
+        deleteBySource(patientId, sourceType, sourceRecordId)
+        if (chunks.isNotEmpty()) {
+            insertChunks(patientId, sourceType, sourceRecordId, chunks)
+        }
+    }
 
     fun deleteBySource(patientId: Long, sourceType: String, sourceRecordId: Long) {
         jdbcTemplate.update(

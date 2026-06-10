@@ -13,7 +13,6 @@ import com.shifa.repo.ConsultationNoteRepository
 import com.shifa.repo.PatientFormRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 
 /**
  * Indexes structured clinical text into [clinical_rag_chunks] for semantic retrieval.
@@ -45,7 +44,6 @@ class ClinicalRagIndexingService(
         }
     }
 
-    @Transactional
     fun reindexAllForPatient(patientId: Long): ReindexSummary {
         var fc = 0
         var nc = 0
@@ -75,34 +73,43 @@ class ClinicalRagIndexingService(
         try {
             val form = patientForms.findById(formId).orElse(null) ?: return
             val patientId = form.patient?.id ?: return
-            jdbcRepository.deleteBySource(patientId, ClinicalRagSources.FORM_0252, formId)
-            if (form.templateId != "025-2") return
+            if (form.templateId != "025-2") {
+                jdbcRepository.replaceChunks(patientId, ClinicalRagSources.FORM_0252, formId, emptyList())
+                return
+            }
 
             val chunks = build0252Chunks(form).map { it.trim() }.filter { it.isNotEmpty() }.take(MAX_CHUNKS_PER_SOURCE)
-            if (chunks.isEmpty()) return
+            if (chunks.isEmpty()) {
+                jdbcRepository.replaceChunks(patientId, ClinicalRagSources.FORM_0252, formId, emptyList())
+                return
+            }
             val vectors = embeddings.embedTexts(chunks)
             if (vectors.size != chunks.size) {
                 log.warn("Embedding count mismatch for form {}; skipping index", formId)
                 return
             }
-            jdbcRepository.insertChunks(patientId, ClinicalRagSources.FORM_0252, formId, chunks.zip(vectors))
+            jdbcRepository.replaceChunks(patientId, ClinicalRagSources.FORM_0252, formId, chunks.zip(vectors))
         } catch (ex: Exception) {
             log.warn("clinical RAG index form {} failed: {}", formId, ex.message)
         }
     }
-
     fun reindexConsultationNote(noteId: Long) {
         try {
             val note = consultationNotes.findById(noteId).orElse(null) ?: return
             val patientId = note.patientId
-            jdbcRepository.deleteBySource(patientId, ClinicalRagSources.CONSULTATION_NOTE, noteId)
             val body = combineConsultationNote(note).trim()
-            if (body.isEmpty()) return
+            if (body.isEmpty()) {
+                jdbcRepository.replaceChunks(patientId, ClinicalRagSources.CONSULTATION_NOTE, noteId, emptyList())
+                return
+            }
             val chunks = splitTextChunks(body, MAX_CHUNK_CHARS).take(MAX_CHUNKS_PER_SOURCE)
-            if (chunks.isEmpty()) return
+            if (chunks.isEmpty()) {
+                jdbcRepository.replaceChunks(patientId, ClinicalRagSources.CONSULTATION_NOTE, noteId, emptyList())
+                return
+            }
             val vectors = embeddings.embedTexts(chunks)
             if (vectors.size != chunks.size) return
-            jdbcRepository.insertChunks(patientId, ClinicalRagSources.CONSULTATION_NOTE, noteId, chunks.zip(vectors))
+            jdbcRepository.replaceChunks(patientId, ClinicalRagSources.CONSULTATION_NOTE, noteId, chunks.zip(vectors))
         } catch (ex: Exception) {
             log.warn("clinical RAG index note {} failed: {}", noteId, ex.message)
         }
@@ -112,15 +119,20 @@ class ClinicalRagIndexingService(
         try {
             val appt = appointments.findById(appointmentId).orElse(null) ?: return
             val patientKey = requireNotNull(appt.patient.id) { "appointment patient id required" }
-            jdbcRepository.deleteBySource(patientKey, ClinicalRagSources.APPOINTMENT_DENTAL, appointmentId)
             val raw = appt.dentalDocumentation?.trim().orEmpty()
-            if (raw.isEmpty()) return
+            if (raw.isEmpty()) {
+                jdbcRepository.replaceChunks(patientKey, ClinicalRagSources.APPOINTMENT_DENTAL, appointmentId, emptyList())
+                return
+            }
 
             val chunks = buildAppointmentDentalChunks(appt, raw).take(MAX_CHUNKS_PER_SOURCE)
-            if (chunks.isEmpty()) return
+            if (chunks.isEmpty()) {
+                jdbcRepository.replaceChunks(patientKey, ClinicalRagSources.APPOINTMENT_DENTAL, appointmentId, emptyList())
+                return
+            }
             val vectors = embeddings.embedTexts(chunks)
             if (vectors.size != chunks.size) return
-            jdbcRepository.insertChunks(patientKey, ClinicalRagSources.APPOINTMENT_DENTAL, appointmentId, chunks.zip(vectors))
+            jdbcRepository.replaceChunks(patientKey, ClinicalRagSources.APPOINTMENT_DENTAL, appointmentId, chunks.zip(vectors))
         } catch (ex: Exception) {
             log.warn("clinical RAG index appointment dental {} failed: {}", appointmentId, ex.message)
         }

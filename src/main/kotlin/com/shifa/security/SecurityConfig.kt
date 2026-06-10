@@ -175,6 +175,10 @@ class SecurityConfig(
             
             // Always allow localhost for development
             originPatterns.addAll(listOf("http://localhost:*", "https://localhost:*"))
+
+            // Production admin panel (explicit origin avoids slow/failed wildcard matching on preflight)
+            exactOrigins.add("https://admin.shifa.uz")
+            originPatterns.add("https://admin.shifa.uz")
             
             // Add production/staging frontend URL if configured
             val frontendUrl = appProps.frontendUrl
@@ -247,7 +251,9 @@ class SecurityConfig(
                 "Content-Type",
                 "Accept",
                 "Origin",
-                "X-Requested-With"
+                "X-Requested-With",
+                "Access-Control-Request-Method",
+                "Access-Control-Request-Headers",
             )
 
             // 🔴 IMPORTANT FOR SSE + document downloads (so the doctor app
