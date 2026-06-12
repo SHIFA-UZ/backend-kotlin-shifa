@@ -79,6 +79,7 @@ class PatientController(
         val email: String?,
         val address: String?,
         val birthDate: String?,
+        val gender: String?,
         val language: String?,
         val photoUrl: String?,
         val latitude: Double?,
@@ -183,6 +184,7 @@ class PatientController(
             email = profile.email,
             address = profile.address,
             birthDate = profile.birthDate?.toString(),
+            gender = profile.gender,
             language = profile.language,
             photoUrl = profileMapper.normalizePhotoUrl(profile.photoUrl),
             latitude = profile.latitude,
@@ -214,6 +216,7 @@ class PatientController(
         req.birthDate?.let {
             profile.birthDate = LocalDate.parse(it)
         }
+        req.gender?.let { profile.gender = it.trim().takeIf { g -> g.isNotEmpty() } }
         req.address?.let { profile.address = it }
         req.language?.let { profile.language = it }
         req.photoUrl?.let { profile.photoUrl = it }
@@ -236,6 +239,7 @@ class PatientController(
             email = saved.email,
             address = saved.address,
             birthDate = saved.birthDate?.toString(),
+            gender = saved.gender,
             language = saved.language,
             photoUrl = profileMapper.normalizePhotoUrl(saved.photoUrl),
             latitude = saved.latitude,

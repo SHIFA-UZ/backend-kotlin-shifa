@@ -28,4 +28,11 @@ object PhoneNormalizer {
      */
     @JvmStatic
     fun isPresent(phone: String?): Boolean = !normalize(phone).isNullOrEmpty()
+
+    /** Uzbek mobile: E.164 +998 followed by 9 digits (12 digits total without +). */
+    @JvmStatic
+    fun isUzbekMobile(phone: String?): Boolean {
+        val normalized = normalize(phone) ?: return false
+        return normalized.matches(Regex("^\\+998[0-9]{9}$"))
+    }
 }

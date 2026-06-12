@@ -62,6 +62,7 @@ class SecurityConfig(
                     "/api/auth/check-identifier",
                     "/api/auth/create-patient-for-doctor",
                     "/api/auth/send-email-otp",
+                    "/api/auth/send-sms-otp",
                     "/api/auth/verify",
                     "/api/auth/forgot-password-reset",
                     "/api/auth/send-login-otp",

@@ -35,6 +35,7 @@ class AuthController(
     private val userRoles: com.shifa.repo.UserRoleRepository,
     private val firebaseAuthService: com.shifa.service.FirebaseAuthService,
     private val emailOtpService: com.shifa.service.EmailOtpService,
+    private val smsOtpService: com.shifa.service.SmsOtpService,
     private val clinicMemberships: ClinicMembershipRepository,
     private val clinics: ClinicRepository,
 ) {
@@ -226,6 +227,47 @@ class AuthController(
         return SendEmailOtpResponse(sent = true)
     }
 
+    // ---------- Send SMS OTP (patient registration / forgot-password for UZ numbers) ----------
+    data class SendSmsOtpRequest(
+        @field:NotBlank val phone: String,
+        val purpose: String? = null
+    )
+
+    /**
+     * Sends a 6-digit OTP via DevSMS to an Uzbek mobile number (+998).
+     * Purpose defaults to REGISTRATION.
+     */
+    @PostMapping("/send-sms-otp")
+    fun sendSmsOtp(@RequestBody @Valid req: SendSmsOtpRequest): SendEmailOtpResponse {
+        val normalized = PhoneNormalizer.normalize(req.phone.trim())
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
+        if (!PhoneNormalizer.isUzbekMobile(normalized)) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "SMS verification is only available for Uzbek phone numbers. Please use email."
+            )
+        }
+        val purpose = req.purpose?.uppercase()
+            ?: com.shifa.domain.SmsVerificationCode.PURPOSE_REGISTRATION
+        try {
+            if (!smsOtpService.sendCode(normalized, purpose)) {
+                throw ResponseStatusException(
+                    HttpStatus.TOO_MANY_REQUESTS,
+                    "Too many verification requests. Please try again later."
+                )
+            }
+        } catch (e: ResponseStatusException) {
+            throw e
+        } catch (e: Exception) {
+            log.error("send-sms-otp failed for {}***: {}", normalized.take(6), e.message)
+            throw ResponseStatusException(
+                HttpStatus.SERVICE_UNAVAILABLE,
+                "Could not send verification SMS. Please try again later."
+            )
+        }
+        return SendEmailOtpResponse(sent = true)
+    }
+
     // ---------- Send login OTP (doctor email OTP sign-in) ----------
     data class SendLoginOtpRequest(@field:NotBlank @field:Email val email: String)
 
@@ -302,12 +344,14 @@ class AuthController(
      * Send a forgot-password OTP. Accepts email or phone as identifier;
      * looks up the user and sends OTP to their email address.
      */
+    data class SendForgotPasswordOtpResponse(val sent: Boolean = true, val channel: String)
+
     @PostMapping("/send-forgot-password-otp")
     fun sendForgotPasswordOtp(
         @RequestBody @Valid req: SendForgotPasswordOtpRequest,
         @RequestParam(required = false) app: String?,
         request: jakarta.servlet.http.HttpServletRequest
-    ): SendEmailOtpResponse {
+    ): SendForgotPasswordOtpResponse {
         val id = req.identifier.trim()
         val user = users.findByEmail(id).orElse(null)
             ?: users.findByPhone(id).orElse(null)
@@ -317,15 +361,27 @@ class AuthController(
             ?: app?.trim()?.lowercase()
             ?: request.getHeader("X-App")?.trim()?.lowercase()
         ensureForgotPasswordAccountForApp(user, appType)
-        val email = user.email
-            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No email address on file. Please contact support.")
         if (!user.enabled) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Account is disabled")
         }
-        if (!emailOtpService.sendCode(email.trim().lowercase(), com.shifa.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD)) {
-            throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.")
+        val email = user.email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        if (email != null) {
+            if (!emailOtpService.sendCode(email, com.shifa.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD)) {
+                throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.")
+            }
+            return SendForgotPasswordOtpResponse(channel = "email")
         }
-        return SendEmailOtpResponse(sent = true)
+        val phone = user.phone
+        if (phone != null && PhoneNormalizer.isUzbekMobile(phone)) {
+            if (!smsOtpService.sendCode(phone, com.shifa.domain.SmsVerificationCode.PURPOSE_FORGOT_PASSWORD)) {
+                throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.")
+            }
+            return SendForgotPasswordOtpResponse(channel = "sms")
+        }
+        throw ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "No email address on file. Please contact support."
+        )
     }
 
     // ---------- Create patient account for existing doctor ----------
@@ -1058,39 +1114,67 @@ class AuthController(
         @field:NotBlank val firstName: String,
         @field:NotBlank val lastName: String,
         val phone: String? = null,
-        @field:NotBlank @field:Email val email: String,
+        val email: String? = null,
         @field:NotBlank val password: String,
         val birthDate: String? = null,
         val gender: String? = null,
         val address: String? = null,
         val language: String? = null,
         val emailOtp: String? = null,
+        val smsOtp: String? = null,
     )
 
     /**
      * Creates a PATIENT user, saves PatientProfile, and returns JWT.
-     * Email and emailOtp are required (sent via send-email-otp).
-     * Phone is optional profile data only; SMS / Firebase phone OTP is not used for this flow.
+     * Verification: email + emailOtp, or Uzbek phone + smsOtp (no email).
      */
     @PostMapping("/register-patient")
     fun registerPatient(@RequestBody @Valid r: RegisterPatientRequest): TokenResponse {
-        val emailTrimmed = r.email.trim().lowercase()
-        if (r.emailOtp.isNullOrBlank()) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email verification code required")
-        }
-        if (!emailOtpService.verify(emailTrimmed, r.emailOtp!!)) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired email verification code")
+        val emailTrimmed = r.email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        if (emailTrimmed != null && !emailTrimmed.contains('@')) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid email address")
         }
         val phoneRaw = r.phone?.trim()?.takeIf { it.isNotBlank() }
         val phoneNormalized = phoneRaw?.let { PhoneNormalizer.normalize(it) }
         if (phoneRaw != null && phoneNormalized == null) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
         }
+        if (emailTrimmed == null && phoneNormalized == null) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email or phone number is required")
+        }
+
+        when {
+            emailTrimmed != null -> {
+                if (r.emailOtp.isNullOrBlank()) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email verification code required")
+                }
+                if (!emailOtpService.verify(emailTrimmed, r.emailOtp!!)) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired email verification code")
+                }
+            }
+            phoneNormalized != null && PhoneNormalizer.isUzbekMobile(phoneNormalized) -> {
+                if (r.smsOtp.isNullOrBlank()) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "SMS verification code required")
+                }
+                if (!smsOtpService.verify(phoneNormalized, r.smsOtp!!)) {
+                    throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired SMS verification code")
+                }
+            }
+            else -> {
+                throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "Email is required for non-Uzbek phone numbers"
+                )
+            }
+        }
+
         PasswordPolicy.validate(r.password)?.let { msg ->
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, msg)
         }
-        if (users.findByEmail(emailTrimmed).isPresent) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email already registered")
+        emailTrimmed?.let { email ->
+            if (users.findByEmail(email).isPresent) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email already registered")
+            }
         }
         phoneNormalized?.let { pn ->
             if (users.findByPhone(pn).isPresent || phoneRaw?.let { users.findByPhone(it).isPresent } == true) {
@@ -1106,11 +1190,11 @@ class AuthController(
                 email = emailTrimmed,
                 phone = phoneNormalized,
                 passwordHash = encoder.encode(r.password),
-                role = Role.PATIENT
+                role = Role.PATIENT,
+                emailVerified = emailTrimmed != null,
             )
         )
 
-        // Add PATIENT role to user_roles (multi-role support)
         userRoles.save(
             com.shifa.domain.UserRole(
                 user = user,
@@ -1118,7 +1202,6 @@ class AuthController(
             )
         )
 
-        // Create patient profile and link to user so doctor app shows "Account already available"
         val patientProfile = com.shifa.domain.PatientProfile(
             fullName = "${r.firstName.trim()} ${r.lastName.trim()}".trim(),
             phone = phoneNormalized ?: phoneRaw,
@@ -1126,13 +1209,14 @@ class AuthController(
             email = emailTrimmed,
             address = r.address?.trim(),
             birthDate = r.birthDate?.let { java.time.LocalDate.parse(it) },
+            gender = r.gender?.trim()?.takeIf { it.isNotEmpty() },
             language = r.language?.trim(),
             documents = mutableListOf()
         )
         patientProfile.user = user
         patients.save(patientProfile)
 
-        val principal = emailTrimmed
+        val principal = emailTrimmed ?: phoneNormalized!!
         val tokenResult = jwt.generate(user.id, principal, user.role.name)
         userSessions.save(
             UserSession(
@@ -1160,6 +1244,8 @@ class AuthController(
         val idToken: String? = null,
         val email: String? = null,
         val emailOtp: String? = null,
+        val phone: String? = null,
+        val smsOtp: String? = null,
         val app: String? = null,
         @field:NotBlank val newPassword: String
     )
@@ -1181,13 +1267,24 @@ class AuthController(
         }
 
         val user = if (!r.email.isNullOrBlank() && !r.emailOtp.isNullOrBlank()) {
-            // New flow: email OTP verification
             val emailNorm = r.email.trim().lowercase()
             if (!emailOtpService.verify(emailNorm, r.emailOtp.trim(),
                     com.shifa.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD)) {
                 throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired verification code")
             }
             users.findByEmail(emailNorm).orElse(null)
+                ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+        } else if (!r.phone.isNullOrBlank() && !r.smsOtp.isNullOrBlank()) {
+            val phoneNorm = PhoneNormalizer.normalize(r.phone.trim())
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
+            if (!smsOtpService.verify(
+                    phoneNorm,
+                    r.smsOtp.trim(),
+                    com.shifa.domain.SmsVerificationCode.PURPOSE_FORGOT_PASSWORD
+                )) {
+                throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired verification code")
+            }
+            users.findByPhone(phoneNorm).orElse(null)
                 ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
         } else if (!r.idToken.isNullOrBlank()) {
             // Legacy flow: Firebase phone OTP
@@ -1201,7 +1298,10 @@ class AuthController(
             users.findByPhone(phone).orElse(null)
                 ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
         } else {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide either email+emailOtp or idToken")
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Provide email+emailOtp, phone+smsOtp, or idToken"
+            )
         }
 
         if (!user.enabled) {
@@ -1293,11 +1393,15 @@ class AuthController(
         return try {
             users.findByUsername(username).orElseGet {
                 users.findByEmail(username).orElseGet {
-                    users.findByPhone(username).orElseThrow {
-                        val clientIp = request.getHeader("X-Forwarded-For")?.split(",")?.firstOrNull()?.trim()
-                            ?: request.remoteAddr
-                        log.warn("Failed login attempt (unknown identifier) from ip={} path={}", clientIp, request.servletPath)
-                        ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials")
+                    users.findByPhone(username).orElseGet {
+                        PhoneNormalizer.normalize(username)?.let { normalized ->
+                            users.findByPhone(normalized).orElse(null)
+                        } ?: throw run {
+                            val clientIp = request.getHeader("X-Forwarded-For")?.split(",")?.firstOrNull()?.trim()
+                                ?: request.remoteAddr
+                            log.warn("Failed login attempt (unknown identifier) from ip={} path={}", clientIp, request.servletPath)
+                            ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials")
+                        }
                     }
                 }
             }
