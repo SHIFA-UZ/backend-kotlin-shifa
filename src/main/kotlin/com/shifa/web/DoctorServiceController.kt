@@ -187,6 +187,7 @@ class DoctorServiceController(
 
     private fun syncPrices(service: DoctorService, input: List<PriceDto>, isFreeConsultation: Boolean) {
         prices.deleteByService_Id(service.id)
+        prices.flush()
         if (isFreeConsultation) return
         input
             .filter { it.amountMinor > 0 && it.currency.isNotBlank() }

@@ -2,6 +2,7 @@ package com.shifa.web
 
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.AccessDeniedException
@@ -66,6 +67,30 @@ class ErrorHandler(
                 "error" to 400,
                 "message" to (e.message ?: "Invalid request"),
                 "status" to 400
+            ))
+    }
+
+    /** Business conflict (e.g. duplicate account) — avoid 500 + full stack trace. */
+    @ExceptionHandler(IllegalStateException::class)
+    fun handleIllegalState(e: IllegalStateException): ResponseEntity<Map<String, Any>> {
+        log.warn("Conflict: {}", e.message)
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(mapOf(
+                "error" to 409,
+                "message" to (e.message ?: "Conflict"),
+                "status" to 409
+            ))
+    }
+
+    /** Unique constraint / FK violations — return 409 without expensive ERROR logging. */
+    @ExceptionHandler(DataIntegrityViolationException::class)
+    fun handleDataIntegrityViolation(e: DataIntegrityViolationException): ResponseEntity<Map<String, Any>> {
+        log.warn("Data integrity violation: {}", e.mostSpecificCause.message ?: e.message)
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+            .body(mapOf(
+                "error" to 409,
+                "message" to "A record with the same unique value already exists",
+                "status" to 409
             ))
     }
 
