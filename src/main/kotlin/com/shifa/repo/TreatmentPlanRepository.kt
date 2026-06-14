@@ -15,6 +15,22 @@ interface TreatmentPlanRepository : JpaRepository<TreatmentPlan, Long> {
 
     fun findByStatusIn(statuses: List<TreatmentPlan.Status>): List<TreatmentPlan>
 
+    /** Active plans with balance due and outside minimum (1-day) payment-reminder cooldown. */
+    @Query(
+        """
+        SELECT tp FROM TreatmentPlan tp
+        JOIN FETCH tp.patient
+        WHERE tp.status IN :statuses
+          AND tp.remainingAmountMinor > 0
+          AND (tp.lastPaymentReminderSentAt IS NULL
+               OR tp.lastPaymentReminderSentAt < :earliestEligible)
+        """
+    )
+    fun findActivePlansEligibleForPaymentReminder(
+        @Param("statuses") statuses: List<TreatmentPlan.Status>,
+        @Param("earliestEligible") earliestEligible: OffsetDateTime,
+    ): List<TreatmentPlan>
+
     fun findByClinic_IdAndRemainingAmountMinorGreaterThan(clinicId: Long, amount: Long): List<TreatmentPlan>
 
     @org.springframework.data.jpa.repository.Query(

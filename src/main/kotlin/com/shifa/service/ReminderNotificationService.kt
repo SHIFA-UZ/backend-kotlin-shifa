@@ -66,8 +66,12 @@ class ReminderNotificationService(
 
     @Transactional
     fun sendTaskReminders() {
-        val allPending = taskCheckInRepository.findAllPendingForReminderWithTaskAndPatient()
-        for (checkIn in allPending) {
+        val utcToday = LocalDate.now(ZoneOffset.UTC)
+        val pending = taskCheckInRepository.findPendingForReminderWithTaskAndPatientInDateRange(
+            utcToday.minusDays(1),
+            utcToday.plusDays(1),
+        )
+        for (checkIn in pending) {
             val task = checkIn.task
             val patient = task.patient
             val patientTz = patient.timeZone?.takeIf { it.isNotBlank() } ?: "UTC"
@@ -308,13 +312,15 @@ class ReminderNotificationService(
      */
     @Transactional
     fun sendTreatmentPlanPaymentReminders() {
-        val activePlans = treatmentPlans.findByStatusIn(
+        val now = Instant.now()
+        val activePlans = treatmentPlans.findActivePlansEligibleForPaymentReminder(
             listOf(
                 com.shifa.domain.TreatmentPlan.Status.ACTIVE,
-                com.shifa.domain.TreatmentPlan.Status.IN_PROGRESS
-            )
+                com.shifa.domain.TreatmentPlan.Status.IN_PROGRESS,
+            ),
+            // Minimum cooldown is 1 day; per-plan longer cooldowns are applied below.
+            OffsetDateTime.now().minusDays(1),
         )
-        val now = Instant.now()
         for (plan in activePlans) {
             try {
                 if (plan.remainingAmountMinor <= 0L) continue
@@ -354,49 +360,60 @@ class ReminderNotificationService(
     @Transactional
     fun sendProphylaxisReminders() {
         val settings = prophylaxisSettings.findAllByEnabledTrue()
+        if (settings.isEmpty()) return
         val now = Instant.now()
-        for (st in settings) {
-            try {
-                val clinicId = st.clinic.id
-                val doctorIds = doctorProfileRepository.findAllByPracticeClinic_Id(clinicId).mapNotNull { it.id }
-                if (doctorIds.isEmpty()) continue
-                val patientId = st.patient.id ?: continue
-                val latest = appointmentRepository.findCompletedForPatientAmongDoctors(
-                    patientId,
-                    doctorIds,
-                    PageRequest.of(0, 1)
-                ).firstOrNull() ?: continue
-                val anchor = latest.endAt
-                val due = anchor.atZone(java.time.ZoneOffset.UTC).toLocalDate()
-                    .plusMonths(st.intervalMonths.toLong())
-                    .atStartOfDay(java.time.ZoneOffset.UTC)
-                    .toInstant()
-                if (due.isAfter(now)) continue
-                val lastSent = st.lastSentAt?.toInstant()
-                if (lastSent != null && lastSent.isAfter(now.minus(14, ChronoUnit.DAYS))) continue
-                val notification = Notification(
-                    patient = st.patient,
-                    doctor = null,
-                    title = "Time for a visit",
-                    message = "It has been more than ${st.intervalMonths} months since your last completed visit. Please book an appointment with your clinic.",
-                    type = Notification.Type.PROPHYLAXIS_REMINDER,
-                    treatmentPlanId = null
-                )
-                val saved = notificationRepository.save(notification)
-                st.patient.fcmToken?.let {
-                    fcmService.sendPatientNotification(
-                        it,
-                        saved,
-                        mapOf("route" to "/bookings")
-                    )
+        for ((clinicId, clinicSettings) in settings.groupBy { it.clinic.id }) {
+            val doctorIds = doctorProfileRepository.findAllByPracticeClinic_Id(clinicId).mapNotNull { it.id }
+            if (doctorIds.isEmpty()) continue
+            for (st in clinicSettings) {
+                try {
+                    sendProphylaxisReminderIfDue(st, doctorIds, now)
+                } catch (e: Exception) {
+                    log.warn("Prophylaxis reminder failed setting id={}: {}", st.id, e.message)
                 }
-                st.lastSentAt = java.time.OffsetDateTime.now()
-                prophylaxisSettings.save(st)
-                log.info("Prophylaxis reminder sent patient={} clinic={}", patientId, clinicId)
-            } catch (e: Exception) {
-                log.warn("Prophylaxis reminder failed setting id={}: {}", st.id, e.message)
             }
         }
+    }
+
+    private fun sendProphylaxisReminderIfDue(
+        st: com.shifa.domain.PatientProphylaxisSetting,
+        doctorIds: List<Long>,
+        now: Instant,
+    ) {
+        val clinicId = st.clinic.id
+        val patientId = st.patient.id ?: return
+        val latest = appointmentRepository.findCompletedForPatientAmongDoctors(
+            patientId,
+            doctorIds,
+            PageRequest.of(0, 1),
+        ).firstOrNull() ?: return
+        val anchor = latest.endAt
+        val due = anchor.atZone(ZoneOffset.UTC).toLocalDate()
+            .plusMonths(st.intervalMonths.toLong())
+            .atStartOfDay(ZoneOffset.UTC)
+            .toInstant()
+        if (due.isAfter(now)) return
+        val lastSent = st.lastSentAt?.toInstant()
+        if (lastSent != null && lastSent.isAfter(now.minus(14, ChronoUnit.DAYS))) return
+        val notification = Notification(
+            patient = st.patient,
+            doctor = null,
+            title = "Time for a visit",
+            message = "It has been more than ${st.intervalMonths} months since your last completed visit. Please book an appointment with your clinic.",
+            type = Notification.Type.PROPHYLAXIS_REMINDER,
+            treatmentPlanId = null,
+        )
+        val saved = notificationRepository.save(notification)
+        st.patient.fcmToken?.let {
+            fcmService.sendPatientNotification(
+                it,
+                saved,
+                mapOf("route" to "/bookings"),
+            )
+        }
+        st.lastSentAt = OffsetDateTime.now()
+        prophylaxisSettings.save(st)
+        log.info("Prophylaxis reminder sent patient={} clinic={}", patientId, clinicId)
     }
 
     @Transactional

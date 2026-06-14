@@ -66,13 +66,21 @@ interface TaskCheckInRepository : JpaRepository<TaskCheckIn, Long> {
         @Param("timeTo") timeTo: LocalTime
     ): List<TaskCheckIn>
 
-    /** PENDING check-ins without reminder sent (schedule is in patient TZ; filter by patient TZ in code). */
+    /**
+     * PENDING check-ins in a date window (patient TZ applied in service).
+     * ±1 day from UTC covers all IANA offsets for "today" in the patient's timezone.
+     */
     @Query("""
         SELECT c FROM TaskCheckIn c
         JOIN FETCH c.task t
         JOIN FETCH t.patient p
         WHERE c.status = 'PENDING' AND c.reminderSentAt IS NULL
           AND c.scheduledTime IS NOT NULL
+          AND c.scheduledDate >= :fromDate
+          AND c.scheduledDate <= :toDate
     """)
-    fun findAllPendingForReminderWithTaskAndPatient(): List<TaskCheckIn>
+    fun findPendingForReminderWithTaskAndPatientInDateRange(
+        @Param("fromDate") fromDate: LocalDate,
+        @Param("toDate") toDate: LocalDate,
+    ): List<TaskCheckIn>
 }
