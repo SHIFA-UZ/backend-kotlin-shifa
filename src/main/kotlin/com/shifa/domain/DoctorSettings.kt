@@ -15,6 +15,8 @@ class DoctorSettings(
     var language: String? = null,
     @Column(name="two_factor", nullable = false) var twoFactor: Boolean = false,
     @Column(name="encrypted_docs", nullable = false) var encryptedDocs: Boolean = true,
+    /** Main shell tab key shown on app launch (e.g. home, calendar). */
+    @Column(name="default_start_tab", nullable = false) var defaultStartTab: String = "home",
 
     @Column(nullable = false)
     var updatedAt: OffsetDateTime = OffsetDateTime.now()

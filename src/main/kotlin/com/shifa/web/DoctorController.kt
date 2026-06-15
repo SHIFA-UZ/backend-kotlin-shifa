@@ -5,6 +5,7 @@ import com.shifa.config.AppProperties
 import com.shifa.domain.DoctorBilling
 import com.shifa.domain.DoctorProfile
 import com.shifa.domain.DoctorSettings
+import com.shifa.domain.DoctorStartTab
 import com.shifa.domain.Notification
 import com.shifa.repo.DoctorBillingRepository
 import com.shifa.repo.DoctorProfileRepository
@@ -131,7 +132,8 @@ class DoctorController(
         val country: String?,
         val language: String?,
         val twoFA: Boolean,
-        val encryptedDocs: Boolean
+        val encryptedDocs: Boolean,
+        val defaultStartTab: String = DoctorStartTab.HOME,
     )
 
     data class FcmTokenRequest(val fcmToken: String?)
@@ -228,7 +230,8 @@ class DoctorController(
                 country = s?.country,
                 language = s?.language,
                 twoFA = s?.twoFactor ?: false,
-                encryptedDocs = s?.encryptedDocs ?: true
+                encryptedDocs = s?.encryptedDocs ?: true,
+                defaultStartTab = DoctorStartTab.normalize(s?.defaultStartTab),
             ),
             "subscription" to mapOf(
                 "tier" to subscriptionTierService.tierOf(d.user).name,
@@ -380,6 +383,7 @@ class DoctorController(
         s.language = body.language
         s.twoFactor = body.twoFA
         s.encryptedDocs = body.encryptedDocs
+        s.defaultStartTab = DoctorStartTab.normalize(body.defaultStartTab)
         s.updatedAt = OffsetDateTime.now()
 
         settingsRepo.save(s)
