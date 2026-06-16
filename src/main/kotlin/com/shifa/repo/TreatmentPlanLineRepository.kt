@@ -7,6 +7,14 @@ import org.springframework.data.jpa.repository.Query
 interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
     fun findByPlan_IdOrderBySortOrderAscIdAsc(planId: Long): List<TreatmentPlanLine>
 
+    @Query(
+        """
+        SELECT COUNT(DISTINCT l.linkedAppointment.id) FROM TreatmentPlanLine l
+        WHERE l.plan.id = :planId AND l.linkedAppointment IS NOT NULL
+        """,
+    )
+    fun countDistinctLinkedAppointmentsByPlanId(planId: Long): Long
+
     fun findByLinkedAppointment_Id(appointmentId: Long): List<TreatmentPlanLine>
 
     @Query(

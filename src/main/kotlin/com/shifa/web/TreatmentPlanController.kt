@@ -138,6 +138,8 @@ class TreatmentPlanController(
         val owedMinor: Long,
         val currency: String,
         val planPaymentStatus: String,
+        /** Distinct appointments linked via plan lines (scheduled or completed visits). */
+        val visitCount: Int,
         val createdAt: String?,
         val updatedAt: String?,
     )
@@ -282,6 +284,7 @@ class TreatmentPlanController(
 
     private fun toSummary(plan: TreatmentPlan): TreatmentPlanSummaryDto {
         val (total, paid, cur) = totals(plan.id)
+        val visitCount = linesRepo.countDistinctLinkedAppointmentsByPlanId(plan.id).toInt()
         val patientName = plan.patient.fullName.trim().takeIf { it.isNotEmpty() }
         val doctor = plan.attendingDoctor
         val doctorName = doctor?.let { "${it.firstName} ${it.lastName}".trim() }
@@ -308,6 +311,7 @@ class TreatmentPlanController(
             owedMinor = (total - paid).coerceAtLeast(0),
             currency = cur,
             planPaymentStatus = planPaymentLabel(total, paid),
+            visitCount = visitCount,
             createdAt = plan.createdAt.toString(),
             updatedAt = plan.updatedAt.toString(),
         )
@@ -425,6 +429,9 @@ class TreatmentPlanController(
      *   update first, so the doctor app's "Treatment plans" tab can render a
      *   ledger without forcing the user to pick a patient first.
      * - [status] filters by [TreatmentPlan.Status] case-insensitively.
+     * - [planKind] filters by [TreatmentPlan.PlanKind] case-insensitively
+     *   (e.g. `COMPREHENSIVE` for the treatment-plan tab; omit to include
+     *   auto-generated `VISIT` charge buckets used by finance).
      * - [q] is a free-text needle matched against the plan title and the
      *   patient's full name.
      */
@@ -435,6 +442,7 @@ class TreatmentPlanController(
         @RequestParam clinicId: Long,
         @RequestParam(required = false) patientId: Long? = null,
         @RequestParam(required = false) status: String? = null,
+        @RequestParam(required = false) planKind: String? = null,
         @RequestParam(required = false) q: String? = null,
     ): List<TreatmentPlanSummaryDto> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
@@ -447,6 +455,7 @@ class TreatmentPlanController(
         }
 
         val statusFilter = status?.trim()?.takeIf { it.isNotEmpty() }
+        val planKindFilter = planKind?.trim()?.takeIf { it.isNotEmpty() }
         val needle = q?.trim()?.takeIf { it.isNotEmpty() }?.lowercase()
 
         return source
@@ -454,6 +463,10 @@ class TreatmentPlanController(
             .filter { plan ->
                 if (statusFilter == null) true
                 else plan.status.name.equals(statusFilter, ignoreCase = true)
+            }
+            .filter { plan ->
+                if (planKindFilter == null) true
+                else plan.planKind.name.equals(planKindFilter, ignoreCase = true)
             }
             .filter { plan ->
                 if (needle == null) return@filter true
