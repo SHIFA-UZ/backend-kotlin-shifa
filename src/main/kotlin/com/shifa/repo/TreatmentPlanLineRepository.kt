@@ -15,6 +15,29 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
     )
     fun countDistinctLinkedAppointmentsByPlanId(planId: Long): Long
 
+    /** Batch visit counts for plan list screens — one query instead of N per row. */
+    @Query(
+        value = """
+            SELECT l.plan_id, COUNT(DISTINCT l.linked_appointment_id)
+            FROM treatment_plan_lines l
+            WHERE l.plan_id IN (:planIds) AND l.linked_appointment_id IS NOT NULL
+            GROUP BY l.plan_id
+            """,
+        nativeQuery = true,
+    )
+    fun countDistinctLinkedAppointmentsGrouped(planIds: Collection<Long>): List<Array<Any>>
+
+    @Query(
+        """
+        SELECT l FROM TreatmentPlanLine l
+        JOIN FETCH l.linkedAppointment a
+        JOIN FETCH a.doctor
+        WHERE l.plan.id = :planId AND l.linkedAppointment IS NOT NULL
+        ORDER BY a.startAt DESC
+        """
+    )
+    fun findLinkedAppointmentLinesForPlan(planId: Long): List<TreatmentPlanLine>
+
     fun findByLinkedAppointment_Id(appointmentId: Long): List<TreatmentPlanLine>
 
     @Query(

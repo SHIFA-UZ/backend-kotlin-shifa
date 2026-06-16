@@ -12,6 +12,7 @@ import com.shifa.repo.*
 import com.shifa.repo.DoctorLocationRepository
 import com.shifa.service.ClinicAccessService
 import com.shifa.service.ClinicCatalogService
+import com.shifa.service.ClinicFinanceLedgerService
 import com.shifa.service.FcmService
 import com.shifa.service.PatientDaySlotsService
 import com.shifa.service.TreatmentPlanFinanceService
@@ -24,6 +25,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import java.time.Instant
 import java.time.OffsetDateTime
 
 @RestController
@@ -32,6 +34,7 @@ class TreatmentPlanController(
     private val clinicAccess: ClinicAccessService,
     private val clinicCatalog: ClinicCatalogService,
     private val financeService: TreatmentPlanFinanceService,
+    private val clinicFinanceLedger: ClinicFinanceLedgerService,
     private val clinics: ClinicRepository,
     private val patients: PatientProfileRepository,
     private val doctors: DoctorProfileRepository,
@@ -192,6 +195,25 @@ class TreatmentPlanController(
         val installmentPlans: List<InstallmentSummaryDto>,
     )
 
+    /** One appointment linked to a comprehensive treatment plan (past, upcoming, or cancelled). */
+    data class PlanVisitDto(
+        val appointmentId: Long,
+        val startAt: String,
+        val endAt: String,
+        val status: String,
+        val doctorProfileId: Long,
+        val doctorName: String,
+        val location: String,
+        val services: List<String>,
+        val visitTotalMinor: Long,
+        val visitCollectedMinor: Long,
+        val visitOwedMinor: Long,
+        val currency: String,
+        val visitPaymentStatus: String,
+        /** UPCOMING | PAST | CANCELLED — used by the doctor app for grouping / badges. */
+        val timing: String,
+    )
+
     data class LineReq(
         val catalogItemId: Long?,
         @field:NotBlank val title: String,
@@ -282,9 +304,11 @@ class TreatmentPlanController(
         }
     }
 
-    private fun toSummary(plan: TreatmentPlan): TreatmentPlanSummaryDto {
+    private fun toSummary(plan: TreatmentPlan, visitCount: Int? = null): TreatmentPlanSummaryDto {
         val (total, paid, cur) = totals(plan.id)
-        val visitCount = linesRepo.countDistinctLinkedAppointmentsByPlanId(plan.id).toInt()
+        val visits =
+            visitCount
+                ?: linesRepo.countDistinctLinkedAppointmentsByPlanId(plan.id).toInt()
         val patientName = plan.patient.fullName.trim().takeIf { it.isNotEmpty() }
         val doctor = plan.attendingDoctor
         val doctorName = doctor?.let { "${it.firstName} ${it.lastName}".trim() }
@@ -311,10 +335,17 @@ class TreatmentPlanController(
             owedMinor = (total - paid).coerceAtLeast(0),
             currency = cur,
             planPaymentStatus = planPaymentLabel(total, paid),
-            visitCount = visitCount,
+            visitCount = visits,
             createdAt = plan.createdAt.toString(),
             updatedAt = plan.updatedAt.toString(),
         )
+    }
+
+    private fun batchVisitCounts(planIds: List<Long>): Map<Long, Int> {
+        if (planIds.isEmpty()) return emptyMap()
+        return linesRepo.countDistinctLinkedAppointmentsGrouped(planIds).associate { row ->
+            (row[0] as Number).toLong() to (row[1] as Number).toInt()
+        }
     }
 
     private fun toLineDetail(line: TreatmentPlanLine): LineDetailDto {
@@ -474,8 +505,11 @@ class TreatmentPlanController(
                 val pname = plan.patient.fullName.lowercase()
                 title.contains(needle) || pname.contains(needle)
             }
-            .map { toSummary(it) }
             .toList()
+            .let { planList ->
+                val visitCounts = batchVisitCounts(planList.map { it.id })
+                planList.map { toSummary(it, visitCounts[it.id] ?: 0) }
+            }
     }
 
     @GetMapping("/catalog-items")
@@ -795,6 +829,80 @@ class TreatmentPlanController(
         clinicAccess.assertPrincipalMayAccessClinic(principal, plan.clinic.id!!)
         clinicAccess.assertPatientVisible(principal, plan.patient.id!!)
         return toDetail(plan)
+    }
+
+    /**
+     * All appointments linked to [planId] via plan lines — upcoming, past, and
+     * cancelled. Includes per-visit charge totals and collected amounts using
+     * the same allocation rules as Finance → By appointment.
+     */
+    @GetMapping("/{planId}/visits")
+    @Transactional(readOnly = true)
+    fun listPlanVisits(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable planId: Long,
+    ): List<PlanVisitDto> {
+        val plan = plans.findById(planId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found")
+        }
+        clinicAccess.assertPrincipalMayAccessClinic(principal, plan.clinic.id!!)
+        clinicAccess.assertPatientVisible(principal, plan.patient.id!!)
+
+        val lines = linesRepo.findLinkedAppointmentLinesForPlan(planId)
+        if (lines.isEmpty()) return emptyList()
+
+        val paymentsByPlan = mapOf(planId to paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(planId))
+        val now = Instant.now()
+
+        val visits =
+            lines
+                .groupBy { it.linkedAppointment!!.id }
+                .map { (apptId, apptLines) ->
+                    val appt = apptLines.first().linkedAppointment!!
+                    val finance =
+                        clinicFinanceLedger.visitLedgerFinance(
+                            apptId,
+                            apptLines,
+                            paymentsByPlan,
+                        )
+                    val timing =
+                        when {
+                            appt.status == Appointment.Status.CANCELLED -> "CANCELLED"
+                            appt.startAt.isAfter(now) -> "UPCOMING"
+                            else -> "PAST"
+                        }
+                    PlanVisitDto(
+                        appointmentId = apptId,
+                        startAt = appt.startAt.toString(),
+                        endAt = appt.endAt.toString(),
+                        status = appt.status.name,
+                        doctorProfileId = appt.doctor.id!!,
+                        doctorName = "${appt.doctor.firstName} ${appt.doctor.lastName}".trim(),
+                        location = appt.location,
+                        services = apptLines.map { it.title }.distinct(),
+                        visitTotalMinor = finance.visitTotalMinor,
+                        visitCollectedMinor = finance.visitCollectedMinor,
+                        visitOwedMinor =
+                            (finance.visitTotalMinor - finance.visitCollectedMinor).coerceAtLeast(0),
+                        currency = apptLines.first().currency,
+                        visitPaymentStatus = finance.paymentStatus,
+                        timing = timing,
+                    )
+                }
+
+        return visits.sortedWith(
+            compareBy<PlanVisitDto> { v ->
+                when (v.timing) {
+                    "UPCOMING" -> 0
+                    "PAST" -> 1
+                    else -> 2
+                }
+            }.thenBy { v ->
+                if (v.timing == "UPCOMING") v.startAt else ""
+            }.thenByDescending { v ->
+                if (v.timing != "UPCOMING") v.startAt else ""
+            },
+        )
     }
 
     @PatchMapping("/{planId}")
@@ -1152,6 +1260,31 @@ class TreatmentPlanController(
                 line.linkedAppointment = savedAppt
                 linesRepo.save(line)
                 savedAppt.linkedTreatmentPlanLine = line
+                appts.save(savedAppt)
+            } ?: run {
+                // Visits booked without a service line still belong to this plan.
+                var order =
+                    linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(planId).maxOfOrNull { it.sortOrder }
+                        ?: -1
+                order += 1
+                val placeholder =
+                    linesRepo.save(
+                        TreatmentPlanLine(
+                            plan = plan,
+                            title =
+                                slot.notes?.trim()?.takeIf { it.isNotEmpty() }
+                                    ?: plan.title?.let { "Visit: $it" }
+                                    ?: "Scheduled visit",
+                            quantity = 1,
+                            unitPriceMinor = 0,
+                            discountMinor = 0,
+                            currency = "UZS",
+                            sortOrder = order,
+                            linkedAppointment = savedAppt,
+                            status = TreatmentPlanLine.LineStatus.PLANNED,
+                        ),
+                    )
+                savedAppt.linkedTreatmentPlanLine = placeholder
                 appts.save(savedAppt)
             }
 
