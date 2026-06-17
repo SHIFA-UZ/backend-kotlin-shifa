@@ -56,6 +56,14 @@ class TreatmentPlan(
     @Column(columnDefinition = "TEXT")
     var notes: String? = null,
 
+    /**
+     * JSON snapshot of the FDI teeth chart used when planning (v2 schema:
+     * dentition, teeth map, discountPercent, notes). Lines remain the finance
+     * source of truth; this column speeds up UI reload.
+     */
+    @Column(name = "dental_plan_documentation", columnDefinition = "TEXT")
+    var dentalPlanDocumentation: String? = null,
+
     @Column(name = "payment_reminder_days")
     var paymentReminderDays: Int? = null,
 

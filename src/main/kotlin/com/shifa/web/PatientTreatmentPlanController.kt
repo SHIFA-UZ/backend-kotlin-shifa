@@ -1,5 +1,6 @@
 package com.shifa.web
 
+import com.shifa.domain.TreatmentPlanLine
 import com.shifa.repo.InstallmentItemRepository
 import com.shifa.repo.InstallmentPlanRepository
 import com.shifa.repo.TreatmentPlanLineRepository
@@ -64,6 +65,8 @@ class PatientTreatmentPlanController(
         val owedMinor: Long,
         val currency: String,
         val planPaymentStatus: String,
+        val linesCompletedCount: Int,
+        val linesTotalCount: Int,
         val lines: List<PatientPlanLineDto>,
         val installmentPlans: List<PatientInstallmentPlanDto>,
     )
@@ -142,6 +145,10 @@ class PatientTreatmentPlanController(
             owedMinor = owed,
             currency = currency,
             planPaymentStatus = payStatus,
+            linesCompletedCount = lineRows.count {
+                it.status == TreatmentPlanLine.LineStatus.COMPLETED
+            },
+            linesTotalCount = lineRows.size,
             lines = lines,
             installmentPlans = instPlans,
         )

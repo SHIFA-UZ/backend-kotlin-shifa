@@ -18,6 +18,9 @@ import com.shifa.service.ClinicalRagIndexingService
 import com.shifa.service.PatientVisitAiSummaryService
 import com.shifa.service.SlotAvailabilityService
 import com.shifa.service.TreatmentPlanStatusService
+import com.shifa.repo.TreatmentPlanAppointmentLinkRepository
+import com.shifa.repo.TreatmentPlanLineFulfillmentRepository
+import com.shifa.service.TreatmentPlanFulfillmentService
 import com.shifa.service.VisitChargeService
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -40,6 +43,9 @@ class AppointmentController(
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
     private val clinicAccess: ClinicAccessService,
     private val visitChargeService: VisitChargeService,
+    private val fulfillmentService: TreatmentPlanFulfillmentService,
+    private val planLinks: TreatmentPlanAppointmentLinkRepository,
+    private val lineFulfillments: TreatmentPlanLineFulfillmentRepository,
     private val treatmentPlanStatusService: TreatmentPlanStatusService,
     private val slotAvailabilityService: SlotAvailabilityService,
     private val appointmentCancellationService: AppointmentCancellationService,
@@ -61,10 +67,14 @@ class AppointmentController(
         val paymentCurrency: String?,
         val signatureRequested: Boolean,
         val patientSignedAt: String?,
-        val patientSignatureImageBase64: String?
+        val patientSignatureImageBase64: String?,
+        val linkedPlanId: Long? = null,
+        val linkedPlanTitle: String? = null,
+        val fulfilledLineIds: List<Long> = emptyList(),
     )
 
     @GetMapping("/{appointmentId}")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     fun getById(
         @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long
@@ -74,6 +84,8 @@ class AppointmentController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
         clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
+        val link = planLinks.findByAppointment_Id(appointmentId).firstOrNull()
+        val fulfilled = lineFulfillments.findByAppointment_Id(appointmentId).map { it.line.id }
         return AppointmentDto(
             id = appointment.id,
             patientId = appointment.patient?.id,
@@ -88,7 +100,10 @@ class AppointmentController(
             paymentCurrency = appointment.paymentCurrency,
             signatureRequested = appointment.signatureRequested,
             patientSignedAt = appointment.patientSignedAt?.toString(),
-            patientSignatureImageBase64 = appointment.patientSignatureImage
+            patientSignatureImageBase64 = appointment.patientSignatureImage,
+            linkedPlanId = link?.plan?.id,
+            linkedPlanTitle = link?.plan?.title,
+            fulfilledLineIds = fulfilled,
         )
     }
 
@@ -375,10 +390,14 @@ class AppointmentController(
         // call even when there is no dental documentation — the service no-ops.
         val wasAlreadyCompleted = appointment.status == Appointment.Status.COMPLETED
         if (!wasAlreadyCompleted && cid != null && charges.isNullOrEmpty()) {
-            try {
-                visitChargeService.addDentalChargesFromDocumentation(principal, cid, appointmentId)
-            } catch (e: Exception) {
-                // Never block appointment completion because of finance auto-derivation.
+            val skipAutoVisit =
+                fulfillmentService.isAppointmentLinkedToComprehensivePlan(appointmentId)
+            if (!skipAutoVisit) {
+                try {
+                    visitChargeService.addDentalChargesFromDocumentation(principal, cid, appointmentId)
+                } catch (e: Exception) {
+                    // Never block appointment completion because of finance auto-derivation.
+                }
             }
         }
 

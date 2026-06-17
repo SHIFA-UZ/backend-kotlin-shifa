@@ -3,6 +3,7 @@ package com.shifa.repo
 import com.shifa.domain.TreatmentPlanLine
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 
 interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
     fun findByPlan_IdOrderBySortOrderAscIdAsc(planId: Long): List<TreatmentPlanLine>
@@ -39,6 +40,33 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
     fun findLinkedAppointmentLinesForPlan(planId: Long): List<TreatmentPlanLine>
 
     fun findByLinkedAppointment_Id(appointmentId: Long): List<TreatmentPlanLine>
+
+    @Query(
+        """
+        SELECT CASE WHEN COUNT(l) > 0 THEN true ELSE false END
+        FROM TreatmentPlanLine l
+        JOIN l.plan p
+        WHERE l.linkedAppointment.id = :appointmentId
+          AND p.planKind = com.shifa.domain.TreatmentPlan.PlanKind.COMPREHENSIVE
+        """,
+    )
+    fun existsComprehensivePlanLineForAppointment(@Param("appointmentId") appointmentId: Long): Boolean
+
+    @Query(
+        """
+        SELECT l FROM TreatmentPlanLine l
+        JOIN FETCH l.plan p
+        LEFT JOIN FETCH l.catalogItem
+        WHERE p.id = :planId
+          AND l.status IN (
+            com.shifa.domain.TreatmentPlanLine.LineStatus.PLANNED,
+            com.shifa.domain.TreatmentPlanLine.LineStatus.SCHEDULED,
+            com.shifa.domain.TreatmentPlanLine.LineStatus.IN_PROGRESS
+          )
+        ORDER BY l.sortOrder ASC, l.id ASC
+        """,
+    )
+    fun findOpenLinesForPlan(@Param("planId") planId: Long): List<TreatmentPlanLine>
 
     @Query(
         value = """

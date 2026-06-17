@@ -15,6 +15,7 @@ import com.shifa.service.ClinicCatalogService
 import com.shifa.service.ClinicFinanceLedgerService
 import com.shifa.service.FcmService
 import com.shifa.service.PatientDaySlotsService
+import com.shifa.service.TreatmentPlanFulfillmentService
 import com.shifa.service.TreatmentPlanFinanceService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
@@ -35,6 +36,9 @@ class TreatmentPlanController(
     private val clinicCatalog: ClinicCatalogService,
     private val financeService: TreatmentPlanFinanceService,
     private val clinicFinanceLedger: ClinicFinanceLedgerService,
+    private val fulfillmentService: TreatmentPlanFulfillmentService,
+    private val planLinks: TreatmentPlanAppointmentLinkRepository,
+    private val fulfillments: TreatmentPlanLineFulfillmentRepository,
     private val clinics: ClinicRepository,
     private val patients: PatientProfileRepository,
     private val doctors: DoctorProfileRepository,
@@ -143,6 +147,8 @@ class TreatmentPlanController(
         val planPaymentStatus: String,
         /** Distinct appointments linked via plan lines (scheduled or completed visits). */
         val visitCount: Int,
+        val linesCompletedCount: Int,
+        val linesTotalCount: Int,
         val createdAt: String?,
         val updatedAt: String?,
     )
@@ -168,6 +174,9 @@ class TreatmentPlanController(
         val status: String,
         val linkedAppointment: AppointmentSummaryDto?,
         val lineTotalMinor: Long,
+        val specialtyMetadata: String?,
+        val assignedDoctorId: Long?,
+        val notes: String?,
     )
 
     data class InstallmentScheduleRowDto(
@@ -193,6 +202,28 @@ class TreatmentPlanController(
         val summary: TreatmentPlanSummaryDto,
         val lines: List<LineDetailDto>,
         val installmentPlans: List<InstallmentSummaryDto>,
+        val dentalPlanDocumentation: String?,
+    )
+
+    data class FulfillmentCandidateDto(
+        val lineId: Long,
+        val title: String,
+        val fdi: String?,
+        val dentition: String?,
+        val unitPriceMinor: Long,
+        val quantity: Int,
+        val discountMinor: Long,
+        val currency: String,
+        val lineTotalMinor: Long,
+        val status: String,
+        val toothMatch: Boolean,
+    )
+
+    data class FulfillPlanRequest(val lineIds: List<Long>)
+
+    data class AppendLinesRequest(
+        val appointmentId: Long? = null,
+        val lines: List<LineReq>,
     )
 
     /** One appointment linked to a comprehensive treatment plan (past, upcoming, or cancelled). */
@@ -224,6 +255,9 @@ class TreatmentPlanController(
         val sortOrder: Int = 0,
         val linkedAppointmentId: Long? = null,
         val status: TreatmentPlanLine.LineStatus? = null,
+        val specialtyMetadata: String? = null,
+        val assignedDoctorId: Long? = null,
+        val notes: String? = null,
     )
 
     data class CreatePlanRequest(
@@ -238,6 +272,7 @@ class TreatmentPlanController(
         val paymentReminderDays: Int?,
         val symptoms: List<String>? = null,
         val planKind: TreatmentPlan.PlanKind? = null,
+        val dentalPlanDocumentation: String? = null,
     )
 
     data class PatchPlanRequest(
@@ -249,6 +284,7 @@ class TreatmentPlanController(
         /** When non-null replaces the full doctor list on the plan. */
         val attendingDoctorIds: List<Long>? = null,
         val symptoms: List<String>? = null,
+        val dentalPlanDocumentation: String? = null,
     )
 
     data class DoctorRef(val id: Long, val name: String)
@@ -309,6 +345,9 @@ class TreatmentPlanController(
         val visits =
             visitCount
                 ?: linesRepo.countDistinctLinkedAppointmentsByPlanId(plan.id).toInt()
+        val lineRows = linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(plan.id)
+        val linesTotal = lineRows.count { it.status != TreatmentPlanLine.LineStatus.CANCELLED }
+        val linesCompleted = lineRows.count { it.status == TreatmentPlanLine.LineStatus.COMPLETED }
         val patientName = plan.patient.fullName.trim().takeIf { it.isNotEmpty() }
         val doctor = plan.attendingDoctor
         val doctorName = doctor?.let { "${it.firstName} ${it.lastName}".trim() }
@@ -336,6 +375,8 @@ class TreatmentPlanController(
             currency = cur,
             planPaymentStatus = planPaymentLabel(total, paid),
             visitCount = visits,
+            linesCompletedCount = linesCompleted,
+            linesTotalCount = linesTotal,
             createdAt = plan.createdAt.toString(),
             updatedAt = plan.updatedAt.toString(),
         )
@@ -372,7 +413,55 @@ class TreatmentPlanController(
             status = line.status.name,
             linkedAppointment = apptDto,
             lineTotalMinor = lineAmt(line),
+            specialtyMetadata = line.specialtyMetadata,
+            assignedDoctorId = line.assignedDoctor?.id,
+            notes = line.notes,
         )
+    }
+
+    private fun saveLineFromReq(
+        plan: TreatmentPlan,
+        row: LineReq,
+        principal: Any,
+    ): TreatmentPlanLine {
+        val catalog = row.catalogItemId?.let {
+            catalogRepo.findById(it).orElseThrow { ResponseStatusException(HttpStatus.BAD_REQUEST, "Bad catalog item") }
+                .also { c ->
+                    if (c.clinic.id != plan.clinic.id) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Catalog mismatch")
+                }
+        }
+        val linkedAppt = row.linkedAppointmentId?.let { aid ->
+            val a = appts.findById(aid).orElseThrow { ResponseStatusException(HttpStatus.BAD_REQUEST, "Bad appointment") }
+            if (a.patient.id != plan.patient.id) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment patient mismatch")
+            clinicAccess.assertCanViewDoctorCalendar(principal, a.doctor.id!!)
+            a
+        }
+        val assignedDoctor = row.assignedDoctorId?.let { did ->
+            val d = doctors.findById(did).orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found") }
+            clinicAccess.assertCanViewDoctorCalendar(principal, d.id!!)
+            d
+        }
+        val line = TreatmentPlanLine(
+            plan = plan,
+            catalogItem = catalog,
+            title = row.title.trim(),
+            quantity = row.quantity,
+            unitPriceMinor = row.unitPriceMinor,
+            discountMinor = row.discountMinor,
+            currency = row.currency,
+            sortOrder = row.sortOrder,
+            linkedAppointment = linkedAppt,
+            status = row.status ?: TreatmentPlanLine.LineStatus.PLANNED,
+            specialtyMetadata = row.specialtyMetadata,
+            notes = row.notes?.trim()?.takeIf { it.isNotEmpty() },
+        )
+        line.assignedDoctor = assignedDoctor
+        val saved = linesRepo.save(line)
+        if (linkedAppt != null) {
+            linkedAppt.linkedTreatmentPlanLine = saved
+            appts.save(linkedAppt)
+        }
+        return saved
     }
 
     private fun toDetail(plan: TreatmentPlan): TreatmentPlanDetailDto {
@@ -402,6 +491,7 @@ class TreatmentPlanController(
             summary = toSummary(plan),
             lines = lines,
             installmentPlans = summaries,
+            dentalPlanDocumentation = plan.dentalPlanDocumentation,
         )
     }
 
@@ -799,6 +889,7 @@ class TreatmentPlanController(
                 notes = req.notes?.trim(),
                 paymentReminderDays = req.paymentReminderDays,
                 createdByUser = user,
+                dentalPlanDocumentation = req.dentalPlanDocumentation?.trim()?.takeIf { it.isNotEmpty() },
             ),
         )
         return toSummary(plan)
@@ -948,6 +1039,9 @@ class TreatmentPlanController(
         body.symptoms?.let { s ->
             plan.symptoms = s.takeIf { it.isNotEmpty() }?.let { objectMapper.writeValueAsString(it) }
         }
+        body.dentalPlanDocumentation?.let { raw ->
+            plan.dentalPlanDocumentation = raw.trim().takeIf { it.isNotEmpty() }
+        }
         plan.updatedAt = OffsetDateTime.now()
         plans.save(plan)
         return toSummary(plan)
@@ -1029,42 +1123,78 @@ class TreatmentPlanController(
         }
 
         for (row in body) {
-            val catalog = row.catalogItemId?.let {
-                catalogRepo.findById(it).orElseThrow { ResponseStatusException(HttpStatus.BAD_REQUEST, "Bad catalog item") }
-                    .also { c ->
-                        if (c.clinic.id != plan.clinic.id) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Catalog mismatch")
-                    }
-            }
-            val linkedAppt = row.linkedAppointmentId?.let { aid ->
-                val a = appts.findById(aid).orElseThrow { ResponseStatusException(HttpStatus.BAD_REQUEST, "Bad appointment") }
-                if (a.patient.id != plan.patient.id) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment patient mismatch")
-                clinicAccess.assertCanViewDoctorCalendar(principal, a.doctor.id!!)
-                a
-            }
-            val saved = linesRepo.save(
-                TreatmentPlanLine(
-                    plan = plan,
-                    catalogItem = catalog,
-                    title = row.title.trim(),
-                    quantity = row.quantity,
-                    unitPriceMinor = row.unitPriceMinor,
-                    discountMinor = row.discountMinor,
-                    currency = row.currency,
-                    sortOrder = row.sortOrder,
-                    linkedAppointment = linkedAppt,
-                    status = row.status ?: TreatmentPlanLine.LineStatus.PLANNED,
-                ),
-            )
-            if (linkedAppt != null) {
-                linkedAppt.linkedTreatmentPlanLine = saved
-                appts.save(linkedAppt)
-            }
+            saveLineFromReq(plan, row, principal)
         }
         plan.updatedAt = OffsetDateTime.now()
         plans.save(plan)
         financeService.recalculatePlanTotals(planId)
         notifyPatient(plan, Notification.Type.TREATMENT_PLAN_UPDATED, "Treatment plan updated", "Your clinic updated your treatment plan. Please review payment details in the app.")
         return toSummary(plans.findById(planId).orElseThrow())
+    }
+
+    @GetMapping("/{planId}/fulfillment-candidates")
+    fun fulfillmentCandidates(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable planId: Long,
+        @RequestParam(required = false) appointmentId: Long?,
+    ): List<FulfillmentCandidateDto> {
+        return fulfillmentService.fulfillmentCandidates(principal, planId, appointmentId).map { c ->
+            FulfillmentCandidateDto(
+                lineId = c.lineId,
+                title = c.title,
+                fdi = c.fdi,
+                dentition = c.dentition,
+                unitPriceMinor = c.unitPriceMinor,
+                quantity = c.quantity,
+                discountMinor = c.discountMinor,
+                currency = c.currency,
+                lineTotalMinor = c.lineTotalMinor,
+                status = c.status,
+                toothMatch = c.toothMatch,
+            )
+        }
+    }
+
+    @PostMapping("/{planId}/appointments/{appointmentId}/fulfill")
+    @Transactional
+    fun fulfillPlanLines(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable planId: Long,
+        @PathVariable appointmentId: Long,
+        @RequestBody @Valid body: FulfillPlanRequest,
+    ): TreatmentPlanDetailDto {
+        val plan = fulfillmentService.fulfillLines(principal, planId, appointmentId, body.lineIds)
+        return toDetail(plan)
+    }
+
+    @PostMapping("/{planId}/lines/append")
+    @Transactional
+    fun appendLines(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable planId: Long,
+        @RequestBody @Valid body: AppendLinesRequest,
+    ): TreatmentPlanDetailDto {
+        val specs = body.lines.map { row ->
+            TreatmentPlanFulfillmentService.AppendLineSpec(
+                catalogItemId = row.catalogItemId,
+                title = row.title,
+                quantity = row.quantity,
+                unitPriceMinor = row.unitPriceMinor,
+                discountMinor = row.discountMinor,
+                currency = row.currency,
+                specialtyMetadata = row.specialtyMetadata,
+                assignedDoctorId = row.assignedDoctorId,
+                notes = row.notes,
+            )
+        }
+        val plan = fulfillmentService.appendLines(principal, planId, body.appointmentId, specs)
+        notifyPatient(
+            plan,
+            Notification.Type.TREATMENT_PLAN_UPDATED,
+            "Treatment plan updated",
+            "Your clinic added procedures to your treatment plan.",
+        )
+        return toDetail(plan)
     }
 
     @PatchMapping("/{planId}/status")

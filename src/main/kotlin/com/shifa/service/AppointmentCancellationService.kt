@@ -13,6 +13,7 @@ class AppointmentCancellationService(
     private val appts: AppointmentRepository,
     private val notifications: NotificationRepository,
     private val fcmService: FcmService,
+    private val fulfillmentService: TreatmentPlanFulfillmentService,
 ) {
 
     /**
@@ -42,6 +43,12 @@ class AppointmentCancellationService(
 
         appointment.status = Appointment.Status.CANCELLED
         appts.save(appointment)
+
+        try {
+            fulfillmentService.revertFulfillmentsForCancelledAppointment(appointment.id)
+        } catch (_: Exception) {
+            // Cancellation must not fail if plan fulfillment rollback fails.
+        }
 
         val zone = ZoneId.of(appointment.doctor.timeZone)
         val startLdt = appointment.startAt.atZone(zone).toLocalDateTime()
