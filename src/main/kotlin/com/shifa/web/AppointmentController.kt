@@ -84,8 +84,8 @@ class AppointmentController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
         clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
-        val link = planLinks.findByAppointment_Id(appointmentId).firstOrNull()
-        val fulfilled = lineFulfillments.findByAppointment_Id(appointmentId).map { it.line.id }
+        val planRow = planLinks.findPlanIdAndTitleByAppointmentId(appointmentId).firstOrNull()
+        val fulfilled = lineFulfillments.findLineIdsByAppointmentId(appointmentId)
         return AppointmentDto(
             id = appointment.id,
             patientId = appointment.patient?.id,
@@ -101,8 +101,8 @@ class AppointmentController(
             signatureRequested = appointment.signatureRequested,
             patientSignedAt = appointment.patientSignedAt?.toString(),
             patientSignatureImageBase64 = appointment.patientSignatureImage,
-            linkedPlanId = link?.plan?.id,
-            linkedPlanTitle = link?.plan?.title,
+            linkedPlanId = (planRow?.get(0) as? Number)?.toLong(),
+            linkedPlanTitle = planRow?.get(1) as? String,
             fulfilledLineIds = fulfilled,
         )
     }

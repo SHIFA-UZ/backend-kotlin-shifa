@@ -97,26 +97,36 @@ class TreatmentPlanFulfillmentService(
         val uid = clinicAccess.resolveBookingActorUserId(principal)
         val user = users.findById(uid).orElse(null)
 
-        val openIds = linesRepo.findOpenLinesForPlan(planId).map { it.id }.toSet()
-        for (lineId in lineIds.distinct()) {
-            if (lineId !in openIds) {
+        val openById = linesRepo.findOpenLinesForPlan(planId).associateBy { it.id }
+        val distinctIds = lineIds.distinct()
+        for (lineId in distinctIds) {
+            if (lineId !in openById) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Line $lineId is not open for fulfillment")
             }
-            if (fulfillmentRepo.existsByLine_Id(lineId)) continue
-            val line = linesRepo.findById(lineId).orElseThrow()
+        }
+        val alreadyFulfilled = fulfillmentRepo.findFulfilledLineIdsIn(distinctIds).toSet()
+        var primaryLine: TreatmentPlanLine? = null
+        val newFulfillments = mutableListOf<TreatmentPlanLineFulfillment>()
+        for (lineId in distinctIds) {
+            if (lineId in alreadyFulfilled) continue
+            val line = openById.getValue(lineId)
             line.status = TreatmentPlanLine.LineStatus.COMPLETED
             line.linkedAppointment = appt
-            linesRepo.save(line)
-            if (appt.linkedTreatmentPlanLine == null) {
-                appt.linkedTreatmentPlanLine = line
-                appts.save(appt)
-            }
-            fulfillmentRepo.save(
+            if (primaryLine == null) primaryLine = line
+            newFulfillments.add(
                 TreatmentPlanLineFulfillment(
                     line = line,
                     appointment = appt,
                 ),
             )
+        }
+        if (newFulfillments.isNotEmpty()) {
+            linesRepo.saveAll(newFulfillments.map { it.line })
+            fulfillmentRepo.saveAll(newFulfillments)
+            if (appt.linkedTreatmentPlanLine == null && primaryLine != null) {
+                appt.linkedTreatmentPlanLine = primaryLine
+                appts.save(appt)
+            }
         }
 
         linkRepo.findByPlan_IdAndAppointment_Id(planId, appointmentId)
@@ -239,33 +249,43 @@ class TreatmentPlanFulfillmentService(
 
     @Transactional
     fun revertFulfillmentsForCancelledAppointment(appointmentId: Long) {
-        val fulfillments = fulfillmentRepo.findByAppointment_Id(appointmentId)
+        val fulfillments = fulfillmentRepo.findByAppointmentIdWithLineAndPlan(appointmentId)
         if (fulfillments.isEmpty()) {
             linkRepo.findByAppointment_Id(appointmentId).forEach { linkRepo.delete(it) }
             return
         }
         val planIds = mutableSetOf<Long>()
+        val fulfilledLineIds = mutableSetOf<Long>()
+        val linesToRevert = mutableListOf<TreatmentPlanLine>()
         for (f in fulfillments) {
             val line = f.line
             planIds.add(line.plan.id)
+            fulfilledLineIds.add(line.id)
             fulfillmentRepo.delete(f)
             line.status = TreatmentPlanLine.LineStatus.PLANNED
             if (line.linkedAppointment?.id == appointmentId) {
                 line.linkedAppointment = null
             }
-            linesRepo.save(line)
+            linesToRevert.add(line)
+        }
+        if (linesToRevert.isNotEmpty()) {
+            linesRepo.saveAll(linesToRevert)
         }
         linkRepo.findByAppointment_Id(appointmentId).forEach { linkRepo.delete(it) }
         val appt = appts.findById(appointmentId).orElse(null)
         if (appt != null) {
             val primary = appt.linkedTreatmentPlanLine
-            if (primary != null && fulfillments.any { it.line.id == primary.id }) {
+            if (primary != null && primary.id in fulfilledLineIds) {
                 appt.linkedTreatmentPlanLine = null
             }
             appts.save(appt)
         }
-        for (planId in planIds) {
-            financeService.recalculatePlanTotals(planId)
+        if (planIds.size == 1) {
+            financeService.recalculatePlanTotals(planIds.first())
+        } else {
+            for (planId in planIds) {
+                financeService.recalculatePlanTotals(planId)
+            }
         }
     }
 

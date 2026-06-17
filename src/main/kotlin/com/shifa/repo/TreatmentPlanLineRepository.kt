@@ -69,6 +69,18 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
     fun findOpenLinesForPlan(@Param("planId") planId: Long): List<TreatmentPlanLine>
 
     @Query(
+        """
+        SELECT l FROM TreatmentPlanLine l
+        JOIN FETCH l.plan p
+        WHERE p.id = :planId AND l.id IN :lineIds
+        """,
+    )
+    fun findByPlanIdAndIdIn(
+        @Param("planId") planId: Long,
+        @Param("lineIds") lineIds: Collection<Long>,
+    ): List<TreatmentPlanLine>
+
+    @Query(
         value = """
             SELECT DISTINCT l.linked_appointment_id FROM treatment_plan_lines l
             INNER JOIN treatment_plans p ON l.plan_id = p.id

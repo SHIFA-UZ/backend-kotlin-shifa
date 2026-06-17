@@ -341,11 +341,13 @@ class TreatmentPlanController(
     }
 
     private fun toSummary(plan: TreatmentPlan, visitCount: Int? = null): TreatmentPlanSummaryDto {
-        val (total, paid, cur) = totals(plan.id)
+        val lineRows = linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(plan.id)
+        val total = lineRows.sumOf { lineAmt(it) }
+        val paid = paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(plan.id).sumOf { it.amountMinor }
+        val cur = lineRows.firstOrNull()?.currency ?: "UZS"
         val visits =
             visitCount
                 ?: linesRepo.countDistinctLinkedAppointmentsByPlanId(plan.id).toInt()
-        val lineRows = linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(plan.id)
         val linesTotal = lineRows.count { it.status != TreatmentPlanLine.LineStatus.CANCELLED }
         val linesCompleted = lineRows.count { it.status == TreatmentPlanLine.LineStatus.COMPLETED }
         val patientName = plan.patient.fullName.trim().takeIf { it.isNotEmpty() }
