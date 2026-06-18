@@ -100,6 +100,9 @@ class TreatmentPlanController(
         val active: Boolean,
         val offeredByDoctorIds: List<Long>,
         val offeredByDoctorNames: List<String>,
+        val groupId: Long? = null,
+        val groupName: String? = null,
+        val groupSortOrder: Int? = null,
     )
 
     data class UpsertCatalogItemRequest(
@@ -664,6 +667,9 @@ class TreatmentPlanController(
 
         val out = mutableListOf<PlanServiceOptionDto>()
 
+        val groupLookupDoctorIds = doctorIdFilter ?: practiceIds
+        val catalogGroupByItemId = buildCatalogGroupLookup(groupLookupDoctorIds)
+
         // --- Clinic catalog items -------------------------------------------
         val catalogItems = catalogRepo.findByClinic_IdOrderByActiveDescSortOrderAscIdAsc(clinicId)
         for (item in catalogItems) {
@@ -676,6 +682,7 @@ class TreatmentPlanController(
                 continue
             }
             val offeredIds = offeredBy.toList().sorted()
+            val catalogGroup = catalogGroupByItemId[item.id]
             out.add(
                 PlanServiceOptionDto(
                     key = "catalog:${item.id}",
@@ -691,6 +698,9 @@ class TreatmentPlanController(
                     offeredByDoctorNames = offeredIds.map { id ->
                         nameByDoctorId[id]?.takeIf { it.isNotEmpty() } ?: "Doctor #$id"
                     },
+                    groupId = catalogGroup?.id,
+                    groupName = catalogGroup?.name,
+                    groupSortOrder = catalogGroup?.sortOrder,
                 ),
             )
         }
@@ -723,18 +733,37 @@ class TreatmentPlanController(
                         active = svc.isActive,
                         offeredByDoctorIds = listOf(doctorId),
                         offeredByDoctorNames = listOf(displayName),
+                        groupId = svc.group?.id,
+                        groupName = svc.group?.name,
+                        groupSortOrder = svc.group?.sortOrder,
                     ),
                 )
             }
         }
 
-        // Stable display ordering: clinic catalog first (preserving repo
-        // ordering), then doctor services grouped by doctor name then title.
+        // Stable display ordering: group order, then title.
         return out.sortedWith(
-            compareBy<PlanServiceOptionDto> { it.kind != "CLINIC_CATALOG" }
-                .thenBy { it.offeredByDoctorNames.firstOrNull()?.lowercase().orEmpty() }
+            compareBy<PlanServiceOptionDto> { it.groupSortOrder ?: Int.MAX_VALUE }
+                .thenBy { it.groupName?.lowercase().orEmpty() }
+                .thenBy { it.kind != "CLINIC_CATALOG" }
                 .thenBy { it.title.lowercase() },
         )
+    }
+
+    /** First doctor-service group linked to a clinic catalog item (synced rows). */
+    private fun buildCatalogGroupLookup(
+        doctorIds: Set<Long>,
+    ): Map<Long, com.shifa.domain.DoctorServiceGroup> {
+        val out = mutableMapOf<Long, com.shifa.domain.DoctorServiceGroup>()
+        for (doctorId in doctorIds) {
+            val services = doctorServices.findByDoctorIdOrderByCreatedAtAsc(doctorId)
+            for (svc in services) {
+                val catalogId = svc.sourceCatalogItem?.id ?: continue
+                val group = svc.group ?: continue
+                out.putIfAbsent(catalogId, group)
+            }
+        }
+        return out
     }
 
     /**
