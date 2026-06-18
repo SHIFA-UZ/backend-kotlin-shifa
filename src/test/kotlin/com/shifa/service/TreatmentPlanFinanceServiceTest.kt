@@ -46,4 +46,26 @@ class TreatmentPlanFinanceServiceTest {
         assertEquals(0L, totals.remainingMinor)
         assertEquals("UZS", totals.currency)
     }
+
+    @Test
+    fun `planLiveTotals reflects partial initial payment`() {
+        val line = mock(TreatmentPlanLine::class.java)
+        `when`(line.unitPriceMinor).thenReturn(1_000_000L)
+        `when`(line.quantity).thenReturn(1)
+        `when`(line.discountMinor).thenReturn(0L)
+        `when`(line.currency).thenReturn("UZS")
+
+        `when`(linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(7L)).thenReturn(listOf(line))
+
+        val initial = mock(TreatmentPlanPayment::class.java)
+        `when`(initial.amountMinor).thenReturn(200_000L)
+        `when`(paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(7L)).thenReturn(listOf(initial))
+
+        val totals = service.planLiveTotals(7L)
+
+        assertEquals(1_000_000L, totals.estimatedMinor)
+        assertEquals(200_000L, totals.paidMinor)
+        assertEquals(800_000L, totals.remainingMinor)
+        assertEquals("UZS", totals.currency)
+    }
 }
