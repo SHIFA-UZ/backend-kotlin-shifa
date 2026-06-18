@@ -1,8 +1,8 @@
 package com.shifa.service
 
-import com.shifa.domain.Appointment
 import com.shifa.domain.Notification
 import com.shifa.domain.TreatmentPlan
+import com.shifa.domain.TreatmentPlanLine
 import com.shifa.repo.NotificationRepository
 import com.shifa.repo.TreatmentPlanLineRepository
 import com.shifa.repo.TreatmentPlanRepository
@@ -15,23 +15,22 @@ import java.time.OffsetDateTime
  * Centralises the "lifecycle" rules for [TreatmentPlan.status].
  *
  * Today the only automatic transition is **ACTIVE → COMPLETED** once every
- * appointment linked to a plan is in [Appointment.Status.COMPLETED]. Everything
- * else (DRAFT, ON_HOLD, IN_PROGRESS, CANCELLED) stays under manual control via
- * the dedicated `PATCH /api/treatment-plans/{planId}/status` endpoint so that:
+ * non-cancelled plan line is in [TreatmentPlanLine.LineStatus.COMPLETED].
+ * Everything else (DRAFT, ON_HOLD, IN_PROGRESS, CANCELLED) stays under manual
+ * control via the dedicated `PATCH /api/treatment-plans/{planId}/status`
+ * endpoint so that:
  *
- *   * Plans whose appointments are partially completed (or have been
- *     cancelled / missed) stay ACTIVE — matching the product rule that "any
- *     non-completed appointment keeps the plan open".
+ *   * Plans with any open line (PLANNED / SCHEDULED / IN_PROGRESS) stay
+ *     ACTIVE — completing a visit or its appointment does not close the plan.
  *   * Doctors retain full manual control over edge cases (e.g. plans without
- *     any linked appointments, or plans they want to forcibly mark complete
- *     before the last visit).
+ *     any lines, or plans they want to forcibly mark complete early).
  *
  * Auto-completion intentionally:
  *   * **Skips plans already CANCELLED**: a cancelled plan is terminal and
  *     must not be silently reopened.
- *   * **Skips plans with no linked appointments**: there is no completion
- *     signal in that case; if the doctor wants such a plan closed they
- *     transition it manually.
+ *   * **Skips plans with no active lines**: there is no completion signal in
+ *     that case; if the doctor wants such a plan closed they transition it
+ *     manually.
  *   * **Is best-effort**: any failure is swallowed so it never blocks the
  *     appointment-complete call that triggered it.
  */
@@ -44,9 +43,9 @@ class TreatmentPlanStatusService(
 
     /**
      * Re-evaluates every treatment plan that has a line linked to
-     * [appointmentId] and promotes any plan whose linked appointments are
-     * all completed to [TreatmentPlan.Status.COMPLETED]. Designed to be
-     * called from the appointment-complete flow.
+     * [appointmentId] and promotes any plan whose non-cancelled lines are
+     * all [TreatmentPlanLine.LineStatus.COMPLETED]. Designed to be called
+     * from the appointment-complete flow (and after line fulfillment).
      *
      * Runs in its own [Propagation.REQUIRES_NEW] transaction and swallows
      * its exceptions: under no circumstance should plan-status bookkeeping
@@ -72,7 +71,7 @@ class TreatmentPlanStatusService(
 
     /**
      * Promotes [planId] to [TreatmentPlan.Status.COMPLETED] **iff** every
-     * linked appointment on the plan is COMPLETED. No-ops otherwise.
+     * non-cancelled line on the plan is COMPLETED. No-ops otherwise.
      *
      * Visible for direct unit-testing; production code should generally go
      * through [maybeAutoCompletePlansForAppointment] which iterates from an
@@ -87,21 +86,16 @@ class TreatmentPlanStatusService(
         if (plan.status == TreatmentPlan.Status.CANCELLED) return
 
         val allLines = lines.findByPlan_IdOrderBySortOrderAscIdAsc(planId)
-        // De-dupe by appointment id; the same appointment can back several
-        // lines (per-service rows for the same visit) and we only care about
-        // its terminal status once.
-        val linkedAppointments = allLines.mapNotNull { it.linkedAppointment }
-            .associateBy { it.id }
-            .values
+        val activeLines = allLines.filter { it.status != TreatmentPlanLine.LineStatus.CANCELLED }
 
-        // Plans with zero linked appointments have no completion signal —
-        // we can't infer the doctor's intent, so we leave the status alone.
-        if (linkedAppointments.isEmpty()) return
+        // Plans with zero active lines have no completion signal — we can't
+        // infer the doctor's intent, so we leave the status alone.
+        if (activeLines.isEmpty()) return
 
-        val allCompleted = linkedAppointments.all {
-            it.status == Appointment.Status.COMPLETED
+        val allLinesCompleted = activeLines.all {
+            it.status == TreatmentPlanLine.LineStatus.COMPLETED
         }
-        if (!allCompleted) return
+        if (!allLinesCompleted) return
 
         plan.status = TreatmentPlan.Status.COMPLETED
         plan.updatedAt = OffsetDateTime.now()
@@ -114,7 +108,7 @@ class TreatmentPlanStatusService(
                 Notification(
                     patient = plan.patient,
                     title = "Treatment plan completed",
-                    message = "All scheduled appointments on \"${plan.title ?: "your treatment plan"}\" have been completed.",
+                    message = "All planned treatments on \"${plan.title ?: "your treatment plan"}\" have been completed.",
                     type = Notification.Type.TREATMENT_PLAN_UPDATED,
                 )
             )

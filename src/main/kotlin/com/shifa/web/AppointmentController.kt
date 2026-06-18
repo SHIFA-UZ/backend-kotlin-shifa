@@ -404,8 +404,8 @@ class AppointmentController(
         appointment.status = Appointment.Status.COMPLETED
         appts.save(appointment)
 
-        // If this appointment was the last outstanding visit on any treatment
-        // plan, promote that plan to COMPLETED. The service runs in its own
+        // If every non-cancelled line on any linked treatment plan is complete,
+        // promote that plan to COMPLETED. The service runs in its own
         // REQUIRES_NEW transaction and swallows errors, so it cannot block or
         // roll back this completion call.
         try {
