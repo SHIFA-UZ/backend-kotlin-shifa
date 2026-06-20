@@ -205,6 +205,13 @@ class AuthController(
     )
     data class SendEmailOtpResponse(val sent: Boolean = true)
 
+    /** Response when OTP channel may be SMS or email (e.g. SMS failure fallback). */
+    data class SendOtpChannelResponse(
+        val sent: Boolean = true,
+        val channel: String,
+        val smsFallbackUsed: Boolean = false,
+    )
+
     /**
      * Sends a 6-digit OTP to the given email via Brevo SMTP.
      * Purpose defaults to REGISTRATION for backward compatibility.
@@ -230,15 +237,18 @@ class AuthController(
     // ---------- Send SMS OTP (patient registration / forgot-password for UZ numbers) ----------
     data class SendSmsOtpRequest(
         @field:NotBlank val phone: String,
-        val purpose: String? = null
+        val purpose: String? = null,
+        /** When SMS delivery fails, send OTP to this email instead (registration flow). */
+        val fallbackEmail: String? = null,
     )
 
     /**
      * Sends a 6-digit OTP via DevSMS to an Uzbek mobile number (+998).
      * Purpose defaults to REGISTRATION.
+     * On SMS provider failure, optionally falls back to [SendSmsOtpRequest.fallbackEmail].
      */
     @PostMapping("/send-sms-otp")
-    fun sendSmsOtp(@RequestBody @Valid req: SendSmsOtpRequest): SendEmailOtpResponse {
+    fun sendSmsOtp(@RequestBody @Valid req: SendSmsOtpRequest): SendOtpChannelResponse {
         val normalized = PhoneNormalizer.normalize(req.phone.trim())
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
         if (!PhoneNormalizer.isUzbekMobile(normalized)) {
@@ -249,23 +259,20 @@ class AuthController(
         }
         val purpose = req.purpose?.uppercase()
             ?: com.shifa.domain.SmsVerificationCode.PURPOSE_REGISTRATION
-        try {
-            if (!smsOtpService.sendCode(normalized, purpose)) {
-                throw ResponseStatusException(
-                    HttpStatus.TOO_MANY_REQUESTS,
-                    "Too many verification requests. Please try again later."
-                )
+        val emailPurpose = smsPurposeToEmailPurpose(purpose)
+        when (val result = smsOtpService.sendCode(normalized, purpose)) {
+            is com.shifa.service.SmsOtpSendResult.Success ->
+                return SendOtpChannelResponse(channel = "sms")
+            is com.shifa.service.SmsOtpSendResult.Failure -> {
+                val fallbackEmail = req.fallbackEmail?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+                if (result.reason == com.shifa.service.SmsOtpSendFailure.SMS_PROVIDER_FAILED &&
+                    fallbackEmail != null
+                ) {
+                    return sendEmailOtpChannelOrThrow(fallbackEmail, emailPurpose, smsFallback = true)
+                }
+                throwSmsOtpFailure(result)
             }
-        } catch (e: ResponseStatusException) {
-            throw e
-        } catch (e: Exception) {
-            log.error("send-sms-otp failed for {}***: {}", normalized.take(6), e.message)
-            throw ResponseStatusException(
-                HttpStatus.SERVICE_UNAVAILABLE,
-                "Could not send verification SMS. Please try again later."
-            )
         }
-        return SendEmailOtpResponse(sent = true)
     }
 
     // ---------- Send login OTP (doctor email OTP sign-in) ----------
@@ -366,17 +373,35 @@ class AuthController(
         }
         val email = user.email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
         if (email != null) {
-            if (!emailOtpService.sendCode(email, com.shifa.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD)) {
-                throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.")
-            }
+            sendEmailOtpChannelOrThrow(
+                email,
+                com.shifa.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD,
+            )
             return SendForgotPasswordOtpResponse(channel = "email")
         }
         val phone = user.phone
         if (phone != null && PhoneNormalizer.isUzbekMobile(phone)) {
-            if (!smsOtpService.sendCode(phone, com.shifa.domain.SmsVerificationCode.PURPOSE_FORGOT_PASSWORD)) {
-                throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many requests. Please try again later.")
+            when (val smsResult = smsOtpService.sendCode(
+                phone,
+                com.shifa.domain.SmsVerificationCode.PURPOSE_FORGOT_PASSWORD,
+            )) {
+                is com.shifa.service.SmsOtpSendResult.Success ->
+                    return SendForgotPasswordOtpResponse(channel = "sms")
+                is com.shifa.service.SmsOtpSendResult.Failure -> {
+                    val recoveredEmail = user.email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+                    if (smsResult.reason == com.shifa.service.SmsOtpSendFailure.SMS_PROVIDER_FAILED &&
+                        recoveredEmail != null
+                    ) {
+                        sendEmailOtpChannelOrThrow(
+                            recoveredEmail,
+                            com.shifa.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD,
+                            smsFallback = true,
+                        )
+                        return SendForgotPasswordOtpResponse(channel = "email")
+                    }
+                    throwSmsOtpFailure(smsResult)
+                }
             }
-            return SendForgotPasswordOtpResponse(channel = "sms")
         }
         throw ResponseStatusException(
             HttpStatus.BAD_REQUEST,
@@ -1464,5 +1489,39 @@ class AuthController(
     private fun sha256Hex(input: String): String {
         val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray(StandardCharsets.UTF_8))
         return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    private fun smsPurposeToEmailPurpose(smsPurpose: String): String = when (smsPurpose) {
+        com.shifa.domain.SmsVerificationCode.PURPOSE_FORGOT_PASSWORD ->
+            com.shifa.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD
+        else -> com.shifa.domain.EmailVerificationCode.PURPOSE_REGISTRATION
+    }
+
+    private fun sendEmailOtpChannelOrThrow(
+        email: String,
+        purpose: String,
+        smsFallback: Boolean = false,
+    ): SendOtpChannelResponse {
+        if (!emailOtpService.sendCode(email, purpose)) {
+            throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, MSG_OTP_RATE_LIMIT)
+        }
+        return SendOtpChannelResponse(channel = "email", smsFallbackUsed = smsFallback)
+    }
+
+    private fun throwSmsOtpFailure(result: com.shifa.service.SmsOtpSendResult.Failure): Nothing {
+        when (result.reason) {
+            com.shifa.service.SmsOtpSendFailure.RATE_LIMITED ->
+                throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, MSG_OTP_RATE_LIMIT)
+            com.shifa.service.SmsOtpSendFailure.INVALID_PHONE ->
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
+            com.shifa.service.SmsOtpSendFailure.SMS_PROVIDER_FAILED ->
+                throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, MSG_SMS_UNAVAILABLE)
+        }
+    }
+
+    private companion object {
+        const val MSG_OTP_RATE_LIMIT = "Too many verification requests. Please try again later."
+        const val MSG_SMS_UNAVAILABLE =
+            "SMS could not be sent. Please use email verification or contact support."
     }
 }

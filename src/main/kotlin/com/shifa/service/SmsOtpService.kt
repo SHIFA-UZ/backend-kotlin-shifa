@@ -21,17 +21,18 @@ class SmsOtpService(
     private fun generateCode(): String = Random.nextInt(100_000, 1_000_000).toString()
 
   /**
-   * Generate a code, persist it, and send SMS. Returns true on success.
+   * Generate a code, persist it, and send SMS.
    * Rate-limited: max 5 codes per phone+purpose per hour.
    */
-    fun sendCode(phone: String, purpose: String): Boolean {
+    fun sendCode(phone: String, purpose: String): SmsOtpSendResult {
         val normalized = PhoneNormalizer.normalize(phone)
-            ?: return false
+            ?: return SmsOtpSendResult.Failure(SmsOtpSendFailure.INVALID_PHONE)
         if (!PhoneNormalizer.isUzbekMobile(normalized)) {
             log.warn("SMS OTP rejected for non-Uzbek phone: {}***", normalized.take(6))
-            return false
+            return SmsOtpSendResult.Failure(SmsOtpSendFailure.INVALID_PHONE)
         }
-        val code = persistNewCode(normalized, purpose) ?: return false
+        val code = persistNewCode(normalized, purpose)
+            ?: return SmsOtpSendResult.Failure(SmsOtpSendFailure.RATE_LIMITED)
         val message = when (purpose) {
             SmsVerificationCode.PURPOSE_REGISTRATION -> SmsOtpFormatting.registrationOtpBody(code)
             SmsVerificationCode.PURPOSE_FORGOT_PASSWORD -> SmsOtpFormatting.forgotPasswordOtpBody(code)
@@ -40,9 +41,12 @@ class SmsOtpService(
         val result = devSmsService.sendSms(normalized, message)
         if (!result.success) {
             log.warn("DevSMS OTP send failed for {}***: {}", normalized.take(6), result.errorMessage)
-            return false
+            return SmsOtpSendResult.Failure(
+                SmsOtpSendFailure.SMS_PROVIDER_FAILED,
+                result.errorMessage,
+            )
         }
-        return true
+        return SmsOtpSendResult.Success
     }
 
     @Transactional
