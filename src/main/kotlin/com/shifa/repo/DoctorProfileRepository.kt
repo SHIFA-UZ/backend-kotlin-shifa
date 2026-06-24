@@ -68,4 +68,15 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
     fun findAllForAdminActivitySearch(
         @Param("search") search: String?,
     ): List<DoctorProfile>
+
+    /** Admin doctor-activity list: profiles for a known set of user ids (avoids loading every profile). */
+    @org.springframework.data.jpa.repository.Query(
+        """
+        SELECT DISTINCT d FROM DoctorProfile d
+        JOIN FETCH d.user u
+        LEFT JOIN FETCH d.practiceClinic pc
+        WHERE d.user.id IN :userIds
+        """
+    )
+    fun findByUserIdInWithPracticeClinic(@Param("userIds") userIds: Collection<Long>): List<DoctorProfile>
 }

@@ -3,6 +3,7 @@
 import com.shifa.domain.Appointment
 import com.shifa.domain.DoctorProfile
 import com.shifa.domain.Role
+import com.shifa.domain.User
 import com.shifa.repo.AiDraftNoteRepository
 import com.shifa.repo.AiUsageCounterRepository
 import com.shifa.repo.AppointmentRepository
@@ -13,12 +14,14 @@ import com.shifa.repo.PatientFormRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.repo.RemoteCareTaskRepository
 import com.shifa.repo.TreatmentPlanRepository
+import com.shifa.repo.UserRepository
 import com.shifa.web.dto.DoctorActivityDailyPointDto
 import com.shifa.web.dto.DoctorActivityDetailDto
 import com.shifa.web.dto.DoctorActivityRowDto
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -46,7 +49,12 @@ class AdminDoctorActivityService(
     private val aiUsageCounterRepository: AiUsageCounterRepository,
     private val aiDraftNoteRepository: AiDraftNoteRepository,
     private val doctorSmsBillingService: DoctorSmsBillingService,
+    private val userRepository: UserRepository,
+    private val metricsBatchLoader: AdminDoctorActivityMetricsBatchLoader,
 ) {
+
+    /** Guardrail: list endpoint aggregates in memory; cap doctors processed per request. */
+    private val maxDoctorsPerListRequest = 500
 
     companion object {
         private val UTC = ZoneOffset.UTC
@@ -113,15 +121,45 @@ class AdminDoctorActivityService(
         pageSize: Int,
     ): Page<DoctorActivityRowDto> {
         val requestedWindow = parseOptionalWindow(from, toInclusive)
-        val doctors = doctorProfileRepository.findAllForAdminActivitySearch(
-            searchTrimmed?.takeIf { it.isNotBlank() },
-        ).toList()
+        val users = resolveDoctorUsers(searchTrimmed)
+        if (users.size > maxDoctorsPerListRequest) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Too many doctors to aggregate (${users.size}). Narrow your search filter.",
+            )
+        }
+        if (users.isEmpty()) {
+            return PageImpl(emptyList(), PageRequest.of(pageZeroBased.coerceAtLeast(0), pageSize.coerceAtLeast(1)), 0)
+        }
 
-        val contractByDoctor =
-            earlyPartnerContractService.contractNumbersByDoctorIds(doctors.map { it.id })
+        val userIds = users.map { it.id }
+        val profilesByUserId =
+            doctorProfileRepository.findByUserIdInWithPracticeClinic(userIds).associateBy { it.user.id }
+
+        val doctorIds = profilesByUserId.values.map { it.id }
+        val batch = metricsBatchLoader.load(doctorIds, userIds, requestedWindow)
+        val contractByDoctor = earlyPartnerContractService.contractNumbersByDoctorIds(doctorIds)
         val smsByDoctor = doctorSmsBillingService.aggregateMapForWindow(requestedWindow)
-        val rows = doctors.map { d ->
-            buildRow(d, requestedWindow, contractByDoctor[d.id], smsByDoctor[d.id])
+        val rows = users.map { user ->
+            val profile = profilesByUserId[user.id]
+            if (profile != null) {
+                buildRow(
+                    profile,
+                    requestedWindow,
+                    contractByDoctor[profile.id],
+                    smsByDoctor[profile.id],
+                    batch.byDoctorId[profile.id],
+                    batch.aiRequestsByUserId[user.id],
+                    batch.maxAiUsageDateByUserId[user.id],
+                )
+            } else {
+                buildRowWithoutProfile(
+                    user,
+                    requestedWindow,
+                    batch.aiRequestsByUserId[user.id],
+                    batch.maxAiUsageDateByUserId[user.id],
+                )
+            }
         }
         val comparator = comparatorFor(sortOneOf)
         val sorted =
@@ -134,6 +172,70 @@ class AdminDoctorActivityService(
 
         val pageReq = PageRequest.of(p, s)
         return PageImpl(slice, pageReq, sorted.size.toLong())
+    }
+
+    /** All users with role DOCTOR (matches admin Users screen), optional name/clinic/email search. */
+    private fun resolveDoctorUsers(searchTrimmed: String?): List<User> {
+        if (searchTrimmed.isNullOrBlank()) {
+            return userRepository.findByRole(Role.DOCTOR, Pageable.unpaged()).content.sortedBy { it.id }
+        }
+        val idsFromUser = userRepository.findUserIdsBySearch(searchTrimmed, Role.DOCTOR, null)
+        val idsFromProfile =
+            doctorProfileRepository.findAllForAdminActivitySearch(searchTrimmed).map { it.user.id }
+        val merged = (idsFromUser + idsFromProfile).distinct()
+        if (merged.isEmpty()) return emptyList()
+        return userRepository.findAllById(merged).filter { it.role == Role.DOCTOR }.sortedBy { it.id }
+    }
+
+    private fun buildRowWithoutProfile(
+        user: User,
+        rowWindow: BoundedWindow?,
+        aiRequestsPreloaded: Long? = null,
+        maxAiUsageDatePreloaded: LocalDate? = null,
+    ): DoctorActivityRowDto {
+        val aiRequests = aiRequestsPreloaded ?: 0L
+        val dateJoined = user.createdAt.atZoneSameInstant(UTC).toLocalDate()
+        val trialMonths = DEFAULT_TRIAL_PERIOD_MONTHS
+        val monthlyCharge = DEFAULT_MONTHLY_CHARGE_USD
+        val billableMonths = monthsAfterTrial(dateJoined, trialMonths)
+        val displayName =
+            listOfNotNull(user.email?.takeIf { it.isNotBlank() }, user.phone?.takeIf { it.isNotBlank() }, user.username?.takeIf { it.isNotBlank() })
+                .firstOrNull()
+                ?: "Doctor user #${user.id}"
+
+        return DoctorActivityRowDto(
+            doctorId = 0,
+            doctorName = displayName,
+            email = user.email?.takeUnless { it.isBlank() },
+            clinicId = null,
+            clinicName = null,
+            appointmentsBooked = 0,
+            appointmentsCompleted = 0,
+            appointmentsCancelled = 0,
+            cancellationRate = 0.0,
+            videoAppointments = 0,
+            activePatients = 0,
+            patientsCreated = 0,
+            documentsUploaded = 0,
+            treatmentPlans = 0,
+            remoteTasks = 0,
+            consultationNotes = 0,
+            patientForms = 0,
+            aiRequests = aiRequests,
+            aiDraftNotes = 0,
+            lastActiveAt = maxAiUsageDatePreloaded?.atStartOfDay(UTC)?.toInstant()?.toString(),
+            earlyPartnerContractNumber = null,
+            smsRemindersAllowed = false,
+            smsSentCount = 0,
+            smsOwedMinor = 0,
+            smsCurrency = doctorSmsBillingService.currency,
+            smsPricePerUnitMinor = doctorSmsBillingService.pricePerSmsMinor,
+            dateJoinedAt = dateJoined.format(ISO_DATE),
+            trialPeriodMonths = trialMonths,
+            monthlyChargeUsd = monthlyCharge,
+            monthsAfterTrial = billableMonths,
+            totalDebtUsd = totalDebtUsd(billableMonths, monthlyCharge),
+        )
     }
 
     @Transactional(readOnly = true)
@@ -312,7 +414,21 @@ class AdminDoctorActivityService(
         rowWindow: BoundedWindow?,
         earlyPartnerContractNumber: String? = null,
         smsStats: Pair<Long, Long>? = null,
+        preloaded: AdminDoctorActivityMetricsBatchLoader.DoctorRowMetrics? = null,
+        aiRequestsPreloaded: Long? = null,
+        maxAiUsageDatePreloaded: LocalDate? = null,
     ): DoctorActivityRowDto {
+        if (preloaded != null) {
+            return buildRowFromPreloaded(
+                doctor,
+                preloaded,
+                aiRequestsPreloaded ?: 0L,
+                maxAiUsageDatePreloaded,
+                earlyPartnerContractNumber,
+                smsStats,
+            )
+        }
+
         val id = doctor.id
         val userId = doctor.user.id
         val w = rowWindow
@@ -420,6 +536,67 @@ class AdminDoctorActivityService(
             monthlyChargeUsd = monthlyCharge,
             monthsAfterTrial = billableMonths,
             totalDebtUsd = debtUsd,
+        )
+    }
+
+    private fun buildRowFromPreloaded(
+        doctor: DoctorProfile,
+        m: AdminDoctorActivityMetricsBatchLoader.DoctorRowMetrics,
+        aiRequests: Long,
+        maxAiUsageDate: LocalDate?,
+        earlyPartnerContractNumber: String?,
+        smsStats: Pair<Long, Long>?,
+    ): DoctorActivityRowDto {
+        val denom = m.appointmentsBooked - m.inProgress
+        val cancellationRate = if (denom <= 0) 0.0 else m.cancelled.toDouble() / denom.toDouble()
+
+        val practice = doctor.practiceClinic
+        val clinicId = practice?.id
+        val clinicName = practice?.name?.takeUnless { it.isBlank() }
+            ?: doctor.clinic?.trim()?.takeUnless { it.isBlank() }
+
+        val dateJoined = doctor.user.createdAt.atZoneSameInstant(UTC).toLocalDate()
+        val trialMonths = doctor.adminTrialPeriodMonths
+        val monthlyCharge = doctor.adminMonthlyChargeUsd
+        val billableMonths = monthsAfterTrial(dateJoined, trialMonths)
+
+        val lastInstant = listOfNotNull(
+            m.lastActiveAt,
+            maxAiUsageDate?.atStartOfDay(UTC)?.toInstant(),
+        ).maxOrNull()
+
+        return DoctorActivityRowDto(
+            doctorId = doctor.id,
+            doctorName = "${doctor.firstName.trim()} ${doctor.lastName.trim()}".trim(),
+            email = doctor.user.email?.takeUnless { it.isBlank() },
+            clinicId = clinicId,
+            clinicName = clinicName,
+            appointmentsBooked = m.appointmentsBooked.toInt(),
+            appointmentsCompleted = m.completed.toInt(),
+            appointmentsCancelled = m.cancelled.toInt(),
+            cancellationRate = cancellationRate,
+            videoAppointments = m.video.toInt(),
+            activePatients = m.activePatients.toInt(),
+            patientsCreated = m.patientsCreated.toInt(),
+            documentsUploaded = m.documentsUploaded.toInt(),
+            treatmentPlans = m.treatmentPlans.toInt(),
+            remoteTasks = m.remoteTasks.toInt(),
+            consultationNotes = m.consultationNotes.toInt(),
+            patientForms = m.patientForms.toInt(),
+            aiRequests = aiRequests,
+            aiDraftNotes = m.aiDraftNotes.toInt(),
+            lastActiveAt = lastInstant?.toString(),
+            earlyPartnerContractNumber = earlyPartnerContractNumber,
+            smsRemindersAllowed = doctor.smsRemindersAllowed,
+            smsSentCount = smsStats?.first ?: 0L,
+            smsOwedMinor = smsStats?.second ?: 0L,
+            smsCurrency = doctorSmsBillingService.currency,
+            smsPricePerUnitMinor = doctorSmsBillingService.pricePerSmsMinor,
+            dateJoinedAt = dateJoined.format(ISO_DATE),
+            trialPeriodMonths = trialMonths,
+            monthlyChargeUsd = monthlyCharge,
+            monthsAfterTrial = billableMonths,
+            totalDebtUsd = totalDebtUsd(billableMonths, monthlyCharge),
         )
     }
 
