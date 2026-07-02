@@ -377,4 +377,38 @@ class UserManagementService(
         
         return info
     }
+
+    data class AdminPatientProfileRow(
+        val patientProfileId: Long,
+        val fullName: String,
+        val phone: String?,
+        val email: String?,
+        val createdAt: String?,
+        val createdByDoctorId: Long?,
+        val createdByDoctorName: String?,
+    )
+
+    @Transactional(readOnly = true)
+    fun listPatientProfilesWithoutAppAccount(
+        search: String? = null,
+        pageable: Pageable,
+    ): Page<AdminPatientProfileRow> {
+        val searchTrimmed = search?.trim()?.takeIf { it.isNotBlank() }
+        return patientProfileRepository.findWithoutAppAccount(searchTrimmed, pageable)
+            .map { profile -> toAdminPatientProfileRow(profile) }
+    }
+
+    private fun toAdminPatientProfileRow(profile: com.shifa.domain.PatientProfile): AdminPatientProfileRow {
+        val doctor = profile.createdByDoctor
+        val doctorName = doctor?.let { "${it.firstName.trim()} ${it.lastName.trim()}".trim().takeIf { n -> n.isNotEmpty() } }
+        return AdminPatientProfileRow(
+            patientProfileId = profile.id ?: 0L,
+            fullName = profile.fullName.trim(),
+            phone = profile.phone?.trim()?.takeUnless { it.isEmpty() },
+            email = profile.email?.trim()?.takeUnless { it.isEmpty() },
+            createdAt = profile.createdAt?.toString(),
+            createdByDoctorId = doctor?.id,
+            createdByDoctorName = doctorName,
+        )
+    }
 }

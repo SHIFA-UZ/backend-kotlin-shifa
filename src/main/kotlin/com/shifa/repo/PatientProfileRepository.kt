@@ -198,4 +198,21 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
            AND p.fcmToken IS NOT NULL AND TRIM(p.fcmToken) <> ''"""
     )
     fun findUserIdsWithDeviceRegistered(): List<Long>
+
+    @Query(
+        """
+        SELECT p FROM PatientProfile p
+        WHERE p.user IS NULL
+        AND (
+            :search IS NULL OR :search = '' OR
+            LOWER(p.fullName) LIKE LOWER(CONCAT('%', :search, '%')) OR
+            LOWER(COALESCE(p.phone, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR
+            LOWER(COALESCE(p.email, '')) LIKE LOWER(CONCAT('%', :search, '%'))
+        )
+        """
+    )
+    fun findWithoutAppAccount(
+        @Param("search") search: String?,
+        pageable: Pageable,
+    ): Page<PatientProfile>
 }

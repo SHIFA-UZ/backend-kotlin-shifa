@@ -248,6 +248,35 @@ class AdminController(
         return userManagementService.getUserManagementStats()
     }
 
+    data class AdminPatientProfileResponse(
+        val patientProfileId: Long,
+        val fullName: String,
+        val phone: String?,
+        val email: String?,
+        val createdAt: String?,
+        val createdByDoctorId: Long?,
+        val createdByDoctorName: String?,
+    )
+
+    @GetMapping("/users/patient-profiles/without-app-account")
+    fun listPatientProfilesWithoutAppAccount(
+        @RequestParam(required = false) search: String?,
+        @PageableDefault(size = 20) pageable: Pageable,
+    ): Page<AdminPatientProfileResponse> {
+        return userManagementService.listPatientProfilesWithoutAppAccount(search, pageable)
+            .map { row ->
+                AdminPatientProfileResponse(
+                    patientProfileId = row.patientProfileId,
+                    fullName = row.fullName,
+                    phone = row.phone,
+                    email = row.email,
+                    createdAt = row.createdAt,
+                    createdByDoctorId = row.createdByDoctorId,
+                    createdByDoctorName = row.createdByDoctorName,
+                )
+            }
+    }
+
     @GetMapping("/users")
     fun listUsers(
         @RequestParam(required = false) role: String?,

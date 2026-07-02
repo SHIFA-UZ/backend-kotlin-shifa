@@ -13,7 +13,7 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
 import java.time.LocalDate
 import java.time.OffsetDateTime
-import java.time.format.DateTimeParseException
+import java.time.ZoneOffset
 
 @Service
 class EarlyPartnerContractService(
@@ -23,9 +23,9 @@ class EarlyPartnerContractService(
 ) {
     companion object {
         const val SEQ_KEY = "early_partner_contract_next_seq"
-        const val EFFECTIVE_DATE_KEY = "early_partner_contract_effective_date"
         const val TERM_MONTHS_KEY = "early_partner_contract_term_months"
         const val DEFAULT_NEXT_SEQ = 461
+        private val UTC = ZoneOffset.UTC
     }
 
     @Transactional
@@ -43,7 +43,7 @@ class EarlyPartnerContractService(
 
         val seq = allocateNextSeq()
         val number = formatContractNumber(seq)
-        val effectiveDate = readEffectiveDate()
+        val effectiveDate = doctorJoinDate(doctor)
         val termMonths = readTermMonths()
 
         val contract = EarlyPartnerContract(
@@ -68,11 +68,16 @@ class EarlyPartnerContractService(
     }
 
     private fun refreshSnapshot(contract: EarlyPartnerContract, doctor: DoctorProfile) {
+        contract.effectiveDate = doctorJoinDate(doctor)
         contract.partnerFullName = fullName(doctor)
         contract.partnerClinic = resolveClinicName(doctor)
         contract.partnerPhone = doctor.user.phone?.trim()?.takeUnless { it.isEmpty() }
         contract.partnerEmail = doctor.user.email?.trim()?.takeUnless { it.isEmpty() }
     }
+
+    /** Date the doctor account was created on the platform (UTC calendar date). */
+    private fun doctorJoinDate(doctor: DoctorProfile): LocalDate =
+        doctor.user.createdAt.atZoneSameInstant(UTC).toLocalDate()
 
     private fun allocateNextSeq(): Int {
         val config = systemConfigRepository.findByKeyForUpdate(SEQ_KEY).orElseGet {
@@ -90,15 +95,6 @@ class EarlyPartnerContractService(
         config.updatedAt = OffsetDateTime.now()
         systemConfigRepository.save(config)
         return current
-    }
-
-    private fun readEffectiveDate(): LocalDate {
-        val raw = systemConfigRepository.findByKey(EFFECTIVE_DATE_KEY).map { it.value.trim() }.orElse("2026-06-01")
-        return try {
-            LocalDate.parse(raw)
-        } catch (_: DateTimeParseException) {
-            LocalDate.of(2026, 6, 1)
-        }
     }
 
     private fun readTermMonths(): Int {
