@@ -124,6 +124,8 @@ class EarlyPartnerContractService(
             effectiveDate = contract.effectiveDate.toString(),
             termMonths = contract.termMonths,
             partnerFullName = contract.partnerFullName,
+            partnerFirstName = contract.doctorProfile.firstName.trim(),
+            partnerLastName = contract.doctorProfile.lastName.trim(),
             partnerClinic = contract.partnerClinic,
             partnerPhone = contract.partnerPhone,
             partnerEmail = contract.partnerEmail,

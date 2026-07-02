@@ -174,4 +174,28 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
         @Param("start") start: OffsetDateTime,
         @Param("endExclusive") endExclusive: OffsetDateTime,
     ): Long
+
+    fun countByUserIsNull(): Long
+
+    fun countByUserIsNotNull(): Long
+
+    @Query(
+        """SELECT COUNT(p) FROM PatientProfile p
+           WHERE p.fcmToken IS NOT NULL AND TRIM(p.fcmToken) <> ''"""
+    )
+    fun countWithDeviceRegistered(): Long
+
+    @Query(
+        """SELECT COUNT(p) FROM PatientProfile p
+           WHERE p.user IS NOT NULL
+           AND (p.fcmToken IS NULL OR TRIM(p.fcmToken) = '')"""
+    )
+    fun countAppUsersWithoutDevice(): Long
+
+    @Query(
+        """SELECT p.user.id FROM PatientProfile p
+           WHERE p.user IS NOT NULL
+           AND p.fcmToken IS NOT NULL AND TRIM(p.fcmToken) <> ''"""
+    )
+    fun findUserIdsWithDeviceRegistered(): List<Long>
 }

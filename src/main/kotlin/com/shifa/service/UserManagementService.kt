@@ -77,10 +77,14 @@ class UserManagementService(
         role: Role? = null,
         enabled: Boolean? = null,
         search: String? = null,
+        deviceRegistered: Boolean? = null,
         pageable: Pageable
     ): Page<User> {
         val searchTrimmed = search?.trim()?.takeIf { it.isNotBlank() }
-        return if (searchTrimmed != null) {
+        if (deviceRegistered != null && searchTrimmed == null) {
+            return listUsersByDeviceFilter(role, enabled, deviceRegistered, pageable)
+        }
+        val basePage = if (searchTrimmed != null) {
             searchUsersAdminJpql(searchTrimmed, role, enabled, pageable)
         } else {
             when {
@@ -90,6 +94,114 @@ class UserManagementService(
                 else -> userRepository.findAll(pageable)
             }
         }
+        if (deviceRegistered == null || searchTrimmed == null) return basePage
+        val filtered = basePage.content.filter { isDeviceRegistered(it) == deviceRegistered }
+        return org.springframework.data.domain.PageImpl(filtered, pageable, filtered.size.toLong())
+    }
+
+    /** Aggregate metrics for the admin User Management dashboard. */
+    fun getUserManagementStats(): Map<String, Any> {
+        val totalUsers = userRepository.count()
+        val totalDoctors = userRepository.countByRole(Role.DOCTOR)
+        val activeDoctors = userRepository.countByRoleAndEnabled(Role.DOCTOR, true)
+        val disabledDoctors = totalDoctors - activeDoctors
+        val patientAppUsers = userRepository.countByRole(Role.PATIENT)
+        val activePatientUsers = userRepository.countByRoleAndEnabled(Role.PATIENT, true)
+        val totalAdmins = userRepository.countByRole(Role.ADMIN)
+        val totalPatientProfiles = patientProfileRepository.count()
+        val profilesWithoutAppAccount = patientProfileRepository.countByUserIsNull()
+        val profilesWithAppAccount = patientProfileRepository.countByUserIsNotNull()
+        val patientsWithDevice = patientProfileRepository.countWithDeviceRegistered()
+        val patientAppUsersWithoutDevice = patientProfileRepository.countAppUsersWithoutDevice()
+        val doctorsWithDevice = doctorProfileRepository.countWithDeviceRegistered()
+        val doctorsWithoutDevice = (totalDoctors - doctorsWithDevice).coerceAtLeast(0)
+        val patientsNeverLoggedIn = userRepository.countByRoleAndLastLoginAtIsNull(Role.PATIENT)
+        val patientsLoggedIn = userRepository.countByRoleAndLastLoginAtIsNotNull(Role.PATIENT)
+        val doctorsNeverLoggedIn = userRepository.countByRoleAndLastLoginAtIsNull(Role.DOCTOR)
+        val deviceActivationRate = if (patientAppUsers > 0) {
+            ((patientsWithDevice.toDouble() / patientAppUsers) * 100).toInt()
+        } else 0
+
+        return mapOf(
+            "totalUsers" to totalUsers,
+            "totalDoctors" to totalDoctors,
+            "activeDoctors" to activeDoctors,
+            "disabledDoctors" to disabledDoctors,
+            "patientAppUsers" to patientAppUsers,
+            "activePatientUsers" to activePatientUsers,
+            "totalAdmins" to totalAdmins,
+            "totalPatientProfiles" to totalPatientProfiles,
+            "profilesWithoutAppAccount" to profilesWithoutAppAccount,
+            "profilesWithAppAccount" to profilesWithAppAccount,
+            "patientsWithDevice" to patientsWithDevice,
+            "patientAppUsersWithoutDevice" to patientAppUsersWithoutDevice,
+            "doctorsWithDevice" to doctorsWithDevice,
+            "doctorsWithoutDevice" to doctorsWithoutDevice,
+            "patientsNeverLoggedIn" to patientsNeverLoggedIn,
+            "patientsLoggedIn" to patientsLoggedIn,
+            "doctorsNeverLoggedIn" to doctorsNeverLoggedIn,
+            "deviceActivationRate" to deviceActivationRate,
+        )
+    }
+
+    fun isDeviceRegistered(user: User): Boolean {
+        return when (user.role) {
+            Role.PATIENT -> patientProfileRepository.findByUserId(user.id)
+                .map { !it.fcmToken.isNullOrBlank() }
+                .orElse(false)
+            Role.DOCTOR -> doctorProfileRepository.findByUserId(user.id)
+                .map { !it.fcmToken.isNullOrBlank() }
+                .orElse(false)
+            else -> false
+        }
+    }
+
+    fun hasProfile(user: User): Boolean {
+        return when (user.role) {
+            Role.PATIENT -> patientProfileRepository.findByUserId(user.id).isPresent
+            Role.DOCTOR -> doctorProfileRepository.findByUserId(user.id).isPresent
+            Role.ADMIN -> adminProfileRepository.findByUserId(user.id).isPresent
+            else -> false
+        }
+    }
+
+    private fun listUsersByDeviceFilter(
+        role: Role?,
+        enabled: Boolean?,
+        deviceRegistered: Boolean,
+        pageable: Pageable
+    ): Page<User> {
+        val candidateIds: List<Long> = when (role) {
+            Role.PATIENT -> if (deviceRegistered) {
+                patientProfileRepository.findUserIdsWithDeviceRegistered()
+            } else {
+                userRepository.findPatientUserIdsWithoutDeviceRegistered()
+            }
+            Role.DOCTOR -> if (deviceRegistered) {
+                doctorProfileRepository.findUserIdsWithDeviceRegistered()
+            } else {
+                userRepository.findDoctorUserIdsWithoutDeviceRegistered()
+            }
+            null -> {
+                val withDevice = patientProfileRepository.findUserIdsWithDeviceRegistered() +
+                    doctorProfileRepository.findUserIdsWithDeviceRegistered()
+                val withoutDevice = userRepository.findPatientUserIdsWithoutDeviceRegistered() +
+                    userRepository.findDoctorUserIdsWithoutDeviceRegistered()
+                if (deviceRegistered) withDevice.distinct() else withoutDevice.distinct()
+            }
+            else -> emptyList()
+        }
+        if (candidateIds.isEmpty()) {
+            return org.springframework.data.domain.PageImpl(emptyList(), pageable, 0L)
+        }
+        val users = userRepository.findAllById(candidateIds)
+        val filtered = users.filter { user ->
+            (enabled == null || user.enabled == enabled) &&
+                (role == null || user.role == role)
+        }.sortedByDescending { it.createdAt }
+        val total = filtered.size.toLong()
+        val page = filtered.drop(pageable.offset.toInt()).take(pageable.pageSize)
+        return org.springframework.data.domain.PageImpl(page, pageable, total)
     }
 
     /** Search by phone/email/username and profile names using JPQL only; merge, filter by role/enabled, paginate. */
@@ -240,6 +352,7 @@ class UserManagementService(
                     info["firstName"] = doctor.firstName
                     info["lastName"] = doctor.lastName
                     info["clinic"] = doctor.clinic ?: ""
+                    info["deviceRegistered"] = !doctor.fcmToken.isNullOrBlank()
                 }
             }
             Role.ADMIN -> {
@@ -255,6 +368,8 @@ class UserManagementService(
                     // Flutter displayName uses firstName/lastName; expose as single name for patients
                     info["firstName"] = patient.fullName
                     info["lastName"] = ""
+                    info["deviceRegistered"] = !patient.fcmToken.isNullOrBlank()
+                    info["profileCreatedAt"] = patient.createdAt?.toString() ?: ""
                 }
             }
             else -> {}

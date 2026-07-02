@@ -232,18 +232,28 @@ class AdminController(
         val failedLoginAttempts: Int,
         val lockedUntil: String?,
         val subscriptionTier: String,
-        val profile: Map<String, Any>?
+        val profile: Map<String, Any>?,
+        val deviceRegistered: Boolean = false,
+        val hasProfile: Boolean = false,
+        val createdAt: String? = null,
+        val emailVerified: Boolean = false,
     )
 
     data class UpdateSubscriptionTierRequest(
         @field:NotBlank val tier: String
     )
     
+    @GetMapping("/users/stats")
+    fun getUserManagementStats(@AuthenticationPrincipal principal: AdminPrincipal): Map<String, Any> {
+        return userManagementService.getUserManagementStats()
+    }
+
     @GetMapping("/users")
     fun listUsers(
         @RequestParam(required = false) role: String?,
         @RequestParam(required = false) enabled: Boolean?,
         @RequestParam(required = false) search: String?,
+        @RequestParam(required = false) deviceRegistered: Boolean?,
         @PageableDefault(size = 20) pageable: Pageable
     ): Page<UserResponse> {
         val roleEnum = role?.let {
@@ -253,7 +263,7 @@ class AdminController(
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid role: $role")
             }
         }
-        val users = userManagementService.listUsers(roleEnum, enabled, search, pageable)
+        val users = userManagementService.listUsers(roleEnum, enabled, search, deviceRegistered, pageable)
         return users.map { toUserResponse(it) }
     }
     
@@ -506,7 +516,11 @@ class AdminController(
             failedLoginAttempts = user.failedLoginAttempts ?: 0,
             lockedUntil = user.lockedUntil?.toString(),
             subscriptionTier = subscriptionTierService.tierOf(user).name,
-            profile = profile
+            profile = profile,
+            deviceRegistered = userManagementService.isDeviceRegistered(user),
+            hasProfile = userManagementService.hasProfile(user),
+            createdAt = user.createdAt.toString(),
+            emailVerified = user.emailVerified,
         )
     }
 

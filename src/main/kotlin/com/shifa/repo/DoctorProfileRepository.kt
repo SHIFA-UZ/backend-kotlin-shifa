@@ -16,6 +16,18 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
     fun findByUserIdWithPracticeClinic(
         @org.springframework.data.repository.query.Param("userId") userId: Long,
     ): Optional<DoctorProfile>
+
+    @org.springframework.data.jpa.repository.Query(
+        """SELECT COUNT(d) FROM DoctorProfile d
+           WHERE d.fcmToken IS NOT NULL AND TRIM(d.fcmToken) <> ''"""
+    )
+    fun countWithDeviceRegistered(): Long
+
+    @org.springframework.data.jpa.repository.Query(
+        """SELECT d.user.id FROM DoctorProfile d
+           WHERE d.fcmToken IS NOT NULL AND TRIM(d.fcmToken) <> ''"""
+    )
+    fun findUserIdsWithDeviceRegistered(): List<Long>
     
     // Search doctors by query string (name, email, phone, profession, clinic) - only enabled (non-disabled) doctors
     @org.springframework.data.jpa.repository.Query(
@@ -59,7 +71,7 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
         SELECT DISTINCT d FROM DoctorProfile d
         JOIN FETCH d.user u
         LEFT JOIN FETCH d.practiceClinic pc
-        WHERE (:search IS NULL OR :search = ''
+        WHERE (:search IS NULL OR :search = '' 
             OR LOWER(CONCAT(TRIM(d.firstName), ' ', TRIM(d.lastName))) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(TRIM(COALESCE(d.clinic,''))) LIKE LOWER(CONCAT('%', :search, '%'))
             OR LOWER(TRIM(COALESCE(pc.name,''))) LIKE LOWER(CONCAT('%', :search, '%')))

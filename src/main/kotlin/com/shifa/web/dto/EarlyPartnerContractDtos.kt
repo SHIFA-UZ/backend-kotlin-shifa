@@ -8,6 +8,8 @@ data class EarlyPartnerContractIssueDto(
     @JsonProperty("effectiveDate") val effectiveDate: String,
     @JsonProperty("termMonths") val termMonths: Int,
     @JsonProperty("partnerFullName") val partnerFullName: String,
+    @JsonProperty("partnerFirstName") val partnerFirstName: String,
+    @JsonProperty("partnerLastName") val partnerLastName: String,
     @JsonProperty("partnerClinic") val partnerClinic: String?,
     @JsonProperty("partnerPhone") val partnerPhone: String?,
     @JsonProperty("partnerEmail") val partnerEmail: String?,

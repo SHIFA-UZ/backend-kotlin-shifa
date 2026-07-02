@@ -21,6 +21,36 @@ interface UserRepository : JpaRepository<User, Long>, UserRepositoryCustom {
     fun findByRoleAndEnabled(role: Role, enabled: Boolean, pageable: Pageable): Page<User>
     fun countByRole(role: Role): Long
     fun countByRoleAndEnabled(role: Role, enabled: Boolean): Long
+
+    @Query("SELECT COUNT(u) FROM User u WHERE u.role = :role AND u.lastLoginAt IS NULL")
+    fun countByRoleAndLastLoginAtIsNull(@Param("role") role: Role): Long
+
+    @Query("SELECT COUNT(u) FROM User u WHERE u.role = :role AND u.lastLoginAt IS NOT NULL")
+    fun countByRoleAndLastLoginAtIsNotNull(@Param("role") role: Role): Long
+
+    @Query("SELECT u FROM User u WHERE u.id IN :ids")
+    fun findByIdIn(@Param("ids") ids: Collection<Long>, pageable: Pageable): Page<User>
+
+    @Query(
+        """SELECT u.id FROM User u
+           WHERE u.role = com.shifa.domain.Role.PATIENT
+           AND u.id NOT IN (
+               SELECT p.user.id FROM PatientProfile p
+               WHERE p.user IS NOT NULL
+               AND p.fcmToken IS NOT NULL AND TRIM(p.fcmToken) <> ''
+           )"""
+    )
+    fun findPatientUserIdsWithoutDeviceRegistered(): List<Long>
+
+    @Query(
+        """SELECT u.id FROM User u
+           WHERE u.role = com.shifa.domain.Role.DOCTOR
+           AND u.id NOT IN (
+               SELECT d.user.id FROM DoctorProfile d
+               WHERE d.fcmToken IS NOT NULL AND TRIM(d.fcmToken) <> ''
+           )"""
+    )
+    fun findDoctorUserIdsWithoutDeviceRegistered(): List<Long>
     
     // Search users by query string (email or phone) for specific role, excluding a user ID
     @Query(
