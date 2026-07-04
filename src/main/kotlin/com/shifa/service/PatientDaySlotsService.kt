@@ -128,22 +128,139 @@ class PatientDaySlotsService(
      * Finds the earliest bookable slot start time for [doctor] at or after [fromInstant], scanning up to
      * [lookaheadDays] days forward. Returns null when no slot is available in that window. Used by copilot
      * doctor ranking to prefer providers with soonest availability.
+     *
+     * Prefetches schedule rules, appointments, and blocks once per doctor to avoid N×day DB round-trips.
      */
     fun nextAvailableStartAt(
         doctor: DoctorProfile,
         fromInstant: Instant,
         lookaheadDays: Int = 14
     ): Instant? {
+        val doctorId = doctor.id!!
         val zone = ZoneId.of(doctor.timeZone)
         val startDate = fromInstant.atZone(zone).toLocalDate()
+        val endDate = startDate.plusDays(lookaheadDays.toLong())
+        val rangeStart = startDate.atStartOfDay(zone).toInstant()
+        val rangeEnd = endDate.plusDays(1).atStartOfDay(zone).toInstant()
+
+        val weeklyRules = rulesRepo.findByDoctorId(doctorId)
+        val dateSpecificRules =
+            dateSpecificRulesRepo.findOverlappingWithDateRange(doctorId, startDate, endDate)
+        if (weeklyRules.isEmpty() && dateSpecificRules.isEmpty()) {
+            return null
+        }
+
+        val validityPeriods = scheduleValidityService.getPeriods(doctor)
+        val allAppts = appts.findByDoctorIdAndStartAtBetween(doctorId, rangeStart, rangeEnd)
+        val allBlocks = blocksRepo.findOverlapping(doctorId, rangeStart, rangeEnd)
+
         for (i in 0..lookaheadDays) {
             val date = startDate.plusDays(i.toLong())
-            val slots = availableSlotsForDay(doctor, date)
+            if (validityPeriods.isNotEmpty() && validityPeriods.none { it.contains(date) }) {
+                continue
+            }
+            val slots = availableSlotsForDayWithPrefetch(
+                doctor = doctor,
+                localDate = date,
+                zone = zone,
+                weeklyRules = weeklyRules,
+                dateSpecificRules = dateSpecificRules,
+                existingAppts = allAppts,
+                blocks = allBlocks,
+                skipValidityCheck = validityPeriods.isNotEmpty()
+            )
             for (s in slots) {
                 val slotStart = Instant.parse(s.startAt)
                 if (!slotStart.isBefore(fromInstant)) return slotStart
             }
         }
         return null
+    }
+
+    private fun availableSlotsForDayWithPrefetch(
+        doctor: DoctorProfile,
+        localDate: LocalDate,
+        zone: ZoneId,
+        weeklyRules: List<com.shifa.domain.WeeklyScheduleRule>,
+        dateSpecificRules: List<com.shifa.domain.DateSpecificScheduleRule>,
+        existingAppts: List<com.shifa.domain.Appointment>,
+        blocks: List<com.shifa.domain.ScheduleBlock>,
+        locationId: Long? = null,
+        skipValidityCheck: Boolean = false
+    ): List<AvailableSlotDto> {
+        val weekday = localDate.dayOfWeek.value
+
+        if (!skipValidityCheck && !scheduleValidityService.isDateWithinAnyPeriod(doctor, localDate)) {
+            return emptyList()
+        }
+
+        val dayStart = localDate.atStartOfDay(zone).toInstant()
+        val dayEnd = localDate.plusDays(1).atStartOfDay(zone).toInstant()
+
+        data class RuleForDay(
+            val startTime: LocalTime,
+            val endTime: LocalTime,
+            val slotMinutes: Int,
+            val locationId: Long?,
+            val locationLabel: String?
+        )
+        val weeklyForDay = weeklyRules
+            .filter { it.weekday == weekday }
+            .filter { locationId == null || it.location?.id == locationId }
+            .map { RuleForDay(it.startTime, it.endTime, it.slotMinutes, it.location?.id, it.location?.label) }
+        val dateSpecificForDay = dateSpecificRules
+            .filter { it.appliesTo(localDate) }
+            .filter { locationId == null || it.location?.id == locationId }
+            .map { RuleForDay(it.startTime, it.endTime, it.slotMinutes, it.location?.id, it.location?.label) }
+        val allRules = (weeklyForDay + dateSpecificForDay).sortedBy { it.startTime }
+
+        val slotStarts = mutableSetOf<Instant>()
+        val freeSlots = buildList {
+            for (r in allRules) {
+                var t = r.startTime
+                val step = maxOf(r.slotMinutes.toLong(), 5)
+
+                while (t.plusMinutes(step) <= r.endTime) {
+                    val e = t.plusMinutes(step)
+
+                    val startLdt = LocalDateTime.of(localDate, t)
+                    val endLdt = LocalDateTime.of(localDate, e)
+
+                    val startInstant = startLdt.atZone(zone).toInstant()
+                    val endInstant = endLdt.atZone(zone).toInstant()
+
+                    if (slotStarts.add(startInstant)) {
+                        add(
+                            Triple(
+                                startInstant,
+                                endInstant,
+                                AvailableSlotDto(
+                                    startAt = startInstant.toString(),
+                                    endAt = endInstant.toString(),
+                                    slotMinutes = r.slotMinutes,
+                                    locationId = r.locationId,
+                                    locationLabel = r.locationLabel
+                                )
+                            )
+                        )
+                    }
+                    t = e
+                }
+            }
+        }
+
+        val dayAppts = existingAppts.filter { ap ->
+            ap.startAt < dayEnd && ap.endAt > dayStart
+        }
+        val dayBlocks = blocks.filter { block ->
+            block.startAt < dayEnd && block.endAt > dayStart
+        }
+
+        fun overlaps(a: Instant, b: Instant, c: Instant, d: Instant) = a < d && c < b
+
+        return freeSlots.filter { (start, end, _) ->
+            dayAppts.none { ap -> overlaps(start, end, ap.startAt, ap.endAt) } &&
+                dayBlocks.none { block -> overlaps(start, end, block.startAt, block.endAt) }
+        }.map { (_, _, dto) -> dto }.sortedBy { it.startAt }
     }
 }
