@@ -35,6 +35,8 @@ class PublicDoctorController(
 ) {
     data class DoctorListResponse(
         val totalCount: Long,
+        val page: Int,
+        val pageSize: Int,
         val doctors: List<DoctorDto>
     )
 
@@ -182,9 +184,12 @@ class PublicDoctorController(
         @RequestParam(required = false) longitude: Double?,
         @RequestParam(required = false, defaultValue = "50") radiusKm: Double?,
         @RequestParam(required = false) sortBy: String?,
-        @RequestParam(required = false, defaultValue = "false") includeNextAvailable: Boolean?
+        @RequestParam(required = false, defaultValue = "false") includeNextAvailable: Boolean?,
+        @RequestParam(required = false, defaultValue = "1") page: Int?,
+        @RequestParam(required = false, defaultValue = "20") pageSize: Int?
     ): DoctorListResponse {
-        val totalCount = doctorProfiles.findAllByUserEnabled().size.toLong()
+        val pageNum = (page ?: 1).coerceAtLeast(1)
+        val size = (pageSize ?: DEFAULT_PAGE_SIZE).coerceIn(1, MAX_PAGE_SIZE)
 
         var doctors = if (!search.isNullOrBlank() || !profession.isNullOrBlank()) {
             doctorProfiles.searchWithFilters(search, profession)
@@ -257,23 +262,18 @@ class PublicDoctorController(
 
         val shouldComputeAvailability =
             includeNextAvailable == true || !availableWithin.isNullOrBlank()
-        if (shouldComputeAvailability) {
-            filtered = filtered.mapIndexed { index, (doc, dist, enrichment) ->
-                if (index >= LIST_AVAILABILITY_CAP) {
-                    Triple(doc, dist, enrichment)
-                } else {
-                    val next = daySlotsService.nextAvailableStartAt(
-                        doc,
-                        now,
-                        LIST_AVAILABILITY_LOOKAHEAD_DAYS
-                    )
-                    Triple(doc, dist, enrichment.copy(nextAvailableStartAt = next))
-                }
-            }
-        }
+
+        var working = filtered
 
         if (!availableWithin.isNullOrBlank()) {
-            filtered = filtered.filter { (doc, _, enrichment) ->
+            working = working.map { (doc, dist, enrichment) ->
+                val next = daySlotsService.nextAvailableStartAt(
+                    doc,
+                    now,
+                    LIST_AVAILABILITY_LOOKAHEAD_DAYS
+                )
+                Triple(doc, dist, enrichment.copy(nextAvailableStartAt = next))
+            }.filter { (doc, _, enrichment) ->
                 matchesAvailableWithin(enrichment.nextAvailableStartAt, availableWithin, doc)
             }
         }
@@ -281,34 +281,69 @@ class PublicDoctorController(
         val sorted = when (sortBy?.lowercase()) {
             "distance" -> {
                 if (latitude != null && longitude != null) {
-                    filtered.sortedBy { (_, dist, _) -> dist ?: Double.MAX_VALUE }
+                    working.sortedBy { (_, dist, _) -> dist ?: Double.MAX_VALUE }
                 } else {
-                    filtered
+                    working
                 }
             }
             "rating" -> {
-                filtered.sortedByDescending { (doc, _, _) ->
+                working.sortedByDescending { (doc, _, _) ->
                     reviewRepository.findAverageRatingByDoctorId(doc.id!!) ?: 0.0
                 }
             }
             "availability" -> {
-                filtered.sortedBy { (_, _, enrichment) ->
+                val withSlots = if (availableWithin.isNullOrBlank() && !shouldComputeAvailability) {
+                    working.map { (doc, dist, enrichment) ->
+                        val next = daySlotsService.nextAvailableStartAt(
+                            doc,
+                            now,
+                            LIST_AVAILABILITY_LOOKAHEAD_DAYS
+                        )
+                        Triple(doc, dist, enrichment.copy(nextAvailableStartAt = next))
+                    }
+                } else {
+                    working
+                }
+                withSlots.sortedBy { (_, _, enrichment) ->
                     enrichment.nextAvailableStartAt ?: Instant.MAX
                 }
             }
             "reviews" -> {
-                filtered.sortedByDescending { (doc, _, _) ->
+                working.sortedByDescending { (doc, _, _) ->
                     reviewRepository.countByDoctorId(doc.id!!)
                 }
             }
-            else -> filtered
+            else -> working
         }
 
-        val doctorDtos = sorted.map { (doc, distance, enrichment) ->
+        val totalCount = sorted.size.toLong()
+        val fromIndex = (pageNum - 1) * size
+        val pageItems = sorted.drop(fromIndex).take(size)
+
+        val pageWithAvailability = if (shouldComputeAvailability && availableWithin.isNullOrBlank()) {
+            pageItems.map { (doc, dist, enrichment) ->
+                val next = enrichment.nextAvailableStartAt
+                    ?: daySlotsService.nextAvailableStartAt(
+                        doc,
+                        now,
+                        LIST_AVAILABILITY_LOOKAHEAD_DAYS
+                    )
+                Triple(doc, dist, enrichment.copy(nextAvailableStartAt = next))
+            }
+        } else {
+            pageItems
+        }
+
+        val doctorDtos = pageWithAvailability.map { (doc, distance, enrichment) ->
             toDoctorDto(doc, distance, enrichment)
         }
 
-        return DoctorListResponse(totalCount = totalCount, doctors = doctorDtos)
+        return DoctorListResponse(
+            totalCount = totalCount,
+            page = pageNum,
+            pageSize = size,
+            doctors = doctorDtos
+        )
     }
 
     private fun matchesCountryFilter(doc: DoctorProfile, country: String): Boolean {
@@ -406,8 +441,8 @@ class PublicDoctorController(
     }
 
     companion object {
-        /** Max doctors per list response that receive slot scanning (CPU guard). */
-        private const val LIST_AVAILABILITY_CAP = 25
+        private const val DEFAULT_PAGE_SIZE = 20
+        private const val MAX_PAGE_SIZE = 50
         private const val LIST_AVAILABILITY_LOOKAHEAD_DAYS = 21
     }
 
