@@ -84,7 +84,7 @@ class PatientFormController(
 
         val doctorName = "${principal.profile.lastName} ${principal.profile.firstName}".trim()
         val clinic = principal.profile.clinic
-        val form = formService.update(formId, request, doctorName, clinic)
+        val form = formService.update(formId, request, doctorName, clinic, principal.profile)
         return ResponseEntity.ok(form)
     }
 

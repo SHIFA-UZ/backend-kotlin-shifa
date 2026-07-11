@@ -1,0 +1,4428 @@
+{
+  "schema_version": "phase0.1",
+  "generated_at": "2026-06-10T17:09:31.751Z",
+  "project": "Shifa.uz Clinical Engine",
+  "scope": "Form 025-2 only",
+  "groups": [
+    {
+      "group_id": "grp.caries",
+      "sort": 1,
+      "names": {
+        "ru": "Кариес",
+        "uz": "Karies",
+        "en": "Caries"
+      }
+    },
+    {
+      "group_id": "grp.pulpitis",
+      "sort": 2,
+      "names": {
+        "ru": "Пульпит",
+        "uz": "Pulpit",
+        "en": "Pulpitis"
+      }
+    },
+    {
+      "group_id": "grp.periodontitis",
+      "sort": 3,
+      "names": {
+        "ru": "Периодонтит",
+        "uz": "Periodontit",
+        "en": "Periodontitis"
+      }
+    },
+    {
+      "group_id": "grp.surgery",
+      "sort": 4,
+      "names": {
+        "ru": "Хирургия",
+        "uz": "Jarrohlik",
+        "en": "Surgery"
+      }
+    },
+    {
+      "group_id": "grp.complex",
+      "sort": 5,
+      "names": {
+        "ru": "Сложные кейсы",
+        "uz": "Murakkab holatlar",
+        "en": "Complex cases"
+      }
+    },
+    {
+      "group_id": "grp.periodontology",
+      "sort": 6,
+      "names": {
+        "ru": "Пародонтология",
+        "uz": "Parodontologiya",
+        "en": "Periodontology"
+      }
+    },
+    {
+      "group_id": "grp.mucosa",
+      "sort": 7,
+      "names": {
+        "ru": "Слизистая",
+        "uz": "Shilliq qavat",
+        "en": "Oral mucosa"
+      }
+    },
+    {
+      "group_id": "grp.prosthodontics",
+      "sort": 8,
+      "names": {
+        "ru": "Ортопедия",
+        "uz": "Ortopediya",
+        "en": "Prosthodontics"
+      }
+    },
+    {
+      "group_id": "grp.emergency",
+      "sort": 9,
+      "names": {
+        "ru": "Неотложные",
+        "uz": "Shoshilinch",
+        "en": "Emergency"
+      }
+    },
+    {
+      "group_id": "grp.pediatric",
+      "sort": 10,
+      "names": {
+        "ru": "Детская стоматология",
+        "uz": "Bolalar stomatologiyasi",
+        "en": "Pediatric dentistry"
+      }
+    }
+  ],
+  "diseases": [
+    {
+      "disease_id": "dis.001",
+      "number": 1,
+      "group_id": "grp.caries",
+      "slug": "initial_caries",
+      "icd_codes": [
+        "K02.0"
+      ],
+      "names": {
+        "ru": "Начальный кариес (стадия пятна)",
+        "uz": "Boshlang'ich kariyes",
+        "en": "Initial caries (white spot)"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.001.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Отсутствуют",
+            "uz": "Mavjud emas",
+            "en": "Asymptomatic"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 60,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.001.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Пятно появилось несколько месяцев назад",
+            "uz": "Dog' bir necha oy oldin paydo bo'lgan",
+            "en": "Spot appeared several months ago"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.001.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Белое пятно, зондирование безболезненное",
+            "uz": "Oq dog', zondlash og'riqsiz",
+            "en": "White spot, painless probing"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.001.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Реминерализующая терапия",
+            "uz": "Remineralizatsiyalovchi terapiya",
+            "en": "Remineralizing therapy"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.001.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Фторирование",
+            "uz": "Fluorlash",
+            "en": "Fluoride application"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.001.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контроль через 6 месяцев",
+            "uz": "6 oydan keyin nazorat",
+            "en": "Follow-up in 6 months"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.002",
+      "number": 2,
+      "group_id": "grp.caries",
+      "slug": "superficial_caries",
+      "icd_codes": [
+        "K02.0"
+      ],
+      "names": {
+        "ru": "Поверхностный кариес",
+        "uz": "Yuza kariyes",
+        "en": "Superficial caries"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.002.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Кратковременная боль от сладкого/кислого",
+            "uz": "Shirin/nordondan qisqa og'riq",
+            "en": "Brief pain from sweet/sour"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.002.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Дискомфорт около [X] недель назад",
+            "uz": "Noqulaylik [X] hafta oldin",
+            "en": "Discomfort about [X] weeks ago"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.002.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Дефект в пределах эмали",
+            "uz": "Emal chegarasidagi nuqson",
+            "en": "Defect within enamel"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.002.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Препарирование и пломбирование",
+            "uz": "Preparatsiya va plombalash",
+            "en": "Cavity preparation and restoration"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.002.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Не есть 2 часа после анестезии",
+            "uz": "Anesteziyadan keyin 2 soat ovqat yemaslik",
+            "en": "No food for 2h after anesthesia"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.003",
+      "number": 3,
+      "group_id": "grp.caries",
+      "slug": "moderate_caries",
+      "icd_codes": [
+        "K02.1"
+      ],
+      "names": {
+        "ru": "Средний кариес",
+        "uz": "O'rta kariyes",
+        "en": "Moderate caries"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.003.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Боль от холодного/горячего",
+            "uz": "Issiq/sovuqdan og'riq",
+            "en": "Pain from hot/cold"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 70,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.003.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Застревание пищи",
+            "uz": "Ovqat tiqilishi",
+            "en": "Food impaction"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.003.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Реакция на пищу около [X] месяцев",
+            "uz": "[X] oy oldin reaksiya boshlangan",
+            "en": "Reacting to food for [X] months"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.003.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Болезненность по ЭДГ",
+            "uz": "Emal-dentin chegarasida og'riq",
+            "en": "Pain at amelodentinal junction"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 80,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.003.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Препарирование, изоляция коффердам",
+            "uz": "Preparatsiya, kofferdam",
+            "en": "Preparation, rubber dam"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.003.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Реставрация фотополимером",
+            "uz": "Fotopolimer restavratsiya",
+            "en": "Composite restoration"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.003.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Гигиена полости рта",
+            "uz": "Og'iz gigiyenasi",
+            "en": "Oral hygiene"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.004",
+      "number": 4,
+      "group_id": "grp.caries",
+      "slug": "deep_caries",
+      "icd_codes": [
+        "K02.1"
+      ],
+      "names": {
+        "ru": "Глубокий кариес",
+        "uz": "Chuqur kariyes",
+        "en": "Deep caries"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.004.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Интенсивная боль 1–2 мин после раздражителя",
+            "uz": "Ta'sir yo'qolgach 1-2 daq og'riq",
+            "en": "Pain persists 1–2 min after stimulus"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.004.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Эстетический дефект",
+            "uz": "Estetik nuqson",
+            "en": "Aesthetic defect"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.004.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Полость существует [X] месяцев",
+            "uz": "Bo'shliq [X] oy mavjud",
+            "en": "Cavity for [X] months"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.004.morbi.2",
+          "field": "morbi",
+          "labels": {
+            "ru": "Ночных болей не было",
+            "uz": "Tungi og'riq bo'lmagan",
+            "en": "No nocturnal pain"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.004.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Зондирование дна болезненно в одной точке",
+            "uz": "Tub bir nuqtada og'riqli",
+            "en": "Painful probing at floor (single point)"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 90,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.004.objective.2",
+          "field": "objective",
+          "labels": {
+            "ru": "ЭОД: реакция пульпы сохранена",
+            "uz": "EOD: pulpa reaksiyasi saqlangan",
+            "en": "EPT: pulp response preserved"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.004.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Кальций-содержащая прокладка",
+            "uz": "Kalsiy taglik",
+            "en": "Calcium hydroxide liner"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.004.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Постоянная пломба",
+            "uz": "Doimiy plomba",
+            "en": "Permanent filling"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.004.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контроль 6 месяцев",
+            "uz": "6 oy nazorat",
+            "en": "6-month follow-up"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.005",
+      "number": 5,
+      "group_id": "grp.caries",
+      "slug": "root_caries",
+      "icd_codes": [
+        "K02.2"
+      ],
+      "names": {
+        "ru": "Кариес цемента / корня",
+        "uz": "Ildiz kariyesi",
+        "en": "Root caries"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.005.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Боль при чистке в пришеечной области",
+            "uz": "Bo'yni tozalaganda og'riq",
+            "en": "Pain when brushing cervical area"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.005.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Обнажение шейки зуба",
+            "uz": "Tish bo'yni ochilgan",
+            "en": "Exposed tooth neck"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 80,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.005.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Связано с рецессией десны",
+            "uz": "Milk chekinishi bilan bog'liq",
+            "en": "Associated with gingival recession"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.005.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Полость на корне ниже ЭЦГ",
+            "uz": "Ildizda emal-sement pastida bo'shliq",
+            "en": "Cavity on root below CEJ"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.005.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Препарирование и пломба на корне",
+            "uz": "Ildizda preparatsiya va plomba",
+            "en": "Root preparation and restoration"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.005.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Щётка Soft, фторсодержащая паста",
+            "uz": "Soft cho'tka, fluorli pasta",
+            "en": "Soft brush, fluoride toothpaste"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.006",
+      "number": 6,
+      "group_id": "grp.pulpitis",
+      "slug": "acute_focal_pulpitis",
+      "icd_codes": [
+        "K04.01"
+      ],
+      "names": {
+        "ru": "Острый очаговый пульпит",
+        "uz": "O'tkir o'choqli pulpit",
+        "en": "Acute focal pulpitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.006.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Острые приступообразные боли",
+            "uz": "O'tkir xurujli og'riqlar",
+            "en": "Acute paroxysmal pain"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 90,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.006.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Ночная боль",
+            "uz": "Tungi og'riq",
+            "en": "Night pain"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.006.complaints.3",
+          "field": "complaints",
+          "labels": {
+            "ru": "Локализованная боль",
+            "uz": "Lokalizatsiyalangan og'riq",
+            "en": "Localized pain"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.006.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Симптомы начались [X] дней назад",
+            "uz": "Simptomlar [X] kun oldin",
+            "en": "Symptoms started [X] days ago"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.006.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Глубокая кариозная полость, пульпа закрыта",
+            "uz": "Chuqur kariyes, pulpa yopiq",
+            "en": "Deep cavity, pulp chamber closed"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 80,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.006.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Анестезия",
+            "uz": "Anesteziya",
+            "en": "Anesthesia"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.006.treatment_1.2",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Раскрытие полости, экстирпация пульпы",
+            "uz": "Bo'shliqni ochish, pulpa ekstirpatsiyasi",
+            "en": "Access opening, pulp extirpation"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.006.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Обтурация каналов и реставрация",
+            "uz": "Kanallarni plombalash va restavratsiya",
+            "en": "Canal obturation and restoration"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.006.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Ибупрофен при необходимости",
+            "uz": "Zaruratda ibuprofen",
+            "en": "Ibuprofen if needed"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.007",
+      "number": 7,
+      "group_id": "grp.pulpitis",
+      "slug": "acute_diffuse_pulpitis",
+      "icd_codes": [
+        "K04.02"
+      ],
+      "names": {
+        "ru": "Острый диффузный пульпит",
+        "uz": "O'tkir diffuz pulpit",
+        "en": "Acute diffuse pulpitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.007.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Непрекращающаяся боль",
+            "uz": "To'xtovsiz og'riq",
+            "en": "Continuous pain"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 90,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.007.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Боль отдаёт в ухо/висок",
+            "uz": "Og'riq quloq/chakkaga beradi",
+            "en": "Pain radiates to ear/temple"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.007.complaints.3",
+          "field": "complaints",
+          "labels": {
+            "ru": "Холод временно облегчает",
+            "uz": "Sovuq vaqtincha yengillatadi",
+            "en": "Cold temporarily relieves"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.007.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Острая боль [X] дней",
+            "uz": "[X] kun o'tkir og'riq",
+            "en": "Acute pain for [X] days"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.007.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Огромная кариозная полость",
+            "uz": "Katta kariyes bo'shlig'i",
+            "en": "Large carious cavity"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.007.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Экстренное вскрытие пульпы",
+            "uz": "Shoshilinch pulpa ochish",
+            "en": "Emergency pulp opening"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.007.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Эндодонтическое лечение (2-й визит)",
+            "uz": "Endodontik davolash (2-tashrif)",
+            "en": "Endodontic treatment (visit 2)"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.007.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Срочный повторный визит",
+            "uz": "Tez qayta tashrif",
+            "en": "Urgent follow-up visit"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.008",
+      "number": 8,
+      "group_id": "grp.pulpitis",
+      "slug": "chronic_fibrous_pulpitis",
+      "icd_codes": [
+        "K04.03"
+      ],
+      "names": {
+        "ru": "Хронический фиброзный пульпит",
+        "uz": "Surunkali fibroz pulpit",
+        "en": "Chronic fibrous pulpitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.008.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Ноющая боль от температуры",
+            "uz": "Haroratdan simillovchi og'riq",
+            "en": "Aching pain from temperature change"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.008.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Застревание пищи",
+            "uz": "Ovqat tiqilishi",
+            "en": "Food impaction"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.008.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Ранее была острая боль, затем стихла",
+            "uz": "Ilgari o'tkir og'riq, keyin bosilgan",
+            "en": "Prior acute pain that subsided"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.008.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Полость зуба вскрыта в одной точке",
+            "uz": "Tish bo'shlig'i bir nuqtada ochiq",
+            "en": "Pulp chamber open at one point"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.008.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Медикаментозная обработка каналов",
+            "uz": "Kanallarga dori ishlov",
+            "en": "Intracanal medicament treatment"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.008.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Постоянное пломбирование каналов",
+            "uz": "Kanallarni doimiy plombalash",
+            "en": "Definitive canal obturation"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.008.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контроль рентген 6 месяцев",
+            "uz": "6 oyda rentgen nazorat",
+            "en": "X-ray at 6 months"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.009",
+      "number": 9,
+      "group_id": "grp.pulpitis",
+      "slug": "chronic_gangrenous_pulpitis",
+      "icd_codes": [
+        "K04.04",
+        "K04.1"
+      ],
+      "names": {
+        "ru": "Хронический гангренозный пульпит",
+        "uz": "Surunkali gangrenoz pulpit",
+        "en": "Chronic gangrenous pulpitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.009.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Гнилостный запах",
+            "uz": "Badbo'y hid",
+            "en": "Putrid odor"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 85,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.009.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Боль от горячего",
+            "uz": "Issiqdan og'riq",
+            "en": "Pain from hot"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.009.complaints.3",
+          "field": "complaints",
+          "labels": {
+            "ru": "Изменение цвета зуба",
+            "uz": "Tish rangi o'zgargan",
+            "en": "Tooth discoloration"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.009.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Самопроизвольная боль прекратилась без лечения",
+            "uz": "O'z-o'zidan og'riq davolanishsiz to'xtagan",
+            "en": "Spontaneous pain stopped without treatment"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.009.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Гангренозный распад пульпы",
+            "uz": "Gangrenoz pulpa parchalari",
+            "en": "Gangrenous pulp necrosis"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.009.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Раскрытие и ирригация каналов",
+            "uz": "Kanallarni ochish va yuvish",
+            "en": "Access and canal irrigation"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.009.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Обтурация до апекса",
+            "uz": "Apeksgacha plombalash",
+            "en": "Obturation to apex"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.009.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контроль 6 месяцев",
+            "uz": "6 oy nazorat",
+            "en": "6-month follow-up"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.010",
+      "number": 10,
+      "group_id": "grp.pulpitis",
+      "slug": "exacerbation_chronic_pulpitis",
+      "icd_codes": [
+        "K04.0"
+      ],
+      "names": {
+        "ru": "Обострение хронического пульпита",
+        "uz": "Surunkali pulpitning zo'rayishi",
+        "en": "Exacerbation of chronic pulpitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.010.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Острые ночные приступы",
+            "uz": "Tungi o'tkir xurujlar",
+            "en": "Acute nocturnal attacks"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 90,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.010.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Глубокая кариозная полость",
+            "uz": "Chuqur kariyes bo'shlig'i",
+            "en": "Deep carious cavity"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.010.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Обострение [X] дней назад",
+            "uz": "[X] kun oldin zo'rayish",
+            "en": "Exacerbation [X] days ago"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.010.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Вскрытая точка пульпы",
+            "uz": "Ochilgan pulpa nuqtasi",
+            "en": "Exposed pulp point"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.010.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Девитализирующая паста / экстирпация",
+            "uz": "Devitalizatsiya pastasi / ekstirpatsiya",
+            "en": "Devitalizing paste / extirpation"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.010.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Завершение эндодонтии",
+            "uz": "Endodontiyani yakunlash",
+            "en": "Complete endodontics"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.010.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контрольный визит",
+            "uz": "Nazorat tashrifi",
+            "en": "Follow-up visit"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.011",
+      "number": 11,
+      "group_id": "grp.pulpitis",
+      "slug": "hyperplastic_pulpitis",
+      "icd_codes": [
+        "K04.05"
+      ],
+      "names": {
+        "ru": "Хронический гиперпластический пульпит (полип)",
+        "uz": "Gipertrofik pulpit (polip)",
+        "en": "Chronic hyperplastic pulpitis (polyp)"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.011.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Разрастание ткани в полости зуба",
+            "uz": "Tish bo'shlig'ida to'qima o'sishi",
+            "en": "Tissue growth in tooth cavity"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.011.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Кровоточивость при жевании",
+            "uz": "Chaynaganda qonash",
+            "en": "Bleeding on chewing"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.011.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Коронка разрушена давно",
+            "uz": "Toj ancha vaqt oldin yemirilgan",
+            "en": "Crown destroyed long ago"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.011.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Полип пульпы розово-красного цвета",
+            "uz": "Pushti-qizil pulpa polipi",
+            "en": "Pink-red pulp polyp"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.011.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Ампутация/экстирпация полипа",
+            "uz": "Polipni olib tashlash",
+            "en": "Polyp amputation/extirpation"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.011.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Эндодонтия и реставрация",
+            "uz": "Endodontiya va restavratsiya",
+            "en": "Endodontics and restoration"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.011.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контроль 6 месяцев",
+            "uz": "6 oy nazorat",
+            "en": "6-month follow-up"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {
+        "source": "file_1_merged",
+        "note": "Added from file 1; not in original index 37"
+      }
+    },
+    {
+      "disease_id": "dis.012",
+      "number": 12,
+      "group_id": "grp.periodontitis",
+      "slug": "acute_apical_periodontitis",
+      "icd_codes": [
+        "K04.4"
+      ],
+      "names": {
+        "ru": "Острый апикальный периодонтит",
+        "uz": "O'tkir apikal periodontit",
+        "en": "Acute apical periodontitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.012.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Резкая боль при накусывании",
+            "uz": "Tishlaganda keskin og'riq",
+            "en": "Sharp pain on biting"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 95,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.012.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Ощущение выросшего зуба",
+            "uz": "O'sib chiqqan tish tuyg'usi",
+            "en": "Elongated tooth sensation"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.012.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Боль появилась [X] дней назад",
+            "uz": "[X] kun oldin og'riq",
+            "en": "Pain started [X] days ago"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.012.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Перкуссия резко болезненная",
+            "uz": "Perkussiya keskin og'riqli",
+            "en": "Sharp percussion pain"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 90,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.012.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Эндодонтическое лечение",
+            "uz": "Endodontik davolash",
+            "en": "Endodontic treatment"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.012.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Реставрация коронки",
+            "uz": "Toj restavratsiyasi",
+            "en": "Crown restoration"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.012.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контроль рентген 6 месяцев",
+            "uz": "6 oyda rentgen",
+            "en": "X-ray at 6 months"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.013",
+      "number": 13,
+      "group_id": "grp.periodontitis",
+      "slug": "chronic_fibrous_periodontitis",
+      "icd_codes": [
+        "K04.5"
+      ],
+      "names": {
+        "ru": "Хронический фиброзный периодонтит",
+        "uz": "Surunkali fibroz periodontit",
+        "en": "Chronic fibrous periodontitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.013.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Дискомфорт при накусывании",
+            "uz": "Chaynaganda noqulaylik",
+            "en": "Discomfort on biting"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.013.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Зуб лечился [X] месяцев/лет назад",
+            "uz": "[X] oy/yil oldin davolangan",
+            "en": "Treated [X] months/years ago"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.013.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Зуб изменён в цвете",
+            "uz": "Tish rangi o'zgargan",
+            "en": "Tooth discolored"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.013.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Инструментальная обработка каналов",
+            "uz": "Kanallarga ishlov",
+            "en": "Root canal instrumentation"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.013.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Обтурация каналов",
+            "uz": "Kanallarni plombalash",
+            "en": "Canal obturation"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.013.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контроль 6 месяцев",
+            "uz": "6 oy nazorat",
+            "en": "6-month follow-up"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.014",
+      "number": 14,
+      "group_id": "grp.periodontitis",
+      "slug": "chronic_granulating_periodontitis",
+      "icd_codes": [
+        "K04.5"
+      ],
+      "names": {
+        "ru": "Хронический гранулирующий периодонтит",
+        "uz": "Surunkali granulyatsiyalashgan periodontit",
+        "en": "Chronic granulating periodontitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.014.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Свищевой ход на десне",
+            "uz": "Milkda oqma yo'li",
+            "en": "Gingival sinus tract"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 90,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.014.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Гноетечение",
+            "uz": "Yiring ajralishi",
+            "en": "Purulent discharge"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.014.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Периодически припухает пузырёк на десне",
+            "uz": "Milkda pufakcha paydo bo'ladi",
+            "en": "Periodic gingival bubble"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.014.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Свищ с грануляциями",
+            "uz": "Granulyatsiyalar bilan svish",
+            "en": "Sinus with granulations"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.014.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Эндодонтическое лечение",
+            "uz": "Endodontik davolash",
+            "en": "Endodontic treatment"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.014.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Контрольная рентгенограмма",
+            "uz": "Nazorat rentgeni",
+            "en": "Control radiograph"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.014.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Гигиена, контроль",
+            "uz": "Gigiyena, nazorat",
+            "en": "Hygiene, follow-up"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.015",
+      "number": 15,
+      "group_id": "grp.periodontitis",
+      "slug": "chronic_granulomatous_periodontitis",
+      "icd_codes": [
+        "K04.8"
+      ],
+      "names": {
+        "ru": "Хронический гранулематозный периодонтит (киста)",
+        "uz": "Surunkali granulomatoz periodontit (kista)",
+        "en": "Chronic granulomatous periodontitis (cyst)"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.015.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Часто бессимптомно",
+            "uz": "Ko'pincha simptomsiz",
+            "en": "Often asymptomatic"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.015.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Зуб разрушен давно",
+            "uz": "Tish ancha vaqt yemirilgan",
+            "en": "Long-standing destruction"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.015.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Округлый дефект кости [X] мм",
+            "uz": "Dumaloq suyak nuqsoni [X] mm",
+            "en": "Round bone defect [X] mm"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.015.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Эндодонтия или хирургия",
+            "uz": "Endodontiya yoki jarrohlik",
+            "en": "Endodontics or surgery"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.015.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Контроль кисты",
+            "uz": "Kistani nazorat",
+            "en": "Cyst monitoring"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.015.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Рентген контроль",
+            "uz": "Rentgen nazorat",
+            "en": "Radiographic follow-up"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.016",
+      "number": 16,
+      "group_id": "grp.surgery",
+      "slug": "simple_extraction",
+      "icd_codes": [
+        "K08.1"
+      ],
+      "names": {
+        "ru": "Неосложнённое удаление зуба",
+        "uz": "Oddiy tish olish",
+        "en": "Uncomplicated extraction"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.016.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Показания: разрушен корень / подвижность",
+            "uz": "Ko'rsatma: singan ildiz / harakatchanlik",
+            "en": "Indication: destroyed root / mobility"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.016.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Решение об удалении [X] дней назад",
+            "uz": "[X] kun oldin qaror",
+            "en": "Extraction planned [X] days ago"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.016.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Синдесмотомия, люксация, кюретаж",
+            "uz": "Sindesmotomiya, lyuksatsiya, kyuretaj",
+            "en": "Syndesmotomy, luxation, curettage"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.016.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Удаление зуба, гемостаз",
+            "uz": "Tish olish, gemostaz",
+            "en": "Extraction, hemostasis"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.016.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Не полоскать 24ч, не трогать сгусток",
+            "uz": "24 soat chayqamaslik, qon laxtasini buzmaslik",
+            "en": "No rinsing 24h, protect clot"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.017",
+      "number": 17,
+      "group_id": "grp.surgery",
+      "slug": "complex_extraction",
+      "icd_codes": [
+        "K01.1"
+      ],
+      "names": {
+        "ru": "Сложное удаление (ретинированный)",
+        "uz": "Murakkab tish olish (retinirlangan)",
+        "en": "Complex extraction (impacted)"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.017.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Боль, ограничение открывания рта",
+            "uz": "Og'riq, og'iz ochilmasligi",
+            "en": "Pain, limited mouth opening"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.017.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Выкраивание лоскута",
+            "uz": "Loskut kesish",
+            "en": "Mucoperiosteal flap"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 80,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.017.objective.2",
+          "field": "objective",
+          "labels": {
+            "ru": "Фрагментация зуба бормашиной",
+            "uz": "Bormashina bilan fragmentatsiya",
+            "en": "Tooth sectioning"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.017.objective.3",
+          "field": "objective",
+          "labels": {
+            "ru": "Наложение швов",
+            "uz": "Shov qo'yish",
+            "en": "Suturing"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.017.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Сложное удаление под анестезией",
+            "uz": "Anesteziya ostida murakkab olish",
+            "en": "Complex extraction under anesthesia"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.017.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Антибиотик по показаниям",
+            "uz": "Ko'rsatma bo'yicha antibiotik",
+            "en": "Antibiotic if indicated"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.018",
+      "number": 18,
+      "group_id": "grp.surgery",
+      "slug": "alveolitis",
+      "icd_codes": [
+        "K10.3"
+      ],
+      "names": {
+        "ru": "Альвеолит",
+        "uz": "Alveolit",
+        "en": "Alveolitis / dry socket"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.018.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Сильная боль в лунке",
+            "uz": "Katakchada kuchli og'riq",
+            "en": "Severe socket pain"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 90,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.018.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Гнилостный запах",
+            "uz": "Badbo'y hid",
+            "en": "Foul odor"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.018.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Удаление [X] дней назад",
+            "uz": "[X] kun oldin olingan",
+            "en": "Extracted [X] days ago"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.018.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Пустая лунка без сгустка",
+            "uz": "Qon laxtasisiz bo'sh katakcha",
+            "en": "Empty socket without clot"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.018.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Ревизия лунки, йодоформная турунда",
+            "uz": "Katakcha reviziyasi, yodoform turunda",
+            "en": "Socket revision, iodoform packing"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.018.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Перевязка через 48 часов",
+            "uz": "48 soatdan keyin bog'lash",
+            "en": "Dressing change at 48h"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.019",
+      "number": 19,
+      "group_id": "grp.surgery",
+      "slug": "periostotomy",
+      "icd_codes": [
+        "K10.2"
+      ],
+      "names": {
+        "ru": "Периостотомия (флюс)",
+        "uz": "Periostotomiya (flyus)",
+        "en": "Periostotomy (flux)"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.019.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Распирающая боль, отёк лица",
+            "uz": "Chidab bo'lmas og'riq, yuz shishi",
+            "en": "Throbbing pain, facial swelling"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 95,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.019.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Тризм",
+            "uz": "Trizm",
+            "en": "Trismus"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.019.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Отёк нарастает [X] часов",
+            "uz": "[X] soat ichida shish kuchaygan",
+            "en": "Swelling worsened over [X] hours"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.019.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Разрез, дренирование гноя",
+            "uz": "Kesish, yiring drenaji",
+            "en": "Incision, pus drainage"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.019.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Периостотомия, дренаж",
+            "uz": "Periostotomiya, drenaj",
+            "en": "Periostotomy, drainage"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.019.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Антибиотик, контроль",
+            "uz": "Antibiotik, nazorat",
+            "en": "Antibiotic, follow-up"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.038",
+      "number": 38,
+      "group_id": "grp.surgery",
+      "slug": "pericoronitis",
+      "icd_codes": [
+        "K05.24"
+      ],
+      "names": {
+        "ru": "Перикоронит",
+        "uz": "Perikoronit",
+        "en": "Pericoronitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.038.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Боль при открывании/жевании/глотании",
+            "uz": "Og'iz ochish/chaynash/yutishda og'riq",
+            "en": "Pain on opening/chewing/swallowing"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.038.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Неприятный запах",
+            "uz": "Noxush hid",
+            "en": "Bad breath"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.038.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Связано с прорезыванием зуба мудрости [X] дней",
+            "uz": "[X] kun aql tishi chiqishi",
+            "en": "Wisdom tooth eruption [X] days"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.038.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Воспалённый капюшон, частично прорезавшийся зуб",
+            "uz": "Yallig'langan kapyushon",
+            "en": "Inflamed operculum, partial eruption"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.038.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Промывание подкапюшонного пространства",
+            "uz": "Kapyushon ostini yuvish",
+            "en": "Opercular irrigation"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.038.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Иссечение капюшона",
+            "uz": "Kapyushon eksiziyasi",
+            "en": "Operculectomy"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.038.treatment_2.2",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Удаление зуба мудрости",
+            "uz": "Aql tishini olish",
+            "en": "Wisdom tooth extraction"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.038.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контроль через [X] дней",
+            "uz": "[X] kundan keyin nazorat",
+            "en": "Follow-up in [X] days"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {
+        "reconciliation": "ICD fixed from K05.2/K05.3 (source doc 38) to K05.24"
+      }
+    },
+    {
+      "disease_id": "dis.020",
+      "number": 20,
+      "group_id": "grp.complex",
+      "slug": "apexogenesis",
+      "icd_codes": [
+        "K04.0"
+      ],
+      "names": {
+        "ru": "Апексогенез",
+        "uz": "Apeksogenez",
+        "en": "Apexogenesis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.020.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "По клиническому протоколу",
+            "uz": "Klinik protokol bo'yicha",
+            "en": "Per clinical protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.020.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Этап 1 по протоколу",
+            "uz": "1-bosqich",
+            "en": "Stage 1 per protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.020.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Этап 2 / завершение",
+            "uz": "2-bosqich / yakun",
+            "en": "Stage 2 / completion"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.020.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контрольный визит",
+            "uz": "Nazorat tashrifi",
+            "en": "Follow-up visit"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.021",
+      "number": 21,
+      "group_id": "grp.complex",
+      "slug": "apical_resection",
+      "icd_codes": [
+        "K04.6"
+      ],
+      "names": {
+        "ru": "Апикальная резекция",
+        "uz": "Apikal rezektsiya",
+        "en": "Apical resection"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.021.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "По клиническому протоколу",
+            "uz": "Klinik protokol bo'yicha",
+            "en": "Per clinical protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.021.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Этап 1 по протоколу",
+            "uz": "1-bosqich",
+            "en": "Stage 1 per protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.021.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Этап 2 / завершение",
+            "uz": "2-bosqich / yakun",
+            "en": "Stage 2 / completion"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.021.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контрольный визит",
+            "uz": "Nazorat tashrifi",
+            "en": "Follow-up visit"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.022",
+      "number": 22,
+      "group_id": "grp.complex",
+      "slug": "hemisection",
+      "icd_codes": [
+        "K08.8"
+      ],
+      "names": {
+        "ru": "Гемисекция",
+        "uz": "Gemiseksiya",
+        "en": "Hemisection"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.022.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "По клиническому протоколу",
+            "uz": "Klinik protokol bo'yicha",
+            "en": "Per clinical protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.022.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Этап 1 по протоколу",
+            "uz": "1-bosqich",
+            "en": "Stage 1 per protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.022.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Этап 2 / завершение",
+            "uz": "2-bosqich / yakun",
+            "en": "Stage 2 / completion"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.022.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контрольный визит",
+            "uz": "Nazorat tashrifi",
+            "en": "Follow-up visit"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.023",
+      "number": 23,
+      "group_id": "grp.complex",
+      "slug": "dental_trauma_splint",
+      "icd_codes": [
+        "S02.5"
+      ],
+      "names": {
+        "ru": "Травма зуба / шинирование",
+        "uz": "Tish travmasi / shinlash",
+        "en": "Dental trauma / splinting"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.023.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "По клиническому протоколу",
+            "uz": "Klinik protokol bo'yicha",
+            "en": "Per clinical protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.023.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Этап 1 по протоколу",
+            "uz": "1-bosqich",
+            "en": "Stage 1 per protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.023.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Этап 2 / завершение",
+            "uz": "2-bosqich / yakun",
+            "en": "Stage 2 / completion"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.023.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контрольный визит",
+            "uz": "Nazorat tashrifi",
+            "en": "Follow-up visit"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.024",
+      "number": 24,
+      "group_id": "grp.complex",
+      "slug": "devitalization_paste",
+      "icd_codes": [
+        "K04.0"
+      ],
+      "names": {
+        "ru": "Девитализирующая паста (1-й визит)",
+        "uz": "Devitalizatsiya pastasi (1-tashrif)",
+        "en": "Devitalizing paste (visit 1)"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.024.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "По клиническому протоколу",
+            "uz": "Klinik protokol bo'yicha",
+            "en": "Per clinical protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.024.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Этап 1 по протоколу",
+            "uz": "1-bosqich",
+            "en": "Stage 1 per protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.024.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Этап 2 / завершение",
+            "uz": "2-bosqich / yakun",
+            "en": "Stage 2 / completion"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.024.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контрольный визит",
+            "uz": "Nazorat tashrifi",
+            "en": "Follow-up visit"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.025",
+      "number": 25,
+      "group_id": "grp.complex",
+      "slug": "re_endodontics",
+      "icd_codes": [
+        "K04.6"
+      ],
+      "names": {
+        "ru": "Реэндодонтия",
+        "uz": "Re-endodontiya",
+        "en": "Re-endodontics"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.025.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "По клиническому протоколу",
+            "uz": "Klinik protokol bo'yicha",
+            "en": "Per clinical protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.025.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Этап 1 по протоколу",
+            "uz": "1-bosqich",
+            "en": "Stage 1 per protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.025.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Этап 2 / завершение",
+            "uz": "2-bosqich / yakun",
+            "en": "Stage 2 / completion"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.025.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контрольный визит",
+            "uz": "Nazorat tashrifi",
+            "en": "Follow-up visit"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.026",
+      "number": 26,
+      "group_id": "grp.complex",
+      "slug": "separated_instrument",
+      "icd_codes": [
+        "K04.6"
+      ],
+      "names": {
+        "ru": "Сломанный инструмент в канале",
+        "uz": "Kanaldagi singan instrument",
+        "en": "Separated instrument in canal"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.026.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "По клиническому протоколу",
+            "uz": "Klinik protokol bo'yicha",
+            "en": "Per clinical protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.026.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Этап 1 по протоколу",
+            "uz": "1-bosqich",
+            "en": "Stage 1 per protocol"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.026.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Этап 2 / завершение",
+            "uz": "2-bosqich / yakun",
+            "en": "Stage 2 / completion"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.026.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контрольный визит",
+            "uz": "Nazorat tashrifi",
+            "en": "Follow-up visit"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.027",
+      "number": 27,
+      "group_id": "grp.periodontology",
+      "slug": "gingivitis",
+      "icd_codes": [
+        "K05.0",
+        "K05.1"
+      ],
+      "names": {
+        "ru": "Гингивит",
+        "uz": "Gingivit",
+        "en": "Gingivitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.027.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Кровоточивость дёсен при чистке",
+            "uz": "Cho'tkalashda milk qonashi",
+            "en": "Bleeding on brushing"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 90,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.027.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Гиперемия десневого края, карманы отсутствуют",
+            "uz": "Milk cheti giperemiyasi, cho'ntak yo'q",
+            "en": "Marginal hyperemia, no pockets"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.027.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Ультразвуковое снятие отложений",
+            "uz": "Ultratovush bilan tozalash",
+            "en": "Ultrasonic scaling"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.027.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Хлоргексидин 0.05%",
+            "uz": "Xlorgeksidin 0.05%",
+            "en": "Chlorhexidine 0.05%"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.028",
+      "number": 28,
+      "group_id": "grp.periodontology",
+      "slug": "periodontitis_mild",
+      "icd_codes": [
+        "K05.2"
+      ],
+      "names": {
+        "ru": "Пародонтит лёгкой степени",
+        "uz": "Yengil parodontit",
+        "en": "Mild periodontitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.028.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Кровоточивость при зондировании",
+            "uz": "Zondlashda qonash",
+            "en": "Bleeding on probing"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.028.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Карманы до 3.5 мм",
+            "uz": "3.5 mm gacha cho'ntaklar",
+            "en": "Pockets up to 3.5 mm"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.028.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Профгигиена + закрытый кюретаж",
+            "uz": "Prof gigiyena + yopiq kyuretaj",
+            "en": "Prophylaxis + closed curettage"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.028.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Содово-солевые полоскания",
+            "uz": "Soda-tuzli chayishlar",
+            "en": "Saline-bicarbonate rinses"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.029",
+      "number": 29,
+      "group_id": "grp.periodontology",
+      "slug": "periodontitis_moderate",
+      "icd_codes": [
+        "K05.2"
+      ],
+      "names": {
+        "ru": "Пародонтит средней степени",
+        "uz": "O'rta parodontit",
+        "en": "Moderate periodontitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.029.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Гноетечение из карманов",
+            "uz": "Cho'ntakdan yiring",
+            "en": "Suppuration from pockets"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.029.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Карманы 4–6 мм, подвижность I–II",
+            "uz": "4-6 mm cho'ntak, I-II harakatchanlik",
+            "en": "Pockets 4–6 mm, mobility I–II"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.029.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Метронидазол-гель в карман",
+            "uz": "Metronidazol gel",
+            "en": "Metronidazole gel in pocket"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.029.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Метронидазол + амоксициллин по показаниям",
+            "uz": "Metronidazol + amoksitsillin",
+            "en": "Metronidazole + amoxicillin if indicated"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.030",
+      "number": 30,
+      "group_id": "grp.periodontology",
+      "slug": "periodontitis_severe",
+      "icd_codes": [
+        "K05.2"
+      ],
+      "names": {
+        "ru": "Пародонтит тяжёлой степени",
+        "uz": "Og'ir parodontit",
+        "en": "Severe periodontitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.030.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Подвижность II–III степени",
+            "uz": "II-III darajali harakatchanlik",
+            "en": "Mobility grade II–III"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.030.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Оголение фуркации, карманы >6 мм",
+            "uz": "Furkatsiya ochilgan, >6 mm cho'ntak",
+            "en": "Furcation involvement, pockets >6 mm"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.030.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Открытый кюретаж / лоскутная операция",
+            "uz": "Ochiq kyuretaj / loskut",
+            "en": "Open curettage / flap surgery"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.030.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "НРК при показаниях",
+            "uz": "NRC ko'rsatma bo'yicha",
+            "en": "Guided bone regeneration if indicated"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.030.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Длительное наблюдение",
+            "uz": "Uzoq muddatli kuzatuv",
+            "en": "Long-term monitoring"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.031",
+      "number": 31,
+      "group_id": "grp.mucosa",
+      "slug": "aphthous_stomatitis",
+      "icd_codes": [
+        "K12.0"
+      ],
+      "names": {
+        "ru": "Афтозный стоматит",
+        "uz": "Aftoz stomatit",
+        "en": "Aphthous stomatitis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.031.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Болезненные афты [X] мм",
+            "uz": "[X] mm aftalar",
+            "en": "Painful ulcers [X] mm"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.031.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Солкосерил / метилурациловая мазь",
+            "uz": "Solkoseril / metiluratsil",
+            "en": "Solcoseryl / methyluracil"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.031.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Исключить острую пищу",
+            "uz": "Achchiq ovqatni cheklash",
+            "en": "Avoid spicy food"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.032",
+      "number": 32,
+      "group_id": "grp.mucosa",
+      "slug": "herpes_labialis",
+      "icd_codes": [
+        "B00.1"
+      ],
+      "names": {
+        "ru": "Герпес губ",
+        "uz": "Lab gerpesi",
+        "en": "Herpes labialis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.032.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Жжение, пузырьки, корочка",
+            "uz": "Kuydirish, pufakchalar, qobiq",
+            "en": "Burning, vesicles, crust"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.032.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Ацикловир 200 мг 5 р/д × 5 дней",
+            "uz": "Aciklovir 200 mg 5 marta/kun",
+            "en": "Acyclovir 200 mg 5×/day × 5 days"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.032.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Крем на очаг",
+            "uz": "Ochog'ga krem",
+            "en": "Topical cream on lesion"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.033",
+      "number": 33,
+      "group_id": "grp.mucosa",
+      "slug": "oral_candidiasis",
+      "icd_codes": [
+        "B37.0"
+      ],
+      "names": {
+        "ru": "Кандидоз полости рта",
+        "uz": "Og'iz kandidozi",
+        "en": "Oral candidiasis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.033.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Белый налёт, жжение",
+            "uz": "Oq karash, kuydirish",
+            "en": "White plaques, burning"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.033.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Флуконазол 150 мг или нистатин",
+            "uz": "Flukonazol 150 mg yoki nistatin",
+            "en": "Fluconazole 150 mg or nystatin"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.033.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Обработка протезов",
+            "uz": "Protezlarni ishlov",
+            "en": "Disinfect dentures"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.034",
+      "number": 34,
+      "group_id": "grp.prosthodontics",
+      "slug": "crown_preparation",
+      "icd_codes": [
+        "Z46.3"
+      ],
+      "names": {
+        "ru": "Подготовка под коронку",
+        "uz": "Koronka tayyorlash",
+        "en": "Crown preparation"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.034.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Препарирование, оттиск, временная коронка",
+            "uz": "Preparatsiya, otkis, vaqtinchalik koronka",
+            "en": "Prep, impression, temp crown"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.034.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Беречь временную коронку",
+            "uz": "Vaqtinchalik koronkani asrash",
+            "en": "Protect temporary crown"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.035",
+      "number": 35,
+      "group_id": "grp.prosthodontics",
+      "slug": "crown_cementation",
+      "icd_codes": [
+        "Z46.3"
+      ],
+      "names": {
+        "ru": "Фиксация коронки/моста",
+        "uz": "Koronka/most fiksatsiyasi",
+        "en": "Crown/bridge cementation"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.035.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Примерка, коррекция окклюзии",
+            "uz": "Proba, okklyuziya",
+            "en": "Try-in, occlusal adjustment"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.035.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Фиксация на постоянный цемент",
+            "uz": "Doimiy sement bilan fiksatsiya",
+            "en": "Definitive cementation"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.035.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Прогноз благоприятный при гигиене",
+            "uz": "Gigiyena bilan ijobiy prognoz",
+            "en": "Favorable prognosis with hygiene"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.036",
+      "number": 36,
+      "group_id": "grp.emergency",
+      "slug": "acute_dental_trauma",
+      "icd_codes": [
+        "S02.5"
+      ],
+      "names": {
+        "ru": "Острая травма зуба",
+        "uz": "O'tkir tish travmasi",
+        "en": "Acute dental trauma"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.036.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Боль после травмы",
+            "uz": "Travmadan keyin og'riq",
+            "en": "Pain after trauma"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 90,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.036.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Травма [X] часов назад",
+            "uz": "[X] soat oldin travma",
+            "en": "Trauma [X] hours ago"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.036.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Репозиция и шинирование [X] недель",
+            "uz": "[X] hafta shinlash",
+            "en": "Splint for [X] weeks"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.036.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Контроль",
+            "uz": "Nazorat",
+            "en": "Follow-up"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.037",
+      "number": 37,
+      "group_id": "grp.emergency",
+      "slug": "anaphylaxis",
+      "icd_codes": [
+        "T78.1"
+      ],
+      "names": {
+        "ru": "Аллергическая реакция на анестетик",
+        "uz": "Anestetik allergiyasi",
+        "en": "Anesthetic allergy / anaphylaxis"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.037.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Крапивница / отёк Квинке",
+            "uz": "Qichish / Quinke shishi",
+            "en": "Urticaria / angioedema"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 100,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.037.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Аллергия на [препарат] в анамнезе",
+            "uz": "Anamnezda [preparat] allergiyasi",
+            "en": "Allergy to [drug] in history"
+          },
+          "template": null,
+          "variables": [
+            "drug"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.037.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Прекращение введения препарата",
+            "uz": "Preparat kiritishni to'xtatish",
+            "en": "Stop drug administration"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 100,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.037.treatment_1.2",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Адреналин 0.1% 0.5 мл в/м, вызов скорой",
+            "uz": "Adrenalin 0.5 ml, tez yordam",
+            "en": "Adrenaline 0.5 ml IM, emergency call"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 100,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.037.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Госпитализация при анафилаксии",
+            "uz": "Anafilaksiyada statsionar",
+            "en": "Hospitalize if anaphylaxis"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.039",
+      "number": 39,
+      "group_id": "grp.emergency",
+      "slug": "odontogenic_abscess",
+      "icd_codes": [
+        "K04.7",
+        "K04.6"
+      ],
+      "names": {
+        "ru": "Одонтогенный абсцесс",
+        "uz": "Odontogen abssess",
+        "en": "Odontogenic abscess"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.039.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Пульсирующая боль",
+            "uz": "Pulsatsiyalovchi og'riq",
+            "en": "Throbbing pain"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 90,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.039.complaints.2",
+          "field": "complaints",
+          "labels": {
+            "ru": "Отёк мягких тканей",
+            "uz": "Yumshoq to'qima shishi",
+            "en": "Soft tissue swelling"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.039.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Начало [X] дней назад",
+            "uz": "[X] kun oldin boshlangan",
+            "en": "Started [X] days ago"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.039.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Флюктуация, гиперемия",
+            "uz": "Flyuktuatsiya, giperemiya",
+            "en": "Fluctuation, hyperemia"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.039.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Вскрытие и дренирование",
+            "uz": "Ochish va drenaj",
+            "en": "Incision and drainage"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.039.treatment_2.1",
+          "field": "treatment_2",
+          "labels": {
+            "ru": "Эндодонтия или удаление причинного зуба",
+            "uz": "Endodontiya yoki sababchi tishni olish",
+            "en": "Endodontics or extract causative tooth"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.039.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Антибиотик [____] [X] дней",
+            "uz": "Antibiotik [____] [X] kun",
+            "en": "Antibiotic [____] [X] days"
+          },
+          "template": null,
+          "variables": [
+            "antibiotic",
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {}
+    },
+    {
+      "disease_id": "dis.040",
+      "number": 40,
+      "group_id": "grp.pediatric",
+      "slug": "teething_syndrome",
+      "icd_codes": [
+        "K00.7"
+      ],
+      "names": {
+        "ru": "Синдром прорезывания зубов",
+        "uz": "Tish chiqishi sindromi",
+        "en": "Teething syndrome"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.040.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Капризность, плохой сон (родители)",
+            "uz": "Injiqlik, yomon uyqu (ota-ona)",
+            "en": "Irritability, poor sleep (parents)"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.040.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Возраст соответствует прорезыванию",
+            "uz": "Yosh tish chiqishiga mos",
+            "en": "Age consistent with eruption"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.040.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Гиперемия десны, бугорок зуба",
+            "uz": "Milk giperemiyasi, tish bo'rtig'i",
+            "en": "Gingival hyperemia, tooth bulge"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.040.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Симптоматическая помощь",
+            "uz": "Simptomatik yordam",
+            "en": "Symptomatic care"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {
+        "source": "file_2_added",
+        "note": "New #40 — pediatric block"
+      }
+    },
+    {
+      "disease_id": "dis.041",
+      "number": 41,
+      "group_id": "grp.pediatric",
+      "slug": "herpetic_stomatitis_child",
+      "icd_codes": [
+        "B00.2"
+      ],
+      "names": {
+        "ru": "Острый герпетический стоматит у детей",
+        "uz": "Bolalarda gerpetik stomatit",
+        "en": "Acute herpetic stomatitis (child)"
+      },
+      "field_map": {
+        "complaints": "complaints",
+        "morbi": "moreDetails",
+        "objective": "visualCheckup",
+        "oral_cavity": "oralCavityCondition",
+        "xray": "xrayLabData",
+        "treatment_1": "treatment",
+        "treatment_2": "treatmentResult",
+        "recommendations": "recommendations",
+        "diagnosis": "diagnosis"
+      },
+      "chips": [
+        {
+          "chip_id": "dis.041.complaints.1",
+          "field": "complaints",
+          "labels": {
+            "ru": "Отказ от еды, температура 38.5–39°C",
+            "uz": "Ovqatdan bosh tortish, 38.5-39°C",
+            "en": "Food refusal, fever 38.5–39°C"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.041.morbi.1",
+          "field": "morbi",
+          "labels": {
+            "ru": "Острое начало [X] дней назад",
+            "uz": "O'tkir boshlanish [X] kun oldin",
+            "en": "Acute onset [X] days ago"
+          },
+          "template": null,
+          "variables": [
+            "X"
+          ],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.041.objective.1",
+          "field": "objective",
+          "labels": {
+            "ru": "Множественные эрозии с ободком",
+            "uz": "Ko'p eroziyalar, qizil hoshiya",
+            "en": "Multiple erosions with red border"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.041.treatment_1.1",
+          "field": "treatment_1",
+          "labels": {
+            "ru": "Антисептики, обезболивание",
+            "uz": "Antiseptik, og'riq qoldirish",
+            "en": "Antiseptics, analgesia"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        },
+        {
+          "chip_id": "dis.041.recommendations.1",
+          "field": "recommendations",
+          "labels": {
+            "ru": "Обильное питьё, мягкая пища",
+            "uz": "Ko'p suyuqlik, yumshoq ovqat",
+            "en": "Hydration, soft diet"
+          },
+          "template": null,
+          "variables": [],
+          "priority": 50,
+          "source_doc": null
+        }
+      ],
+      "meta": {
+        "source": "file_2_added",
+        "note": "New #41 — pediatric block"
+      }
+    }
+  ],
+  "shared_libraries": {
+    "oral_mucosa_variants": [
+      {
+        "variant_id": "mucosa.A",
+        "labels": {
+          "ru": "Абсолютная норма",
+          "uz": "Mutloq me'yor",
+          "en": "Normal physiological status"
+        },
+        "field": "oral_cavity",
+        "priority": 10
+      },
+      {
+        "variant_id": "mucosa.B",
+        "labels": {
+          "ru": "При кариесе/пульпите (гиперемия сосочка)",
+          "uz": "Karies/pulpitda",
+          "en": "Caries/pulpitis papilla hyperemia"
+        },
+        "field": "oral_cavity",
+        "priority": 20,
+        "correlates": [
+          "grp.caries",
+          "grp.pulpitis"
+        ]
+      },
+      {
+        "variant_id": "mucosa.C",
+        "labels": {
+          "ru": "При периодонтите/абсцессе",
+          "uz": "Periodontit/abssessda",
+          "en": "Periodontitis/abscess inflammation"
+        },
+        "field": "oral_cavity",
+        "priority": 30,
+        "correlates": [
+          "grp.periodontitis",
+          "grp.surgery"
+        ]
+      },
+      {
+        "variant_id": "mucosa.D",
+        "labels": {
+          "ru": "При гингивите/пародонтите",
+          "uz": "Gingivit/parodontitda",
+          "en": "Gingivitis/periodontitis"
+        },
+        "field": "oral_cavity",
+        "priority": 40,
+        "correlates": [
+          "grp.periodontology"
+        ]
+      }
+    ],
+    "xray_templates": [
+      {
+        "template_id": "xray.caries",
+        "labels": {
+          "ru": "Очаг в эмали/дентине, ПЩ сохранена",
+          "uz": "Emal/dentinda o'choq",
+          "en": "Enamel/dentine radiolucency"
+        },
+        "field": "xray",
+        "correlates": [
+          "grp.caries"
+        ]
+      },
+      {
+        "template_id": "xray.pulpitis",
+        "labels": {
+          "ru": "Глубокая полость у пульповой камеры",
+          "uz": "Pulpa kamerasi yonida chuqur bo'shliq",
+          "en": "Deep cavity bordering pulp chamber"
+        },
+        "field": "xray",
+        "correlates": [
+          "grp.pulpitis"
+        ]
+      },
+      {
+        "template_id": "xray.perio_acute",
+        "labels": {
+          "ru": "Без значимых изменений / лёгкое расширение ПЩ",
+          "uz": "O'zgarish yo'q",
+          "en": "No significant changes"
+        },
+        "field": "xray",
+        "correlates": [
+          "grp.periodontitis"
+        ]
+      },
+      {
+        "template_id": "xray.perio_chronic_fibrous",
+        "labels": {
+          "ru": "Расширение ПЩ у верхушки",
+          "uz": "Ildiz uchida PY kengayishi",
+          "en": "Apical PDL widening"
+        },
+        "field": "xray",
+        "correlates": [
+          "dis.013"
+        ]
+      },
+      {
+        "template_id": "xray.perio_chronic_granulating",
+        "labels": {
+          "ru": "Очаг с нечёткими контурами",
+          "uz": "Noaniq konturli o'choq",
+          "en": "Ill-defined radiolucency"
+        },
+        "field": "xray",
+        "correlates": [
+          "dis.014"
+        ]
+      },
+      {
+        "template_id": "xray.perio_chronic_granulomatous",
+        "labels": {
+          "ru": "Округлый дефект [X] мм",
+          "uz": "Dumaloq nuqson [X] mm",
+          "en": "Round radiolucency [X] mm"
+        },
+        "variables": [
+          "X"
+        ],
+        "field": "xray",
+        "correlates": [
+          "dis.015"
+        ]
+      }
+    ],
+    "prescription_categories": [
+      {
+        "category_id": "rx.antibiotics",
+        "labels": {
+          "ru": "Антибиотики",
+          "uz": "Antibiotiklar",
+          "en": "Antibiotics"
+        },
+        "field": "recommendations"
+      },
+      {
+        "category_id": "rx.rinses",
+        "labels": {
+          "ru": "Полоскания / ванночки",
+          "uz": "Chayishlar / vannachalar",
+          "en": "Mouth rinses / baths"
+        },
+        "field": "recommendations"
+      },
+      {
+        "category_id": "rx.restrictions",
+        "labels": {
+          "ru": "Ограничения",
+          "uz": "Cheklovlar",
+          "en": "Restrictions"
+        },
+        "field": "recommendations"
+      }
+    ]
+  },
+  "reconciliation": {
+    "phase": "0",
+    "date": "2026-06-10",
+    "disease_count": 41,
+    "changes_applied": [
+      {
+        "id": "ICD-38",
+        "action": "fixed",
+        "from": "K05.2/K05.3",
+        "to": "K05.24",
+        "disease": "dis.038"
+      },
+      {
+        "id": "PULPITIS-MERGE",
+        "action": "merged",
+        "note": "6 subtypes: dis.006–dis.011 incl. hyperplastic"
+      },
+      {
+        "id": "PEDIATRIC-ADD",
+        "action": "added",
+        "diseases": [
+          "dis.040",
+          "dis.041"
+        ]
+      },
+      {
+        "id": "OCCLUSION-SPLIT",
+        "action": "moved",
+        "to": "occlusion_chip_library.json"
+      },
+      {
+        "id": "TERMINOLOGY-DISTAL",
+        "action": "fixed",
+        "note": "Distal=Class II; Mesial/Progenia=Class III"
+      }
+    ],
+    "pending_approval": [
+      {
+        "id": "EPT-VALUES",
+        "note": "Use qualitative EPT chips, not fixed μA in synthesis"
+      },
+      {
+        "id": "DRUG-DOSING",
+        "note": "Drug dose templates need clinician sign-off"
+      },
+      {
+        "id": "CITATION-ARTIFACTS",
+        "note": "Remove [4],[6],[7] from prescription block when seeding"
+      }
+    ]
+  },
+  "field_mapping": {
+    "complaints": {
+      "db": "complaints",
+      "pdf_uz": "SHIKOYATI"
+    },
+    "morbi": {
+      "db": "moreDetails",
+      "pdf_uz": "KASALLIK RIVOJLANISHI"
+    },
+    "objective": {
+      "db": "visualCheckup",
+      "pdf_uz": "OBYEKTIV TEKSHIRUV"
+    },
+    "occlusion": {
+      "db": "occlusion",
+      "pdf_uz": "TISH JIPSLANISHI",
+      "source": "occlusion_chip_library"
+    },
+    "oral_cavity": {
+      "db": "oralCavityCondition",
+      "pdf_uz": "OG'IZ BO'SHLIG'I HOLATI"
+    },
+    "xray": {
+      "db": "xrayLabData",
+      "pdf_uz": "RENTGEN VA LABORATOR"
+    },
+    "treatment_1": {
+      "db": "treatment",
+      "pdf_uz": "DAVOLANISH"
+    },
+    "treatment_2": {
+      "db": "treatmentResult",
+      "pdf_uz": "DAVOLANISH NATIJASI"
+    },
+    "recommendations": {
+      "db": "recommendations",
+      "pdf_uz": "KO'RSATMALAR"
+    },
+    "diagnosis": {
+      "db": "diagnosisCode/display/system",
+      "pdf_uz": "TASHXIS"
+    }
+  },
+  "stats": {
+    "disease_count": 41,
+    "group_count": 10,
+    "chip_count": 220,
+    "occlusion_chip_count": 7
+  }
+}

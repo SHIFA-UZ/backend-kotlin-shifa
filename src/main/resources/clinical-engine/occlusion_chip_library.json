@@ -1,0 +1,97 @@
+{
+  "library_id": "occlusion_chip_library",
+  "version": "phase0.1",
+  "target_field": "occlusion",
+  "note": "Occlusion is NOT a diagnosis. Chips populate form field occlusion only.",
+  "reconciliation": {
+    "terminology_fixes": [
+      {
+        "issue": "Distal occlusion mislabeled as Prognathism in source file 1",
+        "fixed_in": "occ.distal / occ.mesial"
+      }
+    ]
+  },
+  "chips": [
+    {
+      "chip_id": "occ.norm",
+      "angle_class": "I",
+      "icd_hint": "K07.2",
+      "labels": {
+        "ru": "Ортогнатический прикус (норма)",
+        "uz": "Ortognatik tishlam (me'yor)",
+        "en": "Orthognathic occlusion (normal)"
+      },
+      "priority": 10
+    },
+    {
+      "chip_id": "occ.edge",
+      "angle_class": null,
+      "icd_hint": "K07.2",
+      "labels": {
+        "ru": "Прямой прикус (край в край)",
+        "uz": "To'g'ri tishlam",
+        "en": "Edge-to-edge occlusion"
+      },
+      "priority": 20
+    },
+    {
+      "chip_id": "occ.distal",
+      "angle_class": "II",
+      "icd_hint": "K07.20",
+      "labels": {
+        "ru": "Дистальный прикус (Class II)",
+        "uz": "Distal tishlam (II sinf)",
+        "en": "Distal occlusion (Class II)"
+      },
+      "priority": 30,
+      "note": "Fixed: was mislabeled Prognathism in source"
+    },
+    {
+      "chip_id": "occ.mesial",
+      "angle_class": "III",
+      "icd_hint": "K07.21",
+      "labels": {
+        "ru": "Мезиальный прикус / прогения (Class III)",
+        "uz": "Mezial tishlam / progeniya (III sinf)",
+        "en": "Mesial occlusion / prognathism (Class III)"
+      },
+      "priority": 40
+    },
+    {
+      "chip_id": "occ.deep",
+      "angle_class": null,
+      "icd_hint": "K07.22",
+      "labels": {
+        "ru": "Глубокий прикус",
+        "uz": "Chuqur tishlam",
+        "en": "Deep bite / excessive overbite"
+      },
+      "priority": 50
+    },
+    {
+      "chip_id": "occ.open",
+      "angle_class": null,
+      "icd_hint": "K07.23",
+      "labels": {
+        "ru": "Открытый прикус",
+        "uz": "Ochiq tishlam",
+        "en": "Open bite"
+      },
+      "priority": 60
+    },
+    {
+      "chip_id": "occ.overjet",
+      "angle_class": null,
+      "icd_hint": "K07.2",
+      "labels": {
+        "ru": "Сагиттальная щель [X] мм",
+        "uz": "Sagittal tirqish [X] mm",
+        "en": "Overjet [X] mm"
+      },
+      "variables": [
+        "X"
+      ],
+      "priority": 70
+    }
+  ]
+}

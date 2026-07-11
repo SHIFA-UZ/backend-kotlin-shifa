@@ -1,0 +1,161 @@
+{
+  "oral_mucosa_variants": [
+    {
+      "variant_id": "mucosa.A",
+      "labels": {
+        "ru": "Абсолютная норма",
+        "uz": "Mutloq me'yor",
+        "en": "Normal physiological status"
+      },
+      "field": "oral_cavity",
+      "priority": 10
+    },
+    {
+      "variant_id": "mucosa.B",
+      "labels": {
+        "ru": "При кариесе/пульпите (гиперемия сосочка)",
+        "uz": "Karies/pulpitda",
+        "en": "Caries/pulpitis papilla hyperemia"
+      },
+      "field": "oral_cavity",
+      "priority": 20,
+      "correlates": [
+        "grp.caries",
+        "grp.pulpitis"
+      ]
+    },
+    {
+      "variant_id": "mucosa.C",
+      "labels": {
+        "ru": "При периодонтите/абсцессе",
+        "uz": "Periodontit/abssessda",
+        "en": "Periodontitis/abscess inflammation"
+      },
+      "field": "oral_cavity",
+      "priority": 30,
+      "correlates": [
+        "grp.periodontitis",
+        "grp.surgery"
+      ]
+    },
+    {
+      "variant_id": "mucosa.D",
+      "labels": {
+        "ru": "При гингивите/пародонтите",
+        "uz": "Gingivit/parodontitda",
+        "en": "Gingivitis/periodontitis"
+      },
+      "field": "oral_cavity",
+      "priority": 40,
+      "correlates": [
+        "grp.periodontology"
+      ]
+    }
+  ],
+  "xray_templates": [
+    {
+      "template_id": "xray.caries",
+      "labels": {
+        "ru": "Очаг в эмали/дентине, ПЩ сохранена",
+        "uz": "Emal/dentinda o'choq",
+        "en": "Enamel/dentine radiolucency"
+      },
+      "field": "xray",
+      "correlates": [
+        "grp.caries"
+      ]
+    },
+    {
+      "template_id": "xray.pulpitis",
+      "labels": {
+        "ru": "Глубокая полость у пульповой камеры",
+        "uz": "Pulpa kamerasi yonida chuqur bo'shliq",
+        "en": "Deep cavity bordering pulp chamber"
+      },
+      "field": "xray",
+      "correlates": [
+        "grp.pulpitis"
+      ]
+    },
+    {
+      "template_id": "xray.perio_acute",
+      "labels": {
+        "ru": "Без значимых изменений / лёгкое расширение ПЩ",
+        "uz": "O'zgarish yo'q",
+        "en": "No significant changes"
+      },
+      "field": "xray",
+      "correlates": [
+        "grp.periodontitis"
+      ]
+    },
+    {
+      "template_id": "xray.perio_chronic_fibrous",
+      "labels": {
+        "ru": "Расширение ПЩ у верхушки",
+        "uz": "Ildiz uchida PY kengayishi",
+        "en": "Apical PDL widening"
+      },
+      "field": "xray",
+      "correlates": [
+        "dis.013"
+      ]
+    },
+    {
+      "template_id": "xray.perio_chronic_granulating",
+      "labels": {
+        "ru": "Очаг с нечёткими контурами",
+        "uz": "Noaniq konturli o'choq",
+        "en": "Ill-defined radiolucency"
+      },
+      "field": "xray",
+      "correlates": [
+        "dis.014"
+      ]
+    },
+    {
+      "template_id": "xray.perio_chronic_granulomatous",
+      "labels": {
+        "ru": "Округлый дефект [X] мм",
+        "uz": "Dumaloq nuqson [X] mm",
+        "en": "Round radiolucency [X] mm"
+      },
+      "variables": [
+        "X"
+      ],
+      "field": "xray",
+      "correlates": [
+        "dis.015"
+      ]
+    }
+  ],
+  "prescription_categories": [
+    {
+      "category_id": "rx.antibiotics",
+      "labels": {
+        "ru": "Антибиотики",
+        "uz": "Antibiotiklar",
+        "en": "Antibiotics"
+      },
+      "field": "recommendations"
+    },
+    {
+      "category_id": "rx.rinses",
+      "labels": {
+        "ru": "Полоскания / ванночки",
+        "uz": "Chayishlar / vannachalar",
+        "en": "Mouth rinses / baths"
+      },
+      "field": "recommendations"
+    },
+    {
+      "category_id": "rx.restrictions",
+      "labels": {
+        "ru": "Ограничения",
+        "uz": "Cheklovlar",
+        "en": "Restrictions"
+      },
+      "field": "recommendations"
+    }
+  ]
+}

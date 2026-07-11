@@ -111,6 +111,15 @@ open class PatientForm(
     @JoinColumn(name = "created_by_doctor_id")
     open var createdByDoctor: DoctorProfile? = null,
 
+    /** Clinical Engine scenario id (hidden analytics field). */
+    @Column(name = "clinical_disease_id", length = 32)
+    open var clinicalDiseaseId: String? = null,
+
+    /** Clinical Engine chip selections for edit restore (hidden). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "clinical_chip_selections", columnDefinition = "jsonb", nullable = false)
+    open var clinicalChipSelections: List<Map<String, Any>> = emptyList(),
+
     @Column(name = "signature_requested", nullable = false)
     open var signatureRequested: Boolean = false,
 
@@ -157,6 +166,8 @@ open class PatientForm(
         followups = emptyList(),
         document = null,
         createdByDoctor = null,
+        clinicalDiseaseId = null,
+        clinicalChipSelections = emptyList(),
         signatureRequested = false,
         patientSignatureImage = null,
         patientSignedAt = null,

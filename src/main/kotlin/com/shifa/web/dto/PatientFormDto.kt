@@ -1,5 +1,6 @@
 package com.shifa.web.dto
 
+import com.shifa.clinicalengine.web.dto.ClinicalChipSelectionDto
 import java.time.LocalDate
 
 data class PatientFormFollowupDto(
@@ -48,4 +49,8 @@ data class PatientFormDto(
     val patientSignatureImageBase64: String? = null,
     /** Doctor who created this form (owner); server-managed for RAG on 025-2. */
     val createdByDoctorId: Long? = null,
-)
+    /** Clinical Engine scenario id (hidden). */
+    val clinicalDiseaseId: String? = null,
+    /** Clinical Engine chip selections for restore on edit (hidden). */
+    val clinicalChipSelections: List<ClinicalChipSelectionDto> = emptyList(),
+) 

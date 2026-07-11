@@ -8,6 +8,9 @@ import com.shifa.repo.NotificationRepository
 import com.shifa.repo.PatientDocumentRepository
 import com.shifa.repo.PatientFormRepository
 import com.shifa.repo.PatientProfileRepository
+import com.shifa.clinicalengine.service.ClinicalSmartPriorityService
+import com.shifa.clinicalengine.service.DentalChartKeyValidator
+import com.shifa.clinicalengine.web.dto.ClinicalChipSelectionDto
 import com.shifa.web.dto.PatientFormDto
 import com.shifa.web.dto.PatientFormFollowupDto
 import org.springframework.stereotype.Service
@@ -22,6 +25,8 @@ class PatientFormService(
     private val notifications: NotificationRepository,
     private val fcmService: FcmService,
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
+    private val smartPriorityService: ClinicalSmartPriorityService,
+    private val dentalChartKeyValidator: DentalChartKeyValidator,
 ) {
 
     fun list(patientId: Long): List<PatientFormDto> {
@@ -76,13 +81,16 @@ class PatientFormService(
             doctorClinic = doctorClinic,
             formNumber = nextNumber,
 
-            dentalChart = request.dentalChart,
+            dentalChart = dentalChartKeyValidator.sanitizeDentalChart(request.dentalChart),
             followups = normalizeFollowups(request.followups, doctorName),
             document = null,
             createdByDoctor = creatingDoctor,
+            clinicalDiseaseId = request.clinicalDiseaseId,
+            clinicalChipSelections = toChipSelectionMaps(request.clinicalChipSelections),
         )
 
         val saved = forms.save(form)
+        recordClinicalUsage(saved, creatingDoctor)
         saved.id?.let { clinicalRagIndexingService.reindexPatientForm(it) }
         return toDto(saved)
     }
@@ -176,7 +184,8 @@ class PatientFormService(
         formId: Long,
         request: PatientFormDto,
         doctorName: String,
-        doctorClinic: String?
+        doctorClinic: String?,
+        updatingDoctor: DoctorProfile? = null,
     ): PatientFormDto {
         val form = forms.findById(formId)
             .orElseThrow { IllegalArgumentException("Form not found: $formId") }
@@ -207,10 +216,16 @@ class PatientFormService(
         form.doctorClinic = doctorClinic
         // formNumber stays stable for edits
 
-        form.dentalChart = request.dentalChart
+        form.dentalChart = dentalChartKeyValidator.sanitizeDentalChart(request.dentalChart)
         form.followups = normalizeFollowups(request.followups, doctorName)
+        form.clinicalDiseaseId = request.clinicalDiseaseId
+        form.clinicalChipSelections = toChipSelectionMaps(request.clinicalChipSelections)
 
         val saved = forms.save(form)
+        val doctorForUsage = updatingDoctor ?: saved.createdByDoctor
+        if (doctorForUsage != null) {
+            recordClinicalUsage(saved, doctorForUsage)
+        }
         saved.id?.let { clinicalRagIndexingService.reindexPatientForm(it) }
         return toDto(saved)
     }
@@ -301,6 +316,33 @@ class PatientFormService(
             patientSignedAt = form.patientSignedAt?.toString(),
             patientSignatureImageBase64 = form.patientSignatureImage,
             createdByDoctorId = form.createdByDoctor?.id,
+            clinicalDiseaseId = form.clinicalDiseaseId,
+            clinicalChipSelections = fromChipSelectionMaps(form.clinicalChipSelections),
         )
+    }
+
+    private fun toChipSelectionMaps(selections: List<ClinicalChipSelectionDto>): List<Map<String, Any>> =
+        selections.map { sel ->
+            mapOf(
+                "chipId" to sel.chipId,
+                "variables" to sel.variables,
+            )
+        }
+
+    private fun fromChipSelectionMaps(raw: List<Map<String, Any>>?): List<ClinicalChipSelectionDto> =
+        (raw ?: emptyList()).mapNotNull { m ->
+            val chipId = m["chipId"]?.toString() ?: return@mapNotNull null
+            @Suppress("UNCHECKED_CAST")
+            val vars = (m["variables"] as? Map<*, *>)?.mapNotNull { (k, v) ->
+                if (k == null || v == null) null else k.toString() to v.toString()
+            }?.toMap() ?: emptyMap()
+            ClinicalChipSelectionDto(chipId = chipId, variables = vars)
+        }
+
+    private fun recordClinicalUsage(form: PatientForm, doctor: DoctorProfile) {
+        if (form.templateId != "025-2") return
+        val diseaseId = form.clinicalDiseaseId ?: return
+        val doctorId = doctor.id ?: return
+        smartPriorityService.recordUsage(doctorId, diseaseId)
     }
 }

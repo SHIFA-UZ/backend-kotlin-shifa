@@ -5,14 +5,14 @@ package com.shifa.clinical
  * mirroring the doctor app's [DentalChartCodec] / PDF layout so phrases like "tooth 22" align with stored cells.
  *
  * Supports:
- * - FDI keys ("11"…"48")
+ * - FDI keys ("11"…"48" permanent; "51"…"85" primary)
  * - Legacy per-tooth keys ("UR1"…"LL8")
  * - UI grid keys (`TOP_row_cell`, `BOTTOM_row_cell`) and history rows (`TOP_HIST_*`)
  */
 object DentalChartExpansion {
 
     private val legacyToothKey = Regex("^(UR|UL|LR|LL)([1-8])$")
-    private val fdiKeyPattern = Regex("^[1-4][1-8]$")
+    private val fdiKeyPattern = Regex("^[1-8][1-8]$")
     private val editableRowKey = Regex("^(TOP|BOTTOM)_(\\d+)_(\\d+)$")
     private val histCellKey = Regex("^(TOP|BOTTOM)_HIST_(\\d+)_(\\d+)$")
     private val histMetaKey = Regex("^(TOP|BOTTOM)_HIST_(\\d+)_(date|doctor)$")
