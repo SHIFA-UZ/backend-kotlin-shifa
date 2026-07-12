@@ -83,7 +83,7 @@ app:
   jwt:
     issuer: ${JWT_ISSUER:shifa}
     secret: ${JWT_SECRET}
-    accessTokenMinutesDoctor: ${JWT_ACCESS_TOKEN_MINUTES_DOCTOR:720}
+    accessTokenMinutesDoctor: ${JWT_ACCESS_TOKEN_MINUTES_DOCTOR:43200}
     accessTokenMinutesPatient: ${JWT_ACCESS_TOKEN_MINUTES_PATIENT:525600}
   publicBaseUrl: ${APP_PUBLICBASEURL}
   frontendUrl: ${APP_FRONTENDURL:}

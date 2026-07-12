@@ -98,7 +98,7 @@ app:
     issuer: "shifa"
     # Development secret - MUST be changed in production!
     secret: "a_really_long_random_64+_char_secret_development_only"
-    accessTokenMinutesDoctor: 720   # 12 hours for doctor app
+    accessTokenMinutesDoctor: 43200   # 30 days for doctor app (login once per month)
     accessTokenMinutesPatient: 525600  # 365 days for patient app
   # In development: Use separate nginx on 8090 or serve from Spring Boot on 8080
   # For Railway: Set PUBLIC_BASE_URL to your Railway app URL (same as API)

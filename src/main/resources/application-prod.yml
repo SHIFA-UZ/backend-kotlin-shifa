@@ -118,8 +118,8 @@ app:
     # CRITICAL: Use a strong random secret in production!
     # Generate with: openssl rand -base64 64
     secret: ${JWT_SECRET}
-    # Doctor app: 12 hours (720 min). Patient app: 365 days (525600 min).
-    accessTokenMinutesDoctor: ${JWT_ACCESS_TOKEN_MINUTES_DOCTOR:720}
+    # Doctor app: 30 days (43200 min). Patient app: 365 days (525600 min).
+    accessTokenMinutesDoctor: ${JWT_ACCESS_TOKEN_MINUTES_DOCTOR:43200}
     accessTokenMinutesPatient: ${JWT_ACCESS_TOKEN_MINUTES_PATIENT:525600}
   
   # Public base URL for CORS and file serving
