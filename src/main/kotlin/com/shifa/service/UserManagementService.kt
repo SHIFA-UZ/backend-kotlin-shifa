@@ -11,6 +11,7 @@ import com.shifa.repo.PatientProfileRepository
 import com.shifa.repo.UserRepository
 import com.shifa.repo.UserRoleRepository
 import com.shifa.repo.UserSessionRepository
+import com.shifa.security.UserSessionValidationCache
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -29,7 +30,8 @@ class UserManagementService(
     private val patientProfileRepository: PatientProfileRepository,
     private val userRoleRepository: UserRoleRepository,
     private val userSessionRepository: UserSessionRepository,
-    private val passwordEncoder: PasswordEncoder
+    private val passwordEncoder: PasswordEncoder,
+    private val sessionValidationCache: UserSessionValidationCache,
 ) {
     
     /**
@@ -263,9 +265,12 @@ class UserManagementService(
      */
     @Transactional
     fun forceLogout(userId: Long, revokedBy: User? = null) {
-        val user = getUserById(userId)
+        getUserById(userId)
         val now = OffsetDateTime.now()
+        val jtis = userSessionRepository.findActiveSessionsByUserId(userId, now)
+            .mapNotNull { it.tokenJti }
         userSessionRepository.revokeAllUserSessions(userId, now)
+        sessionValidationCache.invalidateAll(jtis)
     }
     
     /**

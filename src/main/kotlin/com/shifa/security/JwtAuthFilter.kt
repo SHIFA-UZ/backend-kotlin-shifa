@@ -18,7 +18,8 @@ class JwtAuthFilter(
     private val userDetailsService: UserDetailsService,
     private val principalResolver: PrincipalResolverService,
     private val jwt: JwtService,
-    private val userSessionRepository: UserSessionRepository
+    private val userSessionRepository: UserSessionRepository,
+    private val sessionValidationCache: UserSessionValidationCache,
 ) : OncePerRequestFilter() {
 
     private val log = LoggerFactory.getLogger(JwtAuthFilter::class.java)
@@ -72,14 +73,28 @@ class JwtAuthFilter(
                     response.writer.write("""{"error":"Session invalid"}""")
                     return
                 }
-                val session = userSessionRepository.findByTokenJti(jti).orElse(null)
-                if (session == null || session.revoked || session.expiresAt.isBefore(OffsetDateTime.now())) {
-                    log.warn("JWT rejected: session revoked or expired for jti={}", jti.take(8))
-                    response.status = HttpServletResponse.SC_UNAUTHORIZED
-                    response.contentType = "application/json"
-                    response.characterEncoding = "UTF-8"
-                    response.writer.write("""{"error":"Session expired or signed out"}""")
-                    return
+                val now = OffsetDateTime.now()
+                val cached = sessionValidationCache.get(jti)
+                if (cached != null) {
+                    if (!sessionValidationCache.isCurrentlyValid(cached, now)) {
+                        log.warn("JWT rejected: session revoked or expired for jti={}", jti.take(8))
+                        response.status = HttpServletResponse.SC_UNAUTHORIZED
+                        response.contentType = "application/json"
+                        response.characterEncoding = "UTF-8"
+                        response.writer.write("""{"error":"Session expired or signed out"}""")
+                        return
+                    }
+                } else {
+                    val session = userSessionRepository.findByTokenJti(jti).orElse(null)
+                    if (session == null || session.revoked || session.expiresAt.isBefore(now)) {
+                        log.warn("JWT rejected: session revoked or expired for jti={}", jti.take(8))
+                        response.status = HttpServletResponse.SC_UNAUTHORIZED
+                        response.contentType = "application/json"
+                        response.characterEncoding = "UTF-8"
+                        response.writer.write("""{"error":"Session expired or signed out"}""")
+                        return
+                    }
+                    sessionValidationCache.putValid(jti, session.expiresAt)
                 }
 
                 // Use token's role claim for multi-role: doctor with PATIENT token gets PatientPrincipal
