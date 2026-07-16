@@ -22,10 +22,21 @@ class ClinicalRagJdbcRepository(
         sourceRecordId: Long,
         chunks: List<Pair<String, FloatArray>>,
     ) {
-        deleteBySource(patientId, sourceType, sourceRecordId)
-        if (chunks.isNotEmpty()) {
-            insertChunks(patientId, sourceType, sourceRecordId, chunks)
+        if (chunks.isEmpty()) {
+            deleteBySource(patientId, sourceType, sourceRecordId)
+            return
         }
+        upsertChunks(patientId, sourceType, sourceRecordId, chunks)
+        jdbcTemplate.update(
+            """
+            DELETE FROM clinical_rag_chunks
+            WHERE patient_id = ? AND source_type = ? AND source_record_id = ? AND chunk_index >= ?
+            """.trimIndent(),
+            patientId,
+            sourceType,
+            sourceRecordId,
+            chunks.size,
+        )
     }
 
     fun deleteBySource(patientId: Long, sourceType: String, sourceRecordId: Long) {
@@ -40,7 +51,7 @@ class ClinicalRagJdbcRepository(
         )
     }
 
-    fun insertChunks(
+    fun upsertChunks(
         patientId: Long,
         sourceType: String,
         sourceRecordId: Long,
@@ -50,6 +61,10 @@ class ClinicalRagJdbcRepository(
         val sql = """
             INSERT INTO clinical_rag_chunks (patient_id, source_type, source_record_id, chunk_index, content_text, embedding)
             VALUES (?, ?, ?, ?, ?, ?::vector)
+            ON CONFLICT (patient_id, source_type, source_record_id, chunk_index)
+            DO UPDATE SET
+                content_text = EXCLUDED.content_text,
+                embedding = EXCLUDED.embedding
         """.trimIndent()
         jdbcTemplate.batchUpdate(sql, object : BatchPreparedStatementSetter {
             override fun setValues(ps: PreparedStatement, i: Int) {

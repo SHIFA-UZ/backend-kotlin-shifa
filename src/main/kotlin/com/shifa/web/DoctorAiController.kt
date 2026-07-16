@@ -49,15 +49,14 @@ class DoctorAiController(
 
         val emitter = SseEmitter(0L) // no timeout
 
-        val patientCtx = request.patientId?.let { patientId ->
-            // Build rich, doctor-scoped patient context: demographics, accessible documents,
-            // and recent appointments for this doctor with this patient.
-            patientAiContextBuilder.build(patientId, principal.profile.id)
-        }
-
         Thread {
             try {
+                val patientCtx = request.patientId?.let { patientId ->
+                    patientAiContextBuilder.build(patientId, principal.profile.id)
+                }
+
                 val fullText = StringBuilder()
+                var clientConnected = true
                 val conversation = try {
                     request.resolvedMessages()
                 } catch (ex: IllegalArgumentException) {
@@ -70,10 +69,13 @@ class DoctorAiController(
                         messages = conversation,
                         language = request.language
                     ).collect { token ->
+                        if (!clientConnected) return@collect
                         fullText.append(token)
-                        emitter.send(token)
+                        clientConnected = SseIoSupport.sendText(emitter, token)
                     }
                 }
+
+                if (!clientConnected) return@Thread
 
                 val draft = aiDraftNoteService.createDraft(
                     doctorId = principal.profile.id,
@@ -88,8 +90,10 @@ class DoctorAiController(
                         "canSave" to true
                     )
                 )
-                emitter.send(SseEmitter.event().name("draft").data(draftPayload))
-                emitter.complete()
+                if (!SseIoSupport.sendEvent(emitter, SseEmitter.event().name("draft").data(draftPayload))) {
+                    return@Thread
+                }
+                SseIoSupport.completeQuietly(emitter)
             } catch (ex: AiStreamException) {
                 try {
                     val payload = objectMapper.writeValueAsString(
@@ -98,11 +102,11 @@ class DoctorAiController(
                             "message" to ex.message
                         )
                     )
-                    emitter.send(SseEmitter.event().name("error").data(payload))
+                    SseIoSupport.sendEvent(emitter, SseEmitter.event().name("error").data(payload))
                 } catch (_: Exception) { }
-                emitter.complete()
+                SseIoSupport.completeQuietly(emitter)
             } catch (ex: Exception) {
-                emitter.completeWithError(ex)
+                SseIoSupport.finish(emitter, ex)
             }
         }.start()
 

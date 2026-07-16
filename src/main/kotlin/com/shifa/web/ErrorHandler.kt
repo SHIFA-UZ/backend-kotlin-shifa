@@ -1,5 +1,6 @@
 package com.shifa.web
 
+import org.apache.catalina.connector.ClientAbortException
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.dao.DataIntegrityViolationException
@@ -9,6 +10,7 @@ import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
+import org.springframework.web.context.request.async.AsyncRequestNotUsableException
 import org.springframework.web.server.ResponseStatusException
 
 @ControllerAdvice
@@ -94,8 +96,25 @@ class ErrorHandler(
             ))
     }
 
+    /** Client closed SSE/HTTP before the response finished — not a server fault. */
+    @ExceptionHandler(
+        AsyncRequestNotUsableException::class,
+        ClientAbortException::class,
+    )
+    fun handleClientAbort(e: Exception): ResponseEntity<Void>? {
+        if (SseIoSupport.isClientAbort(e)) {
+            log.debug("Client disconnected before response completed: {}", e.message)
+            return null
+        }
+        throw e
+    }
+
     @ExceptionHandler(Exception::class)
-    fun handleException(e: Exception): ResponseEntity<Map<String, Any>> {
+    fun handleException(e: Exception): ResponseEntity<Map<String, Any>>? {
+        if (SseIoSupport.isClientAbort(e)) {
+            log.debug("Client disconnected: {}", e.message)
+            return null
+        }
         // SECURITY: In production we still do NOT leak the exception message
         // (it may contain SQL fragments, file paths, PII, etc.), but the
         // exception class name alone is safe and dramatically improves

@@ -152,6 +152,7 @@ class PatientCopilotController(
 
         Thread {
             try {
+                var clientConnected = true
                 val conversation = try {
                     request.resolvedMessages()
                 } catch (ex: IllegalArgumentException) {
@@ -179,10 +180,13 @@ class PatientCopilotController(
                         language = request.language,
                         extraContext = extraContext
                     ).collect { token ->
-                        emitter.send(token)
+                        if (!clientConnected) return@collect
+                        clientConnected = SseIoSupport.sendText(emitter, token)
                     }
                 }
-                emitter.complete()
+                if (clientConnected) {
+                    SseIoSupport.completeQuietly(emitter)
+                }
             } catch (ex: AiStreamException) {
                 try {
                     val payload = objectMapper.writeValueAsString(
@@ -191,12 +195,12 @@ class PatientCopilotController(
                             "message" to ex.message
                         )
                     )
-                    emitter.send(SseEmitter.event().name("error").data(payload))
+                    SseIoSupport.sendEvent(emitter, SseEmitter.event().name("error").data(payload))
                 } catch (_: Exception) {
                 }
-                emitter.complete()
+                SseIoSupport.completeQuietly(emitter)
             } catch (ex: Exception) {
-                emitter.completeWithError(ex)
+                SseIoSupport.finish(emitter, ex)
             }
         }.start()
 
