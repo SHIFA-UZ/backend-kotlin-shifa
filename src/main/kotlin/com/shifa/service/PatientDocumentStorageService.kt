@@ -10,7 +10,6 @@ import org.springframework.web.multipart.MultipartFile
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
-import java.nio.file.StandardCopyOption
 import java.util.Locale
 
 @Service
@@ -25,14 +24,15 @@ class PatientDocumentStorageService(private val app: AppProperties) {
         val originalName = file.originalFilename ?: "document"
         val extension = resolveExtension(file)
         val safeBase = sanitizeBaseName(preferredBaseName ?: originalName)
-        val fileName = "$safeBase.$extension"
+        // Unique suffix avoids overwriting another upload with the same display name.
+        val fileName = "$safeBase-${System.currentTimeMillis()}.$extension"
 
         val base = Path.of(app.storageRoot)
         val dir = base.resolve("patientdocuments").resolve(patientId.toString())
         Files.createDirectories(dir)
 
         val target = dir.resolve(fileName)
-        file.inputStream.use { input -> Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING) }
+        file.inputStream.use { input -> Files.copy(input, target) }
 
         val rel = "patientdocuments/$patientId/$fileName"
         val url = "${app.publicBaseUrl.removeSuffix("/")}/$rel"

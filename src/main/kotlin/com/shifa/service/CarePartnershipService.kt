@@ -40,6 +40,8 @@ data class CarePartnershipDto(
     val originatingAppointmentId: Long?,
     val createdAt: String,
     val updatedAt: String,
+    /** INITIATOR | PARTNER — role of the requesting doctor for this partnership. */
+    val viewerRole: String? = null,
 )
 
 data class CarePartnershipProgressDto(
@@ -148,7 +150,7 @@ class CarePartnershipService(
             message = "${doctorName(initiator)} invited you to co-treat ${patient.fullName ?: "a patient"}.",
             type = Notification.Type.CARE_PARTNERSHIP_INVITE,
         )
-        return toDto(saved)
+        return toDto(saved, initiatingDoctorId)
     }
 
     @Transactional
@@ -169,7 +171,7 @@ class CarePartnershipService(
             message = "${doctorName(row.partnerDoctor)} accepted your therapy partnership.",
             type = Notification.Type.CARE_PARTNERSHIP_ACCEPTED,
         )
-        return toDto(saved)
+        return toDto(saved, actorDoctorId)
     }
 
     @Transactional
@@ -183,7 +185,7 @@ class CarePartnershipService(
         }
         row.status = CarePartnership.Status.DECLINED
         row.updatedAt = Instant.now()
-        return toDto(partnerships.save(row))
+        return toDto(partnerships.save(row), actorDoctorId)
     }
 
     @Transactional
@@ -195,7 +197,7 @@ class CarePartnershipService(
         }
         row.status = CarePartnership.Status.COMPLETED
         row.updatedAt = Instant.now()
-        return toDto(partnerships.save(row))
+        return toDto(partnerships.save(row), actorDoctorId)
     }
 
     @Transactional
@@ -209,18 +211,18 @@ class CarePartnershipService(
         }
         row.status = CarePartnership.Status.CANCELLED
         row.updatedAt = Instant.now()
-        return toDto(partnerships.save(row))
+        return toDto(partnerships.save(row), actorDoctorId)
     }
 
     @Transactional(readOnly = true)
     fun listMine(doctorId: Long): List<CarePartnershipDto> =
-        partnerships.findForDoctor(doctorId).map { toDto(it) }
+        partnerships.findForDoctor(doctorId).map { toDto(it, doctorId) }
 
     @Transactional(readOnly = true)
     fun get(partnershipId: Long, actorDoctorId: Long): CarePartnershipDto {
         val row = getOrThrow(partnershipId)
         assertParticipant(row, actorDoctorId)
-        return toDto(row)
+        return toDto(row, actorDoctorId)
     }
 
     @Transactional
@@ -285,8 +287,13 @@ class CarePartnershipService(
         }
     }
 
-    private fun toDto(row: CarePartnership): CarePartnershipDto =
-        CarePartnershipDto(
+    private fun toDto(row: CarePartnership, viewerDoctorId: Long? = null): CarePartnershipDto {
+        val viewerRole = when (viewerDoctorId) {
+            row.initiatingDoctor.id -> "INITIATOR"
+            row.partnerDoctor.id -> "PARTNER"
+            else -> null
+        }
+        return CarePartnershipDto(
             id = row.id,
             status = row.status.name,
             patientId = row.patient.id!!,
@@ -300,7 +307,9 @@ class CarePartnershipService(
             originatingAppointmentId = row.originatingAppointment?.id,
             createdAt = row.createdAt.toString(),
             updatedAt = row.updatedAt.toString(),
+            viewerRole = viewerRole,
         )
+    }
 
     private fun doctorName(d: com.shifa.domain.DoctorProfile): String =
         "${d.firstName} ${d.lastName}".trim()

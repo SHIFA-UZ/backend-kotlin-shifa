@@ -80,6 +80,7 @@ class DoctorController(
     // -------------------- DTOs --------------------
 
     data class ProfileDto(
+        val id: Long? = null,
         val firstName: String?,
         val lastName: String?,
         val dob: String?,
@@ -184,6 +185,7 @@ class DoctorController(
 
         return mapOf(
             "profile" to ProfileDto(
+                id = d.id,
                 firstName = d.firstName,
                 lastName = d.lastName,
                 dob = d.dob?.toString(),
@@ -298,6 +300,7 @@ class DoctorController(
         val updated = doctors.findById(d.id!!).orElse(d)
 
         return ProfileDto(
+            id = updated.id,
             firstName = updated.firstName,
             lastName = updated.lastName,
             dob = updated.dob?.toString(),
@@ -324,7 +327,8 @@ class DoctorController(
             locationStreetAddress = updated.locationStreetAddress,
             timeZone = updated.timeZone,
             consultationPriceMinor = updated.consultationPriceMinor,
-            consultationCurrency = updated.consultationCurrency
+            consultationCurrency = updated.consultationCurrency,
+            smsRemindersAllowed = updated.smsRemindersAllowed,
         )
     }
 

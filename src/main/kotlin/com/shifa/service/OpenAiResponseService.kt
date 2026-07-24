@@ -1087,7 +1087,7 @@ RULES:
                 "temperature" to 0.3,
                 "messages" to listOf(
                     mapOf("role" to "system", "content" to systemPrompt),
-                    mapOf("role" to "user", "content" to "Appointment history and document content:\n\n$documentContext")
+                    mapOf("role" to "user", "content" to "Appointment history and document content:\n\n${documentContext.take(12_000)}")
                 )
             )
         )

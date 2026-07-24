@@ -23,6 +23,9 @@ import com.shifa.service.PatientProfileMapper
 import com.shifa.web.dto.PatientDocumentDto
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
@@ -342,6 +345,7 @@ class PatientController(
     }
 
     @PostMapping("/appointments")
+    @Transactional
     fun bookAppointment(
         @AuthenticationPrincipal principal: PatientPrincipal,
         @RequestBody req: BookAppointmentRequest
@@ -473,11 +477,23 @@ class PatientController(
 
         val saved = appointments.save(appointment)
 
-        val documentIds = req.documentIds.orEmpty().filter { it > 0 }
+        val documentIds = req.documentIds.orEmpty().filter { it > 0 }.distinct().take(5)
         if (documentIds.isNotEmpty()) {
             patientDocumentService.linkDocumentsToAppointment(patientId, saved, documentIds)
             appointmentBriefingService.enqueueIfNeeded(saved.id)
-            appointmentBriefingService.generateAsync(saved.id)
+            val appointmentId = saved.id
+            // Generate AI briefing only after the booking transaction commits.
+            if (TransactionSynchronizationManager.isSynchronizationActive()) {
+                TransactionSynchronizationManager.registerSynchronization(
+                    object : TransactionSynchronization {
+                        override fun afterCommit() {
+                            appointmentBriefingService.generateAsync(appointmentId)
+                        }
+                    }
+                )
+            } else {
+                appointmentBriefingService.generateAsync(appointmentId)
+            }
         }
 
         // Notify doctor that patient booked a new appointment.

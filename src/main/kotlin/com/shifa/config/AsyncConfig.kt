@@ -41,10 +41,16 @@ class AsyncConfig {
             setThreadNamePrefix("briefing-")
             setWaitForTasksToCompleteOnShutdown(true)
             setAwaitTerminationSeconds(60)
-            // Prefer dropping work over unbounded CPU growth under burst bookings.
-            setRejectedExecutionHandler(
+            // Prefer dropping oldest queued work over unbounded CPU growth under burst bookings.
+            setRejectedExecutionHandler { runnable, pool ->
+                log.warn(
+                    "Briefing queue saturated (active={}, queue={}); discarding oldest job",
+                    pool.activeCount,
+                    pool.queue.size,
+                )
                 java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy()
-            )
+                    .rejectedExecution(runnable, pool)
+            }
         }
         executor.initialize()
         log.info("Briefing task executor initialized: corePoolSize=1, maxPoolSize=2, queueCapacity=20")

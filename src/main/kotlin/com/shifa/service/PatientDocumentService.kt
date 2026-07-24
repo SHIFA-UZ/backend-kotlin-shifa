@@ -227,6 +227,9 @@ class PatientDocumentService(
             ?: (file.originalFilename ?: "document")
         val saved = storage.saveDocument(patientId, file, baseNameForFile)
         val resolvedCategory = PatientDocumentCategory.fromCodeOrNull(category)
+        // Pre-appointment drafts stay private until linked to a booked appointment.
+        val shareWithTeam = !isChatAttachment &&
+            resolvedCategory != PatientDocumentCategory.PRE_APPOINTMENT
         val entity = PatientDocument(
             title = title?.takeIf { it.isNotBlank() } ?: baseNameForFile,
             date = date ?: LocalDate.now(),
@@ -236,9 +239,7 @@ class PatientDocumentService(
             uploadedByDoctor = null,
             uploadedByPatientProfile = p,
             category = resolvedCategory?.code,
-            // Patient uploads (non-chat) are always shared with the patient's
-            // doctors per the new visibility rules.
-            isSharedWithTeam = !isChatAttachment
+            isSharedWithTeam = shareWithTeam
         )
         val persisted = docs.save(entity)
         return toDtoForPatient(persisted)

@@ -38,6 +38,8 @@ class AppointmentBriefing(
 ) {
     enum class Status {
         PENDING,
+        /** Worker claimed this row; prevents duplicate PDF/OpenAI work. */
+        GENERATING,
         READY,
         FAILED,
         SKIPPED,
