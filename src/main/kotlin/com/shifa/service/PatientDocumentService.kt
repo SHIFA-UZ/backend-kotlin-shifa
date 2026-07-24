@@ -1,5 +1,6 @@
 package com.shifa.service
 
+import com.shifa.domain.Appointment
 import com.shifa.domain.PatientDocument
 import com.shifa.domain.PatientDocumentCategory
 import com.shifa.repo.DocumentAccessGrantRepository
@@ -10,6 +11,7 @@ import com.shifa.web.dto.PatientDocumentDto
 import org.springframework.core.io.Resource
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import org.slf4j.LoggerFactory
@@ -21,7 +23,7 @@ class PatientDocumentService(
     private val docs: PatientDocumentRepository,
     private val storage: PatientDocumentStorageService,
     private val doctorProfiles: DoctorProfileRepository,
-    private val accessGrants: DocumentAccessGrantRepository
+    private val accessGrants: DocumentAccessGrantRepository,
 ) {
     private val log = LoggerFactory.getLogger(PatientDocumentService::class.java)
 
@@ -287,4 +289,50 @@ class PatientDocumentService(
         }
         docs.delete(doc)
     }
+
+    /**
+     * Link patient-owned documents to an appointment (pre-appointment attachments).
+     * Validates ownership and appointment patient match; marks docs team-shared.
+     * Returns the number of documents linked.
+     */
+    @Transactional
+    fun linkDocumentsToAppointment(
+        patientId: Long,
+        appointment: Appointment,
+        documentIds: List<Long>,
+    ): Int {
+        if (documentIds.isEmpty()) return 0
+        val apptPatientId = appointment.patient?.id
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment has no patient")
+        if (apptPatientId != patientId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this patient")
+        }
+        val uniqueIds = documentIds.distinct()
+        var linked = 0
+        for (docId in uniqueIds) {
+            val doc = docs.findById(docId).orElse(null)
+                ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found: $docId")
+            if (doc.patient?.id != patientId) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "Document $docId does not belong to this patient")
+            }
+            val uploaderPatientId = doc.uploadedByPatientProfile?.id
+            if (uploaderPatientId != patientId) {
+                throw ResponseStatusException(
+                    HttpStatus.FORBIDDEN,
+                    "Only documents you uploaded can be attached to an appointment"
+                )
+            }
+            doc.appointment = appointment
+            if (doc.category.isNullOrBlank()) {
+                doc.category = PatientDocumentCategory.PRE_APPOINTMENT.code
+            }
+            doc.isSharedWithTeam = true
+            docs.save(doc)
+            linked++
+        }
+        return linked
+    }
+
+    fun listForAppointment(appointmentId: Long): List<PatientDocument> =
+        docs.findByAppointmentId(appointmentId)
 }

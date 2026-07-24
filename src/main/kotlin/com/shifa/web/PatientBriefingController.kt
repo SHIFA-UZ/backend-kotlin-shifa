@@ -1,32 +1,27 @@
 package com.shifa.web
 
 import com.shifa.domain.SubscriptionFeature
-import com.shifa.repo.AppointmentRepository
-import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.DoctorPrincipal
+import com.shifa.service.DoctorPatientAccessService
 import com.shifa.service.PatientBriefingService
 import com.shifa.service.SubscriptionTierService
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import org.springframework.http.HttpStatus
 
 @RestController
 @RequestMapping("/api/ai")
 class PatientBriefingController(
     private val briefingService: PatientBriefingService,
-    private val appointmentRepo: AppointmentRepository,
-    private val patientsRepo: PatientProfileRepository,
+    private val doctorPatientAccess: DoctorPatientAccessService,
     private val subscriptionTierService: SubscriptionTierService
 ) {
 
-    /** Same access rule as document list: appointment with doctor or patient created by doctor. */
+    /** Same access rule as document list: appointment, created-by, or active care partnership. */
     private fun ensurePatientAccess(doctorId: Long, patientId: Long) {
-        if (appointmentRepo.existsByDoctorIdAndPatientId(doctorId, patientId)) return
-        val patient = patientsRepo.findById(patientId).orElse(null)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
-        if (patient.createdByDoctor?.id != doctorId) {
+        if (!doctorPatientAccess.doctorMayAccessPatient(doctorId, patientId)) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Patient not found")
         }
     }

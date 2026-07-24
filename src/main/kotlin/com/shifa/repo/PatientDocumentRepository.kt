@@ -17,6 +17,20 @@ interface PatientDocumentRepository : JpaRepository<PatientDocument, Long> {
     @Query("select d from PatientDocument d where d.patient.id = :patientId order by d.date desc, d.id desc")
     fun listForPatient(patientId: Long): List<PatientDocument>  // <-- non-null Long
 
+    @Query("select d from PatientDocument d where d.appointment.id = :appointmentId order by d.date desc, d.id desc")
+    fun findByAppointmentId(@Param("appointmentId") appointmentId: Long): List<PatientDocument>
+
+    @Query(
+        """
+        SELECT d.appointment.id, COUNT(d.id) FROM PatientDocument d
+        WHERE d.appointment.id IN :appointmentIds
+        GROUP BY d.appointment.id
+        """
+    )
+    fun countByAppointmentIds(
+        @Param("appointmentIds") appointmentIds: Collection<Long>,
+    ): List<Array<Any>>
+
     /**
      * Count documents uploaded by patients who had at least one appointment with this doctor
      * in the given appointment range, with document date in [docStart, docEnd].

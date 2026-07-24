@@ -17,6 +17,7 @@ class ClinicAccessService(
     private val appointments: AppointmentRepository,
     private val patients: PatientProfileRepository,
     private val memberships: ClinicMembershipRepository,
+    private val carePartnerships: com.shifa.repo.CarePartnershipRepository,
 ) {
 
     fun resolveActorDoctorProfile(principal: Any): DoctorProfile? =
@@ -75,7 +76,11 @@ class ClinicAccessService(
         val createdBy = p.createdByDoctor?.id
         if (createdBy != null && doctorIds.contains(createdBy)) return
         val ok = doctorIds.any { appointments.existsByDoctorIdAndPatientId(it, patientId) }
-        if (!ok) throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
+        if (ok) return
+        val partnershipOk = doctorIds.any {
+            carePartnerships.existsActiveForDoctorAndPatient(it, patientId)
+        }
+        if (!partnershipOk) throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
     }
 
     fun resolveBookingActorUserId(principal: Any): Long =

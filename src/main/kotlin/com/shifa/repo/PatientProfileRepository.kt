@@ -135,6 +135,11 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
                 WHERE a.doctor.id = :actorDoctorId AND a.status != 'CANCELLED'
             )
             OR p.createdByDoctor.id = :actorDoctorId
+            OR p.id IN (
+                SELECT DISTINCT cp.patient.id FROM CarePartnership cp
+                WHERE cp.status = com.shifa.domain.CarePartnership.Status.ACTIVE
+                  AND (cp.initiatingDoctor.id = :actorDoctorId OR cp.partnerDoctor.id = :actorDoctorId)
+            )
         )
         AND (
             :q IS NULL OR :q = '' OR

@@ -42,6 +42,8 @@ enum class PatientDocumentCategory(
     HOSPITAL_REPORT("HOSPITAL_REPORT", true),
     ALLERGY_REPORT("ALLERGY_REPORT", true),
     OTHER_MEDICAL("OTHER_MEDICAL", true),
+    /** Patient-attached docs before a visit; always team-visible when patient-uploaded. */
+    PRE_APPOINTMENT("PRE_APPOINTMENT", true),
 
     // ---------- Doctor-private categories (creator only + grants) ----------
     APPOINTMENT_NOTE("APPOINTMENT_NOTE", false),

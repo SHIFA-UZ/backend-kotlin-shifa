@@ -43,7 +43,36 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
     // All doctors with enabled user only (for public listing when no search/profession filter)
     @org.springframework.data.jpa.repository.Query("SELECT d FROM DoctorProfile d WHERE d.user.enabled = true")
     fun findAllByUserEnabled(): List<DoctorProfile>
-    
+
+    /**
+     * Partner-search candidate set: enabled doctors matching optional text filters,
+     * hard-capped so we never load the full doctor table into memory.
+     */
+    @org.springframework.data.jpa.repository.Query(
+        """
+        SELECT d FROM DoctorProfile d
+        WHERE d.user.enabled = true
+          AND d.id <> :excludeDoctorId
+          AND (
+            :search IS NULL OR :search = '' OR
+            LOWER(CONCAT(d.firstName, ' ', d.lastName)) LIKE LOWER(CONCAT('%', :search, '%')) OR
+            LOWER(COALESCE(d.profession, '')) LIKE LOWER(CONCAT('%', :search, '%')) OR
+            LOWER(COALESCE(d.clinic, '')) LIKE LOWER(CONCAT('%', :search, '%'))
+          )
+          AND (
+            :profession IS NULL OR :profession = '' OR
+            LOWER(COALESCE(d.profession, '')) LIKE LOWER(CONCAT('%', :profession, '%'))
+          )
+        ORDER BY d.lastName ASC, d.firstName ASC, d.id ASC
+        """
+    )
+    fun findPartnerSearchCandidates(
+        @org.springframework.data.repository.query.Param("excludeDoctorId") excludeDoctorId: Long,
+        @org.springframework.data.repository.query.Param("search") search: String?,
+        @org.springframework.data.repository.query.Param("profession") profession: String?,
+        pageable: org.springframework.data.domain.Pageable,
+    ): List<DoctorProfile>
+
     // Search doctors with filters - only enabled doctors
     @org.springframework.data.jpa.repository.Query(
         "SELECT d FROM DoctorProfile d WHERE d.user.enabled = true AND " +

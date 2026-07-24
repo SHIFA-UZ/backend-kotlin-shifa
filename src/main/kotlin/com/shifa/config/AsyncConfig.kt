@@ -30,4 +30,24 @@ class AsyncConfig {
         log.info("Scribe task executor initialized: corePoolSize=2, maxPoolSize=4, queueCapacity=50")
         return executor
     }
+
+    @Bean(name = ["briefingTaskExecutor"])
+    fun briefingTaskExecutor(): Executor {
+        val executor = ThreadPoolTaskExecutor().apply {
+            // Keep concurrency low: PDFBox + OpenAI are CPU/memory heavy.
+            corePoolSize = 1
+            maxPoolSize = 2
+            queueCapacity = 20
+            setThreadNamePrefix("briefing-")
+            setWaitForTasksToCompleteOnShutdown(true)
+            setAwaitTerminationSeconds(60)
+            // Prefer dropping work over unbounded CPU growth under burst bookings.
+            setRejectedExecutionHandler(
+                java.util.concurrent.ThreadPoolExecutor.DiscardOldestPolicy()
+            )
+        }
+        executor.initialize()
+        log.info("Briefing task executor initialized: corePoolSize=1, maxPoolSize=2, queueCapacity=20")
+        return executor
+    }
 }

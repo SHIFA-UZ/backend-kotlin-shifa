@@ -28,7 +28,8 @@ class CalendarController(
     private val doctors: DoctorProfileRepository,
     private val profileMapper: PatientProfileMapper,
     private val scheduleValidityService: ScheduleValidityService,
-    private val clinicAccess: ClinicAccessService
+    private val clinicAccess: ClinicAccessService,
+    private val appointmentBriefingService: com.shifa.service.AppointmentBriefingService,
 ) {
     private val logger = LoggerFactory.getLogger(CalendarController::class.java)
 
@@ -50,7 +51,9 @@ class CalendarController(
         val patientSignedAt: String? = null, // ISO when patient signed
         /** Which practice location this slot/appointment belongs to (null for video/legacy). */
         val locationId: Long? = null,
-        val locationLabel: String? = null
+        val locationLabel: String? = null,
+        val briefingStatus: String? = null,
+        val attachmentCount: Int = 0,
     )
 
     @GetMapping
@@ -230,7 +233,7 @@ class CalendarController(
         // ---------- APPOINTMENTS ----------
         // CRITICAL: Only return appointments that belong to this specific doctor
         // Add defensive filtering to ensure no cross-doctor data leakage
-        val apptsForDay = appts
+        val filteredAppts = appts
             .findOverlapping(doctorIdResolved, dayStart, dayEnd)
             .filter { appointment ->
                 // Defensive check: Ensure appointment belongs to this doctor
@@ -253,7 +256,12 @@ class CalendarController(
                 }
                 belongsToDoctor && isValidStatus && matchesLocation
             }
+        val briefingSummaries = appointmentBriefingService.summariesForAppointments(
+            filteredAppts.map { it.id }
+        )
+        val apptsForDay = filteredAppts
             .map { ap ->
+                val (briefStatus, attachmentCount) = briefingSummaries[ap.id] ?: (null to 0)
                 FreeSlot(
                     start = ap.startAt,
                     end = ap.endAt,
@@ -272,7 +280,9 @@ class CalendarController(
                         signatureRequested = ap.signatureRequested,
                         patientSignedAt = ap.patientSignedAt?.toString(),
                         locationId = ap.locationRef?.id,
-                        locationLabel = ap.locationRef?.label
+                        locationLabel = ap.locationRef?.label,
+                        briefingStatus = briefStatus,
+                        attachmentCount = attachmentCount,
                     )
                 )
             }

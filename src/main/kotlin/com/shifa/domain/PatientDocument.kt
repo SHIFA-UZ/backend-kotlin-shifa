@@ -51,7 +51,15 @@ open class PatientDocument(
      * PatientDocumentService for the rules.
      */
     @Column(name = "is_shared_with_team", nullable = false)
-    open var isSharedWithTeam: Boolean = false
+    open var isSharedWithTeam: Boolean = false,
+
+    /**
+     * Optional link to the appointment this document was attached for
+     * (e.g. patient pre-appointment uploads at booking time).
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "appointment_id")
+    open var appointment: Appointment? = null,
 ) {
     protected constructor() : this(
         id = null,
@@ -63,6 +71,7 @@ open class PatientDocument(
         uploadedByDoctor = null,
         uploadedByPatientProfile = null,
         category = null,
-        isSharedWithTeam = false
+        isSharedWithTeam = false,
+        appointment = null,
     )
 }

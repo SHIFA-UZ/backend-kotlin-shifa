@@ -49,6 +49,7 @@ class AppointmentController(
     private val treatmentPlanStatusService: TreatmentPlanStatusService,
     private val slotAvailabilityService: SlotAvailabilityService,
     private val appointmentCancellationService: AppointmentCancellationService,
+    private val appointmentBriefingService: com.shifa.service.AppointmentBriefingService,
 ) {
 
     // -------------------- Doctor: get single appointment (for polling signature status) --------------------
@@ -71,6 +72,8 @@ class AppointmentController(
         val linkedPlanId: Long? = null,
         val linkedPlanTitle: String? = null,
         val fulfilledLineIds: List<Long> = emptyList(),
+        val briefingStatus: String? = null,
+        val attachmentCount: Int = 0,
     )
 
     @GetMapping("/{appointmentId}")
@@ -86,6 +89,11 @@ class AppointmentController(
         clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
         val planRow = planLinks.findPlanIdAndTitleByAppointmentId(appointmentId).firstOrNull()
         val fulfilled = lineFulfillments.findLineIdsByAppointmentId(appointmentId)
+        val briefingStatus = appointmentBriefingService.summaryStatus(appointmentId)
+        val attachmentCount = appointmentBriefingService
+            .summariesForAppointments(listOf(appointmentId))[appointmentId]
+            ?.second
+            ?: 0
         return AppointmentDto(
             id = appointment.id,
             patientId = appointment.patient?.id,
@@ -104,7 +112,31 @@ class AppointmentController(
             linkedPlanId = (planRow?.get(0) as? Number)?.toLong(),
             linkedPlanTitle = planRow?.get(1) as? String,
             fulfilledLineIds = fulfilled,
+            briefingStatus = briefingStatus,
+            attachmentCount = attachmentCount,
         )
+    }
+
+    @GetMapping("/{appointmentId}/briefing")
+    fun getBriefing(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable appointmentId: Long,
+    ): com.shifa.service.AppointmentBriefingDto {
+        val appointment = appts.findById(appointmentId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found") }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
+        return appointmentBriefingService.getForAppointment(appointmentId)
+    }
+
+    @PostMapping("/{appointmentId}/briefing/retry")
+    fun retryBriefing(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable appointmentId: Long,
+    ): com.shifa.service.AppointmentBriefingDto {
+        val appointment = appts.findById(appointmentId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found") }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
+        return appointmentBriefingService.retryForAppointment(appointmentId)
     }
 
     // -------------------- Doctor: request patient signature --------------------

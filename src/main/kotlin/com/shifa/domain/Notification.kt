@@ -118,6 +118,18 @@ class Notification(
 
         /** Patient: clinic created a payment installment schedule. */
         INSTALLMENT_SCHEDULE_CREATED,
+
+        /** Doctor: AI briefing from pre-appointment documents is ready. */
+        APPOINTMENT_BRIEFING_READY,
+
+        /** Doctor: invited as therapy partner on a care partnership. */
+        CARE_PARTNERSHIP_INVITE,
+
+        /** Doctor: care partnership invite was accepted. */
+        CARE_PARTNERSHIP_ACCEPTED,
+
+        /** Doctor: partner posted a progress update on a care partnership. */
+        CARE_PARTNERSHIP_PROGRESS,
     }
 
     fun isRead(): Boolean = readAt != null

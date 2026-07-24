@@ -132,6 +132,7 @@ class SecurityConfig(
                 it.requestMatchers("/api/treatment-plans/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 it.requestMatchers("/api/prophylaxis/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 it.requestMatchers("/api/clinical-engine/**").hasRole("DOCTOR")
+                it.requestMatchers("/api/care-partnerships/**").hasRole("DOCTOR")
                 // Shared (authenticated): notifications, AI, video
                 it.requestMatchers("/api/notifications/**", "/api/ai/**", "/api/video/**").authenticated()
 

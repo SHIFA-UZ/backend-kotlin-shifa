@@ -48,6 +48,7 @@ class PatientController(
     private val doctorServices: DoctorServiceRepository,
     private val doctorServicePrices: DoctorServicePriceRepository,
     private val patientDocumentService: PatientDocumentService,
+    private val appointmentBriefingService: com.shifa.service.AppointmentBriefingService,
     private val notifications: NotificationRepository,
     private val fcmService: FcmService,
     private val subscriptionTierService: com.shifa.service.SubscriptionTierService,
@@ -151,7 +152,12 @@ class PatientController(
          * patient MUST pick one (unless the booking is a video consultation). For single-location
          * doctors (or legacy doctors without structured locations), this can be omitted.
          */
-        val locationId: Long? = null
+        val locationId: Long? = null,
+        /**
+         * Optional patient document IDs already uploaded via POST /patients/me/documents.
+         * Linked to the new appointment as pre-appointment attachments.
+         */
+        val documentIds: List<Long>? = null,
     )
 
     // -------------------- FCM Token (push notifications) --------------------
@@ -466,6 +472,13 @@ class PatientController(
         )
 
         val saved = appointments.save(appointment)
+
+        val documentIds = req.documentIds.orEmpty().filter { it > 0 }
+        if (documentIds.isNotEmpty()) {
+            patientDocumentService.linkDocumentsToAppointment(patientId, saved, documentIds)
+            appointmentBriefingService.enqueueIfNeeded(saved.id)
+            appointmentBriefingService.generateAsync(saved.id)
+        }
 
         // Notify doctor that patient booked a new appointment.
         val bookedMessage = NotificationFormatting.patientBookedMessage(
