@@ -26,9 +26,10 @@ class DevSmsService(
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(Duration.ofSeconds(15))
-        .writeTimeout(Duration.ofSeconds(15))
-        .readTimeout(Duration.ofSeconds(30))
+        .connectTimeout(Duration.ofSeconds(10))
+        .writeTimeout(Duration.ofSeconds(10))
+        .readTimeout(Duration.ofSeconds(15))
+        .callTimeout(Duration.ofSeconds(20))
         .build()
 
     fun isConfigured(): Boolean = props.apiToken.isNotBlank()
