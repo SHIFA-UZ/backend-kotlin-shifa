@@ -1292,13 +1292,25 @@ class AuthController(
         }
 
         val user = if (!r.email.isNullOrBlank() && !r.emailOtp.isNullOrBlank()) {
-            val emailNorm = r.email.trim().lowercase()
-            if (!emailOtpService.verify(emailNorm, r.emailOtp.trim(),
+            // send-forgot-password-otp returns channel="email" whenever the account has an
+            // email, even when the caller supplied a phone number. Resolve the account from
+            // either form, then verify the code against the address it was actually sent to.
+            val identifier = r.email.trim()
+            val identifierNorm = identifier.lowercase()
+            val resolved = users.findByEmail(identifierNorm).orElse(null)
+                ?: users.findByPhone(identifier).orElse(null)
+                ?: PhoneNormalizer.normalize(identifier)?.let { users.findByPhone(it).orElse(null) }
+                ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+            val otpEmail = resolved.email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+                ?: throw ResponseStatusException(
+                    HttpStatus.BAD_REQUEST,
+                    "No email address on file. Please contact support."
+                )
+            if (!emailOtpService.verify(otpEmail, r.emailOtp.trim(),
                     com.shifa.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD)) {
                 throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired verification code")
             }
-            users.findByEmail(emailNorm).orElse(null)
-                ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+            resolved
         } else if (!r.phone.isNullOrBlank() && !r.smsOtp.isNullOrBlank()) {
             val phoneNorm = PhoneNormalizer.normalize(r.phone.trim())
                 ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
