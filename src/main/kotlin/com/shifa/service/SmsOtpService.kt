@@ -22,7 +22,9 @@ class SmsOtpService(
 
   /**
    * Generate a code, persist it, and send SMS.
-   * Rate-limited: max 5 codes per phone+purpose per hour.
+   * Hard-capped: max [MAX_SMS_SENDS_PER_HOUR] codes per phone+purpose per hour.
+   * After the cap, the client must switch to email — DevSMS may accept a send
+   * that Eskiz later rejects, so we cannot rely on provider failure alone.
    */
     fun sendCode(phone: String, purpose: String): SmsOtpSendResult {
         val normalized = PhoneNormalizer.normalize(phone)
@@ -32,7 +34,7 @@ class SmsOtpService(
             return SmsOtpSendResult.Failure(SmsOtpSendFailure.INVALID_PHONE)
         }
         val code = persistNewCode(normalized, purpose)
-            ?: return SmsOtpSendResult.Failure(SmsOtpSendFailure.RATE_LIMITED)
+            ?: return SmsOtpSendResult.Failure(SmsOtpSendFailure.SMS_SEND_LIMIT_REACHED)
         val message = when (purpose) {
             SmsVerificationCode.PURPOSE_REGISTRATION -> SmsOtpFormatting.registrationOtpBody(code)
             SmsVerificationCode.PURPOSE_FORGOT_PASSWORD -> SmsOtpFormatting.forgotPasswordOtpBody(code)
@@ -54,8 +56,13 @@ class SmsOtpService(
         val normalized = PhoneNormalizer.normalize(phone) ?: return null
         val oneHourAgo = OffsetDateTime.now().minusHours(1)
         val recentCount = repo.countByPhoneAndPurposeAndCreatedAtAfter(normalized, purpose, oneHourAgo)
-        if (recentCount >= 5) {
-            log.warn("SMS OTP rate limit for {}*** [{}]", normalized.take(6), purpose)
+        if (recentCount >= MAX_SMS_SENDS_PER_HOUR) {
+            log.warn(
+                "SMS OTP send limit ({}/h) for {}*** [{}]",
+                MAX_SMS_SENDS_PER_HOUR,
+                normalized.take(6),
+                purpose,
+            )
             return null
         }
         val code = generateCode()
@@ -67,6 +74,11 @@ class SmsOtpService(
             )
         )
         return code
+    }
+
+    companion object {
+        /** Max SMS OTP sends per phone+purpose per rolling hour. */
+        const val MAX_SMS_SENDS_PER_HOUR = 3
     }
 
     @Transactional

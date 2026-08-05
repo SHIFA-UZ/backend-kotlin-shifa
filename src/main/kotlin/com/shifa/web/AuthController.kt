@@ -265,9 +265,7 @@ class AuthController(
                 return SendOtpChannelResponse(channel = "sms")
             is com.shifa.service.SmsOtpSendResult.Failure -> {
                 val fallbackEmail = req.fallbackEmail?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
-                if (result.reason == com.shifa.service.SmsOtpSendFailure.SMS_PROVIDER_FAILED &&
-                    fallbackEmail != null
-                ) {
+                if (shouldFallbackSmsToEmail(result.reason) && fallbackEmail != null) {
                     return sendEmailOtpChannelOrThrow(fallbackEmail, emailPurpose, smsFallback = true)
                 }
                 throwSmsOtpFailure(result)
@@ -389,9 +387,7 @@ class AuthController(
                     return SendForgotPasswordOtpResponse(channel = "sms")
                 is com.shifa.service.SmsOtpSendResult.Failure -> {
                     val recoveredEmail = user.email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
-                    if (smsResult.reason == com.shifa.service.SmsOtpSendFailure.SMS_PROVIDER_FAILED &&
-                        recoveredEmail != null
-                    ) {
+                    if (shouldFallbackSmsToEmail(smsResult.reason) && recoveredEmail != null) {
                         sendEmailOtpChannelOrThrow(
                             recoveredEmail,
                             com.shifa.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD,
@@ -1520,10 +1516,17 @@ class AuthController(
         return SendOtpChannelResponse(channel = "email", smsFallbackUsed = smsFallback)
     }
 
+    private fun shouldFallbackSmsToEmail(reason: com.shifa.service.SmsOtpSendFailure): Boolean =
+        reason == com.shifa.service.SmsOtpSendFailure.SMS_PROVIDER_FAILED ||
+            reason == com.shifa.service.SmsOtpSendFailure.SMS_SEND_LIMIT_REACHED ||
+            reason == com.shifa.service.SmsOtpSendFailure.RATE_LIMITED
+
     private fun throwSmsOtpFailure(result: com.shifa.service.SmsOtpSendResult.Failure): Nothing {
         when (result.reason) {
+            // Cap reached with no fallback email: force the client onto the email path.
+            com.shifa.service.SmsOtpSendFailure.SMS_SEND_LIMIT_REACHED,
             com.shifa.service.SmsOtpSendFailure.RATE_LIMITED ->
-                throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, MSG_OTP_RATE_LIMIT)
+                throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, MSG_SMS_LIMIT_USE_EMAIL)
             com.shifa.service.SmsOtpSendFailure.INVALID_PHONE ->
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
             com.shifa.service.SmsOtpSendFailure.SMS_PROVIDER_FAILED ->
@@ -1534,6 +1537,8 @@ class AuthController(
     private companion object {
         const val MSG_OTP_RATE_LIMIT = "Too many verification requests. Please try again later."
         const val MSG_SMS_UNAVAILABLE =
+            "SMS could not be sent. Please use email verification or contact support."
+        const val MSG_SMS_LIMIT_USE_EMAIL =
             "SMS could not be sent. Please use email verification or contact support."
     }
 }
