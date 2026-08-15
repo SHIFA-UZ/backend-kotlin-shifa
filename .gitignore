@@ -27,6 +27,10 @@ node_modules/
 application-local.yml
 application-dev.yml
 
+# Local upload storage (patient documents, photos, voice recordings).
+# Created at runtime under storageRoot; never commit these files.
+public-storage/images/
+
 # Markdown docs (except CLAUDE.md and README.md)
 *.md
 !CLAUDE.md
