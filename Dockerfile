@@ -21,10 +21,13 @@ COPY --from=build /app/build/libs/app.jar build/libs/app.jar
 EXPOSE 8080
 
 # JVM heap: 512Mi was tight for Hibernate + Flyway cold start → Tomcat never answered healthchecks ("unavailable").
-# Target ~2GB+ container RAM total (heap + metaspace + native). Override on smaller Railway plans via
-# JAVA_TOOL_OPTIONS in dashboard, e.g. -Xmx512m -XX:MaxMetaspaceSize=180m (not recommended for prod).
+# Sized for a ~1.5Gi container (Cloud Run): 768m heap + 256m metaspace = 1024m, leaving ~500Mi for JVM
+# native (code cache, GC structures, thread stacks) plus tmpfs — note /tmp is RAM-backed on Cloud Run and
+# the voice-upload endpoints write up to 25MB there.
+# Cap Tomcat threads via SERVER_TOMCAT_THREADS_MAX (env) to bound thread-stack memory on small containers.
+# For a 2Gi container, -Xmx1024m / MaxMetaspaceSize=320m is also fine.
 ENTRYPOINT ["java", \
-  "-Xmx1024m", "-Xms384m", \
+  "-Xmx768m", "-Xms256m", \
   "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=200", \
-  "-XX:+UseStringDeduplication", "-XX:MaxMetaspaceSize=320m", \
+  "-XX:+UseStringDeduplication", "-XX:MaxMetaspaceSize=256m", \
   "-jar", "build/libs/app.jar"]
