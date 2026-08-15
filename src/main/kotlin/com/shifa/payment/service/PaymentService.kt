@@ -3,6 +3,7 @@ package com.shifa.payment.service
 import com.shifa.config.AppProperties
 import com.shifa.config.ClickProperties
 import com.shifa.domain.Appointment
+import com.shifa.domain.Notification
 import com.shifa.payment.domain.Payment
 import com.shifa.payment.domain.PaymentGatewayCode
 import com.shifa.payment.domain.PaymentKind
@@ -15,7 +16,9 @@ import com.shifa.payment.gateway.StripeGateway
 import com.shifa.payment.repo.PaymentRepository
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DoctorBillingRepository
+import com.shifa.repo.NotificationRepository
 import com.shifa.repo.PatientProfileRepository
+import com.shifa.service.FcmService
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -30,6 +33,8 @@ class PaymentService(
     private val appointmentRepository: AppointmentRepository,
     private val doctorBillingRepository: DoctorBillingRepository,
     private val patientProfiles: PatientProfileRepository,
+    private val notificationRepository: NotificationRepository,
+    private val fcmService: FcmService,
     private val stripeGateway: StripeGateway,
     private val clickGateway: ClickGateway,
     private val manualPaymentGateway: ManualPaymentGateway,
@@ -267,7 +272,9 @@ class PaymentService(
             }
             appointmentRepository.save(it)
         }
-        return paymentRepository.save(payment)
+        val saved = paymentRepository.save(payment)
+        notifyDoctorConsultationPaid(saved)
+        return saved
     }
 
     @Transactional
@@ -305,6 +312,31 @@ class PaymentService(
             }
             appointmentRepository.save(it)
         }
-        return paymentRepository.save(payment)
+        val saved = paymentRepository.save(payment)
+        notifyDoctorConsultationPaid(saved)
+        return saved
+    }
+
+    private fun notifyDoctorConsultationPaid(payment: Payment) {
+        if (payment.kind != PaymentKind.CONSULTATION) return
+        try {
+            val appointmentId = payment.appointment?.id ?: return
+            val appointment = appointmentRepository.findByIdWithDoctorAndPatient(appointmentId)
+                .orElse(null) ?: return
+            val doctor = appointment.doctor
+            val patientName = appointment.patient.fullName ?: "Patient"
+            val notif = Notification(
+                patient = null,
+                doctor = doctor,
+                title = "Payment received",
+                message = "Patient $patientName paid for their appointment.",
+                type = Notification.Type.APPOINTMENT_PAID_BY_PATIENT,
+                appointmentId = appointment.id,
+            )
+            val savedNotif = notificationRepository.save(notif)
+            fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
+        } catch (e: Exception) {
+            log.warn("Doctor payment notification failed: {}", e.message)
+        }
     }
 }

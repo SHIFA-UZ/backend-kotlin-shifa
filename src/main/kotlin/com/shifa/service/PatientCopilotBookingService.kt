@@ -169,7 +169,7 @@ class PatientCopilotBookingService(
             appointmentId = saved.id
         )
         val savedNotif = notifications.save(notif)
-        doctor.fcmToken?.let { fcmService.sendDoctorNotification(it, savedNotif) }
+        fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
 
         return BookedAppointmentDto(
             id = saved.id,

@@ -77,7 +77,7 @@ class DoctorProfile(
     var practiceClinic: Clinic? = null,
 
     /** FCM token for doctor web/app push notifications. Set by doctor app on login, cleared on logout. */
-    @Column(name = "fcm_token")
+    @Column(name = "fcm_token", columnDefinition = "TEXT")
     var fcmToken: String? = null,
 
     /** IANA timezone for practice (e.g. Europe/Berlin). Used for scheduling and "today"; storage remains UTC. */

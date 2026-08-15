@@ -199,7 +199,42 @@ class FcmService(
             token = fcmToken,
             title = notification.title,
             body = notification.message,
-            data = data
+            data = data,
+            androidChannelId = DOCTOR_ANDROID_CHANNEL_ID
         )
+    }
+
+    /**
+     * Same as [sendDoctorNotification] but after the surrounding transaction
+     * commits, so a failed FCM send cannot roll back the business write and
+     * the in-app notification row is visible if the doctor taps immediately.
+     */
+    fun sendDoctorNotificationAfterCommit(
+        fcmToken: String?,
+        notification: Notification,
+        extraData: Map<String, String> = emptyMap()
+    ) {
+        val deliver = {
+            try {
+                sendDoctorNotification(fcmToken, notification, extraData)
+            } catch (e: Exception) {
+                log.warn("FCM after-commit send failed: {}", e.message)
+            }
+        }
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                object : org.springframework.transaction.support.TransactionSynchronization {
+                    override fun afterCommit() {
+                        deliver()
+                    }
+                }
+            )
+        } else {
+            deliver()
+        }
+    }
+
+    companion object {
+        const val DOCTOR_ANDROID_CHANNEL_ID = "shifa_doctor_channel"
     }
 }

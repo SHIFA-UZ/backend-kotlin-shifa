@@ -149,7 +149,7 @@ class DocumentAccessService(
                     savedNotif.id
                 )
             } else {
-                fcmService.sendDoctorNotification(token, savedNotif)
+                fcmService.sendDoctorNotificationAfterCommit(token, savedNotif)
             }
         }
     }
@@ -207,7 +207,7 @@ class DocumentAccessService(
             documentTitle = docTitle
         )
         val savedNotif = notificationRepo.save(notifForRequester)
-        doctor.fcmToken?.let { fcmService.sendDoctorNotification(it, savedNotif) }
+        doctor.fcmToken?.let { fcmService.sendDoctorNotificationAfterCommit(it, savedNotif) }
 
         return request
     }
@@ -250,7 +250,7 @@ class DocumentAccessService(
             documentTitle = docTitle
         )
         val savedNotif = notificationRepo.save(notifForRequester)
-        request.requestingDoctor.fcmToken?.let { fcmService.sendDoctorNotification(it, savedNotif) }
+        request.requestingDoctor.fcmToken?.let { fcmService.sendDoctorNotificationAfterCommit(it, savedNotif) }
 
         return saved
     }

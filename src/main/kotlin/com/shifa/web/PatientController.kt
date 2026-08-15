@@ -161,6 +161,12 @@ class PatientController(
          * Linked to the new appointment as pre-appointment attachments.
          */
         val documentIds: List<Long>? = null,
+        /**
+         * When the patient is moving an existing booking, the id of the appointment
+         * to cancel after the new one is created. Doctor gets one reschedule push
+         * instead of booked + cancelled.
+         */
+        val rescheduleAppointmentId: Long? = null,
     )
 
     // -------------------- FCM Token (push notifications) --------------------
@@ -313,6 +319,7 @@ class PatientController(
     // (returns AppointmentSummaryDto with signatureRequested, alreadySigned for details + signing).
 
     @DeleteMapping("/appointments/{id}")
+    @Transactional
     fun cancelAppointment(
         @AuthenticationPrincipal principal: PatientPrincipal,
         @PathVariable id: Long
@@ -339,7 +346,7 @@ class PatientController(
             appointmentId = appointment.id
         )
         val savedNotif = notifications.save(notif)
-        doctor.fcmToken?.let { fcmService.sendDoctorNotification(it, savedNotif) }
+        fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
 
         return mapOf("message" to "Appointment cancelled successfully")
     }
@@ -496,22 +503,56 @@ class PatientController(
             }
         }
 
-        // Notify doctor that patient booked a new appointment.
-        val bookedMessage = NotificationFormatting.patientBookedMessage(
-            patientName = profile.fullName ?: "Patient",
-            startAt = saved.startAt,
-            timeZone = doctor.timeZone,
-        )
+        val rescheduledFrom = req.rescheduleAppointmentId?.let { oldId ->
+            val old = appointments.findById(oldId).orElse(null)
+            if (old == null || old.patient.id != patientId) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot reschedule that appointment")
+            }
+            if (old.status == Appointment.Status.CANCELLED) {
+                null
+            } else {
+                old.status = Appointment.Status.CANCELLED
+                appointments.save(old)
+                old
+            }
+        }
+
+        val patientName = profile.fullName ?: "Patient"
+        val (notifTitle, notifMessage, notifType) = if (rescheduledFrom != null) {
+            val (oldDate, oldTime) = NotificationFormatting.appointmentDateTimeStrings(
+                rescheduledFrom.startAt,
+                doctor.timeZone,
+            )
+            val (newDate, newTime) = NotificationFormatting.appointmentDateTimeStrings(
+                saved.startAt,
+                doctor.timeZone,
+            )
+            Triple(
+                "Appointment Rescheduled",
+                "Patient $patientName moved their appointment from $oldDate at $oldTime to $newDate at $newTime.",
+                Notification.Type.APPOINTMENT_RESCHEDULED_BY_PATIENT,
+            )
+        } else {
+            Triple(
+                "New Appointment Booked",
+                NotificationFormatting.patientBookedMessage(
+                    patientName = patientName,
+                    startAt = saved.startAt,
+                    timeZone = doctor.timeZone,
+                ),
+                Notification.Type.APPOINTMENT_BOOKED_BY_PATIENT,
+            )
+        }
         val notif = Notification(
             patient = null,
             doctor = doctor,
-            title = "New Appointment Booked",
-            message = bookedMessage,
-            type = Notification.Type.APPOINTMENT_BOOKED_BY_PATIENT,
+            title = notifTitle,
+            message = notifMessage,
+            type = notifType,
             appointmentId = saved.id
         )
         val savedNotif = notifications.save(notif)
-        doctor.fcmToken?.let { fcmService.sendDoctorNotification(it, savedNotif) }
+        fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
 
         return AppointmentDto(
             id = saved.id,

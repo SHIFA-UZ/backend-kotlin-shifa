@@ -149,6 +149,7 @@ class CarePartnershipService(
             title = "Therapy partner invite",
             message = "${doctorName(initiator)} invited you to co-treat ${patient.fullName ?: "a patient"}.",
             type = Notification.Type.CARE_PARTNERSHIP_INVITE,
+            extraData = mapOf("partnershipId" to saved.id.toString()),
         )
         return toDto(saved, initiatingDoctorId)
     }
@@ -170,6 +171,7 @@ class CarePartnershipService(
             title = "Partner accepted",
             message = "${doctorName(row.partnerDoctor)} accepted your therapy partnership.",
             type = Notification.Type.CARE_PARTNERSHIP_ACCEPTED,
+            extraData = mapOf("partnershipId" to saved.id.toString()),
         )
         return toDto(saved, actorDoctorId)
     }
@@ -252,6 +254,7 @@ class CarePartnershipService(
             title = "Partnership progress update",
             message = "${doctorName(author)} posted a progress update for ${row.patient.fullName ?: "patient"}.",
             type = Notification.Type.CARE_PARTNERSHIP_PROGRESS,
+            extraData = mapOf("partnershipId" to row.id.toString()),
         )
         return CarePartnershipProgressDto(
             id = saved.id,
@@ -319,6 +322,7 @@ class CarePartnershipService(
         title: String,
         message: String,
         type: Notification.Type,
+        extraData: Map<String, String> = emptyMap(),
     ) {
         val notif = Notification(
             patient = null,
@@ -328,7 +332,7 @@ class CarePartnershipService(
             type = type,
         )
         val saved = notifications.save(notif)
-        doctor.fcmToken?.let { fcmService.sendDoctorNotification(it, saved) }
+        fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, saved, extraData)
     }
 
     /**
