@@ -9,6 +9,7 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.Message
 import com.shifa.domain.Notification
 import com.shifa.repo.AppointmentRepository
+import com.shifa.repo.DoctorSettingsRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.io.ByteArrayInputStream
@@ -17,6 +18,7 @@ import java.nio.charset.StandardCharsets
 @Service
 class FcmService(
     private val appointments: AppointmentRepository,
+    private val doctorSettings: DoctorSettingsRepository,
 ) {
 
     private val log = LoggerFactory.getLogger(FcmService::class.java)
@@ -195,13 +197,45 @@ class FcmService(
         notification.documentPatientId?.let { data["patientId"] = it.toString() }
         notification.documentTitle?.let { data["documentTitle"] = it }
         data.putAll(extraData)
+        val patientName = resolveDoctorPatientName(notification, data)
+        if (patientName.isNotBlank()) {
+            data.putIfAbsent("patientName", patientName)
+        }
+        val lang = doctorUiLanguage(notification.doctor?.id)
+        val tray = DoctorPushI18n.trayText(notification, lang, patientName)
         return sendToToken(
             token = fcmToken,
-            title = notification.title,
-            body = notification.message,
+            title = tray.title,
+            body = tray.body,
             data = data,
             androidChannelId = DOCTOR_ANDROID_CHANNEL_ID
         )
+    }
+
+    private fun doctorUiLanguage(doctorId: Long?): String {
+        if (doctorId == null || doctorId == 0L) return "en"
+        return try {
+            DoctorPushI18n.normalizeLang(
+                doctorSettings.findByDoctorId(doctorId).orElse(null)?.language
+            )
+        } catch (e: Exception) {
+            log.debug("Doctor UI language lookup failed: {}", e.message)
+            "en"
+        }
+    }
+
+    private fun resolveDoctorPatientName(
+        notification: Notification,
+        extraData: Map<String, String>,
+    ): String {
+        extraData["patientName"]?.trim()?.takeIf { it.isNotEmpty() }?.let { return it }
+        notification.appointmentId?.let { apptId ->
+            appointments.findById(apptId).orElse(null)?.patient?.fullName
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.let { return it }
+        }
+        return DoctorPushI18n.patientNameFrom(notification, extraData)
     }
 
     /**

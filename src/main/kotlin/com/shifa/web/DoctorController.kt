@@ -77,6 +77,16 @@ class DoctorController(
             .trim('-')
     }
 
+    /** Persist UI language as `en` / `uz` / `ru` (Cyrillic Uzbek still maps to `uz`). */
+    private fun normalizeUiLanguage(raw: String?): String {
+        val t = raw?.trim()?.lowercase().orEmpty()
+        return when {
+            t.startsWith("uz") -> "uz"
+            t.startsWith("ru") -> "ru"
+            else -> "en"
+        }
+    }
+
     // -------------------- DTOs --------------------
 
     data class ProfileDto(
@@ -138,6 +148,8 @@ class DoctorController(
     )
 
     data class FcmTokenRequest(val fcmToken: String?)
+
+    data class LanguageRequest(val language: String?)
 
     data class UploadResp(val photoUrl: String)
 
@@ -253,6 +265,21 @@ class DoctorController(
         val d = currentDoctor(principal)
         d.fcmToken = req.fcmToken?.takeIf { it.isNotBlank() }
         doctors.save(d)
+    }
+
+    @PutMapping("/language")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Transactional
+    fun updateUiLanguage(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestBody req: LanguageRequest
+    ) {
+        val d = currentDoctor(principal)
+        val lang = normalizeUiLanguage(req.language)
+        val s = settingsRepo.findByDoctorId(d.id).orElse(DoctorSettings(doctor = d))
+        s.language = lang
+        s.updatedAt = OffsetDateTime.now()
+        settingsRepo.save(s)
     }
 
     // -------------------- PATCH sections --------------------
