@@ -14,7 +14,7 @@ class ScribeProperties {
     /** Max audio file size in bytes (Whisper limit 25 MB). */
     var maxAudioSizeBytes: Long = 26_214_400L
 
-    /** Daily webhook secret for signature verification (optional). Mapped from daily-webhook-secret. */
+    /** Daily webhook HMAC secret (Base64). Mapped from daily-webhook-secret / DAILY_WEBHOOK_SECRET. */
     var dailyWebhookSecret: String = ""
 
     /** S3 bucket for Daily recordings (if Daily is configured with user's S3). */

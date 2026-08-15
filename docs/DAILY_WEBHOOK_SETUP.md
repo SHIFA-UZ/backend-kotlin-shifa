@@ -51,6 +51,8 @@ Invoke-RestMethod -Uri "https://api.daily.co/v1/webhooks" `
   -Body $body
 ```
 
+Real events must include Daily's `X-Webhook-Signature` and `X-Webhook-Timestamp` headers. The backend verifies them with `DAILY_WEBHOOK_SECRET` (the webhook `hmac` from Daily). Daily's create/reactivate ping (`{"test":"test"}`) is accepted without a signature.
+
 ## Verify
 
 - After creating the webhook, start a **new** video call, record, and end the call.

@@ -77,7 +77,7 @@ class SecurityConfig(
 
                 it.requestMatchers("/api/test/**").permitAll() // Test endpoints for development
                 it.requestMatchers("/api/public/**").permitAll() // Public endpoints (doctor listings)
-                it.requestMatchers("/api/webhooks/daily").permitAll() // Daily.co webhook (no auth)
+                it.requestMatchers("/api/webhooks/daily").permitAll() // Daily.co webhook (signature verified)
                 it.requestMatchers("/api/webhooks/stripe").permitAll() // Stripe webhook (signature verified)
                 it.requestMatchers("/api/webhooks/click/**").permitAll() // Click Shop API (signature verified)
                 it.requestMatchers(
