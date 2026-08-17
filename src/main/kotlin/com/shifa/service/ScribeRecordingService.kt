@@ -58,6 +58,39 @@ class ScribeRecordingService(
         return tempPath
     }
 
+    data class DailyRecordingRef(
+        val id: String,
+        val status: String,
+    )
+
+    /**
+     * List Daily.co recordings for a room. Status is typically "waiting" or "finished".
+     */
+    fun listRecordingsForRoom(roomName: String): List<DailyRecordingRef> {
+        if (dailyProps.apiKey.isBlank()) return emptyList()
+        val encoded = java.net.URLEncoder.encode(roomName, Charsets.UTF_8)
+        val url = "${dailyProps.apiUrl}/recordings?room_name=$encoded&limit=20"
+        val request = HttpRequest.newBuilder()
+            .uri(URI.create(url))
+            .header("Authorization", "Bearer ${dailyProps.apiKey}")
+            .timeout(Duration.ofSeconds(20))
+            .GET()
+            .build()
+        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+        if (response.statusCode() !in 200..299) {
+            log.warn("Daily recordings list failed: {} - {}", response.statusCode(), response.body())
+            return emptyList()
+        }
+        val json = mapper.readTree(response.body())
+        val data = json.path("data")
+        if (!data.isArray) return emptyList()
+        return data.mapNotNull { node ->
+            val id = node.path("id").asText("").ifBlank { node.path("recording_id").asText("") }
+            if (id.isBlank()) null
+            else DailyRecordingRef(id = id, status = node.path("status").asText(""))
+        }
+    }
+
     /**
      * Get download URL from Daily.co API for a recording.
      */

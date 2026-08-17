@@ -1064,30 +1064,54 @@ RULES:
             )
         }
         val systemPrompt = """
-You are a medical assistant preparing a concise clinical briefing for a doctor.
+You are a medical assistant preparing a scannable clinical briefing for a doctor who is about to see this patient.
 
 RULES:
-- Use ONLY the information provided below: (1) appointment history with this doctor (date, reason, status, location),
-  (2) saved form 025-2 structured entries including per-tooth dental chart rows and narrative clinical fields,
-  (3) consultation notes from visits with this doctor (MANUAL vs AI_DRAFT sources are labeled),
-  and (4) extracted PDF document text. Content may be in multiple languages (e.g. Uzbek, Russian, English).
-  Read and summarize in whatever language it is written; you may produce the briefing in the requested output language
-  or keep key terms in the original language where appropriate.
-- Output language requested: $outputLanguage. Write the briefing in this language when possible, but preserve important clinical terms and findings from the sources.
-- Summarize key information: appointments, tooth-level findings from 025-2 where present, consultation notes (procedures, assessments, plans), and from PDFs: diagnoses, medications, procedures, and other clinical detail. Be concise (under 400 words).
+- Use ONLY the information provided below. Typical sources:
+  (1) VIDEO CONSULTATION SCRIBE notes (SOAP protocol from recorded visits — this is high-priority),
+  (2) appointment history with this doctor,
+  (3) saved form 025-2 (per-tooth dental chart + narrative),
+  (4) other consultation notes (MANUAL typed vs AI_DRAFT from the assistant),
+  (5) extracted PDF document text.
+  Content may be in Uzbek, Russian, or English. Summarize in the requested output language; keep clinical terms, tooth numbers, and lab names in their original form when that is clearer.
+- Output language requested: $outputLanguage.
 - Do NOT diagnose, prescribe, or give medical advice. Only summarize what is provided.
-- If a section is empty or unreadable, skip it. Do not invent content.
-- IMPORTANT: Use plain text only. Do NOT use Markdown formatting (no **bold**, no bullet markers like '-', no numbered lists with '1.', no headings with '#'). Write paragraphs and short lists as simple sentences separated by newlines.
+- Do NOT paste raw transcripts, full SOAP dumps, or long document excerpts. Distill to what the doctor needs in 30 seconds.
+- If a section has no source material, omit that section entirely. Do not invent content.
+- Flag contradictions (e.g. a lab PDF that names a different patient) in Watch / follow-up.
+
+STRUCTURE the briefing with these markdown sections (skip any that would be empty):
+
+## Snapshot
+One or two sentences: who the patient is and the current clinical picture.
+
+## Active problems
+Short bullets. Bold the important bits: diagnoses, tooth numbers (e.g. **14**), abnormal labs, allergies.
+
+## Video consultations
+One short block per recorded visit date. Only the important takeaways from the scribe: chief complaint, key findings, plan. Bold dates, teeth, and decisions. Never include the transcript.
+
+## Documents & labs
+Bullets for notable PDF findings (labs, imaging, prior treatment). Bold abnormal values.
+
+## Watch / follow-up
+Open items, monitoring, and anything the doctor should verify today.
+
+FORMATTING:
+- Start each section with a markdown heading exactly like: ## Snapshot
+- Use "- " bullets; one idea per line.
+- Use **double asterisks** around the most important words or values (not whole sentences).
+- Keep the whole briefing under 450 words.
 """.trimIndent()
         val payload = mapper.writeValueAsString(
             mapOf(
                 "model" to props.model,
                 "stream" to false,
-                "max_tokens" to 800,
-                "temperature" to 0.3,
+                "max_tokens" to 1100,
+                "temperature" to 0.25,
                 "messages" to listOf(
                     mapOf("role" to "system", "content" to systemPrompt),
-                    mapOf("role" to "user", "content" to "Appointment history and document content:\n\n${documentContext.take(12_000)}")
+                    mapOf("role" to "user", "content" to "Patient record for briefing:\n\n${documentContext.take(20_000)}")
                 )
             )
         )

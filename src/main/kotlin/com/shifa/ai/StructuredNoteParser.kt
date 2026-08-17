@@ -37,7 +37,13 @@ object StructuredNoteParser {
                     trimmed.replace(Regex("^[*#]+\\s*"), "").startsWith(header, ignoreCase = true) ||
                     trimmed.equals("$header:", ignoreCase = true)
             }
-            if (headerMatch != null) {
+            val transcriptHeader = trimmed.equals("TRANSCRIPT", ignoreCase = true) ||
+                trimmed.equals("TRANSCRIPT:", ignoreCase = true) ||
+                trimmed.startsWith("TRANSCRIPT:", ignoreCase = true)
+            if (transcriptHeader) {
+                // Keep SOAP fields clean; transcript is stored on body after confirm.
+                currentField = null
+            } else if (headerMatch != null) {
                 currentField = headerMatch.value
                 sections.getOrPut(currentField) { mutableListOf() }.clear()
                 val afterHeader = trimmed.removePrefix(headerMatch.key).removePrefix(":").trim()

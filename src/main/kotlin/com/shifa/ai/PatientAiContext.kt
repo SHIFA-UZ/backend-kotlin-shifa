@@ -50,4 +50,6 @@ data class ConsultationNoteAiSnapshot(
     val date: LocalDate,
     val excerpt: String,
     val source: String?,
+    /** MANUAL, AI_DRAFT, or VIDEO_SCRIBE. */
+    val kind: String? = null,
 )

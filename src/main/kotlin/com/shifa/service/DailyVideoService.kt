@@ -140,6 +140,8 @@ class DailyVideoService(
                     } else {
                         url
                     }
+
+                    ensureCloudAudioRecording(roomName)
                     
                     return RoomResponse(
                         id = room?.get("id") as? String,
@@ -308,6 +310,38 @@ class DailyVideoService(
             return TokenResponse(token = token, id = id)
         } else {
             throw RuntimeException("Failed to generate token: ${response.statusCode()} - ${response.body()}")
+        }
+    }
+
+    /**
+     * Existing rooms may have been created before cloud recording was enabled.
+     * Best-effort update so the doctor can record for AI scribe.
+     */
+    fun ensureCloudAudioRecording(roomName: String) {
+        if (!isApiKeyConfigured() || roomName.isBlank()) return
+        try {
+            val body = objectMapper.writeValueAsString(
+                mapOf("properties" to mapOf("enable_recording" to "cloud-audio-only"))
+            )
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("${dailyProperties.apiUrl}/rooms/$roomName"))
+                .header("Authorization", "Bearer ${dailyProperties.apiKey}")
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body))
+                .build()
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            if (response.statusCode() in 200..299) {
+                logger.info("Ensured cloud-audio-only recording on Daily room {}", roomName)
+            } else {
+                logger.warn(
+                    "Could not enable recording on Daily room {}: {} - {}",
+                    roomName,
+                    response.statusCode(),
+                    response.body()
+                )
+            }
+        } catch (e: Exception) {
+            logger.warn("Could not enable recording on Daily room {}: {}", roomName, e.message)
         }
     }
 }

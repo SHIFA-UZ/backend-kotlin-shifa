@@ -188,7 +188,8 @@ class PatientDocumentService(
         title: String?,
         date: LocalDate?,
         isChatAttachment: Boolean = false,
-        category: String? = null
+        category: String? = null,
+        appointment: Appointment? = null,
     ): PatientDocumentDto {
         val p = profiles.findById(patientId).orElseThrow()
         val doctor = doctorProfiles.findById(uploadingDoctorId).orElseThrow()
@@ -196,6 +197,23 @@ class PatientDocumentService(
             ?: (file.originalFilename ?: "document")
         val saved = storage.saveDocument(patientId, file, baseNameForFile)
         val resolvedCategory = PatientDocumentCategory.fromCodeOrNull(category)
+        val isAppointmentNote = resolvedCategory == PatientDocumentCategory.APPOINTMENT_NOTE
+        if (isAppointmentNote && appointment != null) {
+            val existing = docs.findByAppointmentId(appointment.id)
+                .firstOrNull { it.category == PatientDocumentCategory.APPOINTMENT_NOTE.code }
+            if (existing != null) {
+                val oldPath = existing.filePath
+                existing.filePath = saved.filePathRelative
+                existing.title = title?.takeIf { it.isNotBlank() } ?: existing.title
+                if (date != null) existing.date = date
+                existing.appointment = appointment
+                val updated = docs.save(existing)
+                if (oldPath.isNotBlank() && oldPath != saved.filePathRelative) {
+                    storage.deleteFile(oldPath)
+                }
+                return toDto(updated, uploadingDoctorId)
+            }
+        }
         val entity = PatientDocument(
             title = title?.takeIf { it.isNotBlank() } ?: baseNameForFile,
             date = date ?: LocalDate.now(),
@@ -207,7 +225,8 @@ class PatientDocumentService(
             // become team-visible only when the doctor tags them as a medical
             // result (MRI, blood test, ultrasound, ...).
             category = resolvedCategory?.code,
-            isSharedWithTeam = !isChatAttachment && shouldShareDoctorUpload(resolvedCategory)
+            isSharedWithTeam = !isChatAttachment && shouldShareDoctorUpload(resolvedCategory),
+            appointment = appointment,
         )
         val persisted = docs.save(entity)
         return toDto(persisted, uploadingDoctorId)

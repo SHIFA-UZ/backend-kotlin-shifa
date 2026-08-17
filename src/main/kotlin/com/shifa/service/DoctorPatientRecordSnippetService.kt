@@ -1,6 +1,7 @@
 package com.shifa.service
 
 import com.shifa.ai.ConsultationNoteAiSnapshot
+import com.shifa.ai.ConsultationNoteText
 import com.shifa.ai.Form0252AiSnapshot
 import com.shifa.domain.ConsultationNote
 import com.shifa.domain.PatientForm
@@ -43,7 +44,7 @@ class DoctorPatientRecordSnippetService(
         val out = ArrayList<ConsultationNoteAiSnapshot>(notes.size)
         for (n in notes) {
             if (budget <= 0) break
-            val raw = combineConsultationNoteText(n).trim()
+            val raw = ConsultationNoteText.excerptForAi(n).trim()
             if (raw.isEmpty()) continue
             val maxThis = minOf(perNote, budget)
             val excerpt = raw.take(maxThis)
@@ -52,6 +53,7 @@ class DoctorPatientRecordSnippetService(
                 date = n.createdAt.atZone(zone).toLocalDate(),
                 excerpt = excerpt,
                 source = n.source,
+                kind = ConsultationNoteText.kind(n),
             )
         }
         return out
@@ -67,11 +69,11 @@ class DoctorPatientRecordSnippetService(
         /** Patient briefing: room for notes alongside PDF excerpts. */
         const val BRIEFING_MAX_0252_FORMS = 12
         const val BRIEFING_MAX_CONSULTATION_NOTES = 24
-        const val BRIEFING_MAX_CHARS_PER_CONSULTATION_NOTE = 10_000
-        const val BRIEFING_MAX_TOTAL_CONSULTATION_CHARS = 42_000
+        const val BRIEFING_MAX_CHARS_PER_CONSULTATION_NOTE = 2_400
+        const val BRIEFING_MAX_TOTAL_CONSULTATION_CHARS = 24_000
 
         /** Soft cap for formatted 025-2 block inside briefing context string. */
-        const val BRIEFING_MAX_CHARS_FORM_0252_SECTION = 36_000
+        const val BRIEFING_MAX_CHARS_FORM_0252_SECTION = 8_000
 
         /** PDF text budget after reserving structured sections (approximate). */
         const val BRIEFING_DOC_TEXT_SOFT_BUDGET = 52_000
@@ -113,16 +115,6 @@ class DoctorPatientRecordSnippetService(
             narrativeLines = narrativeLines,
             followUpLines = followLines,
         )
-    }
-
-    private fun combineConsultationNoteText(n: ConsultationNote): String {
-        val body = n.body?.trim().orEmpty()
-        if (body.isNotEmpty()) return body
-        return listOfNotNull(
-            n.subjective?.takeIf { it.isNotBlank() }?.let { "Subjective: ${it.trim()}" },
-            n.assessment?.takeIf { it.isNotBlank() }?.let { "Assessment: ${it.trim()}" },
-            n.plan?.takeIf { it.isNotBlank() }?.let { "Plan: ${it.trim()}" },
-        ).joinToString("\n\n")
     }
 }
 

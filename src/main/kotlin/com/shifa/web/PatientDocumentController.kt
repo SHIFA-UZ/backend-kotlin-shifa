@@ -96,10 +96,21 @@ class PatientDocumentController(
         @RequestParam("isChatAttachment", required = false, defaultValue = "false") isChatAttachment: Boolean,
         @RequestParam("category", required = false) category: String?,
         @RequestParam(name = "clinicId", required = false) clinicId: Long?,
+        @RequestParam(name = "appointmentId", required = false) appointmentId: Long?,
     ): ResponseEntity<PatientDocumentDto> {
         ensurePatientDocumentAccess(principal, patientId, clinicId)
         val uploadingDoctorId = effectiveDoctorProfileId(principal, clinicId)
         val docDate = date?.let(LocalDate::parse)
+        val appointment = appointmentId?.let { id ->
+            val found = appointmentRepo.findById(id).orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $id")
+            }
+            if (found.patient.id != patientId) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment does not belong to this patient")
+            }
+            clinicAccess.assertCanAccessAppointmentResource(principal, found.doctor.id)
+            found
+        }
         val dto = service.upload(
             patientId = patientId,
             uploadingDoctorId = uploadingDoctorId,
@@ -107,7 +118,8 @@ class PatientDocumentController(
             title = title,
             date = docDate,
             isChatAttachment = isChatAttachment,
-            category = category
+            category = category,
+            appointment = appointment,
         )
         return ResponseEntity.ok(dto)
     }

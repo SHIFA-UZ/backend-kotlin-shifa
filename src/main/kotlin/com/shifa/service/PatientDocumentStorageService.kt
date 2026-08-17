@@ -39,6 +39,25 @@ class PatientDocumentStorageService(private val app: AppProperties) {
         return SaveResult(filePathRelative = rel, publicUrl = url)
     }
 
+    fun saveBytes(
+        patientId: Long,
+        bytes: ByteArray,
+        preferredBaseName: String?,
+        extension: String = "pdf",
+    ): SaveResult {
+        val ext = extension.lowercase(Locale.getDefault()).ifBlank { "pdf" }
+        val safeBase = sanitizeBaseName(preferredBaseName ?: "document")
+        val fileName = "$safeBase-${System.currentTimeMillis()}.$ext"
+        val base = Path.of(app.storageRoot)
+        val dir = base.resolve("patientdocuments").resolve(patientId.toString())
+        Files.createDirectories(dir)
+        val target = dir.resolve(fileName)
+        Files.write(target, bytes)
+        val rel = "patientdocuments/$patientId/$fileName"
+        val url = "${app.publicBaseUrl.removeSuffix("/")}/$rel"
+        return SaveResult(filePathRelative = rel, publicUrl = url)
+    }
+
     // Backward-compatible alias.
     fun savePdf(patientId: Long, file: MultipartFile, preferredBaseName: String?): SaveResult {
         return saveDocument(patientId, file, preferredBaseName)

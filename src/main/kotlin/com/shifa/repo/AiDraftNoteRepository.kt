@@ -24,6 +24,8 @@ interface AiDraftNoteRepository : JpaRepository<AiDraftNote, UUID> {
         status: AiDraftNote.Status
     ): List<AiDraftNote>
 
+    fun findByConsultationId(consultationId: Long): List<AiDraftNote>
+
     @Query(
         """SELECT COUNT(a) FROM AiDraftNote a WHERE a.doctorId = :doctorId
            AND a.createdAt >= :start AND a.createdAt < :endExclusive"""

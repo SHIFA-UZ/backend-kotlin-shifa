@@ -54,7 +54,8 @@ class AiDraftNoteService(
         draftId: UUID,
         doctorId: Long,
         patientIdOverride: Long? = null,
-        appointmentIdOverride: Long? = null
+        appointmentIdOverride: Long? = null,
+        fullBodyOverride: String? = null,
     ): ConsultationNote {
         val draft = draftRepo.findById(draftId).orElseThrow { NoSuchElementException("Draft not found: $draftId") }
         if (draft.doctorId != doctorId) throw SecurityException("Draft does not belong to this doctor")
@@ -70,7 +71,7 @@ class AiDraftNoteService(
             subjective = parsed.subjective,
             assessment = parsed.assessment,
             plan = parsed.plan,
-            body = parsed.body,
+            body = fullBodyOverride?.takeIf { it.isNotBlank() } ?: parsed.body,
             source = "AI_DRAFT"
         )
         val savedNote = consultationNoteRepo.save(note)
@@ -79,6 +80,23 @@ class AiDraftNoteService(
         savedNote.id?.let { clinicalRagIndexingService.reindexConsultationNote(it) }
         log.info("AiDraftNote confirmed: draftId={}, doctorId={}, consultationNoteId={}", draftId, doctorId, savedNote.id)
         return savedNote
+    }
+
+    /**
+     * Auto-confirm generated scribe drafts for an appointment so they land in documentation
+     * without a separate doctor Confirm tap.
+     */
+    @Transactional
+    fun confirmGeneratedScribeDrafts(
+        appointmentId: Long,
+        doctorId: Long,
+        label: String,
+    ): List<ConsultationNote> {
+        val drafts = draftRepo.findByConsultationIdAndStatusOrderByCreatedAtDesc(
+            appointmentId,
+            AiDraftNote.Status.GENERATED
+        ).filter { it.aiLabel == label && it.doctorId == doctorId }
+        return drafts.map { confirmDraft(it.id!!, doctorId, fullBodyOverride = it.aiResponseText) }
     }
 
     @Transactional
@@ -92,6 +110,12 @@ class AiDraftNoteService(
     }
 
     fun getDraftById(draftId: UUID): AiDraftNote? = draftRepo.findById(draftId).orElse(null)
+
+    fun hasActiveScribeDraft(appointmentId: Long, label: String): Boolean {
+        return draftRepo.findByConsultationId(appointmentId).any { draft ->
+            draft.aiLabel == label && draft.status != AiDraftNote.Status.DISCARDED
+        }
+    }
 
     /**
      * Attach ICD suggestions JSON to an existing draft. This is optional metadata and should not

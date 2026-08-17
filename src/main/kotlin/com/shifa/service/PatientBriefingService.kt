@@ -1,6 +1,7 @@
 package com.shifa.service
 
 import com.shifa.ai.ConsultationNoteAiSnapshot
+import com.shifa.ai.ConsultationNoteText
 import com.shifa.ai.Form0252AiSnapshot
 import com.shifa.domain.Appointment
 import com.shifa.repo.AppointmentRepository
@@ -140,6 +141,19 @@ class PatientBriefingService(
         age?.let { sb.append("Age: $it\n") }
         language?.let { sb.append("Preferred language: $it\n") }
 
+        val scribeNotes = consultationSnapshots.filter { it.kind == ConsultationNoteText.KIND_VIDEO_SCRIBE }
+        val otherNotes = consultationSnapshots.filter { it.kind != ConsultationNoteText.KIND_VIDEO_SCRIBE }
+
+        if (scribeNotes.isNotEmpty()) {
+            sb.append("\n--- Video consultation scribe (clinical protocol only; transcripts omitted) ---\n")
+            sb.append("These are AI scribe notes from recorded visits. Summarize takeaways only; do not paste the protocol verbatim.\n\n")
+            for (note in scribeNotes) {
+                sb.append("Scribe visit ${note.date}\n")
+                sb.append(note.excerpt)
+                sb.append("\n\n")
+            }
+        }
+
         if (appointments.isNotEmpty()) {
             sb.append("\n--- Appointments with this doctor (date, reason, status, location) ---\n\n")
             for (a in appointments) {
@@ -163,10 +177,10 @@ class PatientBriefingService(
             sb.append("\n")
         }
 
-        if (consultationSnapshots.isNotEmpty()) {
-            sb.append("\n--- Consultation notes (this doctor and patient; excerpts may be truncated) ---\n")
+        if (otherNotes.isNotEmpty()) {
+            sb.append("\n--- Other consultation notes (this doctor and patient; excerpts may be truncated) ---\n")
             sb.append("Source: MANUAL = typed in EMR, AI_DRAFT = saved from Shifa AI assistant.\n\n")
-            for (note in consultationSnapshots) {
+            for (note in otherNotes) {
                 val src = note.source?.takeIf { it.isNotBlank() }?.let { s -> " [$s]" } ?: ""
                 sb.append("Note date ${note.date}$src\n")
                 sb.append(note.excerpt)

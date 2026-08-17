@@ -24,7 +24,9 @@ class ScribePipelineService(
     private val appointmentRepository: AppointmentRepository,
     private val notificationRepository: NotificationRepository,
     private val doctorProfileRepository: DoctorProfileRepository,
-    private val fcmService: FcmService
+    private val fcmService: FcmService,
+    private val appointmentDocumentationService: AppointmentDocumentationService,
+    private val visitSummaryService: PatientVisitAiSummaryService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -81,6 +83,12 @@ class ScribePipelineService(
 
             val doctorId = appointment.doctor.id
             val patientId = appointment.patient.id
+
+            if (aiDraftNoteService.hasActiveScribeDraft(appointmentId, SCRIBE_LABEL)) {
+                log.info("Scribe already exists for appointment {}, confirming/updating documentation", appointmentId)
+                finalizeScribeForAppointment(appointmentId, doctorId)
+                return
+            }
 
             tempPath = scribeRecordingService.downloadDailyRecording(recordingId)
             val audioPath = scribeRecordingService.ensureAudioFormat(tempPath)
@@ -144,7 +152,7 @@ class ScribePipelineService(
                 language = outputLanguage
             )
         )
-        val formattedText = medicalSummaryService.formatAsScribeNote(summary)
+        val formattedText = medicalSummaryService.formatAsScribeNote(summary, transcript.transcript)
         val draft = aiDraftNoteService.createDraft(
             doctorId = doctorId,
             patientId = patientId,
@@ -164,7 +172,33 @@ class ScribePipelineService(
             log.warn("ICD suggestions skipped for draftId={}: {}", draft.id, e.message)
         }
 
-        notifyDoctorScribeReady(doctorId, appointmentId)
+        finalizeScribeForAppointment(appointmentId, doctorId)
+    }
+
+    /**
+     * Auto-confirm scribe drafts and write them into appointment documentation.
+     * Safe to call after the doctor has already ended the visit.
+     */
+    fun finalizeScribeForAppointment(appointmentId: Long, doctorId: Long) {
+        val confirmed = try {
+            aiDraftNoteService.confirmGeneratedScribeDrafts(appointmentId, doctorId, SCRIBE_LABEL)
+        } catch (e: Exception) {
+            log.warn("Could not auto-confirm scribe drafts for appointment {}: {}", appointmentId, e.message)
+            emptyList()
+        }
+        try {
+            appointmentDocumentationService.generateForAppointment(appointmentId)
+        } catch (e: Exception) {
+            log.warn("Could not generate appointment documentation for {}: {}", appointmentId, e.message)
+        }
+        try {
+            visitSummaryService.enqueueGeneration(appointmentId, null, force = false)
+        } catch (e: Exception) {
+            log.warn("Could not enqueue visit summary for appointment {}: {}", appointmentId, e.message)
+        }
+        if (confirmed.isNotEmpty()) {
+            notifyDoctorScribeReady(doctorId, appointmentId)
+        }
     }
 
     private fun notifyDoctorScribeReady(doctorId: Long, appointmentId: Long) {
@@ -175,7 +209,7 @@ class ScribePipelineService(
                 patient = null,
                 doctor = doctor,
                 title = "AI Scribe",
-                message = "Consultation summary is ready. Open the appointment to view.",
+                message = "Consultation summary is ready and saved to appointment documentation.",
                 type = Notification.Type.AI_SCRIBE_READY,
                 appointmentId = appointmentId
             )

@@ -22,6 +22,12 @@ import com.shifa.repo.TreatmentPlanAppointmentLinkRepository
 import com.shifa.repo.TreatmentPlanLineFulfillmentRepository
 import com.shifa.service.TreatmentPlanFulfillmentService
 import com.shifa.service.VisitChargeService
+import com.shifa.service.ScribePipelineService
+import com.shifa.service.ScribeRecordingService
+import com.shifa.service.AiDraftNoteService
+import com.shifa.service.AppointmentDocumentationService
+import com.shifa.domain.ConsultationNote
+import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
@@ -50,7 +56,12 @@ class AppointmentController(
     private val slotAvailabilityService: SlotAvailabilityService,
     private val appointmentCancellationService: AppointmentCancellationService,
     private val appointmentBriefingService: com.shifa.service.AppointmentBriefingService,
+    private val scribePipelineService: ScribePipelineService,
+    private val scribeRecordingService: ScribeRecordingService,
+    private val aiDraftNoteService: AiDraftNoteService,
+    private val appointmentDocumentationService: AppointmentDocumentationService,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     // -------------------- Doctor: get single appointment (for polling signature status) --------------------
 
@@ -384,6 +395,8 @@ class AppointmentController(
     data class CompleteAppointmentRequest(
         val clinicId: Long? = null,
         val visitCharges: List<VisitChargeLineReq>? = null,
+        val doctorNotes: String? = null,
+        val awaitingScribe: Boolean? = null,
     )
 
     data class VisitChargeLineReq(
@@ -392,12 +405,43 @@ class AppointmentController(
         val unitPriceMinor: Long? = null,
     )
 
+    data class CompleteAppointmentResponse(
+        val status: String,
+        val scribePending: Boolean,
+        val hasDocumentation: Boolean,
+        val hasScribeNote: Boolean,
+    )
+
+    data class ScribeStatusResponse(
+        val status: String,
+        val hasDocumentation: Boolean,
+        val hasScribeNote: Boolean,
+    )
+
+    @GetMapping("/{appointmentId}/scribe-status")
+    fun getScribeStatus(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable appointmentId: Long
+    ): ScribeStatusResponse {
+        val appointment = appts.findById(appointmentId)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
+            }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
+        val status = appointmentDocumentationService.statusFor(appointmentId)
+        return ScribeStatusResponse(
+            status = status.status,
+            hasDocumentation = status.hasDocumentation,
+            hasScribeNote = status.hasScribeNote,
+        )
+    }
+
     @PutMapping("/{appointmentId}/complete")
     fun complete(
         @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long,
         @RequestBody(required = false) body: CompleteAppointmentRequest?,
-    ) {
+    ): CompleteAppointmentResponse {
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
@@ -433,6 +477,22 @@ class AppointmentController(
             }
         }
 
+        val doctorNotes = body?.doctorNotes?.trim().orEmpty()
+        if (!wasAlreadyCompleted && doctorNotes.isNotEmpty()) {
+            val patientId = appointment.patient.id
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment has no patient")
+            val savedNote = consultationNoteRepo.save(
+                ConsultationNote(
+                    doctorId = appointment.doctor.id,
+                    patientId = patientId,
+                    appointmentId = appointment.id,
+                    body = doctorNotes,
+                    source = "MANUAL",
+                )
+            )
+            savedNote.id?.let { clinicalRagIndexingService.reindexConsultationNote(it) }
+        }
+
         appointment.status = Appointment.Status.COMPLETED
         appts.save(appointment)
 
@@ -447,11 +507,62 @@ class AppointmentController(
             // plan-status follow-up failed.
         }
 
+        var scribePending = body?.awaitingScribe == true
+        try {
+            aiDraftNoteService.confirmGeneratedScribeDrafts(
+                appointmentId,
+                appointment.doctor.id,
+                ScribePipelineService.SCRIBE_LABEL,
+            )
+        } catch (e: Exception) {
+            log.warn("Could not auto-confirm scribe drafts on complete for {}: {}", appointmentId, e.message)
+        }
+
+        val roomName = "appointment-$appointmentId"
+        try {
+            val recordings = scribeRecordingService.listRecordingsForRoom(roomName)
+            if (recordings.isNotEmpty()) {
+                val alreadyHasScribe = aiDraftNoteService.hasActiveScribeDraft(
+                    appointmentId,
+                    ScribePipelineService.SCRIBE_LABEL,
+                )
+                val finished = recordings.firstOrNull { rec ->
+                    rec.status.equals("finished", ignoreCase = true) ||
+                        rec.status.equals("ready-to-download", ignoreCase = true)
+                }
+                if (finished != null && !alreadyHasScribe) {
+                    scribePipelineService.processVideoRecording(roomName, finished.id)
+                }
+                if (!alreadyHasScribe) {
+                    scribePending = true
+                }
+            }
+        } catch (e: Exception) {
+            log.warn("Could not inspect Daily recordings for appointment {}: {}", appointmentId, e.message)
+        }
+
+        try {
+            appointmentDocumentationService.generateForAppointment(appointmentId)
+        } catch (e: Exception) {
+            log.warn("Could not generate appointment documentation on complete for {}: {}", appointmentId, e.message)
+        }
+
         try {
             visitSummaryService.enqueueGeneration(appointmentId, appointment.patient.language, force = false)
         } catch (_: Exception) {
             // Never fail appointment completion due to AI summary generation issues.
         }
+
+        val status = appointmentDocumentationService.statusFor(appointmentId)
+        if (status.hasScribeNote) {
+            scribePending = false
+        }
+        return CompleteAppointmentResponse(
+            status = "COMPLETED",
+            scribePending = scribePending,
+            hasDocumentation = status.hasDocumentation,
+            hasScribeNote = status.hasScribeNote,
+        )
     }
 
     @PutMapping("/{appointmentId}/change")

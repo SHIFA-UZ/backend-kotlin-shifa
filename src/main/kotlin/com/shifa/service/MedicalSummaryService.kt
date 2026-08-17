@@ -137,7 +137,7 @@ Do not diagnose or prescribe. If transcript is empty or unclear, return empty st
     /**
      * Format ScribeSummaryResult as text compatible with StructuredNoteParser (section headers).
      */
-    fun formatAsScribeNote(result: ScribeSummaryResult): String {
+    fun formatAsScribeNote(result: ScribeSummaryResult, transcript: String? = null): String {
         return buildString {
             result.subjective?.takeIf { it.isNotBlank() }?.let {
                 append("SUBJECTIVE:\n$it\n\n")
@@ -152,6 +152,12 @@ Do not diagnose or prescribe. If transcript is empty or unclear, return empty st
                 append(result.body)
             }
             if (isEmpty()) append("(No content)")
+            val transcriptText = transcript?.trim().orEmpty()
+            if (transcriptText.isNotEmpty()) {
+                if (isNotEmpty()) append("\n\n")
+                append("TRANSCRIPT:\n")
+                append(transcriptText)
+            }
         }.trim()
     }
 }

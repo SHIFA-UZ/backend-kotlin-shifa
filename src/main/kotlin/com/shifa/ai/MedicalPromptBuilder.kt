@@ -134,11 +134,12 @@ fun patientContextPrompt(ctx: PatientAiContext): String {
 
         if (ctx.consultationNoteSnapshots.isNotEmpty()) {
             append(
-                "- Consultation notes from visits with you (excerpts; may be truncated). " +
-                    "Source tag when present: MANUAL = typed by staff, AI_DRAFT = saved from Shifa AI.\n"
+                "- Consultation notes from visits with you (excerpts; transcripts stripped). " +
+                    "Kind when present: MANUAL = typed, VIDEO_SCRIBE = recorded-visit AI protocol, AI_DRAFT = Shifa AI assistant.\n"
             )
             ctx.consultationNoteSnapshots.forEach { note ->
-                val src = note.source?.takeIf { it.isNotBlank() }?.let { s -> " [$s]" } ?: ""
+                val kind = note.kind?.takeIf { it.isNotBlank() }
+                val src = (kind ?: note.source)?.let { s -> " [$s]" } ?: ""
                 append("  • ${note.date}$src\n")
                 note.excerpt.lineSequence().forEach { ln ->
                     append("    ").append(ln).append('\n')
