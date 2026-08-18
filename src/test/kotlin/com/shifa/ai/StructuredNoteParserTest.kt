@@ -24,4 +24,26 @@ class StructuredNoteParserTest {
         assertEquals("Rest and fluids", parsed.plan)
         assertNull(parsed.body)
     }
+
+    @Test
+    fun `AI recommendations are not merged into plan`() {
+        val parsed = StructuredNoteParser.parse(
+            """
+            SUBJECTIVE:
+            Abdominal pain after fatty food
+
+            PLAN:
+            Continue current medicines
+
+            AI RECOMMENDATIONS (not spoken in the visit — Shifa AI):
+            [AI recommendation] Consider a pediatrician referral
+
+            TRANSCRIPT:
+            Patient: my stomach hurts
+            """.trimIndent()
+        )
+        assertEquals("Abdominal pain after fatty food", parsed.subjective)
+        assertEquals("Continue current medicines", parsed.plan)
+        assertNull(parsed.body)
+    }
 }

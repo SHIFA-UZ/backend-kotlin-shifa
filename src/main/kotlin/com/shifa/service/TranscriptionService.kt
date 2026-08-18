@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.shifa.ai.MedicalBiasPrompt
+import com.shifa.ai.TranscriptPromptLeakStripper
 import com.shifa.config.OpenAiProperties
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -192,6 +193,17 @@ class TranscriptionService(
             )
 
             return applyMedicalCleanupIfEnabled(rawOutcome, normalizedLanguageHint, purpose)
+                .let { cleaned ->
+                    val stripped = TranscriptPromptLeakStripper.strip(cleaned.transcript)
+                    if (stripped != cleaned.transcript) {
+                        log.info(
+                            "STT prompt-leak strip: chars {} -> {}",
+                            cleaned.transcript.length,
+                            stripped.length,
+                        )
+                    }
+                    cleaned.copy(transcript = stripped.ifBlank { cleaned.transcript })
+                }
         }
     }
 

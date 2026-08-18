@@ -30,6 +30,7 @@ class AppointmentDocumentationService(
     private val patientDocumentRepository: PatientDocumentRepository,
     private val storage: PatientDocumentStorageService,
     private val doctorSettingsRepository: DoctorSettingsRepository,
+    private val aiDraftNoteService: AiDraftNoteService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -43,8 +44,13 @@ class AppointmentDocumentationService(
         val notes = consultationNoteRepository.findByAppointmentIdOrderByCreatedAtAsc(appointmentId)
         val hasScribeNote = notes.any { it.source == AppointmentDocumentationComposer.SOURCE_AI }
         val hasDocumentation = findExistingNote(appointmentId) != null
+        val hasPendingScribe = aiDraftNoteService.hasGeneratedScribeDraft(
+            appointmentId,
+            ScribePipelineService.SCRIBE_LABEL,
+        )
         val status = when {
             hasScribeNote -> "ready"
+            hasPendingScribe -> "pending"
             else -> "none"
         }
         return ScribeStatus(

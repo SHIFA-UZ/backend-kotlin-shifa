@@ -40,8 +40,9 @@ object StructuredNoteParser {
             val transcriptHeader = trimmed.equals("TRANSCRIPT", ignoreCase = true) ||
                 trimmed.equals("TRANSCRIPT:", ignoreCase = true) ||
                 trimmed.startsWith("TRANSCRIPT:", ignoreCase = true)
-            if (transcriptHeader) {
-                // Keep SOAP fields clean; transcript is stored on body after confirm.
+            val aiRecHeader = trimmed.startsWith("AI RECOMMENDATION", ignoreCase = true)
+            if (transcriptHeader || aiRecHeader) {
+                // Keep SOAP fields spoken-only; extras stay in the full body text.
                 currentField = null
             } else if (headerMatch != null) {
                 currentField = headerMatch.value

@@ -117,6 +117,13 @@ class AiDraftNoteService(
         }
     }
 
+    fun hasGeneratedScribeDraft(appointmentId: Long, label: String): Boolean {
+        return draftRepo.findByConsultationIdAndStatusOrderByCreatedAtDesc(
+            appointmentId,
+            AiDraftNote.Status.GENERATED,
+        ).any { it.aiLabel == label }
+    }
+
     /**
      * Attach ICD suggestions JSON to an existing draft. This is optional metadata and should not
      * affect draft confirmation or existing workflows.

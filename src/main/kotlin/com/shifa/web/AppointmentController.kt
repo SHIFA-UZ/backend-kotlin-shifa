@@ -173,6 +173,17 @@ class AppointmentController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
         clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
+        val pendingScribe = aiDraftNoteRepo.findByConsultationIdAndStatusOrderByCreatedAtDesc(
+            appointmentId,
+            AiDraftNote.Status.GENERATED,
+        ).any { it.aiLabel == ScribePipelineService.SCRIBE_LABEL }
+        if (pendingScribe) {
+            try {
+                scribePipelineService.finalizeScribeForAppointment(appointmentId, appointment.doctor.id)
+            } catch (e: Exception) {
+                log.warn("Could not finalize AI scribe before listing notes for {}: {}", appointmentId, e.message)
+            }
+        }
         val notes = consultationNoteRepo.findByAppointmentIdOrderByCreatedAtAsc(appointmentId)
         return notes.map { n ->
             ConsultationNoteDto(

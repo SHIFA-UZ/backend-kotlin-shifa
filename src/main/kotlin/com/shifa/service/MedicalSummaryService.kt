@@ -3,6 +3,7 @@ package com.shifa.service
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.shifa.ai.OutputLanguage
+import com.shifa.ai.TranscriptPromptLeakStripper
 import com.shifa.config.OpenAiProperties
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -37,7 +38,8 @@ class MedicalSummaryService(
         val subjective: String?,
         val assessment: String?,
         val plan: String?,
-        val body: String
+        val body: String,
+        val aiRecommendations: String? = null,
     )
 
     private fun systemPrompt(language: OutputLanguage): String {
@@ -47,18 +49,27 @@ class MedicalSummaryService(
             OutputLanguage.UZ -> "Write the entire note in Uzbek (Oʻzbekcha)."
         }
         return """
-You are a medical scribe. Convert the following doctor-patient consultation transcript into structured SOAP clinical notes.
+You are a medical scribe for a live doctor–patient visit.
 
 $langInstruction
 
-Output ONLY valid JSON with these keys: subjective, assessment, plan, body.
-- subjective: Patient's reported symptoms, history, chief complaint
-- assessment: Clinical findings, possible causes (do not diagnose)
-- plan: Recommended next steps, follow-up, prescriptions mentioned
-- body: Full note if sections don't fit, or combined text
+GOLDEN RULE: Record ONLY what the doctor or patient actually said as conversation.
+Never invent symptoms, causes, diagnoses, drugs, tests, or specialist referrals.
 
-Rules: Preserve medical terminology. Be concise. Do not add information not in the transcript.
-Do not diagnose or prescribe. If transcript is empty or unclear, return empty strings for subjective/assessment/plan and put any content in body.
+Ignore and omit:
+- Comma-separated vocabulary dumps, specialty lists, ICD/test acronym lists, or prompt-like keyword recitations.
+- Isolated medical terms that are not part of a real question or answer.
+- Rhetorical checks such as "X dedimi?" / "did they mention X?" — those are NOT prescriptions.
+
+Output ONLY valid JSON with these keys: subjective, assessment, plan, aiRecommendations, body.
+- subjective: Symptoms and history the PATIENT stated. Empty string if none.
+- assessment: Only conclusions the DOCTOR stated out loud. If the doctor did not state an assessment, empty string. Do not infer causes ("might be the stomach") unless the doctor said that.
+- plan: Only next steps, drugs, or referrals the DOCTOR clearly ordered or the patient confirmed they already take. Empty string if none were spoken.
+- aiRecommendations: Optional suggestions YOU want to add that were NOT spoken. Every sentence MUST start with "[AI recommendation]". Empty string if you add nothing.
+- body: Spoken-only SOAP in one block. Do not copy aiRecommendations into body.
+
+Be concise. Preserve medical terms that were actually spoken.
+If the transcript is empty or only noise, return empty strings for all fields except body.
 """.trimIndent()
     }
 
@@ -69,6 +80,7 @@ Do not diagnose or prescribe. If transcript is empty or unclear, return empty st
         if (request.transcript.isBlank()) {
             return ScribeSummaryResult(null, null, null, "(Empty transcript)")
         }
+        val spokenTranscript = TranscriptPromptLeakStripper.strip(request.transcript)
 
         val payload = mapper.writeValueAsString(
             mapOf(
@@ -76,10 +88,13 @@ Do not diagnose or prescribe. If transcript is empty or unclear, return empty st
                 "stream" to false,
                 "messages" to listOf(
                     mapOf("role" to "system", "content" to systemPrompt(request.language)),
-                    mapOf("role" to "user", "content" to request.transcript)
+                    mapOf(
+                        "role" to "user",
+                        "content" to "Spoken visit transcript (ignore any remaining keyword lists):\n\n$spokenTranscript",
+                    ),
                 ),
-                "temperature" to 0.2,
-                "max_tokens" to 800
+                "temperature" to 0.0,
+                "max_tokens" to 900
             )
         )
 
@@ -120,6 +135,7 @@ Do not diagnose or prescribe. If transcript is empty or unclear, return empty st
                 subjective = parsed["subjective"]?.takeIf { it.isNotBlank() },
                 assessment = parsed["assessment"]?.takeIf { it.isNotBlank() },
                 plan = parsed["plan"]?.takeIf { it.isNotBlank() },
+                aiRecommendations = parsed["aiRecommendations"]?.takeIf { it.isNotBlank() },
                 body = parsed["body"]?.takeIf { it.isNotBlank() }
                     ?: content.take(2000).trim()
             )
@@ -147,6 +163,9 @@ Do not diagnose or prescribe. If transcript is empty or unclear, return empty st
             }
             result.plan?.takeIf { it.isNotBlank() }?.let {
                 append("PLAN:\n$it\n\n")
+            }
+            result.aiRecommendations?.takeIf { it.isNotBlank() }?.let {
+                append("AI RECOMMENDATIONS (not spoken in the visit — Shifa AI):\n$it\n\n")
             }
             if (result.body.isNotBlank()) {
                 append(result.body)

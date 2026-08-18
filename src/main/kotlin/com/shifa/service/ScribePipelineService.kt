@@ -1,6 +1,7 @@
 package com.shifa.service
 
 import com.shifa.ai.OutputLanguage
+import com.shifa.ai.TranscriptPromptLeakStripper
 import com.shifa.domain.Notification
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DoctorProfileRepository
@@ -138,7 +139,8 @@ class ScribePipelineService(
             hintEffective,
             TranscriptionPurpose.SCRIBE_PIPELINE
         )
-        if (transcript.transcript.isBlank() || transcript.transcript == "(No speech detected)") {
+        val spokenTranscript = TranscriptPromptLeakStripper.strip(transcript.transcript)
+        if (spokenTranscript.isBlank() || spokenTranscript == "(No speech detected)") {
             log.warn("Empty transcript, skipping draft creation")
             return
         }
@@ -148,11 +150,11 @@ class ScribePipelineService(
 
         val summary = medicalSummaryService.summarize(
             MedicalSummaryService.ScribeSummaryRequest(
-                transcript = transcript.transcript,
+                transcript = spokenTranscript,
                 language = outputLanguage
             )
         )
-        val formattedText = medicalSummaryService.formatAsScribeNote(summary, transcript.transcript)
+        val formattedText = medicalSummaryService.formatAsScribeNote(summary, spokenTranscript)
         val draft = aiDraftNoteService.createDraft(
             doctorId = doctorId,
             patientId = patientId,

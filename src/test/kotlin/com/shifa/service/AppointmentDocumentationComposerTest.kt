@@ -45,6 +45,25 @@ class AppointmentDocumentationComposerTest {
         assertTrue(formatted.contains("Doctor: hello"))
         assertEquals("Headache", StructuredNoteParserSafe.subjective(formatted))
     }
+
+    @Test
+    fun `formatAsScribeNote labels unspoken AI advice separately`() {
+        val formatted = MedicalSummaryService(com.shifa.config.OpenAiProperties()).formatAsScribeNote(
+            MedicalSummaryService.ScribeSummaryResult(
+                subjective = "Abdominal pain",
+                assessment = null,
+                plan = null,
+                body = "",
+                aiRecommendations = "[AI recommendation] Consider pantoprazole if gastritis is confirmed",
+            ),
+            transcript = "Patient: qorin og'riydi",
+        )
+        assertTrue(formatted.contains("AI RECOMMENDATIONS (not spoken in the visit — Shifa AI):"))
+        assertTrue(formatted.contains("[AI recommendation]"))
+        val parsed = com.shifa.ai.StructuredNoteParser.parse(formatted)
+        assertEquals("Abdominal pain", parsed.subjective)
+        assertEquals(null, parsed.plan)
+    }
 }
 
 private object StructuredNoteParserSafe {

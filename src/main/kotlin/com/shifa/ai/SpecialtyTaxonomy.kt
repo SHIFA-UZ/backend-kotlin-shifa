@@ -69,8 +69,8 @@ object SpecialtyTaxonomy {
     }
 
     /**
-     * Comma-separated specialty / role terms for speech-to-text prompt biasing
-     * (shared with [MedicalBiasPrompt]).
+     * Comma-separated specialty / role terms for speech-to-text prompt biasing.
+     * Kept for search/matching; do not inject this list into the STT prompt.
      */
     fun speechBiasSpecialtyTerms(): String =
         aliases.keys.distinct().sorted().joinToString(", ")
