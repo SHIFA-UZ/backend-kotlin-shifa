@@ -10,6 +10,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
 import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 
 /**
  * Orchestrates the AI scribe pipeline: recording -> transcription -> summarization -> ai_draft_notes.
@@ -30,6 +31,12 @@ class ScribePipelineService(
     private val visitSummaryService: PatientVisitAiSummaryService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    /** One in-flight scribe job per appointment so webhook + complete cannot both transcribe. */
+    private val inFlightAppointments = ConcurrentHashMap.newKeySet<Long>()
+
+    /** Daily recording ids that already produced a scribe (or were claimed for one). */
+    private val processedRecordingIds = ConcurrentHashMap.newKeySet<String>()
 
     companion object {
         const val SCRIBE_LABEL = "AI Scribe - Consultation Summary"
@@ -61,10 +68,16 @@ class ScribePipelineService(
         }
     }
 
+    fun isScribeInFlight(appointmentId: Long): Boolean = inFlightAppointments.contains(appointmentId)
+
+    fun hasStartedOrFinishedScribe(appointmentId: Long): Boolean =
+        isScribeInFlight(appointmentId) || aiDraftNoteService.hasActiveScribeDraft(appointmentId, SCRIBE_LABEL)
+
     @Async("scribeTaskExecutor")
     fun processVideoRecording(roomName: String, recordingId: String) {
         log.info("Scribe pipeline started: roomName={}, recordingId={}", roomName, recordingId)
         var tempPath: Path? = null
+        var claimedAppointmentId: Long? = null
         try {
             val appointmentId = parseAppointmentIdFromRoomName(roomName)
                 ?: run {
@@ -72,24 +85,33 @@ class ScribePipelineService(
                     return
                 }
 
+            if (!processedRecordingIds.add(recordingId)) {
+                log.info("Recording {} already claimed for scribe, skipping", recordingId)
+                return
+            }
+
             val appointment = appointmentRepository.findByIdWithDoctorAndPatient(appointmentId).orElse(null)
             if (appointment == null) {
                 log.warn("Appointment not found: {}", appointmentId)
+                processedRecordingIds.remove(recordingId)
                 return
             }
             if (appointment.status == com.shifa.domain.Appointment.Status.CANCELLED) {
                 log.info("Skipping cancelled appointment: {}", appointmentId)
+                processedRecordingIds.remove(recordingId)
                 return
             }
 
             val doctorId = appointment.doctor.id
             val patientId = appointment.patient.id
 
-            if (aiDraftNoteService.hasActiveScribeDraft(appointmentId, SCRIBE_LABEL)) {
-                log.info("Scribe already exists for appointment {}, confirming/updating documentation", appointmentId)
-                finalizeScribeForAppointment(appointmentId, doctorId)
+            if (!tryClaimScribeRun(appointmentId, doctorId)) {
+                if (!aiDraftNoteService.hasActiveScribeDraft(appointmentId, SCRIBE_LABEL)) {
+                    processedRecordingIds.remove(recordingId)
+                }
                 return
             }
+            claimedAppointmentId = appointmentId
 
             tempPath = scribeRecordingService.downloadDailyRecording(recordingId)
             val audioPath = scribeRecordingService.ensureAudioFormat(tempPath)
@@ -98,7 +120,9 @@ class ScribePipelineService(
             log.info("Scribe pipeline completed: appointmentId={}", appointmentId)
         } catch (e: Exception) {
             log.error("Scribe pipeline failed: roomName={}, recordingId={}", roomName, recordingId, e)
+            processedRecordingIds.remove(recordingId)
         } finally {
+            claimedAppointmentId?.let { inFlightAppointments.remove(it) }
             tempPath?.let { scribeRecordingService.cleanupTempFile(it) }
         }
     }
@@ -112,14 +136,51 @@ class ScribePipelineService(
         languageHint: String? = null
     ) {
         log.info("Scribe pipeline started (in-person): appointmentId={}", appointmentId)
+        val claimed = tryClaimScribeRun(appointmentId, doctorId)
         try {
+            if (!claimed) {
+                return
+            }
             runPipeline(doctorId, patientId, appointmentId, localFilePath, languageHint)
             log.info("Scribe pipeline completed: appointmentId={}", appointmentId)
         } catch (e: Exception) {
             log.error("Scribe pipeline failed: appointmentId={}", appointmentId, e)
         } finally {
+            if (claimed) {
+                inFlightAppointments.remove(appointmentId)
+            }
             scribeRecordingService.cleanupTempFile(localFilePath)
         }
+    }
+
+    /**
+     * Claim exclusive scribe work for this appointment. If a draft already exists,
+     * only confirm still-pending GENERATED drafts — never start another transcription.
+     */
+    private fun tryClaimScribeRun(appointmentId: Long, doctorId: Long): Boolean {
+        if (aiDraftNoteService.hasActiveScribeDraft(appointmentId, SCRIBE_LABEL)) {
+            log.info("Scribe already exists for appointment {}, skipping new preparation", appointmentId)
+            finalizePendingScribeIfNeeded(appointmentId, doctorId)
+            return false
+        }
+        if (!inFlightAppointments.add(appointmentId)) {
+            log.info("Scribe already in flight for appointment {}, skipping", appointmentId)
+            return false
+        }
+        if (aiDraftNoteService.hasActiveScribeDraft(appointmentId, SCRIBE_LABEL)) {
+            log.info("Scribe appeared before claim for appointment {}, skipping", appointmentId)
+            inFlightAppointments.remove(appointmentId)
+            finalizePendingScribeIfNeeded(appointmentId, doctorId)
+            return false
+        }
+        return true
+    }
+
+    private fun finalizePendingScribeIfNeeded(appointmentId: Long, doctorId: Long) {
+        if (!aiDraftNoteService.hasGeneratedScribeDraft(appointmentId, SCRIBE_LABEL)) {
+            return
+        }
+        finalizeScribeForAppointment(appointmentId, doctorId)
     }
 
     private fun runPipeline(
@@ -145,6 +206,12 @@ class ScribePipelineService(
             return
         }
 
+        if (aiDraftNoteService.hasActiveScribeDraft(appointmentId, SCRIBE_LABEL)) {
+            log.info("Scribe already exists after transcription for appointment {}, skipping duplicate draft", appointmentId)
+            finalizePendingScribeIfNeeded(appointmentId, doctorId)
+            return
+        }
+
         val outputLanguage = transcriptLanguageToOutput(transcript.language)
         log.info("Scribe pipeline: transcript language={}, output language={}", transcript.language, outputLanguage)
 
@@ -154,6 +221,13 @@ class ScribePipelineService(
                 language = outputLanguage
             )
         )
+
+        if (aiDraftNoteService.hasActiveScribeDraft(appointmentId, SCRIBE_LABEL)) {
+            log.info("Scribe already exists after summarization for appointment {}, skipping duplicate draft", appointmentId)
+            finalizePendingScribeIfNeeded(appointmentId, doctorId)
+            return
+        }
+
         val formattedText = medicalSummaryService.formatAsScribeNote(summary, spokenTranscript)
         val draft = aiDraftNoteService.createDraft(
             doctorId = doctorId,
@@ -205,6 +279,15 @@ class ScribePipelineService(
 
     private fun notifyDoctorScribeReady(doctorId: Long, appointmentId: Long) {
         try {
+            if (notificationRepository.existsByDoctor_IdAndAppointmentIdAndType(
+                    doctorId,
+                    appointmentId,
+                    Notification.Type.AI_SCRIBE_READY,
+                )
+            ) {
+                log.info("AI Scribe ready notification already sent to doctor {} for appointment {}", doctorId, appointmentId)
+                return
+            }
             val doctor = doctorProfileRepository.findById(doctorId).orElse(null) ?: return
             val token = doctor.fcmToken ?: return
             val notif = Notification(

@@ -13,6 +13,18 @@ interface NotificationRepository : JpaRepository<Notification, Long> {
         type: Notification.Type
     ): List<Notification>
 
+    fun existsByPatient_IdAndAppointmentIdAndType(
+        patientId: Long,
+        appointmentId: Long,
+        type: Notification.Type
+    ): Boolean
+
+    fun existsByDoctor_IdAndAppointmentIdAndType(
+        doctorId: Long,
+        appointmentId: Long,
+        type: Notification.Type
+    ): Boolean
+
     fun existsByPatient_IdAndTreatmentPlanIdAndType(
         patientId: Long,
         treatmentPlanId: Long,

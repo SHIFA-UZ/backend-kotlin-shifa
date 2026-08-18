@@ -70,6 +70,17 @@ class ConsultationController(
         Files.createDirectories(tempPath.parent)
         file.transferTo(tempPath.toFile())
 
+        if (scribePipelineService.hasStartedOrFinishedScribe(appointmentId)) {
+            Files.deleteIfExists(tempPath)
+            log.info("Skipping duplicate in-person scribe upload for appointment {}", appointmentId)
+            return ResponseEntity.ok(
+                mapOf(
+                    "message" to "Consultation notes are already being prepared or are ready.",
+                    "jobId" to UUID.randomUUID().toString(),
+                )
+            )
+        }
+
         // Trigger async pipeline (pipeline will cleanup temp file when done)
         scribePipelineService.processInPersonRecording(
             appointmentId = appointmentId,

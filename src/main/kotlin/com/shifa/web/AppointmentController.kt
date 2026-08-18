@@ -530,6 +530,7 @@ class AppointmentController(
         }
 
         val roomName = "appointment-$appointmentId"
+        var startedScribePipeline = false
         try {
             val recordings = scribeRecordingService.listRecordingsForRoom(roomName)
             if (recordings.isNotEmpty()) {
@@ -541,8 +542,10 @@ class AppointmentController(
                     rec.status.equals("finished", ignoreCase = true) ||
                         rec.status.equals("ready-to-download", ignoreCase = true)
                 }
-                if (finished != null && !alreadyHasScribe) {
+                val inFlight = scribePipelineService.isScribeInFlight(appointmentId)
+                if (finished != null && !alreadyHasScribe && !inFlight) {
                     scribePipelineService.processVideoRecording(roomName, finished.id)
+                    startedScribePipeline = true
                 }
                 if (!alreadyHasScribe) {
                     scribePending = true
@@ -558,15 +561,18 @@ class AppointmentController(
             log.warn("Could not generate appointment documentation on complete for {}: {}", appointmentId, e.message)
         }
 
-        try {
-            visitSummaryService.enqueueGeneration(appointmentId, appointment.patient.language, force = false)
-        } catch (_: Exception) {
-            // Never fail appointment completion due to AI summary generation issues.
-        }
-
         val status = appointmentDocumentationService.statusFor(appointmentId)
         if (status.hasScribeNote) {
             scribePending = false
+        }
+        // Visit summary is produced once the scribe lands. Starting it here while a
+        // pipeline is still running caused repeated OpenAI jobs and duplicate patient pushes.
+        if (!scribePending && !startedScribePipeline && !scribePipelineService.isScribeInFlight(appointmentId)) {
+            try {
+                visitSummaryService.enqueueGeneration(appointmentId, appointment.patient.language, force = false)
+            } catch (_: Exception) {
+                // Never fail appointment completion due to AI summary generation issues.
+            }
         }
         return CompleteAppointmentResponse(
             status = "COMPLETED",

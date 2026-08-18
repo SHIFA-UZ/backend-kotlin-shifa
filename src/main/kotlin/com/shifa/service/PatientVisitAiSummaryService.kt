@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Transactional
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
 
 data class PatientVisitSummaryResult(
@@ -42,6 +43,7 @@ class PatientVisitAiSummaryService(
     private val jobExecutor: Executor
 ) {
     private val mapper = jacksonObjectMapper()
+    private val inFlightJobs = ConcurrentHashMap.newKeySet<String>()
 
     @Transactional
     fun enqueueGeneration(
@@ -53,19 +55,33 @@ class PatientVisitAiSummaryService(
             .orElseThrow { IllegalArgumentException("Appointment not found: $appointmentId") }
         val patient = appointment.patient
         val lang = (language ?: patient.language ?: "en").lowercase().take(8)
+        val jobKey = "$appointmentId:$lang"
 
         val existing = summaryRepo.findByAppointmentIdAndLanguage(appointmentId, lang)
-        val record = existing ?: PatientVisitAiSummary(
-            appointmentId = appointment.id,
-            patientId = patient.id ?: throw IllegalStateException("Patient profile id missing"),
-            language = lang,
-            status = PatientVisitAiSummary.Status.QUEUED,
-            modelVersion = openAiProps.model
-        )
-        if (force || record.status != PatientVisitAiSummary.Status.READY) {
+        if (!force && existing?.status == PatientVisitAiSummary.Status.READY) {
+            return
+        }
+        if (!force && existing?.status == PatientVisitAiSummary.Status.QUEUED) {
+            return
+        }
+        if (!inFlightJobs.add(jobKey)) {
+            return
+        }
+
+        try {
+            val record = existing ?: PatientVisitAiSummary(
+                appointmentId = appointment.id,
+                patientId = patient.id ?: throw IllegalStateException("Patient profile id missing"),
+                language = lang,
+                status = PatientVisitAiSummary.Status.QUEUED,
+                modelVersion = openAiProps.model
+            )
             record.status = PatientVisitAiSummary.Status.QUEUED
             record.updatedAt = Instant.now()
             summaryRepo.save(record)
+        } catch (e: Exception) {
+            inFlightJobs.remove(jobKey)
+            throw e
         }
 
         jobExecutor.execute {
@@ -73,6 +89,8 @@ class PatientVisitAiSummaryService(
                 generateForAppointment(appointmentId, lang, force)
             } catch (_: Exception) {
                 // Swallow async errors; status is persisted as FAILED by generateForAppointment.
+            } finally {
+                inFlightJobs.remove(jobKey)
             }
         }
     }
@@ -106,7 +124,7 @@ class PatientVisitAiSummaryService(
         val newHash = sha256(sourceText)
         val existing = summaryRepo.findByAppointmentIdAndLanguage(appointmentId, lang)
 
-        if (!force && existing != null && existing.status == PatientVisitAiSummary.Status.READY && existing.sourceHash == newHash) {
+        if (!force && existing != null && existing.status == PatientVisitAiSummary.Status.READY) {
             return existing
         }
 
@@ -171,6 +189,15 @@ class PatientVisitAiSummaryService(
     private fun pushSummaryReady(appointmentId: Long, summary: PatientVisitAiSummary) {
         val appointment = appointmentRepo.findByIdWithDoctorAndPatient(appointmentId).orElse(null) ?: return
         val patient = appointment.patient
+        val patientId = patient.id ?: return
+        if (notificationRepo.existsByPatient_IdAndAppointmentIdAndType(
+                patientId,
+                appointmentId,
+                Notification.Type.AI_VISIT_SUMMARY_READY,
+            )
+        ) {
+            return
+        }
         val notif = Notification(
             patient = patient,
             title = "Visit summary is ready",
