@@ -23,6 +23,11 @@ class PaymentController(
         val gateway: PaymentGatewayCode? = null
     )
 
+    data class TreatmentPlanCheckoutRequest(
+        val treatmentPlanId: Long,
+        val installmentItemId: Long? = null,
+    )
+
     data class PaymentStatusDto(
         val id: Long,
         val status: String,
@@ -80,6 +85,16 @@ class PaymentController(
         userId = principal.user.id!!,
         appointmentId = body.appointmentId,
         preferredGateway = body.gateway
+    )
+
+    @PostMapping("/treatment-plan/checkout")
+    fun createTreatmentPlanCheckout(
+        @AuthenticationPrincipal principal: PatientPrincipal,
+        @RequestBody body: TreatmentPlanCheckoutRequest
+    ) = paymentService.createTreatmentPlanCheckout(
+        userId = principal.user.id!!,
+        treatmentPlanId = body.treatmentPlanId,
+        installmentItemId = body.installmentItemId,
     )
 
     @GetMapping("/{paymentId}")

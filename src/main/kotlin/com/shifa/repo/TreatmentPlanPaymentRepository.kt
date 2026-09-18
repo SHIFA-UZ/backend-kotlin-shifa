@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query
 interface TreatmentPlanPaymentRepository : JpaRepository<TreatmentPlanPayment, Long> {
     fun findByPlan_IdOrderByRecordedAtAsc(planId: Long): List<TreatmentPlanPayment>
 
+    fun findByOnlinePaymentId(onlinePaymentId: Long): TreatmentPlanPayment?
+
     @Query(
         """
         SELECT tpp FROM TreatmentPlanPayment tpp

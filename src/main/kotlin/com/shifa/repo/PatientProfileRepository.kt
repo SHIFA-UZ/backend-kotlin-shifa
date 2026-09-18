@@ -184,6 +184,8 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
 
     fun countByUserIsNotNull(): Long
 
+    fun findByFcmToken(fcmToken: String): List<PatientProfile>
+
     @Query(
         """SELECT COUNT(p) FROM PatientProfile p
            WHERE p.fcmToken IS NOT NULL AND TRIM(p.fcmToken) <> ''"""

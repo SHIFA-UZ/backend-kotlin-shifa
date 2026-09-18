@@ -69,6 +69,21 @@ interface InstallmentItemRepository : JpaRepository<InstallmentItem, Long> {
         SELECT ii FROM InstallmentItem ii
         JOIN FETCH ii.installmentPlan ip
         JOIN FETCH ip.treatmentPlan tp
+        WHERE tp.id = :treatmentPlanId
+          AND ii.status IN :statuses
+        ORDER BY ii.dueDate ASC, ii.sequenceNumber ASC
+        """
+    )
+    fun findUnpaidByTreatmentPlan(
+        @Param("treatmentPlanId") treatmentPlanId: Long,
+        @Param("statuses") statuses: List<InstallmentItem.Status>,
+    ): List<InstallmentItem>
+
+    @Query(
+        """
+        SELECT ii FROM InstallmentItem ii
+        JOIN FETCH ii.installmentPlan ip
+        JOIN FETCH ip.treatmentPlan tp
         JOIN FETCH tp.patient
         WHERE ii.status = 'OVERDUE'
           AND (ii.lastReminderSentAt IS NULL OR ii.lastReminderSentAt < :before)

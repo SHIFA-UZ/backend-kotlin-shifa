@@ -79,7 +79,11 @@ class TreatmentPlanFinanceService(
         recordedByUser: User?,
         financialRecord: FinancialRecord? = null,
         linkedAppointment: Appointment? = null,
+        onlinePaymentId: Long? = null,
     ): TreatmentPlanPayment {
+        if (onlinePaymentId != null) {
+            paymentsRepo.findByOnlinePaymentId(onlinePaymentId)?.let { return it }
+        }
         val plan = plans.findById(planId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found")
         }
@@ -93,6 +97,7 @@ class TreatmentPlanFinanceService(
                 financialRecord = financialRecord,
                 recordedByUser = recordedByUser,
                 linkedAppointment = linkedAppointment,
+                onlinePaymentId = onlinePaymentId,
             )
         )
         recalculatePlanTotals(planId)

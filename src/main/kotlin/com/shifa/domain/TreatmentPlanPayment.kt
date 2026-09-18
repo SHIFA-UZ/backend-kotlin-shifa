@@ -38,6 +38,10 @@ class TreatmentPlanPayment(    @Id @GeneratedValue(strategy = GenerationType.IDE
     @JoinColumn(name = "linked_appointment_id")
     var linkedAppointment: Appointment? = null,
 
+    /** When set, this desk ledger row was created from a gateway [com.shifa.payment.domain.Payment]. */
+    @Column(name = "online_payment_id")
+    var onlinePaymentId: Long? = null,
+
     @Column(name = "recorded_at", nullable = false)
     val recordedAt: OffsetDateTime = OffsetDateTime.now()
 ) {
@@ -46,6 +50,8 @@ class TreatmentPlanPayment(    @Id @GeneratedValue(strategy = GenerationType.IDE
         CARD_EXTERNAL,
         TRANSFER,
         WAIVED,
-        OTHER
+        OTHER,
+        /** Patient paid online via Click.uz. */
+        CLICK
     }
 }

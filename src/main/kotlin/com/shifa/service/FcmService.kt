@@ -6,7 +6,9 @@ import com.google.firebase.FirebaseOptions
 import com.google.firebase.messaging.AndroidConfig
 import com.google.firebase.messaging.AndroidNotification
 import com.google.firebase.messaging.FirebaseMessaging
+import com.google.firebase.messaging.FirebaseMessagingException
 import com.google.firebase.messaging.Message
+import com.google.firebase.messaging.MessagingErrorCode
 import com.shifa.domain.Notification
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DoctorSettingsRepository
@@ -19,6 +21,7 @@ import java.nio.charset.StandardCharsets
 class FcmService(
     private val appointments: AppointmentRepository,
     private val doctorSettings: DoctorSettingsRepository,
+    private val tokenCleanup: FcmTokenCleanupService,
 ) {
 
     private val log = LoggerFactory.getLogger(FcmService::class.java)
@@ -100,7 +103,15 @@ class FcmService(
             )
             true
         } catch (e: Exception) {
-            log.warn("FCM send failed: {}", e.message)
+            val code = (e as? FirebaseMessagingException)?.messagingErrorCode
+            log.warn("FCM send failed: {} (messagingErrorCode={})", e.message, code)
+            if (isPermanentTokenFailure(e)) {
+                try {
+                    tokenCleanup.clearToken(token)
+                } catch (cleanup: Exception) {
+                    log.warn("Failed to clear invalid FCM token (tokenPrefix={}): {}", token.take(10), cleanup.message)
+                }
+            }
             false
         }
     }
@@ -270,5 +281,22 @@ class FcmService(
 
     companion object {
         const val DOCTOR_ANDROID_CHANNEL_ID = "shifa_doctor_channel"
+
+        /**
+         * Tokens that will never succeed with this backend's Firebase project.
+         * SenderId mismatch = token was issued by a different Firebase project.
+         * Unregistered = app uninstalled or token rotated.
+         */
+        fun isPermanentTokenFailure(error: Exception): Boolean {
+            if (error is FirebaseMessagingException) {
+                when (error.messagingErrorCode) {
+                    MessagingErrorCode.SENDER_ID_MISMATCH,
+                    MessagingErrorCode.UNREGISTERED,
+                    -> return true
+                    else -> Unit
+                }
+            }
+            return error.message.orEmpty().contains("SenderId mismatch", ignoreCase = true)
+        }
     }
 }

@@ -39,6 +39,7 @@ class PatientTreatmentPlanController(
     )
 
     data class PatientInstallmentItemDto(
+        val id: Long,
         val sequenceNumber: Int,
         val dueDate: String,
         val amountMinor: Long,
@@ -125,6 +126,7 @@ class PatientTreatmentPlanController(
                 currency = ip.currency,
                 items = items.map { ii ->
                     PatientInstallmentItemDto(
+                        id = ii.id,
                         sequenceNumber = ii.sequenceNumber,
                         dueDate = ii.dueDate.toString(),
                         amountMinor = ii.amountMinor,

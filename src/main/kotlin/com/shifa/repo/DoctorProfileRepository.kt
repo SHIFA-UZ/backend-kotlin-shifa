@@ -17,6 +17,8 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
         @org.springframework.data.repository.query.Param("userId") userId: Long,
     ): Optional<DoctorProfile>
 
+    fun findByFcmToken(fcmToken: String): List<DoctorProfile>
+
     @org.springframework.data.jpa.repository.Query(
         """SELECT COUNT(d) FROM DoctorProfile d
            WHERE d.fcmToken IS NOT NULL AND TRIM(d.fcmToken) <> ''"""

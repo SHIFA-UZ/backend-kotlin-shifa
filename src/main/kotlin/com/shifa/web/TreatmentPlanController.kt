@@ -1501,7 +1501,7 @@ class TreatmentPlanController(
                 plan,
                 Notification.Type.TREATMENT_PLAN_PAYMENT_REMINDER,
                 "Payment pending",
-                "You have an outstanding balance on your treatment plan. Please arrange payment at the clinic.",
+                "You have an outstanding balance on your treatment plan. You can pay online in the app.",
             )
         }
         return toSummary(plan)

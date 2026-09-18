@@ -9,7 +9,9 @@ enum class PaymentGatewayCode {
 
 enum class PaymentKind {
     CONSULTATION,
-    SUBSCRIPTION
+    SUBSCRIPTION,
+    /** Patient online payment against a clinic treatment-plan balance (Click). */
+    TREATMENT_PLAN
 }
 
 enum class PaymentStatus {

@@ -69,7 +69,9 @@ class ClickShopCallbackService(
             paymentRepository.findByExternalRef(request.merchantTransId!!)
                 ?: return rejectPrepare(request, ClickResponseCodes.ORDER_NOT_FOUND, "Order does not exist")
 
-        if (payment.kind != PaymentKind.CONSULTATION || payment.gateway != PaymentGatewayCode.CLICK) {
+        if (payment.gateway != PaymentGatewayCode.CLICK ||
+            (payment.kind != PaymentKind.CONSULTATION && payment.kind != PaymentKind.TREATMENT_PLAN)
+        ) {
             return rejectPrepare(request, ClickResponseCodes.ORDER_NOT_FOUND, "Order does not exist")
         }
 
@@ -84,6 +86,16 @@ class ClickShopCallbackService(
 
         if (payment.status != PaymentStatus.PENDING) {
             return rejectPrepare(request, ClickResponseCodes.ORDER_NOT_FOUND, "Order does not exist")
+        }
+
+        if (payment.kind == PaymentKind.TREATMENT_PLAN &&
+            !paymentService.treatmentPlanAmountStillPayable(payment)
+        ) {
+            return rejectPrepare(
+                request,
+                ClickResponseCodes.INCORRECT_AMOUNT,
+                "Outstanding balance changed; amount no longer payable",
+            )
         }
 
         val clickIdStr = request.clickTransId!!.toString()
@@ -164,7 +176,9 @@ class ClickShopCallbackService(
             paymentRepository.findByExternalRef(request.merchantTransId!!)
                 ?: return rejectComplete(request, ClickResponseCodes.ORDER_NOT_FOUND, "Order does not exist")
 
-        if (payment.kind != PaymentKind.CONSULTATION || payment.gateway != PaymentGatewayCode.CLICK) {
+        if (payment.gateway != PaymentGatewayCode.CLICK ||
+            (payment.kind != PaymentKind.CONSULTATION && payment.kind != PaymentKind.TREATMENT_PLAN)
+        ) {
             return rejectComplete(request, ClickResponseCodes.ORDER_NOT_FOUND, "Order does not exist")
         }
 
@@ -233,7 +247,9 @@ class ClickShopCallbackService(
 
     private fun amountsMatchUz(amountMinor: Long, clickAmount: Double?): Boolean {
         if (clickAmount == null) return false
-        return kotlin.math.abs(clickAmount - amountMinor.toDouble()) <= 0.01
+        // Ledger stores UZS minor (*100); Click sends soums (major units).
+        val expectedSoums = amountMinor / 100.0
+        return kotlin.math.abs(clickAmount - expectedSoums) <= 0.01
     }
 
     private fun validatePrepareIntegrity(req: ClickPrepareRequest): Pair<Int, String>? {

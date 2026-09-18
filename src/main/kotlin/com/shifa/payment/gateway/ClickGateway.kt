@@ -30,13 +30,14 @@ class ClickGateway(
         require(request.amountMinor > 0L) {
             "Click amount must be positive"
         }
-        val amountParam = request.amountMinor
+        // Ledger stores UZS as minor units (*100); Click amount is soums (major units).
+        val amountSoums = request.amountMinor / 100.0
         val returnUrl = request.successUrl
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Click checkout requires successUrl (return_url)")
         val uri = UriComponentsBuilder.fromUriString(clickProperties.payBaseUrl.trim())
             .queryParam("service_id", clickProperties.serviceId)
             .queryParam("merchant_id", clickProperties.merchantId)
-            .queryParam("amount", amountParam)
+            .queryParam("amount", amountSoums)
             .queryParam("transaction_param", request.externalRef)
             .queryParam("return_url", returnUrl)
             .build(true)

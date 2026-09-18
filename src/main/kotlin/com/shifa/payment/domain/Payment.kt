@@ -2,6 +2,8 @@ package com.shifa.payment.domain
 
 import com.shifa.domain.Appointment
 import com.shifa.domain.DoctorProfile
+import com.shifa.domain.InstallmentItem
+import com.shifa.domain.TreatmentPlan
 import com.shifa.domain.User
 import jakarta.persistence.*
 import java.time.Instant
@@ -37,6 +39,14 @@ class Payment(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "appointment_id")
     var appointment: Appointment? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "treatment_plan_id")
+    var treatmentPlan: TreatmentPlan? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "installment_item_id")
+    var installmentItem: InstallmentItem? = null,
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "payer_user_id")

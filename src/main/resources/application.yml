@@ -155,7 +155,7 @@ devsms:
   price-per-sms-minor: ${DEVSMS_PRICE_PER_SMS_MINOR:500}
   billing-currency: ${DEVSMS_BILLING_CURRENCY:UZS}
 
-# Click.uz — video consultation checkout (UZS). Secrets via env in production (never commit).
+# Click.uz — video consultation + treatment-plan bill checkout (UZS). Secrets via env in production (never commit).
 click:
   enabled: ${CLICK_ENABLED:true}
   merchant-id: ${CLICK_MERCHANT_ID:0}
