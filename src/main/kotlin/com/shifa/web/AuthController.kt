@@ -358,7 +358,7 @@ class AuthController(
         request: jakarta.servlet.http.HttpServletRequest
     ): SendForgotPasswordOtpResponse {
         val id = req.identifier.trim()
-        val user = users.findByEmail(id).orElse(null)
+        val user = users.findByEmailIgnoreCase(id).orElse(null)
             ?: users.findByPhone(id).orElse(null)
             ?: PhoneNormalizer.normalize(id)?.let { users.findByPhone(it).orElse(null) }
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found")
@@ -1292,8 +1292,7 @@ class AuthController(
             // email, even when the caller supplied a phone number. Resolve the account from
             // either form, then verify the code against the address it was actually sent to.
             val identifier = r.email.trim()
-            val identifierNorm = identifier.lowercase()
-            val resolved = users.findByEmail(identifierNorm).orElse(null)
+            val resolved = users.findByEmailIgnoreCase(identifier).orElse(null)
                 ?: users.findByPhone(identifier).orElse(null)
                 ?: PhoneNormalizer.normalize(identifier)?.let { users.findByPhone(it).orElse(null) }
                 ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
@@ -1380,6 +1379,10 @@ class AuthController(
         }
         user.passwordHash = encoder.encode(r.newPassword)
         user.forcePasswordReset = false
+        // Clear lockout so the next login can use the new password immediately
+        // (reset already proves ownership via OTP / Firebase token).
+        user.lockedUntil = null
+        user.failedLoginAttempts = 0
         users.save(user)
         val principal = user.email ?: user.phone!!
         val tokenResult = jwt.generate(user.id, principal, tokenRole.name)
@@ -1425,7 +1428,7 @@ class AuthController(
     private fun resolveUserForLogin(username: String, request: jakarta.servlet.http.HttpServletRequest): User {
         return try {
             users.findByUsername(username).orElseGet {
-                users.findByEmail(username).orElseGet {
+                users.findByEmailIgnoreCase(username).orElseGet {
                     users.findByPhone(username).orElseGet {
                         PhoneNormalizer.normalize(username)?.let { normalized ->
                             users.findByPhone(normalized).orElse(null)
