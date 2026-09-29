@@ -52,6 +52,8 @@ class TreatmentPlanPayment(    @Id @GeneratedValue(strategy = GenerationType.IDE
         WAIVED,
         OTHER,
         /** Patient paid online via Click.uz. */
-        CLICK
+        CLICK,
+        /** Patient paid online via Stripe. */
+        STRIPE
     }
 }

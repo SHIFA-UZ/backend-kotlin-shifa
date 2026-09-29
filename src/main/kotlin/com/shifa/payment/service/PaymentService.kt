@@ -189,6 +189,7 @@ class PaymentService(
         userId: Long,
         treatmentPlanId: Long,
         installmentItemId: Long?,
+        preferredGateway: PaymentGatewayCode? = null,
     ): TreatmentPlanCheckoutResult {
         val patient = patientProfiles.findByUserId(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Patient profile not found") }
@@ -211,9 +212,16 @@ class PaymentService(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Nothing owed on this treatment plan")
         }
 
-        val skip = clickSkipReason()
-        if (skip != null) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Click payments unavailable ($skip)")
+        val usedGateway = when (preferredGateway) {
+            PaymentGatewayCode.STRIPE,
+            PaymentGatewayCode.PAYME -> PaymentGatewayCode.STRIPE
+            else -> PaymentGatewayCode.CLICK
+        }
+        if (usedGateway == PaymentGatewayCode.CLICK) {
+            val skip = clickSkipReason()
+            if (skip != null) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Click payments unavailable ($skip)")
+            }
         }
 
         var installment: InstallmentItem? = null
@@ -253,7 +261,7 @@ class PaymentService(
 
         val existingPending = paymentRepository.findPendingTreatmentPlanCheckout(
             kind = PaymentKind.TREATMENT_PLAN,
-            gateway = PaymentGatewayCode.CLICK,
+            gateway = usedGateway,
             status = PaymentStatus.PENDING,
             planId = plan.id,
             amountMinor = amountMinor,
@@ -272,6 +280,15 @@ class PaymentService(
         }
 
         val externalRef = UUID.randomUUID().toString().replace("-", "")
+        val payee = plan.attendingDoctor
+        val destinationAccountId = if (usedGateway == PaymentGatewayCode.STRIPE) {
+            payee?.let {
+                doctorBillingRepository.findByDoctorId(it.id).orElse(null)
+                    ?.stripeConnectAccountId?.takeIf { id -> id.isNotBlank() }
+            }
+        } else {
+            null
+        }
         val gatewayCheckoutRequest = GatewayCheckoutRequest(
             externalRef = externalRef,
             amountMinor = amountMinor,
@@ -282,26 +299,35 @@ class PaymentService(
             } else {
                 "Treatment plan #${plan.id} outstanding balance"
             },
+            destinationAccountId = destinationAccountId,
             successUrl =
             "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef",
             cancelUrl =
             "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef",
         )
         val gatewayResult = try {
-            clickGateway.createCheckout(gatewayCheckoutRequest)
+            when (usedGateway) {
+                PaymentGatewayCode.STRIPE -> stripeGateway.createCheckout(gatewayCheckoutRequest)
+                else -> clickGateway.createCheckout(gatewayCheckoutRequest)
+            }
         } catch (e: Exception) {
-            log.warn("Treatment plan Click checkout failed planId={}: {}", plan.id, e.message, e)
+            log.warn(
+                "Treatment plan checkout failed gateway={} planId={}: {}",
+                usedGateway.name,
+                plan.id,
+                e.message,
+                e,
+            )
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "Could not start Click checkout: ${e.message}",
+                "Could not start ${usedGateway.name} checkout: ${e.message}",
             )
         }
 
-        val payee = plan.attendingDoctor
         val payment = paymentRepository.save(
             Payment(
                 externalRef = externalRef,
-                gateway = PaymentGatewayCode.CLICK,
+                gateway = usedGateway,
                 kind = PaymentKind.TREATMENT_PLAN,
                 status = PaymentStatus.PENDING,
                 amountMinor = amountMinor,
@@ -316,7 +342,8 @@ class PaymentService(
         )
 
         log.info(
-            "Treatment plan checkout gateway=CLICK planId={} installmentItemId={} amountMinor={} externalRef={}",
+            "Treatment plan checkout gateway={} planId={} installmentItemId={} amountMinor={} externalRef={}",
+            usedGateway.name,
             plan.id,
             installment?.id,
             amountMinor,
@@ -328,7 +355,7 @@ class PaymentService(
             externalRef = payment.externalRef,
             checkoutUrl = gatewayResult.checkoutUrl,
             status = payment.status.name,
-            gateway = PaymentGatewayCode.CLICK.name,
+            gateway = usedGateway.name,
             amountMinor = payment.amountMinor,
             currency = payment.currency,
         )
@@ -354,12 +381,17 @@ class PaymentService(
         if (payment.status != PaymentStatus.PAID) return
         val plan = payment.treatmentPlan ?: return
 
+        val ledgerMethod = if (payment.gateway == PaymentGatewayCode.STRIPE) {
+            TreatmentPlanPayment.PaymentMethod.STRIPE
+        } else {
+            TreatmentPlanPayment.PaymentMethod.CLICK
+        }
         val ledger = financeService.recordPaymentAndSync(
             planId = plan.id,
             amountMinor = payment.amountMinor,
             currency = payment.currency,
-            method = TreatmentPlanPayment.PaymentMethod.CLICK,
-            memo = "Click ${payment.externalRef}",
+            method = ledgerMethod,
+            memo = "${payment.gateway.name} ${payment.externalRef}",
             recordedByUser = payment.payerUser,
             financialRecord = null,
             linkedAppointment = null,
@@ -415,7 +447,30 @@ class PaymentService(
             PaymentGatewayCode.MANUAL ->
                 PaymentGatewayCode.MANUAL to manualPaymentGateway.createCheckout(req)
 
-            PaymentGatewayCode.CLICK,
+            PaymentGatewayCode.CLICK -> {
+                val skipReason = clickSkipReason()
+                if (skipReason != null) {
+                    throw ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Click payments unavailable ($skipReason)",
+                    )
+                }
+                try {
+                    PaymentGatewayCode.CLICK to clickGateway.createCheckout(req)
+                } catch (e: Exception) {
+                    log.warn(
+                        "Consultation checkout Click failed (explicit) appointmentId={} externalRef={}: {}",
+                        appointmentId,
+                        req.externalRef,
+                        e.message,
+                    )
+                    throw ResponseStatusException(
+                        HttpStatus.BAD_REQUEST,
+                        "Could not start Click checkout: ${e.message}",
+                    )
+                }
+            }
+
             null -> tryClickThenStripeFallback(req, appointmentId)
         }
     }

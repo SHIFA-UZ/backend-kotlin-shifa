@@ -26,6 +26,7 @@ class PaymentController(
     data class TreatmentPlanCheckoutRequest(
         val treatmentPlanId: Long,
         val installmentItemId: Long? = null,
+        val gateway: PaymentGatewayCode? = null,
     )
 
     data class PaymentStatusDto(
@@ -95,6 +96,7 @@ class PaymentController(
         userId = principal.user.id!!,
         treatmentPlanId = body.treatmentPlanId,
         installmentItemId = body.installmentItemId,
+        preferredGateway = body.gateway,
     )
 
     @GetMapping("/{paymentId}")
