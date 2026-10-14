@@ -377,4 +377,25 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
 
     @Query("SELECT MAX(a.startAt) FROM Appointment a WHERE a.doctor.id = :doctorId")
     fun findMaxStartAtByDoctorId(@Param("doctorId") doctorId: Long): Instant?
+
+    /**
+     * Patients ranked by non-cancelled visit count with this doctor (most visited first).
+     * Each row: [patientId (Long), fullName (String), visitCount (Long)].
+     */
+    @Query(
+        """
+        SELECT a.patient.id, a.patient.fullName, COUNT(a)
+        FROM Appointment a
+        WHERE a.doctor.id = :doctorId
+          AND a.status != 'CANCELLED'
+          AND a.startAt >= :since
+        GROUP BY a.patient.id, a.patient.fullName
+        ORDER BY COUNT(a) DESC, a.patient.fullName ASC
+        """
+    )
+    fun findMostVisitedPatients(
+        @Param("doctorId") doctorId: Long,
+        @Param("since") since: Instant,
+        pageable: org.springframework.data.domain.Pageable,
+    ): List<Array<Any>>
 }

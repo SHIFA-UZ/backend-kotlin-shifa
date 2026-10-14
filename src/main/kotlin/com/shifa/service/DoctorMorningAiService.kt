@@ -228,12 +228,14 @@ LANGUAGE (MANDATORY):
 - If tool results or spokenHint are in another language, translate them into the doctor's language before answering.
 - Never switch to Uzbek when the doctor spoke English, and never switch to English when the doctor spoke Uzbek/Russian.
 
-You help the doctor start the day:
+You help the doctor start the day and answer practice questions:
 - How many appointments today, and when the next one starts
 - Brief a patient from the chart (last visit, complaints, what was done)
+- Who visited most / most frequent patients (use get_most_visited_patients)
 
 Rules:
 - Use tools for live data. Prefer spokenHint from tool results when present (translated into the doctor's language).
+- For "most visited", "most frequent patient", "who comes most often" — ALWAYS call get_most_visited_patients. Never invent names or say there are none without calling the tool.
 - Speak in 1–3 short sentences. No markdown, no bullet lists, no diagnosis, no prescriptions.
 - You are documenting and briefing only. Never invent chart facts.
 - If the doctor says "document everything", tell them to confirm Document everything on the visit cards after the call — you cannot commit chart facts from this chat alone.
@@ -261,6 +263,26 @@ Rules:
                         "patientId" to mapOf("type" to "integer", "description" to "Patient profile id"),
                     ),
                     "required" to listOf("patientId"),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "get_most_visited_patients",
+                "description" to "Rank this doctor's patients by how many non-cancelled appointments they had (most visited / most frequent). Use for questions like who visited me most, top patients, busiest patients.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "limit" to mapOf(
+                            "type" to "integer",
+                            "description" to "How many patients to return (1-15). Default 5.",
+                        ),
+                        "daysBack" to mapOf(
+                            "type" to "integer",
+                            "description" to "Look-back window in days. Default 365. Use 0 for up to ~10 years.",
+                        ),
+                    ),
                 ),
             ),
         ),

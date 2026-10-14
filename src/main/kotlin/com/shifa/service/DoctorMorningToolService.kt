@@ -5,6 +5,7 @@ import com.shifa.domain.PatientVisitFact
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
 import com.shifa.repo.PatientVisitFactRepository
+import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
@@ -32,6 +33,7 @@ class DoctorMorningToolService(
             "get_today_schedule" -> getTodaySchedule(doctor)
             "brief_patient" -> briefPatient(doctor, args)
             "get_clinic_patterns" -> getClinicPatterns(doctor)
+            "get_most_visited_patients" -> getMostVisitedPatients(doctor, args)
             else -> mapOf("error" to "Unknown tool: $toolName")
         }
     }
@@ -142,6 +144,61 @@ class DoctorMorningToolService(
                     "count" to it.occurrenceCount,
                 )
             }
+        )
+    }
+
+    /**
+     * Rank patients by non-cancelled appointments with this doctor.
+     * Args: limit (default 5), daysBack (default 365; 0 = all available history capped at 5y).
+     */
+    @Transactional(readOnly = true)
+    fun getMostVisitedPatients(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
+        val limit = ((args["limit"] as? Number)?.toInt() ?: 5).coerceIn(1, 15)
+        val daysBack = ((args["daysBack"] as? Number)?.toInt() ?: 365).coerceIn(0, 3650)
+        val since = if (daysBack == 0) {
+            Instant.now().minus(Duration.ofDays(3650))
+        } else {
+            Instant.now().minus(Duration.ofDays(daysBack.toLong()))
+        }
+
+        val rows = appointmentRepository.findMostVisitedPatients(
+            doctor.id,
+            since,
+            PageRequest.of(0, limit),
+        )
+
+        val patients = rows.mapNotNull { row ->
+            val patientId = (row.getOrNull(0) as? Number)?.toLong() ?: return@mapNotNull null
+            val rawName = (row.getOrNull(1) as? String)?.trim()
+            val name = if (rawName.isNullOrBlank()) "Patient" else rawName
+            val visits = (row.getOrNull(2) as? Number)?.toLong() ?: 0L
+            mapOf(
+                "patientId" to patientId,
+                "patientName" to name,
+                "visitCount" to visits,
+            )
+        }
+
+        val top = patients.firstOrNull()
+        val spokenHint = when {
+            patients.isEmpty() ->
+                "You do not have ranked visit history yet - no non-cancelled appointments were found in this period."
+            top != null && patients.size == 1 ->
+                "Your most visited patient is ${top["patientName"]} with ${top["visitCount"]} visits."
+            top != null -> {
+                val rest = patients.drop(1).take(2).joinToString("; ") {
+                    "${it["patientName"]} (${it["visitCount"]})"
+                }
+                "Your most visited patient is ${top["patientName"]} with ${top["visitCount"]} visits. Next: $rest."
+            }
+            else -> "No patients found."
+        }
+
+        return mapOf(
+            "since" to since.toString(),
+            "daysBack" to daysBack,
+            "patients" to patients,
+            "spokenHint" to spokenHint,
         )
     }
 
