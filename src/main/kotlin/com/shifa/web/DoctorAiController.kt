@@ -360,7 +360,21 @@ class DoctorAiController(
                     "Speech recognition failed. Please try again."
                 )
             }
-            return ResponseEntity.ok(mapOf("text" to result.transcript))
+            val detected = result.language?.trim()?.lowercase()?.let { raw ->
+                when {
+                    raw.startsWith("en") -> "en"
+                    raw.startsWith("ru") -> "ru"
+                    raw.startsWith("uz") -> "uz"
+                    raw.startsWith("tr") || raw.startsWith("az") -> "uz"
+                    else -> raw.take(2)
+                }
+            }
+            return ResponseEntity.ok(
+                buildMap {
+                    put("text", result.transcript)
+                    if (!detected.isNullOrBlank()) put("language", detected)
+                }
+            )
         } finally {
             Files.deleteIfExists(temp)
         }

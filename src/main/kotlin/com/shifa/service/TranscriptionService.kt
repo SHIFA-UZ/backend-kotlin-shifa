@@ -76,11 +76,16 @@ class TranscriptionService(
         }
 
         val modelId = openAiProps.transcriptionModel.trim().ifBlank { "gpt-4o-transcribe" }
+        val isWhisperModel = modelId.startsWith("whisper", ignoreCase = true)
+        // Auto-detect: verbose_json returns detected language (whisper / gpt-4o-transcribe).
+        val responseFormat =
+            if (normalizedLanguageHint == null && isWhisperModel) "verbose_json" else "json"
+
         val requestBodyBuilder = MultipartBody.Builder()
             .setType(MultipartBody.FORM)
             .addFormDataPart("file", file.name, file.asRequestBody("audio/*".toMediaType()))
             .addFormDataPart("model", modelId)
-            .addFormDataPart("response_format", "json")
+            .addFormDataPart("response_format", responseFormat)
 
         val useGptTranscribeChunking =
             modelId.contains("gpt-4o", ignoreCase = true) &&
@@ -89,7 +94,6 @@ class TranscriptionService(
             requestBodyBuilder.addFormDataPart("chunking_strategy", "auto")
         }
 
-        val isWhisperModel = modelId.startsWith("whisper", ignoreCase = true)
         if (isWhisperModel) {
             requestBodyBuilder.addFormDataPart("temperature", "0")
         }
@@ -99,7 +103,14 @@ class TranscriptionService(
             requestBodyBuilder.addFormDataPart("language", lang)
         }
 
-        val biasPrompt = capTranscriptionPrompt(MedicalBiasPrompt.build(normalizedLanguageHint))
+        // When auto-detecting, avoid a strong Uzbek bias prompt that pulls English into Uzbek.
+        val biasPrompt = if (normalizedLanguageHint == null) {
+            capTranscriptionPrompt(
+                "Transcribe exactly what was spoken. The speaker may use English, Russian, or Uzbek. Do not translate."
+            )
+        } else {
+            capTranscriptionPrompt(MedicalBiasPrompt.build(normalizedLanguageHint))
+        }
         requestBodyBuilder.addFormDataPart("prompt", biasPrompt)
 
         val requestBody = requestBodyBuilder.build()
@@ -128,7 +139,7 @@ class TranscriptionService(
                 .setType(MultipartBody.FORM)
                 .addFormDataPart("file", file.name, file.asRequestBody("audio/*".toMediaType()))
                 .addFormDataPart("model", modelId)
-                .addFormDataPart("response_format", "json")
+                .addFormDataPart("response_format", responseFormat)
                 .also { builder ->
                     if (useGptTranscribeChunking) {
                         builder.addFormDataPart("chunking_strategy", "auto")

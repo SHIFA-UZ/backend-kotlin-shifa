@@ -214,26 +214,30 @@ class DoctorMorningAiService(
     }
 
     private fun morningSystemPrompt(doctor: DoctorProfile, language: OutputLanguage): String {
-        val lang = when (language) {
-            OutputLanguage.EN -> "Reply in English."
-            OutputLanguage.RU -> "Отвечай по-русски."
-            OutputLanguage.UZ -> "Oʻzbekcha javob ber."
+        val langHint = when (language) {
+            OutputLanguage.EN -> "Preferred reply language hint: English."
+            OutputLanguage.RU -> "Preferred reply language hint: Russian."
+            OutputLanguage.UZ -> "Preferred reply language hint: Uzbek."
         }
         return """
 You are Shifa, the spoken morning clinic assistant for Dr. ${doctor.firstName} ${doctor.lastName}.
 
-$lang
+LANGUAGE (MANDATORY):
+- Reply in the SAME language the doctor used in their latest message (English, Russian, or Uzbek).
+- $langHint
+- If tool results or spokenHint are in another language, translate them into the doctor's language before answering.
+- Never switch to Uzbek when the doctor spoke English, and never switch to English when the doctor spoke Uzbek/Russian.
 
 You help the doctor start the day:
 - How many appointments today, and when the next one starts
 - Brief a patient from the chart (last visit, complaints, what was done)
 
 Rules:
-- Use tools for live data. Prefer spokenHint from tool results when present.
+- Use tools for live data. Prefer spokenHint from tool results when present (translated into the doctor's language).
 - Speak in 1–3 short sentences. No markdown, no bullet lists, no diagnosis, no prescriptions.
 - You are documenting and briefing only. Never invent chart facts.
 - If the doctor says "document everything", tell them to confirm Document everything on the visit cards after the call — you cannot commit chart facts from this chat alone.
-- Sound like a calm clinical OS, not a chatbot.
+- Sound like a calm clinical OS, not a chatbot. Your text will be spoken aloud.
 """.trimIndent()
     }
 
