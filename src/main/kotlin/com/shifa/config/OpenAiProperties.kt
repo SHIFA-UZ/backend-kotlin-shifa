@@ -13,7 +13,7 @@ class OpenAiProperties {
     var embeddingModel: String = "text-embedding-3-small"
     /** Must match DB column `vector(...)` dimension in Flyway [clinical_rag_chunks.embedding]. */
     var embeddingDimensions: Int = 1536
-    /** STT model for /v1/audio/transcriptions (e.g. gpt-4o-transcribe, gpt-4o-mini-transcribe, whisper-1). */
+    /** STT model for /v1/audio/transcriptions. Prefer gpt-4o-transcribe (best accuracy). */
     var transcriptionModel: String = "gpt-4o-transcribe"
     /**
      * When true and a language hint is set, sends `language=uz|ru|en` for gpt-4o-* transcribe models as well.
@@ -36,8 +36,8 @@ class OpenAiProperties {
     var maxRequestsPerMinute: Int = 600
     var promptVersion: String = "1"
 
-    /** OpenAI TTS model for doctor morning spoken replies. */
+    /** OpenAI TTS model for doctor morning spoken replies. Prefer gpt-4o-mini-tts. */
     var ttsModel: String = "gpt-4o-mini-tts"
-    /** OpenAI TTS voice (alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer). */
-    var ttsVoice: String = "nova"
+    /** OpenAI TTS voice (coral/nova work well; gpt-4o-mini-tts also supports marin, cedar, verse). */
+    var ttsVoice: String = "coral"
 }

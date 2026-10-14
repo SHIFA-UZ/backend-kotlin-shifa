@@ -113,6 +113,7 @@ openai:
   apiKey: ${OPENAI_API_KEY:}    # Set in environment or .env file
   projectId: ${OPENAI_PROJECT_ID:}
   model: gpt-4o-mini
+  # Most capable REST STT: gpt-4o-transcribe (above gpt-4o-mini-transcribe / whisper-1).
   transcription-model: ${OPENAI_TRANSCRIPTION_MODEL:gpt-4o-transcribe}
   transcription-send-language-param: ${OPENAI_TRANSCRIPTION_SEND_LANG:true}
   transcription-medical-cleanup-enabled: ${OPENAI_TRANSCRIPTION_MED_CLEANUP:true}
@@ -125,8 +126,9 @@ openai:
   requestTimeoutMs: 15000
   promptVersion: "1"
   maxRequestsPerMinute: ${OPENAI_GLOBAL_MAX_REQ_PER_MIN:600}
+  # Most capable REST TTS: gpt-4o-mini-tts (falls back to tts-1-hd / tts-1 if the project lacks access).
   tts-model: ${OPENAI_TTS_MODEL:gpt-4o-mini-tts}
-  tts-voice: ${OPENAI_TTS_VOICE:nova}
+  tts-voice: ${OPENAI_TTS_VOICE:coral}
 
 # Daily.co Video API configuration
 # Get your API key from https://dashboard.daily.co/
