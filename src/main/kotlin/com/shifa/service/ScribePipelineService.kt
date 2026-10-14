@@ -29,6 +29,7 @@ class ScribePipelineService(
     private val fcmService: FcmService,
     private val appointmentDocumentationService: AppointmentDocumentationService,
     private val visitSummaryService: PatientVisitAiSummaryService,
+    private val visitFactService: VisitFactService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -246,6 +247,19 @@ class ScribePipelineService(
             }
         } catch (e: Exception) {
             log.warn("ICD suggestions skipped for draftId={}: {}", draft.id, e.message)
+        }
+
+        // Visit fact cards (meds / diagnoses / therapy) stay DRAFT until the doctor documents everything.
+        try {
+            visitFactService.extractAndStoreDrafts(
+                doctorId = doctorId,
+                patientId = patientId,
+                appointmentId = appointmentId,
+                transcript = spokenTranscript,
+                language = outputLanguage,
+            )
+        } catch (e: Exception) {
+            log.warn("Visit fact extraction skipped for appointment {}: {}", appointmentId, e.message)
         }
 
         finalizeScribeForAppointment(appointmentId, doctorId)

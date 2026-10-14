@@ -35,4 +35,9 @@ class OpenAiProperties {
     /** JVM-wide coarse backstop across all OpenAI calls in this pod (distinct from per-user AI HTTP limits). */
     var maxRequestsPerMinute: Int = 600
     var promptVersion: String = "1"
+
+    /** OpenAI TTS model for doctor morning spoken replies. */
+    var ttsModel: String = "gpt-4o-mini-tts"
+    /** OpenAI TTS voice (alloy, ash, ballad, coral, echo, fable, nova, onyx, sage, shimmer). */
+    var ttsVoice: String = "nova"
 }

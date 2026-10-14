@@ -1,15 +1,19 @@
 package com.shifa.web
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.shifa.ai.OutputLanguage
 import com.shifa.ai.PatientAiContextBuilder
 import com.shifa.domain.SubscriptionFeature
 import com.shifa.security.DoctorPrincipal
 import com.shifa.service.AiDraftNoteService
+import com.shifa.service.DoctorMorningAiService
 import com.shifa.service.OpenAiResponsesService
 import com.shifa.service.PatientVisitAiSummaryService
 import com.shifa.service.SubscriptionTierService
+import com.shifa.service.TextToSpeechService
 import com.shifa.service.TranscriptionPurpose
 import com.shifa.service.TranscriptionService
+import com.shifa.service.VisitFactService
 import com.shifa.web.dto.DoctorAiRequest
 import kotlinx.coroutines.runBlocking
 import org.springframework.http.MediaType
@@ -28,6 +32,9 @@ import java.nio.file.Files
 @RequestMapping("/api/ai")
 class DoctorAiController(
     private val aiService: OpenAiResponsesService,
+    private val morningAiService: DoctorMorningAiService,
+    private val textToSpeechService: TextToSpeechService,
+    private val visitFactService: VisitFactService,
     private val patientAiContextBuilder: PatientAiContextBuilder,
     private val aiDraftNoteService: AiDraftNoteService,
     private val visitSummaryService: PatientVisitAiSummaryService,
@@ -176,6 +183,151 @@ class DoctorAiController(
             "patientId" to (draft.patientId ?: ""),
             "consultationId" to (draft.consultationId ?: "")
         ))
+    }
+
+    /**
+     * Spoken morning clinic session: schedule + patient briefing with tools.
+     * Same SSE token shape as [/stream]; does not create a draft note.
+     */
+    @PostMapping(
+        "/morning/stream",
+        produces = [MediaType.TEXT_EVENT_STREAM_VALUE]
+    )
+    fun streamMorningAi(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestBody @Valid request: DoctorAiRequest
+    ): SseEmitter {
+        subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
+        val emitter = SseEmitter(0L)
+        Thread {
+            try {
+                val patientCtx = request.patientId?.let { patientId ->
+                    patientAiContextBuilder.build(patientId, principal.profile.id)
+                }
+                val conversation = try {
+                    request.resolvedMessages()
+                } catch (ex: IllegalArgumentException) {
+                    throw AiStreamException("VALIDATION", ex.message ?: "Invalid AI request")
+                }
+                var clientConnected = true
+                runBlocking {
+                    morningAiService.streamMorningAssistant(
+                        doctor = principal.profile,
+                        patientContext = patientCtx,
+                        messages = conversation,
+                        language = request.language,
+                        selectedPatientId = request.patientId,
+                    ).collect { token ->
+                        if (!clientConnected) return@collect
+                        clientConnected = SseIoSupport.sendText(emitter, token)
+                    }
+                }
+                if (clientConnected) {
+                    SseIoSupport.completeQuietly(emitter)
+                }
+            } catch (ex: AiStreamException) {
+                try {
+                    val payload = objectMapper.writeValueAsString(
+                        mapOf("code" to ex.code, "message" to ex.message)
+                    )
+                    SseIoSupport.sendEvent(emitter, SseEmitter.event().name("error").data(payload))
+                } catch (_: Exception) {
+                }
+                SseIoSupport.completeQuietly(emitter)
+            } catch (ex: Exception) {
+                SseIoSupport.finish(emitter, ex)
+            }
+        }.start()
+        return emitter
+    }
+
+    data class SpeakRequest(
+        val text: String,
+        val language: OutputLanguage = OutputLanguage.UZ,
+    )
+
+    /** Server TTS for short morning replies (mp3). */
+    @PostMapping("/speak")
+    fun speak(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestBody body: SpeakRequest,
+    ): ResponseEntity<ByteArray> {
+        subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
+        val text = body.text.trim()
+        if (text.isBlank()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "text is required")
+        }
+        return try {
+            val speech = textToSpeechService.speak(text, body.language)
+            ResponseEntity.ok()
+                .contentType(MediaType.parseMediaType(speech.contentType))
+                .header("Cache-Control", "no-store")
+                .body(speech.audioBytes)
+        } catch (e: IllegalArgumentException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message)
+        } catch (e: Exception) {
+            throw ResponseStatusException(HttpStatus.BAD_GATEWAY, e.message ?: "Speech synthesis failed")
+        }
+    }
+
+    @GetMapping("/visit-facts/appointment/{appointmentId}")
+    fun listVisitFacts(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @PathVariable appointmentId: Long,
+    ): ResponseEntity<Map<String, Any>> {
+        subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
+        val facts = visitFactService.listForAppointment(appointmentId, principal.profile.id)
+        val patterns = visitFactService.clinicPatterns(principal.profile.id)
+        return ResponseEntity.ok(
+            mapOf(
+                "facts" to facts,
+                "patterns" to patterns,
+            )
+        )
+    }
+
+    @GetMapping("/visit-facts/patient/{patientId}/timeline")
+    fun patientTimeline(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @PathVariable patientId: Long,
+    ): ResponseEntity<Map<String, Any>> {
+        subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
+        return ResponseEntity.ok(
+            mapOf(
+                "timeline" to visitFactService.patientTimeline(patientId, principal.profile.id),
+                "patterns" to visitFactService.clinicPatterns(principal.profile.id),
+            )
+        )
+    }
+
+    @GetMapping("/clinic-patterns")
+    fun clinicPatterns(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+    ): ResponseEntity<Map<String, Any>> {
+        subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
+        return ResponseEntity.ok(mapOf("patterns" to visitFactService.clinicPatterns(principal.profile.id)))
+    }
+
+    data class CommitVisitFactsRequest(
+        val appointmentId: Long,
+        val acceptFactIds: List<Long>? = null,
+        val rejectFactIds: List<Long>? = null,
+    )
+
+    /** Doctor said "document everything" — commit kept draft facts into chart + remote-care drafts. */
+    @PostMapping("/visit-facts/commit")
+    fun commitVisitFacts(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestBody body: CommitVisitFactsRequest,
+    ): ResponseEntity<VisitFactService.CommitResult> {
+        subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
+        val result = visitFactService.commitForAppointment(
+            appointmentId = body.appointmentId,
+            doctor = principal.profile,
+            acceptFactIds = body.acceptFactIds?.toSet(),
+            rejectFactIds = body.rejectFactIds?.toSet(),
+        )
+        return ResponseEntity.ok(result)
     }
 
     /**
