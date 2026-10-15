@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
@@ -280,25 +281,38 @@ class DoctorMorningToolService(
             )
 
         val isVideo = (args["isVideo"] as? Boolean) == true
-        val slots = patientDaySlotsService.availableSlotsForDay(doctor, date)
-            .take(12)
-            .map { slot ->
-                val startZ = Instant.parse(slot.startAt).atZone(zone)
-                mapOf(
-                    "startAt" to slot.startAt,
-                    "endAt" to slot.endAt,
-                    "slotMinutes" to slot.slotMinutes,
-                    "startLocal" to startZ.format(timeFmt),
-                    "locationId" to slot.locationId,
-                    "locationLabel" to slot.locationLabel,
-                )
-            }
+        val preferredTime = resolveTimeArg(
+            (args["time"] as? String) ?: (args["preferredTime"] as? String),
+        )
+        val allSlots = patientDaySlotsService.availableSlotsForDay(doctor, date).map { slot ->
+            val startZ = Instant.parse(slot.startAt).atZone(zone)
+            mapOf(
+                "startAt" to slot.startAt,
+                "endAt" to slot.endAt,
+                "slotMinutes" to slot.slotMinutes,
+                "startLocal" to startZ.format(timeFmt),
+                "locationId" to slot.locationId,
+                "locationLabel" to slot.locationLabel,
+            )
+        }
+        val preferredSlot = preferredTime?.let { want ->
+            allSlots.firstOrNull { (it["startLocal"] as String) == want.format(timeFmt) }
+        }
+        val slots = when {
+            preferredSlot != null ->
+                listOf(preferredSlot) + allSlots.filter { it["startAt"] != preferredSlot["startAt"] }.take(11)
+            else -> allSlots.take(12)
+        }
 
         val spokenHint = when {
-            slots.isEmpty() ->
+            allSlots.isEmpty() ->
                 "No free slots on ${date.format(dateFmt)} for ${patient.fullName}. Ask them to pick another day."
+            preferredTime != null && preferredSlot == null ->
+                "${preferredTime.format(timeFmt)} is not free for ${patient.fullName} on ${date.format(dateFmt)}. Offer the listed alternatives once — do not ask them to confirm repeatedly."
+            preferredSlot != null ->
+                "Matched ${preferredSlot["startLocal"]} for ${patient.fullName} on ${date.format(dateFmt)}. autoConfirm will book it — say it is booked for that time. Do not ask them to pick again or say yes again."
             else ->
-                "I found ${slots.size} free slots on ${date.format(dateFmt)} for ${patient.fullName}. They need to pick a time — do not claim it is booked."
+                "I found ${slots.size} free slots on ${date.format(dateFmt)} for ${patient.fullName}. Ask once which time they want — do not double-confirm."
         }
 
         return mapOf(
@@ -309,6 +323,9 @@ class DoctorMorningToolService(
             "dateLabel" to date.format(dateFmt),
             "isVideo" to isVideo,
             "reason" to (args["reason"] as? String),
+            "requestedTime" to preferredTime?.format(timeFmt),
+            "preferredSlot" to preferredSlot,
+            "autoConfirm" to (preferredSlot != null),
             "slots" to slots,
             "spokenHint" to spokenHint,
         )
@@ -337,11 +354,14 @@ class DoctorMorningToolService(
         val date = resolveDateArg(args["date"] as? String, zone)
             ?: appointment.startAt.atZone(zone).toLocalDate()
 
-        val slots = patientDaySlotsService.availableSlotsForDay(
+        val preferredTime = resolveTimeArg(
+            (args["time"] as? String) ?: (args["preferredTime"] as? String),
+        )
+        val allSlots = patientDaySlotsService.availableSlotsForDay(
             doctor,
             date,
             excludeAppointmentId = appointment.id,
-        ).take(12).map { slot ->
+        ).map { slot ->
             val startZ = Instant.parse(slot.startAt).atZone(zone)
             mapOf(
                 "startAt" to slot.startAt,
@@ -351,6 +371,14 @@ class DoctorMorningToolService(
                 "locationId" to slot.locationId,
                 "locationLabel" to slot.locationLabel,
             )
+        }
+        val preferredSlot = preferredTime?.let { want ->
+            allSlots.firstOrNull { (it["startLocal"] as String) == want.format(timeFmt) }
+        }
+        val slots = when {
+            preferredSlot != null ->
+                listOf(preferredSlot) + allSlots.filter { it["startAt"] != preferredSlot["startAt"] }.take(11)
+            else -> allSlots.take(12)
         }
 
         val patientName = appointment.patient.fullName.ifBlank { "Patient" }
@@ -365,12 +393,19 @@ class DoctorMorningToolService(
             "currentDateLabel" to currentLocal.format(dateFmt),
             "date" to date.toString(),
             "dateLabel" to date.format(dateFmt),
+            "requestedTime" to preferredTime?.format(timeFmt),
+            "preferredSlot" to preferredSlot,
+            "autoConfirm" to (preferredSlot != null),
             "slots" to slots,
             "spokenHint" to when {
-                slots.isEmpty() ->
+                allSlots.isEmpty() ->
                     "No free slots on ${date.format(dateFmt)} to move $patientName. Ask for another day."
+                preferredTime != null && preferredSlot == null ->
+                    "${preferredTime.format(timeFmt)} is not free on ${date.format(dateFmt)}. Offer alternatives once."
+                preferredSlot != null ->
+                    "Matched ${preferredSlot["startLocal"]} to move $patientName. autoConfirm will apply it — do not ask again."
                 else ->
-                    "$patientName is currently at ${currentLocal.format(dateFmt)} ${currentLocal.format(timeFmt)}. Pick a new time — nothing moves until they confirm."
+                    "$patientName is currently at ${currentLocal.format(dateFmt)} ${currentLocal.format(timeFmt)}. Ask once for a new time."
             },
         )
     }
@@ -438,6 +473,37 @@ class DoctorMorningToolService(
                 null
             }
         }
+    }
+
+    /** Parse "10:00", "10", "10am", "10 a.m." into a LocalTime (minutes default 0). */
+    private fun resolveTimeArg(raw: String?): LocalTime? {
+        if (raw.isNullOrBlank()) return null
+        val t = raw.trim().lowercase()
+            .replace("o'clock", "")
+            .replace("oclock", "")
+            .replace(".", "")
+            .trim()
+        val ampm = when {
+            t.endsWith("am") || t.endsWith("a m") -> false
+            t.endsWith("pm") || t.endsWith("p m") -> true
+            else -> null
+        }
+        val numeric = t
+            .replace("am", "")
+            .replace("pm", "")
+            .replace("a m", "")
+            .replace("p m", "")
+            .trim()
+        val match = Regex("""^(\d{1,2})(?::|h)?(\d{2})?$""").find(numeric) ?: return null
+        var hour = match.groupValues[1].toIntOrNull() ?: return null
+        val minute = match.groupValues.getOrNull(2)?.takeIf { it.isNotBlank() }?.toIntOrNull() ?: 0
+        if (minute !in 0..59 || hour !in 0..23) return null
+        if (ampm != null) {
+            if (hour == 12) hour = 0
+            if (ampm) hour += 12
+            if (hour > 23) return null
+        }
+        return LocalTime.of(hour, minute)
     }
 
     private fun buildScheduleHint(count: Int, nextName: String?, minutesUntil: Long?): String {

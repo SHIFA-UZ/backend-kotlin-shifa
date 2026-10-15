@@ -158,7 +158,7 @@ class DoctorMorningAiService(
                         listOf(
                             mapOf(
                                 "role" to "system",
-                                "content" to "Call tools when you need live schedule, patient match, free slots, or draft facts. After tools, answer in one short spoken paragraph. Never claim a booking, reschedule, or chart commit happened.",
+                                "content" to "Call tools when you need live schedule, patient match, free slots, or draft facts. If the doctor only says yes/ok/confirm after a time was already proposed, do NOT call propose_appointment again. After tools, answer in one short spoken paragraph. If autoConfirm matched a time, say it is booked — do not ask them to confirm again.",
                             )
                         ),
                 )
@@ -291,15 +291,20 @@ You help with:
 
 CRITICAL WRITE RULES:
 - You NEVER book, reschedule, cancel, or commit chart facts yourself.
-- Tools only propose. The doctor confirms in the UI.
-- Never say "I booked", "I scheduled", "I saved", or "documented" unless a tool result already shows a confirmed write (they will not).
+- Tools only propose. When the doctor names a free time, the client auto-confirms that slot — do not ask them to pick or say yes again.
 - Never invent patient names, ids, times, or free slots. Use tools.
 - patientId for propose_appointment MUST be the Focus patientId above, or an id returned by search_patients in this same turn — never invent ids and never reuse a different patient from memory.
+
+BOOKING FLOW (MANDATORY):
+- When the doctor states a time (e.g. 10:00, 10 o'clock), call propose_appointment ONCE with date AND time.
+- If spokenHint / autoConfirm says the time was matched, reply that it is booked for that time — do NOT call propose_appointment again, do NOT ask "would you like to confirm".
+- If they say yes / ok / please after a time was already proposed, do NOT call propose_appointment again.
+- Only re-propose when they ask for a different day or time.
 
 Rules:
 - Prefer spokenHint from tool results (translated).
 - For "most visited" — ALWAYS call get_most_visited_patients.
-- For booking requests: search_patients if needed, then propose_appointment with patientId and date ("tomorrow" / "today" preferred).
+- For booking requests: search_patients if needed, then propose_appointment with patientId, date ("tomorrow"/"today"), and time when known.
 - Speak in 1–3 short sentences. No markdown, no bullet lists, no diagnosis, no prescriptions.
 - Sound like a calm clinical OS. Your text will be spoken aloud.
 """.trimIndent()
@@ -332,7 +337,7 @@ Rules:
             "type" to "function",
             "function" to mapOf(
                 "name" to "propose_appointment",
-                "description" to "Propose free slots to book a patient. Does NOT create the appointment. Requires patientId and date.",
+                "description" to "Propose (and auto-confirm when time matches) a booking. Requires patientId and date. Pass time when the doctor named one.",
                 "parameters" to mapOf(
                     "type" to "object",
                     "properties" to mapOf(
@@ -340,6 +345,10 @@ Rules:
                         "date" to mapOf(
                             "type" to "string",
                             "description" to "Prefer literal today or tomorrow. ISO YYYY-MM-DD only if the doctor gave a specific calendar day (current year or later).",
+                        ),
+                        "time" to mapOf(
+                            "type" to "string",
+                            "description" to "Preferred clock time HH:mm when the doctor said one (e.g. 10:00). Omit only if they have not named a time yet.",
                         ),
                         "isVideo" to mapOf("type" to "boolean"),
                         "reason" to mapOf("type" to "string"),
@@ -352,7 +361,7 @@ Rules:
             "type" to "function",
             "function" to mapOf(
                 "name" to "propose_reschedule",
-                "description" to "Propose free slots to move an upcoming appointment. Does NOT change the appointment.",
+                "description" to "Propose moving an upcoming appointment. Pass time when named. Does NOT change the appointment until auto-confirm/UI.",
                 "parameters" to mapOf(
                     "type" to "object",
                     "properties" to mapOf(
@@ -361,6 +370,10 @@ Rules:
                         "date" to mapOf(
                             "type" to "string",
                             "description" to "Prefer today / tomorrow. ISO only for an explicit future day. Defaults to current appointment day.",
+                        ),
+                        "time" to mapOf(
+                            "type" to "string",
+                            "description" to "Preferred clock time HH:mm when the doctor said one.",
                         ),
                     ),
                 ),
@@ -433,6 +446,7 @@ Rules:
         }
         var next = args
         relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+        timeFromUserText(latestUserText)?.let { next = next + ("time" to it) }
 
         val modelPatientId = (next["patientId"] as? Number)?.toLong()
         val resolvedPatientId = when {
@@ -454,6 +468,35 @@ Rules:
             next = next + ("patientId" to resolvedPatientId)
         }
         return next
+    }
+
+    /** Pull a clock time from speech/text like "10:00", "10 o'clock", "10am". */
+    private fun timeFromUserText(text: String): String? {
+        val t = text.lowercase()
+        val ampm = Regex(
+            """\b([01]?\d|2[0-3])(?::([0-5]\d))?\s*(a\.?m\.?|p\.?m\.?)\b""",
+        ).find(t)
+        if (ampm != null) {
+            var hour = ampm.groupValues[1].toInt()
+            val minute = ampm.groupValues[2].ifBlank { "00" }
+            val isPm = ampm.groupValues[3].startsWith("p")
+            if (hour == 12) hour = 0
+            if (isPm) hour += 12
+            return "%02d:%s".format(hour, minute.padStart(2, '0'))
+        }
+        val clock = Regex(
+            """\b([01]?\d|2[0-3])(?::([0-5]\d))\b""",
+        ).find(t)
+        if (clock != null) {
+            val hour = clock.groupValues[1].toInt()
+            val minute = clock.groupValues[2]
+            return "%02d:%s".format(hour, minute)
+        }
+        val oclock = Regex("""\b([01]?\d|2[0-3])\s*o['’]?clock\b""").find(t)
+        if (oclock != null) {
+            return "%02d:00".format(oclock.groupValues[1].toInt())
+        }
+        return null
     }
 
     private fun extractSearchPatientIds(result: Map<String, Any?>): List<Long> {
