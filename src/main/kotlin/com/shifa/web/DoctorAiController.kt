@@ -217,9 +217,21 @@ class DoctorAiController(
                         messages = conversation,
                         language = request.language,
                         selectedPatientId = request.patientId,
-                    ).collect { token ->
+                    ).collect { event ->
                         if (!clientConnected) return@collect
-                        clientConnected = SseIoSupport.sendText(emitter, token)
+                        clientConnected = when (event) {
+                            is com.shifa.service.MorningStreamEvent.Token ->
+                                SseIoSupport.sendText(emitter, event.text)
+                            is com.shifa.service.MorningStreamEvent.Tool -> {
+                                val payload = objectMapper.writeValueAsString(
+                                    mapOf("name" to event.name, "payload" to event.payload)
+                                )
+                                SseIoSupport.sendEvent(
+                                    emitter,
+                                    SseEmitter.event().name("tool").data(payload),
+                                )
+                            }
+                        }
                     }
                 }
                 if (clientConnected) {

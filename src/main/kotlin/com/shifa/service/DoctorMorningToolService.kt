@@ -4,6 +4,7 @@ import com.shifa.domain.DoctorProfile
 import com.shifa.domain.PatientVisitFact
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
+import com.shifa.repo.PatientProfileRepository
 import com.shifa.repo.PatientVisitFactRepository
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
@@ -15,7 +16,8 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 /**
- * Tools for the spoken morning doctor session: today's schedule and patient briefing.
+ * Read-only tools for the morning / Intelligence session.
+ * Never books, reschedules, or commits chart facts — the client confirms those writes.
  */
 @Service
 class DoctorMorningToolService(
@@ -23,9 +25,14 @@ class DoctorMorningToolService(
     private val patientBriefingService: PatientBriefingService,
     private val visitFactRepository: PatientVisitFactRepository,
     private val clinicVisitPatternRepository: ClinicVisitPatternRepository,
+    private val patientProfileRepository: PatientProfileRepository,
+    private val patientDaySlotsService: PatientDaySlotsService,
 ) {
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
     private val dateFmt = DateTimeFormatter.ofPattern("d MMM yyyy")
+
+    /** Tools whose payloads should become UI cards on the client. */
+    fun isCardTool(toolName: String): Boolean = toolName in CARD_TOOLS
 
     @Transactional(readOnly = true)
     fun execute(doctor: DoctorProfile, toolName: String, args: Map<String, Any?>): Map<String, Any?> {
@@ -34,6 +41,10 @@ class DoctorMorningToolService(
             "brief_patient" -> briefPatient(doctor, args)
             "get_clinic_patterns" -> getClinicPatterns(doctor)
             "get_most_visited_patients" -> getMostVisitedPatients(doctor, args)
+            "search_patients" -> searchPatients(doctor, args)
+            "propose_appointment" -> proposeAppointment(doctor, args)
+            "propose_reschedule" -> proposeReschedule(doctor, args)
+            "list_draft_visit_facts" -> listDraftVisitFacts(doctor, args)
             else -> mapOf("error" to "Unknown tool: $toolName")
         }
     }
@@ -55,6 +66,7 @@ class DoctorMorningToolService(
         }
 
         return mapOf(
+            "cardType" to "schedule",
             "date" to today.toString(),
             "count" to appointments.size,
             "appointments" to appointments.map { a ->
@@ -122,6 +134,7 @@ class DoctorMorningToolService(
         }
 
         return mapOf(
+            "cardType" to "patient_brief",
             "patientId" to patientId,
             "lastVisit" to lastVisitSummary,
             "visitCountWithYou" to prior.size,
@@ -136,6 +149,7 @@ class DoctorMorningToolService(
     fun getClinicPatterns(doctor: DoctorProfile): Map<String, Any?> {
         val patterns = clinicVisitPatternRepository.findByDoctorIdOrderByOccurrenceCountDesc(doctor.id).take(8)
         return mapOf(
+            "cardType" to "clinic_patterns",
             "patterns" to patterns.map {
                 mapOf(
                     "key" to it.patternKey,
@@ -143,14 +157,15 @@ class DoctorMorningToolService(
                     "factType" to it.factType.name,
                     "count" to it.occurrenceCount,
                 )
-            }
+            },
+            "spokenHint" to if (patterns.isEmpty()) {
+                "No clinic patterns recorded yet."
+            } else {
+                "Top patterns: " + patterns.take(3).joinToString("; ") { "${it.patternLabel} (${it.occurrenceCount})" } + "."
+            },
         )
     }
 
-    /**
-     * Rank patients by non-cancelled appointments with this doctor.
-     * Args: limit (default 5), daysBack (default 365; 0 = all available history capped at 5y).
-     */
     @Transactional(readOnly = true)
     fun getMostVisitedPatients(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
         val limit = ((args["limit"] as? Number)?.toInt() ?: 5).coerceIn(1, 15)
@@ -195,11 +210,231 @@ class DoctorMorningToolService(
         }
 
         return mapOf(
+            "cardType" to "most_visited",
             "since" to since.toString(),
             "daysBack" to daysBack,
             "patients" to patients,
             "spokenHint" to spokenHint,
         )
+    }
+
+    @Transactional(readOnly = true)
+    fun searchPatients(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
+        val query = (args["query"] as? String)?.trim().orEmpty()
+        if (query.isBlank()) {
+            return mapOf(
+                "cardType" to "patient_search",
+                "query" to query,
+                "matches" to emptyList<Map<String, Any?>>(),
+                "spokenHint" to "Please give a patient name to search.",
+            )
+        }
+        val page = patientProfileRepository.findClinicRosterScopedToDoctor(
+            doctor.id,
+            query,
+            PageRequest.of(0, 8),
+        )
+        val matches = page.content.map { p ->
+            mapOf(
+                "patientId" to p.id,
+                "patientName" to p.fullName.ifBlank { "Patient" },
+                "phone" to (p.phone ?: ""),
+            )
+        }
+        val spokenHint = when {
+            matches.isEmpty() -> "No patients matched \"$query\" in your roster."
+            matches.size == 1 -> "Found ${matches.first()["patientName"]}."
+            else -> "Found ${matches.size} patients matching \"$query\". Ask the doctor to pick one."
+        }
+        return mapOf(
+            "cardType" to "patient_search",
+            "query" to query,
+            "matches" to matches,
+            "spokenHint" to spokenHint,
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun proposeAppointment(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
+        val patientId = (args["patientId"] as? Number)?.toLong()
+            ?: return mapOf(
+                "cardType" to "propose_appointment",
+                "error" to "patientId is required",
+                "spokenHint" to "I need a patient id before I can propose a booking.",
+            )
+        val patient = patientProfileRepository.findById(patientId).orElse(null)
+            ?: return mapOf(
+                "cardType" to "propose_appointment",
+                "error" to "Patient not found",
+                "spokenHint" to "I could not find that patient.",
+            )
+
+        val zone = zoneOf(doctor)
+        val date = resolveDateArg(args["date"] as? String, zone)
+            ?: return mapOf(
+                "cardType" to "propose_appointment",
+                "patientId" to patientId,
+                "patientName" to patient.fullName,
+                "error" to "date is required",
+                "spokenHint" to "Which day should I check for free slots?",
+            )
+
+        val isVideo = (args["isVideo"] as? Boolean) == true
+        val slots = patientDaySlotsService.availableSlotsForDay(doctor, date)
+            .take(12)
+            .map { slot ->
+                val startZ = Instant.parse(slot.startAt).atZone(zone)
+                mapOf(
+                    "startAt" to slot.startAt,
+                    "endAt" to slot.endAt,
+                    "slotMinutes" to slot.slotMinutes,
+                    "startLocal" to startZ.format(timeFmt),
+                    "locationId" to slot.locationId,
+                    "locationLabel" to slot.locationLabel,
+                )
+            }
+
+        val spokenHint = when {
+            slots.isEmpty() ->
+                "No free slots on ${date.format(dateFmt)} for ${patient.fullName}. Ask them to pick another day."
+            else ->
+                "I found ${slots.size} free slots on ${date.format(dateFmt)} for ${patient.fullName}. They need to pick a time — do not claim it is booked."
+        }
+
+        return mapOf(
+            "cardType" to "propose_appointment",
+            "patientId" to patientId,
+            "patientName" to patient.fullName.ifBlank { "Patient" },
+            "date" to date.toString(),
+            "dateLabel" to date.format(dateFmt),
+            "isVideo" to isVideo,
+            "reason" to (args["reason"] as? String),
+            "slots" to slots,
+            "spokenHint" to spokenHint,
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun proposeReschedule(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
+        val patientId = (args["patientId"] as? Number)?.toLong()
+        val appointmentId = (args["appointmentId"] as? Number)?.toLong()
+        val zone = zoneOf(doctor)
+        val now = Instant.now()
+
+        val appointment = when {
+            appointmentId != null -> appointmentRepository.findById(appointmentId).orElse(null)
+                ?.takeIf { it.doctor.id == doctor.id }
+            patientId != null -> appointmentRepository
+                .findByPatientIdAndDoctorIdOrderByStartAtDesc(patientId, doctor.id)
+                .firstOrNull { it.status.name != "CANCELLED" && it.startAt.isAfter(now) }
+            else -> null
+        } ?: return mapOf(
+            "cardType" to "propose_reschedule",
+            "error" to "No upcoming appointment found",
+            "spokenHint" to "I could not find an upcoming appointment to reschedule.",
+        )
+
+        val date = resolveDateArg(args["date"] as? String, zone)
+            ?: appointment.startAt.atZone(zone).toLocalDate()
+
+        val slots = patientDaySlotsService.availableSlotsForDay(
+            doctor,
+            date,
+            excludeAppointmentId = appointment.id,
+        ).take(12).map { slot ->
+            val startZ = Instant.parse(slot.startAt).atZone(zone)
+            mapOf(
+                "startAt" to slot.startAt,
+                "endAt" to slot.endAt,
+                "slotMinutes" to slot.slotMinutes,
+                "startLocal" to startZ.format(timeFmt),
+                "locationId" to slot.locationId,
+                "locationLabel" to slot.locationLabel,
+            )
+        }
+
+        val patientName = appointment.patient.fullName.ifBlank { "Patient" }
+        val currentLocal = appointment.startAt.atZone(zone)
+        return mapOf(
+            "cardType" to "propose_reschedule",
+            "appointmentId" to appointment.id,
+            "patientId" to appointment.patient.id,
+            "patientName" to patientName,
+            "currentStartAt" to appointment.startAt.toString(),
+            "currentStartLocal" to currentLocal.format(timeFmt),
+            "currentDateLabel" to currentLocal.format(dateFmt),
+            "date" to date.toString(),
+            "dateLabel" to date.format(dateFmt),
+            "slots" to slots,
+            "spokenHint" to when {
+                slots.isEmpty() ->
+                    "No free slots on ${date.format(dateFmt)} to move $patientName. Ask for another day."
+                else ->
+                    "$patientName is currently at ${currentLocal.format(dateFmt)} ${currentLocal.format(timeFmt)}. Pick a new time — nothing moves until they confirm."
+            },
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun listDraftVisitFacts(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
+        val appointmentId = (args["appointmentId"] as? Number)?.toLong()
+            ?: return mapOf(
+                "cardType" to "draft_visit_facts",
+                "error" to "appointmentId is required",
+                "spokenHint" to "I need an appointment to list draft visit facts.",
+            )
+        val appointment = appointmentRepository.findById(appointmentId).orElse(null)
+            ?: return mapOf(
+                "cardType" to "draft_visit_facts",
+                "error" to "Appointment not found",
+                "spokenHint" to "That appointment was not found.",
+            )
+        if (appointment.doctor.id != doctor.id) {
+            return mapOf(
+                "cardType" to "draft_visit_facts",
+                "error" to "Forbidden",
+                "spokenHint" to "That appointment is not on your calendar.",
+            )
+        }
+
+        val drafts = visitFactRepository
+            .findByAppointmentIdAndStatus(appointmentId, PatientVisitFact.Status.DRAFT)
+            .filter { it.doctorId == doctor.id && it.reflectionKept }
+
+        return mapOf(
+            "cardType" to "draft_visit_facts",
+            "appointmentId" to appointmentId,
+            "patientId" to appointment.patient.id,
+            "patientName" to appointment.patient.fullName.ifBlank { "Patient" },
+            "facts" to drafts.map { f ->
+                mapOf(
+                    "factId" to f.id,
+                    "factType" to f.factType.name,
+                    "text" to f.text,
+                )
+            },
+            "spokenHint" to when {
+                drafts.isEmpty() ->
+                    "There are no draft visit facts ready to document for this visit."
+                else ->
+                    "There are ${drafts.size} draft facts. Ask the doctor to confirm Document everything — do not claim they are saved yet."
+            },
+        )
+    }
+
+    private fun resolveDateArg(raw: String?, zone: ZoneId): LocalDate? {
+        if (raw.isNullOrBlank()) return null
+        val t = raw.trim().lowercase()
+        val today = LocalDate.now(zone)
+        return when (t) {
+            "today" -> today
+            "tomorrow" -> today.plusDays(1)
+            else -> try {
+                LocalDate.parse(raw.trim())
+            } catch (_: Exception) {
+                null
+            }
+        }
     }
 
     private fun buildScheduleHint(count: Int, nextName: String?, minutesUntil: Long?): String {
@@ -244,4 +479,17 @@ class DoctorMorningToolService(
         } catch (_: Exception) {
             ZoneId.of("Asia/Tashkent")
         }
+
+    companion object {
+        private val CARD_TOOLS = setOf(
+            "get_today_schedule",
+            "search_patients",
+            "propose_appointment",
+            "propose_reschedule",
+            "list_draft_visit_facts",
+            "get_most_visited_patients",
+            "get_clinic_patterns",
+            "brief_patient",
+        )
+    }
 }

@@ -20,8 +20,8 @@ import org.springframework.stereotype.Service
 import java.time.Duration
 
 /**
- * Spoken morning session: tool-augmented doctor assistant for schedule + briefing.
- * Replies are short enough to speak aloud.
+ * Spoken morning / Intelligence session: tool-augmented assistant.
+ * Emits [MorningStreamEvent.Tool] for card UI, then short spoken [MorningStreamEvent.Token]s.
  */
 @Service
 class DoctorMorningAiService(
@@ -50,7 +50,7 @@ class DoctorMorningAiService(
         messages: List<AiMessageDto>,
         language: OutputLanguage,
         selectedPatientId: Long?,
-    ): Flow<String> = flow {
+    ): Flow<MorningStreamEvent> = flow {
         val combined = messages.joinToString(" ") { it.content }
         if (RedFlagEngine.analyze(combined).hasEmergency) {
             throw AiStreamException(
@@ -75,7 +75,10 @@ class DoctorMorningAiService(
             )
         }
 
-        val loopMessages = runToolLoop(doctor, language, messages, systemMessages)
+        val (loopMessages, toolEvents) = runToolLoop(doctor, language, messages, systemMessages)
+        for (tool in toolEvents) {
+            emit(tool)
+        }
 
         val payload = mapper.writeValueAsString(
             mapOf(
@@ -111,7 +114,7 @@ class DoctorMorningAiService(
                 try {
                     val json = mapper.readTree(data)
                     val delta = json.path("choices").path(0).path("delta").path("content").asText(null)
-                    if (!delta.isNullOrEmpty()) emit(delta)
+                    if (!delta.isNullOrEmpty()) emit(MorningStreamEvent.Token(delta))
                 } catch (_: Exception) {
                 }
             }
@@ -123,8 +126,9 @@ class DoctorMorningAiService(
         language: OutputLanguage,
         messages: List<AiMessageDto>,
         systemMessages: List<Map<String, String>>,
-    ): List<Map<String, Any?>> {
+    ): Pair<List<Map<String, Any?>>, List<MorningStreamEvent.Tool>> {
         val loopMessages = mutableListOf<Map<String, Any?>>()
+        val toolEvents = mutableListOf<MorningStreamEvent.Tool>()
         val maxIterations = 4
         for (iteration in 1..maxIterations) {
             val payload = mapper.writeValueAsString(
@@ -140,7 +144,7 @@ class DoctorMorningAiService(
                         listOf(
                             mapOf(
                                 "role" to "system",
-                                "content" to "Call tools when you need live schedule or chart data. After tools, answer in one short spoken paragraph.",
+                                "content" to "Call tools when you need live schedule, patient match, free slots, or draft facts. After tools, answer in one short spoken paragraph. Never claim a booking, reschedule, or chart commit happened.",
                             )
                         ),
                 )
@@ -156,19 +160,19 @@ class DoctorMorningAiService(
             val bodyText = toolClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     log.warn("Morning tool loop HTTP {}", response.code)
-                    return loopMessages
+                    return loopMessages to toolEvents
                 }
                 response.body?.string().orEmpty()
             }
             val json = try {
                 mapper.readTree(bodyText)
             } catch (_: Exception) {
-                return loopMessages
+                return loopMessages to toolEvents
             }
             val modelMsg = json.path("choices").path(0).path("message")
             val toolCalls = modelMsg.path("tool_calls")
             if (!toolCalls.isArray || toolCalls.isEmpty) {
-                return loopMessages
+                return loopMessages to toolEvents
             }
 
             val normalizedCalls = toolCalls.take(3).mapNotNull { tc ->
@@ -183,7 +187,7 @@ class DoctorMorningAiService(
                 }
                 Triple(id, name, args)
             }
-            if (normalizedCalls.isEmpty()) return loopMessages
+            if (normalizedCalls.isEmpty()) return loopMessages to toolEvents
 
             loopMessages += mapOf(
                 "role" to "assistant",
@@ -207,10 +211,13 @@ class DoctorMorningAiService(
                     "tool_call_id" to id,
                     "content" to mapper.writeValueAsString(result),
                 )
+                if (morningTools.isCardTool(name)) {
+                    toolEvents += MorningStreamEvent.Tool(name = name, payload = result)
+                }
                 log.info("morning_tool iteration={} tool={} ok={}", iteration, name, !result.containsKey("error"))
             }
         }
-        return loopMessages
+        return loopMessages to toolEvents
     }
 
     private fun morningSystemPrompt(doctor: DoctorProfile, language: OutputLanguage): String {
@@ -220,7 +227,7 @@ class DoctorMorningAiService(
             OutputLanguage.UZ -> "Preferred reply language hint: Uzbek."
         }
         return """
-You are Shifa, the spoken morning clinic assistant for Dr. ${doctor.firstName} ${doctor.lastName}.
+You are Shifa, the clinical Intelligence assistant for Dr. ${doctor.firstName} ${doctor.lastName}.
 
 LANGUAGE (MANDATORY):
 - Reply in the SAME language the doctor used in their latest message (English, Russian, or Uzbek).
@@ -228,18 +235,27 @@ LANGUAGE (MANDATORY):
 - If tool results or spokenHint are in another language, translate them into the doctor's language before answering.
 - Never switch to Uzbek when the doctor spoke English, and never switch to English when the doctor spoke Uzbek/Russian.
 
-You help the doctor start the day and answer practice questions:
-- How many appointments today, and when the next one starts
-- Brief a patient from the chart (last visit, complaints, what was done)
-- Who visited most / most frequent patients (use get_most_visited_patients)
+You help with:
+- Today's schedule (get_today_schedule)
+- Finding patients by name (search_patients) — never invent a patientId
+- Proposing a new appointment (propose_appointment) after patientId and date are known
+- Proposing a reschedule (propose_reschedule) for an upcoming visit
+- Draft visit facts / document everything (list_draft_visit_facts) when an appointmentId is known
+- Most visited patients and clinic patterns
+- Briefing a patient from the chart (brief_patient)
+
+CRITICAL WRITE RULES:
+- You NEVER book, reschedule, cancel, or commit chart facts yourself.
+- Tools only propose. The doctor confirms in the UI.
+- Never say "I booked", "I scheduled", "I saved", or "documented" unless a tool result already shows a confirmed write (they will not).
+- Never invent patient names, ids, times, or free slots. Use tools.
 
 Rules:
-- Use tools for live data. Prefer spokenHint from tool results when present (translated into the doctor's language).
-- For "most visited", "most frequent patient", "who comes most often" — ALWAYS call get_most_visited_patients. Never invent names or say there are none without calling the tool.
+- Prefer spokenHint from tool results (translated).
+- For "most visited" — ALWAYS call get_most_visited_patients.
+- For booking requests: search_patients if needed, then propose_appointment with patientId and date (ISO or tomorrow/today).
 - Speak in 1–3 short sentences. No markdown, no bullet lists, no diagnosis, no prescriptions.
-- You are documenting and briefing only. Never invent chart facts.
-- If the doctor says "document everything", tell them to confirm Document everything on the visit cards after the call — you cannot commit chart facts from this chat alone.
-- Sound like a calm clinical OS, not a chatbot. Your text will be spoken aloud.
+- Sound like a calm clinical OS. Your text will be spoken aloud.
 """.trimIndent()
     }
 
@@ -250,6 +266,72 @@ Rules:
                 "name" to "get_today_schedule",
                 "description" to "Get today's appointment count, list, and minutes until the next visit.",
                 "parameters" to mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "search_patients",
+                "description" to "Search this doctor's patient roster by name. Use before booking when only a name is given.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "query" to mapOf("type" to "string", "description" to "Patient name fragment"),
+                    ),
+                    "required" to listOf("query"),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "propose_appointment",
+                "description" to "Propose free slots to book a patient. Does NOT create the appointment. Requires patientId and date.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "patientId" to mapOf("type" to "integer"),
+                        "date" to mapOf(
+                            "type" to "string",
+                            "description" to "ISO date YYYY-MM-DD, or today / tomorrow",
+                        ),
+                        "isVideo" to mapOf("type" to "boolean"),
+                        "reason" to mapOf("type" to "string"),
+                    ),
+                    "required" to listOf("patientId", "date"),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "propose_reschedule",
+                "description" to "Propose free slots to move an upcoming appointment. Does NOT change the appointment.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "patientId" to mapOf("type" to "integer"),
+                        "appointmentId" to mapOf("type" to "integer"),
+                        "date" to mapOf(
+                            "type" to "string",
+                            "description" to "Target day ISO / today / tomorrow. Defaults to current appointment day.",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "list_draft_visit_facts",
+                "description" to "List draft visit facts for an appointment so the doctor can confirm Document everything. Does NOT commit.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "appointmentId" to mapOf("type" to "integer"),
+                    ),
+                    "required" to listOf("appointmentId"),
+                ),
             ),
         ),
         mapOf(
@@ -270,18 +352,12 @@ Rules:
             "type" to "function",
             "function" to mapOf(
                 "name" to "get_most_visited_patients",
-                "description" to "Rank this doctor's patients by how many non-cancelled appointments they had (most visited / most frequent). Use for questions like who visited me most, top patients, busiest patients.",
+                "description" to "Rank this doctor's patients by how many non-cancelled appointments they had.",
                 "parameters" to mapOf(
                     "type" to "object",
                     "properties" to mapOf(
-                        "limit" to mapOf(
-                            "type" to "integer",
-                            "description" to "How many patients to return (1-15). Default 5.",
-                        ),
-                        "daysBack" to mapOf(
-                            "type" to "integer",
-                            "description" to "Look-back window in days. Default 365. Use 0 for up to ~10 years.",
-                        ),
+                        "limit" to mapOf("type" to "integer"),
+                        "daysBack" to mapOf("type" to "integer"),
                     ),
                 ),
             ),
