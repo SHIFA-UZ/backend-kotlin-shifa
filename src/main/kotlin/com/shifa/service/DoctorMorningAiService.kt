@@ -18,6 +18,8 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Duration
+import java.time.LocalDate
+import java.time.ZoneId
 
 /**
  * Spoken morning / Intelligence session: tool-augmented assistant.
@@ -204,8 +206,10 @@ class DoctorMorningAiService(
                 },
             )
 
+            val latestUserText = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
             for ((id, name, args) in normalizedCalls) {
-                val result = morningTools.execute(doctor, name, args)
+                val safeArgs = sanitizeToolArgs(name, args, latestUserText)
+                val result = morningTools.execute(doctor, name, safeArgs)
                 loopMessages += mapOf(
                     "role" to "tool",
                     "tool_call_id" to id,
@@ -226,8 +230,20 @@ class DoctorMorningAiService(
             OutputLanguage.RU -> "Preferred reply language hint: Russian."
             OutputLanguage.UZ -> "Preferred reply language hint: Uzbek."
         }
+        val zone = try {
+            ZoneId.of(doctor.timeZone.ifBlank { "Asia/Tashkent" })
+        } catch (_: Exception) {
+            ZoneId.of("Asia/Tashkent")
+        }
+        val today = LocalDate.now(zone)
         return """
 You are Shifa, the clinical Intelligence assistant for Dr. ${doctor.firstName} ${doctor.lastName}.
+
+CLOCK (MANDATORY):
+- Practice timezone: ${zone.id}
+- Today is ${today} (${today.dayOfWeek}). Tomorrow is ${today.plusDays(1)}.
+- When the doctor says today/tomorrow (or сегодня/завтра), pass date as the literal "today" or "tomorrow" — do NOT invent an ISO year from memory.
+- Never use a past year. If you pass ISO, it must be ${today.year} or later.
 
 LANGUAGE (MANDATORY):
 - Reply in the SAME language the doctor used in their latest message (English, Russian, or Uzbek).
@@ -249,11 +265,12 @@ CRITICAL WRITE RULES:
 - Tools only propose. The doctor confirms in the UI.
 - Never say "I booked", "I scheduled", "I saved", or "documented" unless a tool result already shows a confirmed write (they will not).
 - Never invent patient names, ids, times, or free slots. Use tools.
+- patientId for propose_appointment MUST come from the latest search_patients matches in this conversation — never reuse an older patient from earlier turns.
 
 Rules:
 - Prefer spokenHint from tool results (translated).
 - For "most visited" — ALWAYS call get_most_visited_patients.
-- For booking requests: search_patients if needed, then propose_appointment with patientId and date (ISO or tomorrow/today).
+- For booking requests: search_patients if needed, then propose_appointment with patientId and date ("tomorrow" / "today" preferred).
 - Speak in 1–3 short sentences. No markdown, no bullet lists, no diagnosis, no prescriptions.
 - Sound like a calm clinical OS. Your text will be spoken aloud.
 """.trimIndent()
@@ -293,7 +310,7 @@ Rules:
                         "patientId" to mapOf("type" to "integer"),
                         "date" to mapOf(
                             "type" to "string",
-                            "description" to "ISO date YYYY-MM-DD, or today / tomorrow",
+                            "description" to "Prefer literal today or tomorrow. ISO YYYY-MM-DD only if the doctor gave a specific calendar day (current year or later).",
                         ),
                         "isVideo" to mapOf("type" to "boolean"),
                         "reason" to mapOf("type" to "string"),
@@ -314,7 +331,7 @@ Rules:
                         "appointmentId" to mapOf("type" to "integer"),
                         "date" to mapOf(
                             "type" to "string",
-                            "description" to "Target day ISO / today / tomorrow. Defaults to current appointment day.",
+                            "description" to "Prefer today / tomorrow. ISO only for an explicit future day. Defaults to current appointment day.",
                         ),
                     ),
                 ),
@@ -371,4 +388,29 @@ Rules:
             ),
         ),
     )
+
+    /**
+     * When the doctor said today/tomorrow, force those literals so the model cannot
+     * invent a stale ISO year (e.g. 2023-10-31) from training data.
+     */
+    private fun sanitizeToolArgs(
+        toolName: String,
+        args: Map<String, Any?>,
+        latestUserText: String,
+    ): Map<String, Any?> {
+        if (toolName != "propose_appointment" && toolName != "propose_reschedule") {
+            return args
+        }
+        val relative = relativeDateFromUserText(latestUserText) ?: return args
+        return args + ("date" to relative)
+    }
+
+    private fun relativeDateFromUserText(text: String): String? {
+        val t = text.lowercase()
+        return when {
+            Regex("""\b(tomorrow|завтра|ertaga|erta)\b""").containsMatchIn(t) -> "tomorrow"
+            Regex("""\b(today|сегодня|bugun)\b""").containsMatchIn(t) -> "today"
+            else -> null
+        }
+    }
 }

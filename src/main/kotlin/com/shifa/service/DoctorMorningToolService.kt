@@ -427,10 +427,13 @@ class DoctorMorningToolService(
         val t = raw.trim().lowercase()
         val today = LocalDate.now(zone)
         return when (t) {
-            "today" -> today
-            "tomorrow" -> today.plusDays(1)
+            "today", "сегодня", "bugun" -> today
+            "tomorrow", "завтра", "ertaga", "erta" -> today.plusDays(1)
             else -> try {
-                LocalDate.parse(raw.trim())
+                val parsed = LocalDate.parse(raw.trim())
+                // Models sometimes invent a past year (e.g. 2023). Reject past days
+                // for booking so we ask again instead of proposing a dead calendar.
+                if (parsed.isBefore(today)) null else parsed
             } catch (_: Exception) {
                 null
             }
