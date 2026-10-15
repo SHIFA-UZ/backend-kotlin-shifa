@@ -73,11 +73,20 @@ class DoctorMorningAiService(
         selectedPatientId?.let {
             systemMessages += mapOf(
                 "role" to "system",
-                "content" to "Selected patientId for this session: $it. Prefer brief_patient with this id when the doctor says 'this patient' or asks for a briefing without naming someone.",
+                "content" to
+                    "Focus patientId for this turn: $it. " +
+                    "Use THIS exact patientId for propose_appointment / propose_reschedule / brief_patient when the doctor says yes, him/her, that patient, or continues booking — do not invent or reuse any other id. " +
+                    "Only switch patients after search_patients returns a different match the doctor clearly picked.",
             )
         }
 
-        val (loopMessages, toolEvents) = runToolLoop(doctor, language, messages, systemMessages)
+        val (loopMessages, toolEvents) = runToolLoop(
+            doctor,
+            language,
+            messages,
+            systemMessages,
+            focusPatientId = selectedPatientId,
+        )
         for (tool in toolEvents) {
             emit(tool)
         }
@@ -128,9 +137,12 @@ class DoctorMorningAiService(
         language: OutputLanguage,
         messages: List<AiMessageDto>,
         systemMessages: List<Map<String, String>>,
+        focusPatientId: Long?,
     ): Pair<List<Map<String, Any?>>, List<MorningStreamEvent.Tool>> {
         val loopMessages = mutableListOf<Map<String, Any?>>()
         val toolEvents = mutableListOf<MorningStreamEvent.Tool>()
+        // patientIds returned by search_patients in this request (same tool loop).
+        val searchedPatientIds = linkedSetOf<Long>()
         val maxIterations = 4
         for (iteration in 1..maxIterations) {
             val payload = mapper.writeValueAsString(
@@ -207,9 +219,26 @@ class DoctorMorningAiService(
             )
 
             val latestUserText = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
-            for ((id, name, args) in normalizedCalls) {
-                val safeArgs = sanitizeToolArgs(name, args, latestUserText)
+            // Run searches before booking tools so patientId can be corrected in-batch.
+            val orderedCalls = normalizedCalls.sortedBy { (_, name, _) ->
+                when (name) {
+                    "search_patients" -> 0
+                    "propose_appointment", "propose_reschedule" -> 2
+                    else -> 1
+                }
+            }
+            for ((id, name, args) in orderedCalls) {
+                val safeArgs = sanitizeToolArgs(
+                    toolName = name,
+                    args = args,
+                    latestUserText = latestUserText,
+                    focusPatientId = focusPatientId,
+                    searchedPatientIds = searchedPatientIds,
+                )
                 val result = morningTools.execute(doctor, name, safeArgs)
+                if (name == "search_patients") {
+                    extractSearchPatientIds(result).forEach { searchedPatientIds += it }
+                }
                 loopMessages += mapOf(
                     "role" to "tool",
                     "tool_call_id" to id,
@@ -265,7 +294,7 @@ CRITICAL WRITE RULES:
 - Tools only propose. The doctor confirms in the UI.
 - Never say "I booked", "I scheduled", "I saved", or "documented" unless a tool result already shows a confirmed write (they will not).
 - Never invent patient names, ids, times, or free slots. Use tools.
-- patientId for propose_appointment MUST come from the latest search_patients matches in this conversation — never reuse an older patient from earlier turns.
+- patientId for propose_appointment MUST be the Focus patientId above, or an id returned by search_patients in this same turn — never invent ids and never reuse a different patient from memory.
 
 Rules:
 - Prefer spokenHint from tool results (translated).
@@ -390,19 +419,49 @@ Rules:
     )
 
     /**
-     * When the doctor said today/tomorrow, force those literals so the model cannot
-     * invent a stale ISO year (e.g. 2023-10-31) from training data.
+     * Correct date/patient args the model invents (stale years, wrong patientId).
      */
     private fun sanitizeToolArgs(
         toolName: String,
         args: Map<String, Any?>,
         latestUserText: String,
+        focusPatientId: Long?,
+        searchedPatientIds: Set<Long>,
     ): Map<String, Any?> {
         if (toolName != "propose_appointment" && toolName != "propose_reschedule") {
             return args
         }
-        val relative = relativeDateFromUserText(latestUserText) ?: return args
-        return args + ("date" to relative)
+        var next = args
+        relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+
+        val modelPatientId = (next["patientId"] as? Number)?.toLong()
+        val resolvedPatientId = when {
+            // Fresh search in this request wins.
+            searchedPatientIds.size == 1 -> searchedPatientIds.first()
+            modelPatientId != null && modelPatientId in searchedPatientIds -> modelPatientId
+            // Otherwise pin to the chat's focus patient (last search/propose card).
+            focusPatientId != null -> focusPatientId
+            else -> modelPatientId
+        }
+        if (resolvedPatientId != null && resolvedPatientId != modelPatientId) {
+            log.info(
+                "morning_tool corrected patientId model={} -> resolved={} focus={} searched={}",
+                modelPatientId,
+                resolvedPatientId,
+                focusPatientId,
+                searchedPatientIds,
+            )
+            next = next + ("patientId" to resolvedPatientId)
+        }
+        return next
+    }
+
+    private fun extractSearchPatientIds(result: Map<String, Any?>): List<Long> {
+        val matches = result["matches"] as? List<*> ?: return emptyList()
+        return matches.mapNotNull { row ->
+            val map = row as? Map<*, *> ?: return@mapNotNull null
+            (map["patientId"] as? Number)?.toLong()
+        }
     }
 
     private fun relativeDateFromUserText(text: String): String? {
