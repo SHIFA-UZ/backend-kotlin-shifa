@@ -251,7 +251,15 @@ class DoctorMorningAiService(
                     focusPatientId = focusPatientId,
                     searchedPatientIds = searchedPatientIds,
                 )
-                val result = morningTools.execute(doctor, name, safeArgs)
+                val result = morningTools.execute(
+                    doctor = doctor,
+                    toolName = name,
+                    args = safeArgs,
+                    priorAssistantMessages = messages.filter { it.role == "assistant" }.map { it.content },
+                    latestUserText = latestUserText,
+                    focusPatientId = focusPatientId,
+                    searchedPatientIds = searchedPatientIds,
+                )
                 if (name == "search_patients") {
                     extractSearchPatientIds(result).forEach { searchedPatientIds += it }
                 }
@@ -350,6 +358,7 @@ ANSWER ONLY WHAT WAS ASKED (STRICT):
 - Free slots / open times / availability → call list_free_slots. Do NOT call get_today_schedule. Do NOT mention booked appointments unless asked.
 - Today's clinic schedule / who is next / how many visits TODAY (no patient named) → call get_today_schedule. Do NOT list free slots unless asked.
 - How many / which appointments WITH a patient (him/her/focus) this week / next week / on a day → call list_patient_appointments. Do NOT call get_today_schedule for that.
+- Appointment counts for other periods (yesterday, last week, last month, rolling ranges), statuses, documentation, payments, grouping, or comparisons → call query_appointment_intelligence once. Pass the doctor's period words in timeRange.expression. Do NOT invent counts, names, or dates. Do NOT send a doctorId. Do NOT use get_today_schedule for those.
 - Never volunteer today's schedule when the doctor asked for free slots (or the reverse).
 
 You help with:
@@ -587,6 +596,44 @@ Rules:
         mapOf(
             "type" to "function",
             "function" to mapOf(
+                "name" to "query_appointment_intelligence",
+                "description" to "Count or list this doctor's appointments for a period with optional status, documentation, payment, patient, or visit-type filters. Use for yesterday, last week, next week, last month, rolling ranges, cancelled, completed, confirmed, undocumented, unpaid, collected money, grouping, and comparisons. Do not use for today's schedule overview, free slots, or booking. Do not send doctorId. The server resolves dates and computes numbers.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "metric" to mapOf(
+                            "type" to "string",
+                            "description" to "COUNT, DISTINCT_PATIENT_COUNT, GROUPED_COUNT, CANCELLATION_RATE, SUM_COLLECTED, SUM_APPOINTMENT_VALUE, SUM_OUTSTANDING, or LIST.",
+                        ),
+                        "shape" to mapOf(
+                            "type" to "string",
+                            "description" to "AGGREGATE, GROUPED, or LIST.",
+                        ),
+                        "timeRange" to mapOf(
+                            "type" to "object",
+                            "description" to "Prefer expression set to the doctor's words (yesterday, last week, last 7 days, last month). Or period such as YESTERDAY, LAST_WEEK, LAST_30_DAYS, NEXT_N_DAYS with n.",
+                        ),
+                        "comparisonPeriod" to mapOf(
+                            "type" to "object",
+                            "description" to "Optional second period, same shape as timeRange, when the doctor asks to compare.",
+                        ),
+                        "filters" to mapOf(
+                            "type" to "object",
+                            "description" to "Optional patientId or patientName, statuses (REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED), documentation (NO_CONSULTATION_NOTE, HAS_CONSULTATION_NOTE, PATIENT_SIGNED, PATIENT_UNSIGNED), paymentStatus (NOT_REQUIRED, PENDING, PAID, FAILED, REFUNDED), modality (VIDEO, IN_PERSON).",
+                        ),
+                        "groupBy" to mapOf(
+                            "type" to "string",
+                            "description" to "STATUS, DAY, WEEK, MONTH, PAYMENT_STATUS, MODALITY, or PATIENT.",
+                        ),
+                        "sort" to mapOf("type" to "string", "description" to "START_AT_ASC or START_AT_DESC for lists."),
+                        "limit" to mapOf("type" to "integer"),
+                    ),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
                 "name" to "open_dental_chart",
                 "description" to "Open the patient's dental FDI diagram / odontogram inline in chat from the latest visit documentation. Use for dental diagram, dental chart, odontogram, зубная схема. Prefer Focus patientId.",
                 "parameters" to mapOf(
@@ -607,7 +654,7 @@ Rules:
     /** Extra turn-specific guidance so booking/free-slots do not derail into today's schedule. */
     private fun toolLoopNudge(messages: List<AiMessageDto>): String {
         val base =
-            "Call tools when you need live schedule, free slots, patient match, documents, dental chart, or draft facts. Prefer one tool batch. " +
+            "Call tools when you need live schedule, free slots, appointment statistics, patient match, documents, dental chart, or draft facts. Prefer one tool batch. " +
                 "If the doctor only says yes/ok/confirm after a time was already proposed, do NOT call propose_appointment again. " +
                 "If no tool is needed, answer in one short spoken paragraph now. Answer ONLY what was asked."
         val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
@@ -626,6 +673,11 @@ Rules:
         if (asksForPatientAppointments(latest)) {
             return "$base PATIENT APPOINTMENTS REQUEST: call list_patient_appointments with Focus patientId " +
                 "and date=next week / this week / the day they named. Do NOT call get_today_schedule."
+        }
+        if (asksForAppointmentAnalytics(latest)) {
+            return "$base APPOINTMENT ANALYTICS: call query_appointment_intelligence once. " +
+                "Put the doctor's period words in timeRange.expression. " +
+                "Do NOT call get_today_schedule. Do NOT invent counts. Do NOT send a doctorId."
         }
         if (!conversationHasBookingIntent(messages)) return base
         if (looksLikeCalendarOrDateReply(latest)) {
@@ -959,6 +1011,23 @@ Rules:
             next || nextWeek -> "next $day"
             else -> day
         }
+    }
+
+    /**
+     * Period, status, documentation, or payment questions that are not today's
+     * schedule card and not a single patient's this-week or next-week list.
+     */
+    private fun asksForAppointmentAnalytics(text: String): Boolean {
+        val t = text.lowercase()
+        if (asksForFreeSlots(t)) return false
+        val aboutCare = Regex("""appointment|visit|booking|qabul|учрашув|запис|collected|unpaid|refund""").containsMatchIn(t)
+        val cue = Regex(
+            """yesterday|last week|next week|last month|next month|this month|last year|this quarter|""" +
+                """last \d+|next \d+|past |previous |cancelled|canceled|no-show|no show|undocumented|unsigned|""" +
+                """finalized|unpaid|partially|refund|compare|each day|by status|reschedul|how many are|what about|show me the""",
+        ).containsMatchIn(t)
+        if (aboutCare && cue) return true
+        return Regex("""\b(how many are|what about|show me the|which of them)\b""").containsMatchIn(t)
     }
 
     /** "How many appointments with him next week" — not today's clinic schedule. */

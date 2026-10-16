@@ -34,6 +34,7 @@ class ScribePipelineServiceTest {
     private val fcm = mock(FcmService::class.java)
     private val docs = mock(AppointmentDocumentationService::class.java)
     private val visitSummaries = mock(PatientVisitAiSummaryService::class.java)
+    private val visitFacts = mock(VisitFactService::class.java)
 
     private val service = ScribePipelineService(
         recordings,
@@ -47,6 +48,7 @@ class ScribePipelineServiceTest {
         fcm,
         docs,
         visitSummaries,
+        visitFacts,
     )
 
     @Test

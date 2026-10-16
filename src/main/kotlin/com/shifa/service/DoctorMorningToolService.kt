@@ -5,6 +5,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.domain.DoctorProfile
 import com.shifa.domain.PatientProfile
 import com.shifa.domain.PatientVisitFact
+import com.shifa.intelligence.appointment.AppointmentIntelligenceService
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
 import com.shifa.repo.PatientProfileRepository
@@ -35,6 +36,7 @@ class DoctorMorningToolService(
     private val patientProfileRepository: PatientProfileRepository,
     private val patientDaySlotsService: PatientDaySlotsService,
     private val patientDocumentService: PatientDocumentService,
+    private val appointmentIntelligenceService: AppointmentIntelligenceService,
 ) {
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
     /** Compact labels on UI cards (ok to abbreviate months). */
@@ -48,11 +50,22 @@ class DoctorMorningToolService(
     fun isCardTool(toolName: String): Boolean = toolName in CARD_TOOLS
 
     @Transactional(readOnly = true)
-    fun execute(doctor: DoctorProfile, toolName: String, args: Map<String, Any?>): Map<String, Any?> {
+    fun execute(
+        doctor: DoctorProfile,
+        toolName: String,
+        args: Map<String, Any?>,
+        priorAssistantMessages: List<String> = emptyList(),
+        latestUserText: String = "",
+        focusPatientId: Long? = null,
+        searchedPatientIds: Set<Long> = emptySet(),
+    ): Map<String, Any?> {
         return when (toolName) {
             "get_today_schedule" -> getTodaySchedule(doctor)
             "list_free_slots" -> listFreeSlots(doctor, args)
             "list_patient_appointments" -> listPatientAppointments(doctor, args)
+            "query_appointment_intelligence" -> queryAppointmentIntelligence(
+                doctor, args, priorAssistantMessages, latestUserText, focusPatientId, searchedPatientIds,
+            )
             "brief_patient" -> briefPatient(doctor, args)
             "get_clinic_patterns" -> getClinicPatterns(doctor)
             "get_most_visited_patients" -> getMostVisitedPatients(doctor, args)
@@ -65,6 +78,58 @@ class DoctorMorningToolService(
             "open_dental_chart" -> openDentalChart(doctor, args)
             else -> mapOf("error" to "Unknown tool: $toolName")
         }
+    }
+
+    /**
+     * Name lookup reuses [searchPatients], including the fuzzy roster match.
+     * A single exact match is passed through. Several matches, or a fuzzy guess,
+     * stop here so appointment rows are not returned for the wrong person.
+     */
+    private fun queryAppointmentIntelligence(
+        doctor: DoctorProfile,
+        args: Map<String, Any?>,
+        priorAssistantMessages: List<String>,
+        latestUserText: String,
+        focusPatientId: Long?,
+        searchedPatientIds: Set<Long>,
+    ): Map<String, Any?> {
+        val filters = (args["filters"] as? Map<*, *>)?.entries
+            ?.associate { it.key.toString() to it.value }
+            ?: emptyMap()
+        val name = (filters["patientName"] as? String)?.trim().orEmpty()
+            .ifEmpty { (args["patientName"] as? String)?.trim().orEmpty() }
+        val alreadyId = (filters["patientId"] as? Number)?.toLong()
+        if (name.isNotEmpty() && alreadyId == null) {
+            val found = searchPatients(doctor, mapOf("query" to name))
+            @Suppress("UNCHECKED_CAST")
+            val matches = found["matches"] as? List<Map<String, Any?>> ?: emptyList()
+            val fuzzy = found["fuzzy"] == true
+            if (matches.size != 1 || fuzzy) return found
+            val resolvedId = (matches.first()["patientId"] as? Number)?.toLong()
+                ?: return found
+            val nextFilters = filters.toMutableMap()
+            nextFilters["patientId"] = resolvedId
+            nextFilters.remove("patientName")
+            val nextArgs = args.toMutableMap()
+            nextArgs["filters"] = nextFilters
+            return appointmentIntelligenceService.execute(
+                doctor = doctor,
+                args = nextArgs,
+                priorAssistantMessages = priorAssistantMessages,
+                latestUserText = latestUserText,
+                focusPatientId = focusPatientId,
+                searchedPatientIds = searchedPatientIds,
+                resolvedPatientId = resolvedId,
+            )
+        }
+        return appointmentIntelligenceService.execute(
+            doctor = doctor,
+            args = args,
+            priorAssistantMessages = priorAssistantMessages,
+            latestUserText = latestUserText,
+            focusPatientId = focusPatientId,
+            searchedPatientIds = searchedPatientIds,
+        )
     }
 
     @Transactional(readOnly = true)
@@ -1277,6 +1342,7 @@ class DoctorMorningToolService(
             "list_draft_visit_facts",
             "get_most_visited_patients",
             "get_clinic_patterns",
+            "query_appointment_intelligence",
             "brief_patient",
             "list_patient_documents",
             "open_patient_document",
