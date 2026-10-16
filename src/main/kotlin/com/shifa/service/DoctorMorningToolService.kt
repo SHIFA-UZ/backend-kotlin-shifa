@@ -1,14 +1,17 @@
 package com.shifa.service
 
+import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.domain.DoctorProfile
 import com.shifa.domain.PatientProfile
 import com.shifa.domain.PatientVisitFact
-import kotlin.math.max
-import kotlin.math.min
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.repo.PatientVisitFactRepository
+import com.shifa.web.dto.PatientDocumentDto
+import kotlin.math.max
+import kotlin.math.min
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -31,9 +34,11 @@ class DoctorMorningToolService(
     private val clinicVisitPatternRepository: ClinicVisitPatternRepository,
     private val patientProfileRepository: PatientProfileRepository,
     private val patientDaySlotsService: PatientDaySlotsService,
+    private val patientDocumentService: PatientDocumentService,
 ) {
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
     private val dateFmt = DateTimeFormatter.ofPattern("d MMM yyyy")
+    private val json = jacksonObjectMapper()
 
     /** Tools whose payloads should become UI cards on the client. */
     fun isCardTool(toolName: String): Boolean = toolName in CARD_TOOLS
@@ -42,6 +47,7 @@ class DoctorMorningToolService(
     fun execute(doctor: DoctorProfile, toolName: String, args: Map<String, Any?>): Map<String, Any?> {
         return when (toolName) {
             "get_today_schedule" -> getTodaySchedule(doctor)
+            "list_free_slots" -> listFreeSlots(doctor, args)
             "brief_patient" -> briefPatient(doctor, args)
             "get_clinic_patterns" -> getClinicPatterns(doctor)
             "get_most_visited_patients" -> getMostVisitedPatients(doctor, args)
@@ -49,6 +55,9 @@ class DoctorMorningToolService(
             "propose_appointment" -> proposeAppointment(doctor, args)
             "propose_reschedule" -> proposeReschedule(doctor, args)
             "list_draft_visit_facts" -> listDraftVisitFacts(doctor, args)
+            "list_patient_documents" -> listPatientDocuments(doctor, args)
+            "open_patient_document" -> openPatientDocument(doctor, args)
+            "open_dental_chart" -> openDentalChart(doctor, args)
             else -> mapOf("error" to "Unknown tool: $toolName")
         }
     }
@@ -97,6 +106,44 @@ class DoctorMorningToolService(
             "spokenHint" to buildScheduleHint(appointments.size, next?.let {
                 it.patient.fullName.ifBlank { "your next patient" }
             }, minutesUntil),
+        )
+    }
+
+    /** Free/open bookable times for a day — not the booked appointment list. */
+    @Transactional(readOnly = true)
+    fun listFreeSlots(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
+        val zone = zoneOf(doctor)
+        val date = resolveDateArg(args["date"] as? String, zone) ?: LocalDate.now(zone)
+        val slots = patientDaySlotsService.availableSlotsForDay(doctor, date)
+            .take(24)
+            .map { slot ->
+                val startZ = Instant.parse(slot.startAt).atZone(zone)
+                mapOf(
+                    "startAt" to slot.startAt,
+                    "endAt" to slot.endAt,
+                    "slotMinutes" to slot.slotMinutes,
+                    "startLocal" to startZ.format(timeFmt),
+                    "locationId" to slot.locationId,
+                    "locationLabel" to slot.locationLabel,
+                )
+            }
+        val times = slots.mapNotNull { it["startLocal"]?.toString() }
+        val spokenHint = when {
+            slots.isEmpty() ->
+                "You have no free slots on ${date.format(dateFmt)}."
+            slots.size == 1 ->
+                "You have 1 free slot on ${date.format(dateFmt)}: ${times.first()}."
+            else ->
+                "You have ${slots.size} free slots on ${date.format(dateFmt)}: ${times.take(12).joinToString(", ")}" +
+                    if (times.size > 12) ", and more." else "."
+        }
+        return mapOf(
+            "cardType" to "free_slots",
+            "date" to date.toString(),
+            "dateLabel" to date.format(dateFmt),
+            "count" to slots.size,
+            "slots" to slots,
+            "spokenHint" to spokenHint,
         )
     }
 
@@ -562,6 +609,274 @@ class DoctorMorningToolService(
         )
     }
 
+    @Transactional(readOnly = true)
+    fun listPatientDocuments(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
+        val patientId = (args["patientId"] as? Number)?.toLong()
+            ?: return mapOf(
+                "cardType" to "patient_documents",
+                "error" to "patientId is required",
+                "spokenHint" to "Which patient should I list documents for?",
+            )
+        val patient = patientProfileRepository.findById(patientId).orElse(null)
+            ?: return mapOf(
+                "cardType" to "patient_documents",
+                "error" to "Patient not found",
+                "spokenHint" to "I could not find that patient.",
+            )
+        val query = (args["query"] as? String)?.trim().orEmpty()
+        val docs = patientDocumentService.list(patientId, doctor.id)
+            .filter { it.canView }
+            .let { list ->
+                if (query.isBlank()) list
+                else {
+                    val q = query.lowercase()
+                    list.filter { d ->
+                        d.title.lowercase().contains(q) ||
+                            (d.category?.lowercase()?.contains(q) == true)
+                    }.ifEmpty { list }
+                }
+            }
+        val patientName = patient.fullName.ifBlank { "Patient" }
+        return mapOf(
+            "cardType" to "patient_documents",
+            "patientId" to patientId,
+            "patientName" to patientName,
+            "query" to query.ifBlank { null },
+            "documents" to docs.map { d -> documentRow(d) },
+            "spokenHint" to when {
+                docs.isEmpty() ->
+                    "There are no viewable documents on file for $patientName yet."
+                docs.size == 1 ->
+                    "I found 1 document for $patientName: ${docs.first().title}. Opening it in chat."
+                else ->
+                    "I found ${docs.size} documents for $patientName. They are listed in the chat."
+            },
+            // Auto-open when only one match so voice "open the X-ray" feels instant.
+            "autoOpenDocumentId" to docs.singleOrNull()?.id,
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun openPatientDocument(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
+        val patientId = (args["patientId"] as? Number)?.toLong()
+            ?: return mapOf(
+                "cardType" to "document_viewer",
+                "error" to "patientId is required",
+                "spokenHint" to "Which patient's document should I open?",
+            )
+        val patient = patientProfileRepository.findById(patientId).orElse(null)
+            ?: return mapOf(
+                "cardType" to "document_viewer",
+                "error" to "Patient not found",
+                "spokenHint" to "I could not find that patient.",
+            )
+        val patientName = patient.fullName.ifBlank { "Patient" }
+        val docs = patientDocumentService.list(patientId, doctor.id).filter { it.canView }
+        if (docs.isEmpty()) {
+            return mapOf(
+                "cardType" to "document_viewer",
+                "patientId" to patientId,
+                "patientName" to patientName,
+                "error" to "No documents",
+                "spokenHint" to "$patientName has no viewable documents yet.",
+            )
+        }
+
+        val documentId = (args["documentId"] as? Number)?.toLong()
+        val query = (args["query"] as? String)?.trim().orEmpty()
+        val match = when {
+            documentId != null -> docs.firstOrNull { it.id == documentId }
+            query.isNotBlank() -> {
+                val q = query.lowercase()
+                docs.firstOrNull { it.title.lowercase() == q }
+                    ?: docs.firstOrNull { it.title.lowercase().contains(q) }
+                    ?: docs.firstOrNull { it.category?.lowercase()?.contains(q) == true }
+                    ?: docs.maxByOrNull { d -> titleSimilarity(d.title, query) }
+                        ?.takeIf { titleSimilarity(it.title, query) >= 0.45 }
+            }
+            docs.size == 1 -> docs.first()
+            else -> null
+        }
+
+        if (match == null) {
+            return mapOf(
+                "cardType" to "patient_documents",
+                "patientId" to patientId,
+                "patientName" to patientName,
+                "documents" to docs.map { d -> documentRow(d) },
+                "spokenHint" to if (query.isNotBlank()) {
+                    "I could not match \"$query\". Here are ${docs.size} documents for $patientName — tap one to open in chat."
+                } else {
+                    "Which document for $patientName should I open? They are listed in the chat."
+                },
+            )
+        }
+
+        return mapOf(
+            "cardType" to "document_viewer",
+            "patientId" to patientId,
+            "patientName" to patientName,
+            "documentId" to match.id,
+            "title" to match.title,
+            "date" to match.date.toString(),
+            "category" to match.category,
+            "spokenHint" to "Opening ${match.title} for $patientName in the chat.",
+        )
+    }
+
+    @Transactional(readOnly = true)
+    fun openDentalChart(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
+        val patientId = (args["patientId"] as? Number)?.toLong()
+            ?: return mapOf(
+                "cardType" to "dental_chart",
+                "error" to "patientId is required",
+                "spokenHint" to "Which patient's dental diagram should I open?",
+            )
+        val patient = patientProfileRepository.findById(patientId).orElse(null)
+            ?: return mapOf(
+                "cardType" to "dental_chart",
+                "error" to "Patient not found",
+                "spokenHint" to "I could not find that patient.",
+            )
+        val patientName = patient.fullName.ifBlank { "Patient" }
+        val appointmentIdArg = (args["appointmentId"] as? Number)?.toLong()
+        val appointments = appointmentRepository
+            .findByPatientIdAndDoctorIdOrderByStartAtDesc(patientId, doctor.id)
+            .filter { it.status.name != "CANCELLED" }
+
+        val target = when {
+            appointmentIdArg != null ->
+                appointments.firstOrNull { it.id == appointmentIdArg }
+            else ->
+                appointments.firstOrNull { !it.dentalDocumentation.isNullOrBlank() }
+                    ?: appointments.firstOrNull()
+        }
+
+        if (target == null) {
+            return mapOf(
+                "cardType" to "dental_chart",
+                "patientId" to patientId,
+                "patientName" to patientName,
+                "error" to "No appointments",
+                "spokenHint" to "$patientName has no visits on your calendar yet, so there is no dental diagram.",
+            )
+        }
+
+        val raw = target.dentalDocumentation?.trim().orEmpty()
+        if (raw.isEmpty()) {
+            // Fall back: open a document whose title/category looks dental.
+            val dentalDocs = patientDocumentService.list(patientId, doctor.id)
+                .filter { it.canView }
+                .filter { d ->
+                    val hay = "${d.title} ${d.category.orEmpty()}".lowercase()
+                    listOf("dental", "odontogram", "tooth", "teeth", "зуб", "стомат", "tish")
+                        .any { hay.contains(it) }
+                }
+            if (dentalDocs.isNotEmpty()) {
+                val doc = dentalDocs.first()
+                return mapOf(
+                    "cardType" to "document_viewer",
+                    "patientId" to patientId,
+                    "patientName" to patientName,
+                    "documentId" to doc.id,
+                    "title" to doc.title,
+                    "date" to doc.date.toString(),
+                    "category" to doc.category,
+                    "spokenHint" to
+                        "No visit dental chart yet. Opening ${doc.title} for $patientName in the chat.",
+                )
+            }
+            return mapOf(
+                "cardType" to "dental_chart",
+                "patientId" to patientId,
+                "patientName" to patientName,
+                "appointmentId" to target.id,
+                "date" to target.startAt.atZone(zoneOf(doctor)).format(dateFmt),
+                "documentation" to emptyMap<String, Any?>(),
+                "toothServiceCounts" to emptyMap<String, Int>(),
+                "dentition" to "permanent",
+                "spokenHint" to
+                    "There is no dental diagram saved for $patientName's latest visit yet.",
+            )
+        }
+
+        val documentation: Map<String, Any?> = try {
+            json.readValue(raw, object : TypeReference<MutableMap<String, Any?>>() {})
+        } catch (_: Exception) {
+            emptyMap()
+        }
+        val dentition = (documentation["dentition"] as? String)?.trim()?.lowercase()
+            ?.takeIf { it == "primary" || it == "permanent" }
+            ?: "permanent"
+        val toothCounts = toothServiceCountsFromDocumentation(documentation)
+        val marked = toothCounts.values.count { it > 0 }
+        val dateLabel = target.startAt.atZone(zoneOf(doctor)).format(dateFmt)
+
+        return mapOf(
+            "cardType" to "dental_chart",
+            "patientId" to patientId,
+            "patientName" to patientName,
+            "appointmentId" to target.id,
+            "date" to dateLabel,
+            "dentition" to dentition,
+            "documentation" to documentation,
+            "toothServiceCounts" to toothCounts,
+            "notes" to (documentation["notes"] as? String),
+            "spokenHint" to when {
+                marked == 0 ->
+                    "Here is the dental diagram for $patientName from $dateLabel."
+                marked == 1 ->
+                    "Here is the dental diagram for $patientName from $dateLabel — 1 tooth has recorded services."
+                else ->
+                    "Here is the dental diagram for $patientName from $dateLabel — $marked teeth have recorded services."
+            },
+        )
+    }
+
+    private fun documentRow(d: PatientDocumentDto): Map<String, Any?> = mapOf(
+        "documentId" to d.id,
+        "title" to d.title,
+        "date" to d.date.toString(),
+        "category" to d.category,
+        "creatorLabel" to d.creatorLabel,
+        "canView" to d.canView,
+    )
+
+    @Suppress("UNCHECKED_CAST")
+    private fun toothServiceCountsFromDocumentation(documentation: Map<String, Any?>): Map<String, Int> {
+        val teeth = documentation["teeth"] as? Map<*, *> ?: return emptyMap()
+        val out = linkedMapOf<String, Int>()
+        for ((rawKey, rawVal) in teeth) {
+            val key = rawKey?.toString()?.trim().orEmpty()
+            if (key.isEmpty() || key.equals("general", ignoreCase = true) ||
+                key.equals("G", ignoreCase = true)
+            ) {
+                continue
+            }
+            val count = when (rawVal) {
+                is List<*> -> rawVal.size
+                is Map<*, *> -> 1
+                else -> 0
+            }
+            if (count > 0) out[key] = count
+        }
+        return out
+    }
+
+    /** Rough title similarity for document query matching (0..1). */
+    private fun titleSimilarity(title: String, query: String): Double {
+        val a = title.lowercase().trim()
+        val b = query.lowercase().trim()
+        if (a.isEmpty() || b.isEmpty()) return 0.0
+        if (a == b) return 1.0
+        if (a.contains(b) || b.contains(a)) return 0.85
+        val aTokens = a.split(Regex("""\s+""")).filter { it.length > 1 }.toSet()
+        val bTokens = b.split(Regex("""\s+""")).filter { it.length > 1 }.toSet()
+        if (aTokens.isEmpty() || bTokens.isEmpty()) return 0.0
+        val inter = aTokens.intersect(bTokens).size.toDouble()
+        return inter / max(aTokens.size, bTokens.size).toDouble()
+    }
+
     private fun resolveDateArg(raw: String?, zone: ZoneId): LocalDate? {
         if (raw.isNullOrBlank()) return null
         val t = raw.trim().lowercase()
@@ -660,6 +975,7 @@ class DoctorMorningToolService(
 
         private val CARD_TOOLS = setOf(
             "get_today_schedule",
+            "list_free_slots",
             "search_patients",
             "propose_appointment",
             "propose_reschedule",
@@ -667,6 +983,9 @@ class DoctorMorningToolService(
             "get_most_visited_patients",
             "get_clinic_patterns",
             "brief_patient",
+            "list_patient_documents",
+            "open_patient_document",
+            "open_dental_chart",
         )
     }
 }

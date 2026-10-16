@@ -75,7 +75,8 @@ class DoctorMorningAiService(
                 "role" to "system",
                 "content" to
                     "Focus patientId for this turn: $it. " +
-                    "Use THIS exact patientId for propose_appointment / propose_reschedule / brief_patient when the doctor says yes, him/her, that patient, or continues booking — do not invent or reuse any other id. " +
+                    "Use THIS exact patientId for propose_appointment / propose_reschedule / brief_patient / " +
+                    "list_patient_documents / open_patient_document / open_dental_chart when the doctor says yes, him/her, that patient, open the diagram/document, or continues about this patient — do not invent or reuse any other id. " +
                     "Only switch patients after search_patients returns a different match the doctor clearly picked.",
             )
         }
@@ -169,7 +170,7 @@ class DoctorMorningAiService(
                         listOf(
                             mapOf(
                                 "role" to "system",
-                                "content" to "Call tools when you need live schedule, patient match, free slots, or draft facts. Prefer one tool batch. If the doctor only says yes/ok/confirm after a time was already proposed, do NOT call propose_appointment again. If no tool is needed, answer in one short spoken paragraph now.",
+                                "content" to toolLoopNudge(messages),
                             )
                         ),
                 )
@@ -324,6 +325,7 @@ class DoctorMorningAiService(
         val today = LocalDate.now(zone)
         return """
 You are Shifa, the clinical Intelligence assistant for Dr. ${doctor.firstName} ${doctor.lastName}.
+Your name is Shifa. When the doctor says "Hey Shifa", "Hi Shifa", or similar, they are addressing you — respond as Shifa and follow their request.
 
 CLOCK (MANDATORY):
 - Practice timezone: ${zone.id}
@@ -337,14 +339,28 @@ LANGUAGE (MANDATORY):
 - If tool results or spokenHint are in another language, translate them into the doctor's language before answering.
 - Never switch to Uzbek when the doctor spoke English, and never switch to English when the doctor spoke Uzbek/Russian.
 
+ANSWER ONLY WHAT WAS ASKED (STRICT):
+- Free slots / open times / availability → call list_free_slots. Do NOT call get_today_schedule. Do NOT mention booked appointments unless asked.
+- Today's schedule / who is next / how many visits → call get_today_schedule. Do NOT list free slots unless asked.
+- Never volunteer today's schedule when the doctor asked for free slots (or the reverse).
+
 You help with:
-- Today's schedule (get_today_schedule)
+- Free / open bookable slots (list_free_slots) — use for "free slots", "available times", "when am I free"
+- Today's booked schedule (get_today_schedule) — ONLY when the doctor asks what is on today / their schedule / who is next
 - Finding patients by name (search_patients) — never invent a patientId. If the tool returns fuzzy suggestions, ask "Did you mean …?" and wait for the doctor to confirm before booking.
 - Proposing a new appointment (propose_appointment) after patientId and date are known
 - Proposing a reschedule (propose_reschedule) for an upcoming visit
 - Draft visit facts / document everything (list_draft_visit_facts) when an appointmentId is known
 - Most visited patients and clinic patterns
 - Briefing a patient from the chart (brief_patient)
+- Opening patient documents or dental diagrams IN the chat (list_patient_documents / open_patient_document / open_dental_chart) — never tell the doctor to leave the chat
+
+DOCUMENTS & DENTAL DIAGRAM (MANDATORY):
+- "Open the dental diagram / odontogram / dental chart / зубная схема" for the focus patient → call open_dental_chart with that patientId.
+- "Open / show / view [this] document / X-ray / MRI / lab result" → call open_patient_document (pass query from their words when useful).
+- "What documents does this patient have?" → call list_patient_documents.
+- Always use Focus patientId when they mean this patient / him / her / the chart we were discussing.
+- Do NOT invent document ids. Do NOT say documents open in a separate window — the client shows an inline viewer card.
 
 CRITICAL WRITE RULES:
 - You NEVER book, reschedule, cancel, or commit chart facts yourself.
@@ -352,16 +368,18 @@ CRITICAL WRITE RULES:
 - Never invent patient names, ids, times, or free slots. Use tools.
 - patientId for propose_appointment MUST be the Focus patientId above, or an id returned by search_patients in this same turn — never invent ids and never reuse a different patient from memory.
 
-BOOKING FLOW (MANDATORY):
-- When the doctor states a time (e.g. 10:00, 10 o'clock), call propose_appointment ONCE with date AND time.
-- If spokenHint / autoConfirm says the time was matched, reply that it is booked for that time — do NOT call propose_appointment again, do NOT ask "would you like to confirm".
-- If they say yes / ok / please after a time was already proposed, do NOT call propose_appointment again.
-- Only re-propose when they ask for a different day or time.
+BOOKING FLOW (MANDATORY — follow turn by turn):
+1. Doctor wants to make/book/schedule an appointment → ask for the patient name (no tools yet unless name already given).
+2. Doctor gives a name → call search_patients with that name. Do NOT call get_today_schedule.
+3. After a clear match → ask which date and time they want. Do NOT show today's full schedule. Do NOT call propose_appointment until a day is known.
+4. Doctor gives a day (and optional time) → call propose_appointment with patientId, date, and time when known.
+5. If spokenHint / autoConfirm matched a time, say it is booked — do NOT ask to confirm again.
+6. If they say yes/ok after a time was already proposed, do NOT call propose_appointment again.
+- An existing visit with that patient today does NOT replace booking a new one — stay on the booking flow.
 
 Rules:
 - Prefer spokenHint from tool results (translated).
 - For "most visited" — ALWAYS call get_most_visited_patients.
-- For booking requests: search_patients if needed, then propose_appointment with patientId, date ("tomorrow"/"today"), and time when known.
 - Speak in 1–3 short sentences. No markdown, no bullet lists, no diagnosis, no prescriptions.
 - Sound like a calm clinical OS. Your text will be spoken aloud.
 """.trimIndent()
@@ -372,15 +390,31 @@ Rules:
             "type" to "function",
             "function" to mapOf(
                 "name" to "get_today_schedule",
-                "description" to "Get today's appointment count, list, and minutes until the next visit.",
+                "description" to "Get today's BOOKED appointment list. Use ONLY when the doctor asks about today's schedule / how many visits / who is next. Never use for free/open slots. Never use while naming a patient to book a NEW appointment.",
                 "parameters" to mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
         ),
         mapOf(
             "type" to "function",
             "function" to mapOf(
+                "name" to "list_free_slots",
+                "description" to "List free/open bookable time slots for a day. Use when the doctor asks for free slots, availability, or open times. Do NOT use get_today_schedule for that.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "date" to mapOf(
+                            "type" to "string",
+                            "description" to "today / tomorrow / ISO YYYY-MM-DD. Defaults to today.",
+                        ),
+                    ),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
                 "name" to "search_patients",
-                "description" to "Search this doctor's patient roster by name. Use before booking when only a name is given.",
+                "description" to "Search this doctor's patient roster by name. Required when booking and the doctor just gave a patient name.",
                 "parameters" to mapOf(
                     "type" to "object",
                     "properties" to mapOf(
@@ -486,7 +520,182 @@ Rules:
                 "parameters" to mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
             ),
         ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "list_patient_documents",
+                "description" to "List viewable documents for a patient (titles, dates, categories). Use when the doctor asks what documents exist. Prefer Focus patientId.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "patientId" to mapOf("type" to "integer"),
+                        "query" to mapOf(
+                            "type" to "string",
+                            "description" to "Optional title/category filter (e.g. MRI, x-ray).",
+                        ),
+                    ),
+                    "required" to listOf("patientId"),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "open_patient_document",
+                "description" to "Open one patient document as an inline chat viewer card (PDF/image). Use when the doctor asks to open/show/view a document. Prefer Focus patientId. Pass query from their words when documentId is unknown.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "patientId" to mapOf("type" to "integer"),
+                        "documentId" to mapOf("type" to "integer"),
+                        "query" to mapOf(
+                            "type" to "string",
+                            "description" to "Title or category fragment when documentId is unknown.",
+                        ),
+                    ),
+                    "required" to listOf("patientId"),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "open_dental_chart",
+                "description" to "Open the patient's dental FDI diagram / odontogram inline in chat from the latest visit documentation. Use for dental diagram, dental chart, odontogram, зубная схема. Prefer Focus patientId.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "patientId" to mapOf("type" to "integer"),
+                        "appointmentId" to mapOf(
+                            "type" to "integer",
+                            "description" to "Optional specific visit; defaults to latest with dental documentation.",
+                        ),
+                    ),
+                    "required" to listOf("patientId"),
+                ),
+            ),
+        ),
     )
+
+    /** Extra turn-specific guidance so booking/free-slots do not derail into today's schedule. */
+    private fun toolLoopNudge(messages: List<AiMessageDto>): String {
+        val base =
+            "Call tools when you need live schedule, free slots, patient match, documents, dental chart, or draft facts. Prefer one tool batch. " +
+                "If the doctor only says yes/ok/confirm after a time was already proposed, do NOT call propose_appointment again. " +
+                "If no tool is needed, answer in one short spoken paragraph now. Answer ONLY what was asked."
+        val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        if (asksForDentalChart(latest)) {
+            return "$base DENTAL DIAGRAM REQUEST: call open_dental_chart with Focus patientId (or search_patients first if no focus). " +
+                "Do NOT call get_today_schedule."
+        }
+        if (asksForDocuments(latest)) {
+            return "$base DOCUMENT REQUEST: call open_patient_document (to open) or list_patient_documents (to list) with Focus patientId. " +
+                "Show inline in chat — do not send them elsewhere."
+        }
+        if (asksForFreeSlots(latest)) {
+            return "$base FREE SLOTS REQUEST: call list_free_slots with the requested day (default today). " +
+                "Do NOT call get_today_schedule. Do NOT mention booked appointments."
+        }
+        if (!conversationHasBookingIntent(messages)) return base
+        if (looksLikePatientNameReply(latest)) {
+            return "$base BOOKING IN PROGRESS: the doctor just gave a patient name after asking to make an appointment. " +
+                "Call search_patients with that name NOW. Do NOT call get_today_schedule. " +
+                "After a match, ask which date and time — do not propose until a day is given."
+        }
+        return "$base BOOKING IN PROGRESS: stay on booking (search_patients / propose_appointment). " +
+            "Do NOT call get_today_schedule unless they explicitly ask what is on today."
+    }
+
+    private fun asksForDentalChart(text: String): Boolean {
+        val t = text.lowercase()
+        return listOf(
+            "dental diagram",
+            "dental chart",
+            "dental schema",
+            "odontogram",
+            "tooth chart",
+            "teeth chart",
+            "зубн",
+            "одонтограмм",
+            "схем зуб",
+            "tish sxema",
+            "tish diagram",
+        ).any { t.contains(it) }
+    }
+
+    private fun asksForDocuments(text: String): Boolean {
+        val t = text.lowercase()
+        if (asksForDentalChart(t)) return false
+        return listOf(
+            "open document",
+            "show document",
+            "view document",
+            "open the document",
+            "patient document",
+            "his document",
+            "her document",
+            "their document",
+            "documents",
+            "x-ray",
+            "xray",
+            "mri",
+            "lab result",
+            "blood test",
+            "ct scan",
+            "документ",
+            "рентген",
+            "снимок",
+            "анализ",
+            "hujjat",
+        ).any { t.contains(it) }
+    }
+
+    private fun asksForFreeSlots(text: String): Boolean {
+        val t = text.lowercase()
+        return listOf(
+            "free slot",
+            "free slots",
+            "available slot",
+            "available time",
+            "open slot",
+            "open time",
+            "when am i free",
+            "availability",
+            "свободн",
+            "bo'sh",
+            "bosh vaqt",
+        ).any { t.contains(it) }
+    }
+
+    private fun conversationHasBookingIntent(messages: List<AiMessageDto>): Boolean {
+        val window = messages.takeLast(8).joinToString("\n") { it.content }.lowercase()
+        return listOf(
+            "appointment",
+            "book",
+            "schedule",
+            "make an appointment",
+            "запис",
+            "прием",
+            "приём",
+            "uchrashuv",
+            "yozib",
+        ).any { window.contains(it) }
+    }
+
+    private fun looksLikePatientNameReply(text: String): Boolean {
+        val t = text.trim()
+        if (t.length < 2 || t.length > 64) return false
+        if (Regex("""\d{1,2}:\d{2}""").containsMatchIn(t)) return false
+        if (Regex(
+                """\b(today|tomorrow|yesterday|schedule|calendar|how many|appointments?|slots?|yes|ok|okay|confirm|please)\b""",
+                RegexOption.IGNORE_CASE,
+            ).containsMatchIn(t)
+        ) {
+            return false
+        }
+        val words = t.split(Regex("""\s+""")).filter { it.isNotBlank() }
+        return words.size in 1..4
+    }
 
     /**
      * Correct date/patient args the model invents (stale years, wrong patientId).
@@ -498,12 +707,35 @@ Rules:
         focusPatientId: Long?,
         searchedPatientIds: Set<Long>,
     ): Map<String, Any?> {
-        if (toolName != "propose_appointment" && toolName != "propose_reschedule") {
-            return args
+        if (toolName == "list_free_slots") {
+            var next = args
+            relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            if (next["date"] == null) next = next + ("date" to "today")
+            return next
         }
+
+        val needsPatientId = toolName in setOf(
+            "propose_appointment",
+            "propose_reschedule",
+            "brief_patient",
+            "list_patient_documents",
+            "open_patient_document",
+            "open_dental_chart",
+        )
+        if (!needsPatientId) return args
+
         var next = args
-        relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
-        timeFromUserText(latestUserText)?.let { next = next + ("time" to it) }
+        if (toolName == "propose_appointment" || toolName == "propose_reschedule") {
+            relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            timeFromUserText(latestUserText)?.let { next = next + ("time" to it) }
+        }
+        if (toolName == "open_patient_document" || toolName == "list_patient_documents") {
+            documentQueryFromUserText(latestUserText)?.let { q ->
+                if ((next["query"] as? String).isNullOrBlank()) {
+                    next = next + ("query" to q)
+                }
+            }
+        }
 
         val modelPatientId = (next["patientId"] as? Number)?.toLong()
         val resolvedPatientId = when {
@@ -525,6 +757,27 @@ Rules:
             next = next + ("patientId" to resolvedPatientId)
         }
         return next
+    }
+
+    /** Pull a document title/category hint from speech like "open the MRI" / "show x-ray". */
+    private fun documentQueryFromUserText(text: String): String? {
+        val t = text.trim()
+        if (t.isEmpty()) return null
+        val patterns = listOf(
+            Regex(
+                """(?i)\b(?:open|show|view|открой|покажи|och)\s+(?:me\s+)?(?:the\s+|этот\s+|эту\s+)?(.+)$""",
+            ),
+        )
+        for (p in patterns) {
+            val m = p.find(t) ?: continue
+            var q = m.groupValues[1].trim()
+                .replace(Regex("""(?i)\b(document|documents|документ|hujjat|please|пожалуйста)\b"""), "")
+                .trim()
+            // Drop trailing wake fluff.
+            q = q.replace(Regex("""(?i)\b(shifa|hey|hi)\b"""), "").trim()
+            if (q.length in 2..48 && !asksForDentalChart(q)) return q
+        }
+        return null
     }
 
     /** Pull a clock time from speech/text like "10:00", "10 o'clock", "10am". */
