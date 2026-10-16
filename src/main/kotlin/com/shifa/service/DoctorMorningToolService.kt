@@ -1,7 +1,10 @@
 package com.shifa.service
 
 import com.shifa.domain.DoctorProfile
+import com.shifa.domain.PatientProfile
 import com.shifa.domain.PatientVisitFact
+import kotlin.math.max
+import kotlin.math.min
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
 import com.shifa.repo.PatientProfileRepository
@@ -235,24 +238,126 @@ class DoctorMorningToolService(
             query,
             PageRequest.of(0, 8),
         )
-        val matches = page.content.map { p ->
-            mapOf(
-                "patientId" to p.id,
-                "patientName" to p.fullName.ifBlank { "Patient" },
-                "phone" to (p.phone ?: ""),
+        if (page.content.isNotEmpty()) {
+            val matches = page.content.map { p -> patientMatchRow(p) }
+            val spokenHint = when {
+                matches.size == 1 -> "Found ${matches.first()["patientName"]}."
+                else -> "Found ${matches.size} patients matching \"$query\". Which one?"
+            }
+            return mapOf(
+                "cardType" to "patient_search",
+                "query" to query,
+                "fuzzy" to false,
+                "matches" to matches,
+                "spokenHint" to spokenHint,
             )
         }
+
+        // Exact substring miss (e.g. Botil vs Botir) — suggest closest roster names.
+        val roster = patientProfileRepository.findClinicRosterScopedToDoctor(
+            doctor.id,
+            null,
+            PageRequest.of(0, 300),
+        )
+        val ranked = roster.content
+            .map { p -> p to nameSimilarity(query, p.fullName) }
+            .filter { (_, score) -> score >= FUZZY_NAME_THRESHOLD }
+            .sortedByDescending { it.second }
+            .take(5)
+        val matches = ranked.map { (p, score) ->
+            patientMatchRow(p) + ("score" to String.format("%.2f", score))
+        }
         val spokenHint = when {
-            matches.isEmpty() -> "No patients matched \"$query\" in your roster."
-            matches.size == 1 -> "Found ${matches.first()["patientName"]}."
-            else -> "Found ${matches.size} patients matching \"$query\". Ask the doctor to pick one."
+            matches.isEmpty() ->
+                "No patients matched \"$query\" in your roster."
+            matches.size == 1 ->
+                "No exact match for \"$query\". Did you mean ${matches.first()["patientName"]}?"
+            else -> {
+                val names = matches.take(3).joinToString(", ") { it["patientName"].toString() }
+                "No exact match for \"$query\". Closest matches: $names. Which one did you mean?"
+            }
         }
         return mapOf(
             "cardType" to "patient_search",
             "query" to query,
+            "fuzzy" to matches.isNotEmpty(),
             "matches" to matches,
             "spokenHint" to spokenHint,
         )
+    }
+
+    private fun patientMatchRow(p: PatientProfile): Map<String, Any?> = mapOf(
+        "patientId" to p.id,
+        "patientName" to p.fullName.ifBlank { "Patient" },
+        "phone" to (p.phone ?: ""),
+    )
+
+    /**
+     * Best similarity of [query] against the full name and each name token.
+     * Tuned so a one-letter typo (Botil → Botir) still ranks highly.
+     */
+    private fun nameSimilarity(query: String, fullName: String): Double {
+        val q = normalizeName(query)
+        val name = normalizeName(fullName)
+        if (q.isEmpty() || name.isEmpty()) return 0.0
+        if (name == q) return 1.0
+        if (name.contains(q) || q.contains(name)) return 0.92
+
+        var best = stringSimilarity(q, name)
+        for (token in name.split(' ').filter { it.isNotBlank() }) {
+            best = max(best, stringSimilarity(q, token))
+            // Spelled first name vs longer token prefix (e.g. botir vs botirov)
+            if (token.length >= q.length && q.length >= 3) {
+                best = max(best, stringSimilarity(q, token.take(q.length)))
+            }
+        }
+        // Multi-word query: score each query token against best name token.
+        val qTokens = q.split(' ').filter { it.length >= 2 }
+        if (qTokens.size > 1) {
+            val nameTokens = name.split(' ').filter { it.isNotBlank() }
+            val avg = qTokens.map { qt ->
+                nameTokens.maxOfOrNull { nt -> stringSimilarity(qt, nt) } ?: 0.0
+            }.average()
+            best = max(best, avg)
+        }
+        return best
+    }
+
+    private fun stringSimilarity(a: String, b: String): Double {
+        if (a == b) return 1.0
+        val maxLen = max(a.length, b.length)
+        if (maxLen == 0) return 0.0
+        val dist = levenshtein(a, b)
+        // Hard allow small typos on short names (Botil/Botir).
+        if (dist == 1 && min(a.length, b.length) >= 4) return 0.88
+        if (dist == 2 && min(a.length, b.length) >= 6) return 0.78
+        return 1.0 - dist.toDouble() / maxLen
+    }
+
+    private fun normalizeName(raw: String): String =
+        raw.lowercase()
+            .replace(Regex("[^\\p{L}\\p{N}\\s]"), " ")
+            .replace(Regex("\\s+"), " ")
+            .trim()
+
+    private fun levenshtein(a: String, b: String): Int {
+        if (a == b) return 0
+        if (a.isEmpty()) return b.length
+        if (b.isEmpty()) return a.length
+        val prev = IntArray(b.length + 1) { it }
+        val curr = IntArray(b.length + 1)
+        for (i in 1..a.length) {
+            curr[0] = i
+            for (j in 1..b.length) {
+                val cost = if (a[i - 1] == b[j - 1]) 0 else 1
+                curr[j] = min(
+                    min(curr[j - 1] + 1, prev[j] + 1),
+                    prev[j - 1] + cost,
+                )
+            }
+            for (j in prev.indices) prev[j] = curr[j]
+        }
+        return prev[b.length]
     }
 
     @Transactional(readOnly = true)
@@ -306,13 +411,13 @@ class DoctorMorningToolService(
 
         val spokenHint = when {
             allSlots.isEmpty() ->
-                "No free slots on ${date.format(dateFmt)} for ${patient.fullName}. Ask them to pick another day."
+                "No free slots on ${date.format(dateFmt)} for ${patient.fullName}. Please choose another day."
             preferredTime != null && preferredSlot == null ->
-                "${preferredTime.format(timeFmt)} is not free for ${patient.fullName} on ${date.format(dateFmt)}. Offer the listed alternatives once — do not ask them to confirm repeatedly."
+                "${preferredTime.format(timeFmt)} is not free for ${patient.fullName} on ${date.format(dateFmt)}. Here are other open times."
             preferredSlot != null ->
-                "Matched ${preferredSlot["startLocal"]} for ${patient.fullName} on ${date.format(dateFmt)}. autoConfirm will book it — say it is booked for that time. Do not ask them to pick again or say yes again."
+                "Booking ${patient.fullName} at ${preferredSlot["startLocal"]} on ${date.format(dateFmt)}."
             else ->
-                "I found ${slots.size} free slots on ${date.format(dateFmt)} for ${patient.fullName}. Ask once which time they want — do not double-confirm."
+                "I found ${slots.size} free slots on ${date.format(dateFmt)} for ${patient.fullName}. Which time works?"
         }
 
         return mapOf(
@@ -399,13 +504,13 @@ class DoctorMorningToolService(
             "slots" to slots,
             "spokenHint" to when {
                 allSlots.isEmpty() ->
-                    "No free slots on ${date.format(dateFmt)} to move $patientName. Ask for another day."
+                    "No free slots on ${date.format(dateFmt)} to move $patientName. Please choose another day."
                 preferredTime != null && preferredSlot == null ->
-                    "${preferredTime.format(timeFmt)} is not free on ${date.format(dateFmt)}. Offer alternatives once."
+                    "${preferredTime.format(timeFmt)} is not free on ${date.format(dateFmt)}. Here are other open times."
                 preferredSlot != null ->
-                    "Matched ${preferredSlot["startLocal"]} to move $patientName. autoConfirm will apply it — do not ask again."
+                    "Moving $patientName to ${preferredSlot["startLocal"]} on ${date.format(dateFmt)}."
                 else ->
-                    "$patientName is currently at ${currentLocal.format(dateFmt)} ${currentLocal.format(timeFmt)}. Ask once for a new time."
+                    "$patientName is currently at ${currentLocal.format(dateFmt)} ${currentLocal.format(timeFmt)}. Which new time?"
             },
         )
     }
@@ -550,6 +655,9 @@ class DoctorMorningToolService(
         }
 
     companion object {
+        /** Minimum name similarity for fuzzy "Did you mean?" suggestions. */
+        private const val FUZZY_NAME_THRESHOLD = 0.72
+
         private val CARD_TOOLS = setOf(
             "get_today_schedule",
             "search_patients",

@@ -80,76 +80,87 @@ class DoctorMorningAiService(
             )
         }
 
-        val (loopMessages, toolEvents) = runToolLoop(
-            doctor,
-            language,
-            messages,
-            systemMessages,
+        val toolOutcome = runToolLoop(
+            doctor = doctor,
+            messages = messages,
+            systemMessages = systemMessages,
             focusPatientId = selectedPatientId,
         )
-        for (tool in toolEvents) {
+        for (tool in toolOutcome.toolEvents) {
             emit(tool)
         }
 
-        val payload = mapper.writeValueAsString(
-            mapOf(
-                "model" to props.model,
-                "stream" to true,
-                "temperature" to 0.2,
-                "max_tokens" to 350,
-                "messages" to systemMessages +
-                    messages.map { mapOf("role" to it.role, "content" to it.content) } +
-                    loopMessages,
-            )
-        )
-
-        val request = Request.Builder()
-            .url("https://api.openai.com/v1/chat/completions")
-            .addHeader("Authorization", "Bearer ${props.apiKey}")
-            .addHeader("OpenAI-Project", props.projectId)
-            .addHeader("Content-Type", "application/json")
-            .addHeader("Accept", "text/event-stream")
-            .post(payload.toRequestBody("application/json".toMediaType()))
-            .build()
-
-        client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw AiStreamException(code = "AI_UNAVAILABLE", message = "AI is temporarily unavailable.")
-            }
-            val source = response.body?.source() ?: return@use
-            while (!source.exhausted()) {
-                val line = source.readUtf8Line() ?: continue
-                if (!line.startsWith("data:")) continue
-                val data = line.removePrefix("data:")
-                if (data.isBlank() || data.trim() == "[DONE]") continue
-                try {
-                    val json = mapper.readTree(data)
-                    val delta = json.path("choices").path(0).path("delta").path("content").asText(null)
-                    if (!delta.isNullOrEmpty()) emit(MorningStreamEvent.Token(delta))
-                } catch (_: Exception) {
-                }
-            }
+        // Fast path: first model turn already had the spoken answer and needed no tools.
+        val direct = toolOutcome.directReply?.trim().orEmpty()
+        if (direct.isNotEmpty() && toolOutcome.toolEvents.isEmpty()) {
+            emit(MorningStreamEvent.Token(direct))
+            return@flow
         }
+
+        // Fast path: tools produced a spokenHint — translate/speak that only (skip full regen).
+        val hint = toolOutcome.latestSpokenHint?.trim().orEmpty()
+        if (hint.isNotEmpty()) {
+            if (language == OutputLanguage.EN) {
+                emit(MorningStreamEvent.Token(hint))
+            } else {
+                val langName = when (language) {
+                    OutputLanguage.RU -> "Russian"
+                    OutputLanguage.UZ -> "Uzbek"
+                    OutputLanguage.EN -> "English"
+                }
+                val translated = completeChat(
+                    messages = listOf(
+                        mapOf(
+                            "role" to "system",
+                            "content" to "Translate the following clinical assistant line into $langName. Output ONLY the spoken sentence — no quotes, no preamble.",
+                        ),
+                        mapOf("role" to "user", "content" to hint),
+                    ),
+                    maxTokens = 120,
+                    temperature = 0.1,
+                )
+                if (translated.isNotBlank()) emit(MorningStreamEvent.Token(translated))
+            }
+            return@flow
+        }
+
+        val reply = completeChat(
+            messages = systemMessages +
+                messages.map { mapOf("role" to it.role, "content" to it.content) } +
+                toolOutcome.loopMessages,
+            maxTokens = 220,
+            temperature = 0.2,
+        )
+        if (reply.isNotBlank()) emit(MorningStreamEvent.Token(reply))
     }
+
+    private data class ToolLoopOutcome(
+        val loopMessages: List<Map<String, Any?>>,
+        val toolEvents: List<MorningStreamEvent.Tool>,
+        val directReply: String?,
+        val latestSpokenHint: String?,
+    )
 
     private fun runToolLoop(
         doctor: DoctorProfile,
-        language: OutputLanguage,
         messages: List<AiMessageDto>,
         systemMessages: List<Map<String, String>>,
         focusPatientId: Long?,
-    ): Pair<List<Map<String, Any?>>, List<MorningStreamEvent.Tool>> {
+    ): ToolLoopOutcome {
         val loopMessages = mutableListOf<Map<String, Any?>>()
         val toolEvents = mutableListOf<MorningStreamEvent.Tool>()
         // patientIds returned by search_patients in this request (same tool loop).
         val searchedPatientIds = linkedSetOf<Long>()
-        val maxIterations = 4
+        var latestSpokenHint: String? = null
+        // Cap at 2: search + propose is enough; more iterations made voice feel slow.
+        val maxIterations = 2
         for (iteration in 1..maxIterations) {
             val payload = mapper.writeValueAsString(
                 mapOf(
                     "model" to props.model,
                     "stream" to false,
                     "temperature" to 0.0,
+                    "max_tokens" to 400,
                     "tools" to morningToolsSchema(),
                     "tool_choice" to "auto",
                     "messages" to systemMessages +
@@ -158,7 +169,7 @@ class DoctorMorningAiService(
                         listOf(
                             mapOf(
                                 "role" to "system",
-                                "content" to "Call tools when you need live schedule, patient match, free slots, or draft facts. If the doctor only says yes/ok/confirm after a time was already proposed, do NOT call propose_appointment again. After tools, answer in one short spoken paragraph. If autoConfirm matched a time, say it is booked — do not ask them to confirm again.",
+                                "content" to "Call tools when you need live schedule, patient match, free slots, or draft facts. Prefer one tool batch. If the doctor only says yes/ok/confirm after a time was already proposed, do NOT call propose_appointment again. If no tool is needed, answer in one short spoken paragraph now.",
                             )
                         ),
                 )
@@ -174,19 +185,21 @@ class DoctorMorningAiService(
             val bodyText = toolClient.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) {
                     log.warn("Morning tool loop HTTP {}", response.code)
-                    return loopMessages to toolEvents
+                    return ToolLoopOutcome(loopMessages, toolEvents, null, latestSpokenHint)
                 }
                 response.body?.string().orEmpty()
             }
             val json = try {
                 mapper.readTree(bodyText)
             } catch (_: Exception) {
-                return loopMessages to toolEvents
+                return ToolLoopOutcome(loopMessages, toolEvents, null, latestSpokenHint)
             }
             val modelMsg = json.path("choices").path(0).path("message")
+            val content = modelMsg.path("content").asText(null)?.trim().orEmpty()
             val toolCalls = modelMsg.path("tool_calls")
             if (!toolCalls.isArray || toolCalls.isEmpty) {
-                return loopMessages to toolEvents
+                // No tools — reuse this answer instead of a second LLM round-trip.
+                return ToolLoopOutcome(loopMessages, toolEvents, content.ifBlank { null }, latestSpokenHint)
             }
 
             val normalizedCalls = toolCalls.take(3).mapNotNull { tc ->
@@ -201,11 +214,13 @@ class DoctorMorningAiService(
                 }
                 Triple(id, name, args)
             }
-            if (normalizedCalls.isEmpty()) return loopMessages to toolEvents
+            if (normalizedCalls.isEmpty()) {
+                return ToolLoopOutcome(loopMessages, toolEvents, content.ifBlank { null }, latestSpokenHint)
+            }
 
             loopMessages += mapOf(
                 "role" to "assistant",
-                "content" to (modelMsg.path("content").asText(null) ?: ""),
+                "content" to content,
                 "tool_calls" to normalizedCalls.map { (id, name, args) ->
                     mapOf(
                         "id" to id,
@@ -244,13 +259,55 @@ class DoctorMorningAiService(
                     "tool_call_id" to id,
                     "content" to mapper.writeValueAsString(result),
                 )
+                (result["spokenHint"] as? String)?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                    latestSpokenHint = it
+                }
                 if (morningTools.isCardTool(name)) {
                     toolEvents += MorningStreamEvent.Tool(name = name, payload = result)
                 }
                 log.info("morning_tool iteration={} tool={} ok={}", iteration, name, !result.containsKey("error"))
             }
         }
-        return loopMessages to toolEvents
+        return ToolLoopOutcome(loopMessages, toolEvents, null, latestSpokenHint)
+    }
+
+    /** Non-streaming completion — morning replies are short; avoids a second long wait. */
+    private fun completeChat(
+        messages: List<Map<String, Any?>>,
+        maxTokens: Int,
+        temperature: Double,
+    ): String {
+        val payload = mapper.writeValueAsString(
+            mapOf(
+                "model" to props.model,
+                "stream" to false,
+                "temperature" to temperature,
+                "max_tokens" to maxTokens,
+                "messages" to messages,
+            )
+        )
+        val request = Request.Builder()
+            .url("https://api.openai.com/v1/chat/completions")
+            .addHeader("Authorization", "Bearer ${props.apiKey}")
+            .addHeader("OpenAI-Project", props.projectId)
+            .addHeader("Content-Type", "application/json")
+            .post(payload.toRequestBody("application/json".toMediaType()))
+            .build()
+
+        val bodyText = client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw AiStreamException(code = "AI_UNAVAILABLE", message = "AI is temporarily unavailable.")
+            }
+            response.body?.string().orEmpty()
+        }
+        return try {
+            mapper.readTree(bodyText)
+                .path("choices").path(0).path("message").path("content")
+                .asText("")
+                .trim()
+        } catch (_: Exception) {
+            ""
+        }
     }
 
     private fun morningSystemPrompt(doctor: DoctorProfile, language: OutputLanguage): String {
@@ -282,7 +339,7 @@ LANGUAGE (MANDATORY):
 
 You help with:
 - Today's schedule (get_today_schedule)
-- Finding patients by name (search_patients) — never invent a patientId
+- Finding patients by name (search_patients) — never invent a patientId. If the tool returns fuzzy suggestions, ask "Did you mean …?" and wait for the doctor to confirm before booking.
 - Proposing a new appointment (propose_appointment) after patientId and date are known
 - Proposing a reschedule (propose_reschedule) for an upcoming visit
 - Draft visit facts / document everything (list_draft_visit_facts) when an appointmentId is known
