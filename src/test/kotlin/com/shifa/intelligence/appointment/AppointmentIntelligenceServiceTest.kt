@@ -151,17 +151,22 @@ class AppointmentIntelligenceServiceTest {
     }
 
     @Test
-    fun `no show is unsupported and does not query`() {
+    fun `no show filters by NO_SHOW status`() {
+        readModel.countResult = 2
         val result = service.execute(
             doctor,
-            mapOf("filters" to mapOf("statuses" to listOf("CANCELLED"))),
+            mapOf(
+                "metric" to "COUNT",
+                "timeRange" to mapOf("period" to "LAST_MONTH"),
+                "filters" to mapOf("statuses" to listOf("NO_SHOW")),
+            ),
             emptyList(),
             "How many no-shows last month?",
             null,
         )
-        assertEquals(false, result["supported"])
-        assertTrue((result["spokenHint"] as String).contains("no-show"))
-        assertTrue(readModel.filters.isEmpty())
+        assertEquals(true, result["supported"])
+        assertEquals(setOf("NO_SHOW"), readModel.filters.single().statuses)
+        assertEquals(2L, result["count"])
     }
 
     @Test

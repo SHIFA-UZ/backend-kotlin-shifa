@@ -2,6 +2,7 @@ package com.shifa.service
 
 import com.shifa.domain.DoctorProfile
 import com.shifa.domain.User
+import com.shifa.intelligence.appointment.AppointmentActionService
 import com.shifa.intelligence.appointment.AppointmentIntelligenceService
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
@@ -30,6 +31,7 @@ class DoctorMorningToolDispatchTest {
         slots,
         mock(PatientDocumentService::class.java),
         intelligence,
+        mock(AppointmentActionService::class.java),
     )
     private val doctor = DoctorProfile(
         id = 5,

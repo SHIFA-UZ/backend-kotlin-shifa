@@ -82,6 +82,6 @@ class Appointment(
     @Column(name = "sms_reminder_sent_at")
     var smsReminderSentAt: Instant? = null
 ) {
-    enum class Status { REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED }
+    enum class Status { REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED, NO_SHOW }
     enum class PaymentStatus { NOT_REQUIRED, PENDING, PAID, FAILED, REFUNDED }
 }

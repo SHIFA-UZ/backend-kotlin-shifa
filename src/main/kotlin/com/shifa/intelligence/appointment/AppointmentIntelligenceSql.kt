@@ -34,7 +34,7 @@ data class ListedVisit(
  * duplicate an appointment.
  */
 internal object AppointmentIntelligenceSql {
-    private val STATUSES = setOf("REQUESTED", "CONFIRMED", "IN_PROGRESS", "CANCELLED", "COMPLETED")
+    private val STATUSES = setOf("REQUESTED", "CONFIRMED", "IN_PROGRESS", "CANCELLED", "COMPLETED", "NO_SHOW")
 
     fun count(doctorId: Long, filter: AppointmentFilter): SqlStatement {
         val where = where(doctorId, filter)

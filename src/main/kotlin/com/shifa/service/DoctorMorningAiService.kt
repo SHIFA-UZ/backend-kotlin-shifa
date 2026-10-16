@@ -382,6 +382,12 @@ DOCUMENTS & DENTAL DIAGRAM (MANDATORY):
 
 CRITICAL WRITE RULES:
 - You NEVER book, reschedule, cancel, or commit chart facts yourself.
+- Cancelling visits uses preview_appointment_cancellation first. Nothing is cancelled until the doctor says yes in a later message and you call confirm_appointment_cancellation.
+- Moving a visit still uses propose_reschedule. Do not cancel it first.
+- Start an in-person visit with start_appointment (sets IN_PROGRESS). Open without starting with open_appointment. Video visits start when the doctor joins the call.
+- Complete a visit only with complete_appointment after an explicit finish command.
+- Request a patient signature only with request_appointment_signature after an explicit signature command.
+- Dictation uses append_consultation_draft and appends the official consultation note. It does not complete the visit and does not request a signature.
 - Tools only propose. When the doctor names a free time, the client auto-confirms that slot — do not ask them to pick or say yes again.
 - Never invent patient names, ids, times, or free slots. Use tools.
 - patientId for propose_appointment MUST be the Focus patientId above, or an id returned by search_patients in this same turn — never invent ids and never reuse a different patient from memory.
@@ -596,8 +602,103 @@ Rules:
         mapOf(
             "type" to "function",
             "function" to mapOf(
+                "name" to "preview_appointment_cancellation",
+                "description" to "Preview visits that can be cancelled. Does not cancel anything. Use when the doctor asks to cancel one visit or all visits in a period. Ask them to say yes before anything is cancelled.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "patientId" to mapOf("type" to "integer"),
+                        "patientName" to mapOf("type" to "string"),
+                        "appointmentId" to mapOf("type" to "integer"),
+                    ),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "confirm_appointment_cancellation",
+                "description" to "Cancel the visits from the preview, only after the doctor explicitly says yes in a later message. Never call this in the same turn as the original cancel request.",
+                "parameters" to mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "open_appointment",
+                "description" to "Open the next visit, or a named patient's visit, as a navigation card. Does not start the visit. Use for open my next appointment, open the patient, or open documentation. Video visits return route video; in-person returns route inPerson.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "patientId" to mapOf("type" to "integer"),
+                        "patientName" to mapOf("type" to "string"),
+                        "appointmentId" to mapOf("type" to "integer"),
+                        "target" to mapOf("type" to "string", "description" to "appointment, patient, or documentation"),
+                    ),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "start_appointment",
+                "description" to "Start an eligible in-person visit (sets IN_PROGRESS) and return an open_appointment card with route inPerson. Use when the doctor says start the visit, begin the consultation, or start the appointment. Never use for video visits. Does not complete the visit or request a signature.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "patientId" to mapOf("type" to "integer"),
+                        "patientName" to mapOf("type" to "string"),
+                        "appointmentId" to mapOf("type" to "integer"),
+                    ),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "complete_appointment",
+                "description" to "Mark an in-progress visit COMPLETED. Call only after an explicit finish/complete/end visit command. Never call after note dictation alone.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "appointmentId" to mapOf("type" to "integer"),
+                    ),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "request_appointment_signature",
+                "description" to "Ask the patient to sign the visit note via the existing notification flow. Call only after an explicit signature request. Never imply this from saving a note.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "appointmentId" to mapOf("type" to "integer"),
+                    ),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "append_consultation_draft",
+                "description" to "Append the doctor's dictated words to the official consultation note for the focused visit. Does not complete the visit and does not request a signature. Pass text as the clinical words only. Set readBack true to read the current note.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "text" to mapOf("type" to "string"),
+                        "appointmentId" to mapOf("type" to "integer"),
+                        "readBack" to mapOf("type" to "boolean"),
+                    ),
+                ),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
                 "name" to "query_appointment_intelligence",
-                "description" to "Count or list this doctor's appointments for a period with optional status, documentation, payment, patient, or visit-type filters. Use for yesterday, last week, next week, last month, rolling ranges, cancelled, completed, confirmed, undocumented, unpaid, collected money, grouping, and comparisons. Do not use for today's schedule overview, free slots, or booking. Do not send doctorId. The server resolves dates and computes numbers.",
+                "description" to "Count or list this doctor's appointments for a period with optional status, documentation, payment, patient, or visit-type filters. Use for yesterday, last week, next week, last month, rolling ranges, cancelled, completed, confirmed, no-show, undocumented, unpaid, collected money, grouping, and comparisons. Do not use for today's schedule overview, free slots, or booking. Do not send doctorId. The server resolves dates and computes numbers.",
                 "parameters" to mapOf(
                     "type" to "object",
                     "properties" to mapOf(
@@ -673,6 +774,40 @@ Rules:
         if (asksForPatientAppointments(latest)) {
             return "$base PATIENT APPOINTMENTS REQUEST: call list_patient_appointments with Focus patientId " +
                 "and date=next week / this week / the day they named. Do NOT call get_today_schedule."
+        }
+        if (com.shifa.intelligence.appointment.AppointmentActionService.isExplicitConfirmation(latest) &&
+            messages.any { it.content.contains("<appointment_action>") }
+        ) {
+            return "$base CANCELLATION CONFIRMATION: call confirm_appointment_cancellation only. Do not preview again."
+        }
+        if (Regex("""\bcancel\b""", RegexOption.IGNORE_CASE).containsMatchIn(latest)) {
+            return "$base CANCELLATION REQUEST: call preview_appointment_cancellation only. Do not confirm in this same turn."
+        }
+        if (Regex("""\b(start|begin) (the |my )?(appointment|consultation|visit)\b""", RegexOption.IGNORE_CASE)
+                .containsMatchIn(latest)
+        ) {
+            return "$base START VISIT: call start_appointment for a non-video visit. Do not complete or request a signature."
+        }
+        if (Regex("""\b(open|show) (my )?(next|the) (appointment|consultation|visit)\b""", RegexOption.IGNORE_CASE)
+                .containsMatchIn(latest) ||
+            Regex("""\bopen the documentation\b""", RegexOption.IGNORE_CASE).containsMatchIn(latest)
+        ) {
+            return "$base OPEN VISIT: call open_appointment. Do not start or change the appointment status."
+        }
+        if (Regex("""\b(complete|finish|end) (the |this )?(appointment|consultation|visit)\b""", RegexOption.IGNORE_CASE)
+                .containsMatchIn(latest)
+        ) {
+            return "$base COMPLETE VISIT: call complete_appointment only. Do not request a signature unless they asked."
+        }
+        if (Regex("""\b(request|ask for|get) (the |a |patient )?signature\b""", RegexOption.IGNORE_CASE)
+                .containsMatchIn(latest)
+        ) {
+            return "$base SIGNATURE: call request_appointment_signature only."
+        }
+        if (Regex("""\b(add that|the patient reports|save the draft|read the note|dictate)\b""", RegexOption.IGNORE_CASE)
+                .containsMatchIn(latest)
+        ) {
+            return "$base DOCUMENTATION: call append_consultation_draft. Pass only the clinical words in text. Do not complete the visit. Do not request a signature."
         }
         if (asksForAppointmentAnalytics(latest)) {
             return "$base APPOINTMENT ANALYTICS: call query_appointment_intelligence once. " +

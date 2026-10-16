@@ -5,6 +5,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.domain.DoctorProfile
 import com.shifa.domain.PatientProfile
 import com.shifa.domain.PatientVisitFact
+import com.shifa.intelligence.appointment.AppointmentActionService
 import com.shifa.intelligence.appointment.AppointmentIntelligenceService
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
@@ -37,6 +38,7 @@ class DoctorMorningToolService(
     private val patientDaySlotsService: PatientDaySlotsService,
     private val patientDocumentService: PatientDocumentService,
     private val appointmentIntelligenceService: AppointmentIntelligenceService,
+    private val appointmentActionService: AppointmentActionService,
 ) {
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
     /** Compact labels on UI cards (ok to abbreviate months). */
@@ -66,6 +68,35 @@ class DoctorMorningToolService(
             "query_appointment_intelligence" -> queryAppointmentIntelligence(
                 doctor, args, priorAssistantMessages, latestUserText, focusPatientId, searchedPatientIds,
             )
+            "preview_appointment_cancellation" -> previewCancellation(
+                doctor, args, latestUserText, focusPatientId, searchedPatientIds,
+            )
+            "confirm_appointment_cancellation" -> appointmentActionService.confirmCancellation(
+                doctor, latestUserText, priorAssistantMessages,
+            )
+            "open_appointment" -> openAppointment(
+                doctor, args, latestUserText, focusPatientId, searchedPatientIds, startIfNeeded = false,
+            )
+            "start_appointment" -> openAppointment(
+                doctor, args, latestUserText, focusPatientId, searchedPatientIds, startIfNeeded = true,
+            )
+            "complete_appointment" -> appointmentActionService.completeAppointment(
+                doctor,
+                (args["appointmentId"] as? Number)?.toLong(),
+                priorAssistantMessages,
+            )
+            "request_appointment_signature" -> appointmentActionService.requestSignature(
+                doctor,
+                (args["appointmentId"] as? Number)?.toLong(),
+                priorAssistantMessages,
+            )
+            "append_consultation_draft" -> appointmentActionService.appendDictation(
+                doctor = doctor,
+                userText = (args["text"] as? String)?.trim().orEmpty(),
+                appointmentId = (args["appointmentId"] as? Number)?.toLong(),
+                priorAssistantMessages = priorAssistantMessages,
+                readBack = args["readBack"] == true || looksLikeReadBack(latestUserText),
+            )
             "brief_patient" -> briefPatient(doctor, args)
             "get_clinic_patterns" -> getClinicPatterns(doctor)
             "get_most_visited_patients" -> getMostVisitedPatients(doctor, args)
@@ -78,6 +109,88 @@ class DoctorMorningToolService(
             "open_dental_chart" -> openDentalChart(doctor, args)
             else -> mapOf("error" to "Unknown tool: $toolName")
         }
+    }
+
+    private fun looksLikeReadBack(text: String): Boolean {
+        val t = text.lowercase()
+        return t.contains("read the note") || t.contains("read it back") || t.contains("show me the note") ||
+            t.contains("show the documentation") || t.contains("what does the note say")
+    }
+
+    private fun previewCancellation(
+        doctor: DoctorProfile,
+        args: Map<String, Any?>,
+        latestUserText: String,
+        focusPatientId: Long?,
+        searchedPatientIds: Set<Long>,
+    ): Map<String, Any?> {
+        val name = (args["patientName"] as? String)?.trim().orEmpty()
+        var patientId = (args["patientId"] as? Number)?.toLong()
+        if (name.isNotEmpty() && patientId == null) {
+            val found = searchPatients(doctor, mapOf("query" to name))
+            @Suppress("UNCHECKED_CAST")
+            val matches = found["matches"] as? List<Map<String, Any?>> ?: emptyList()
+            if (matches.size != 1 || found["fuzzy"] == true) return found
+            patientId = (matches.first()["patientId"] as? Number)?.toLong() ?: return found
+        }
+        if (patientId == null && searchedPatientIds.size == 1 &&
+            Regex("""\b(him|her|them|this patient)\b""", RegexOption.IGNORE_CASE).containsMatchIn(latestUserText)
+        ) {
+            patientId = searchedPatientIds.first()
+        }
+        if (patientId == null && focusPatientId != null &&
+            Regex("""\b(him|her|them|this patient)\b""", RegexOption.IGNORE_CASE).containsMatchIn(latestUserText)
+        ) {
+            patientId = focusPatientId
+        }
+        return appointmentActionService.previewCancellation(
+            doctor = doctor,
+            userText = latestUserText,
+            patientId = patientId,
+            appointmentId = (args["appointmentId"] as? Number)?.toLong(),
+        )
+    }
+
+    private fun openAppointment(
+        doctor: DoctorProfile,
+        args: Map<String, Any?>,
+        latestUserText: String,
+        focusPatientId: Long?,
+        searchedPatientIds: Set<Long>,
+        startIfNeeded: Boolean,
+    ): Map<String, Any?> {
+        val name = (args["patientName"] as? String)?.trim().orEmpty()
+        var patientId = (args["patientId"] as? Number)?.toLong()
+        if (name.isNotEmpty() && patientId == null) {
+            val found = searchPatients(doctor, mapOf("query" to name))
+            @Suppress("UNCHECKED_CAST")
+            val matches = found["matches"] as? List<Map<String, Any?>> ?: emptyList()
+            if (matches.size != 1 || found["fuzzy"] == true) return found
+            patientId = (matches.first()["patientId"] as? Number)?.toLong() ?: return found
+        }
+        val aboutFocus = Regex("""\b(him|her|them|this patient)\b""", RegexOption.IGNORE_CASE)
+            .containsMatchIn(latestUserText)
+        if (patientId == null && aboutFocus && searchedPatientIds.size == 1) {
+            patientId = searchedPatientIds.first()
+        }
+        if (patientId == null && aboutFocus) patientId = focusPatientId
+        val target = when ((args["target"] as? String)?.lowercase()) {
+            "documentation", "note" -> "documentation"
+            "patient", "chart" -> "patient"
+            else -> if (latestUserText.contains("document", ignoreCase = true) || startIfNeeded) {
+                "documentation"
+            } else {
+                "appointment"
+            }
+        }
+        return appointmentActionService.openAppointment(
+            doctor = doctor,
+            userText = latestUserText,
+            patientId = patientId,
+            appointmentId = (args["appointmentId"] as? Number)?.toLong(),
+            target = target,
+            startIfNeeded = startIfNeeded,
+        )
     }
 
     /**
@@ -1343,6 +1456,13 @@ class DoctorMorningToolService(
             "get_most_visited_patients",
             "get_clinic_patterns",
             "query_appointment_intelligence",
+            "preview_appointment_cancellation",
+            "confirm_appointment_cancellation",
+            "open_appointment",
+            "start_appointment",
+            "complete_appointment",
+            "request_appointment_signature",
+            "append_consultation_draft",
             "brief_patient",
             "list_patient_documents",
             "open_patient_document",

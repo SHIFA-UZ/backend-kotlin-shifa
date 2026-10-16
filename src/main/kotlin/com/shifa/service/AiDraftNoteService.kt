@@ -23,6 +23,11 @@ class AiDraftNoteService(
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
+
+    companion object {
+        const val INTELLIGENCE_DICTATION_LABEL = "Intelligence dictation"
+        const val MAX_DICTATION_CHARS = 20000
+    }
     private val mapper = jacksonObjectMapper()
 
     @Transactional
@@ -146,6 +151,45 @@ class AiDraftNoteService(
             log.warn("Failed to attach ICD suggestions to draft {}: {}", draft.id, e.message)
         }
     }
+
+    /**
+     * Adds the doctor's own words to one generated draft for this visit.
+     * Does not confirm the draft into a consultation note.
+     */
+    @Transactional
+    fun appendIntelligenceDictation(
+        doctorId: Long,
+        patientId: Long,
+        appointmentId: Long,
+        addition: String,
+    ): AiDraftNote {
+        val text = addition.trim()
+        require(text.isNotEmpty()) { "Dictation is empty" }
+        val existing = draftRepo.findByConsultationIdAndStatusOrderByCreatedAtDesc(
+            appointmentId,
+            AiDraftNote.Status.GENERATED,
+        ).firstOrNull { it.doctorId == doctorId && it.aiLabel == INTELLIGENCE_DICTATION_LABEL }
+        if (existing != null) {
+            val combined = existing.aiResponseText.trimEnd() + "\n\n" + text
+            require(combined.length <= MAX_DICTATION_CHARS) { "Draft is too long" }
+            existing.aiResponseText = combined
+            return draftRepo.save(existing)
+        }
+        require(text.length <= MAX_DICTATION_CHARS) { "Draft is too long" }
+        return createDraft(
+            doctorId = doctorId,
+            patientId = patientId,
+            consultationId = appointmentId,
+            aiResponseText = text,
+            aiLabel = INTELLIGENCE_DICTATION_LABEL,
+        )
+    }
+
+    fun intelligenceDictation(doctorId: Long, appointmentId: Long): AiDraftNote? =
+        draftRepo.findByConsultationIdAndStatusOrderByCreatedAtDesc(
+            appointmentId,
+            AiDraftNote.Status.GENERATED,
+        ).firstOrNull { it.doctorId == doctorId && it.aiLabel == INTELLIGENCE_DICTATION_LABEL }
 
     /** Marks GENERATED drafts older than 30 days as DISCARDED (for background cleanup). */
     @Transactional

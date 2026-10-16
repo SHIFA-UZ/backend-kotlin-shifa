@@ -12,6 +12,7 @@ import com.shifa.repo.ConsultationNoteRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.service.ClinicAccessService
 import com.shifa.service.AppointmentCancellationService
+import com.shifa.service.AppointmentVisitLifecycleService
 import com.shifa.i18n.PatientPaymentPushI18n
 import com.shifa.service.FcmService
 import com.shifa.service.ClinicalRagIndexingService
@@ -55,6 +56,7 @@ class AppointmentController(
     private val treatmentPlanStatusService: TreatmentPlanStatusService,
     private val slotAvailabilityService: SlotAvailabilityService,
     private val appointmentCancellationService: AppointmentCancellationService,
+    private val appointmentVisitLifecycleService: AppointmentVisitLifecycleService,
     private val appointmentBriefingService: com.shifa.service.AppointmentBriefingService,
     private val scribePipelineService: ScribePipelineService,
     private val scribeRecordingService: ScribeRecordingService,
@@ -309,20 +311,11 @@ class AppointmentController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
         clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
-        appointment.signatureRequested = true
-        appts.save(appointment)
-
-        val doctorName =
-            "${appointment.doctor.firstName ?: ""} ${appointment.doctor.lastName ?: ""}".trim().ifEmpty { "Doctor" }
-        val notif = Notification(
-            patient = appointment.patient,
-            title = "Signature Requested",
-            message = "Dr. $doctorName is requesting your signature for the appointment summary.",
-            type = Notification.Type.SIGNATURE_REQUESTED,
-            appointmentId = appointment.id
-        )
-        val savedNotif = notifications.save(notif)
-        appointment.patient.fcmToken?.let { fcmService.sendPatientNotification(it, savedNotif) }
+        when (val result = appointmentVisitLifecycleService.requestSignature(appointment)) {
+            is AppointmentVisitLifecycleService.Outcome.Failed ->
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, result.message)
+            is AppointmentVisitLifecycleService.Outcome.Ok -> Unit
+        }
     }
 
     /**

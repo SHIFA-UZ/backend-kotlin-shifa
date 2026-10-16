@@ -1,0 +1,174 @@
+package com.shifa.intelligence.appointment
+
+import com.shifa.domain.Appointment
+import com.shifa.domain.DoctorProfile
+import com.shifa.domain.PatientProfile
+import com.shifa.domain.User
+import com.shifa.repo.AppointmentRepository
+import com.shifa.service.AppointmentCancellationService
+import com.shifa.service.AppointmentVisitLifecycleService
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertFalse
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.mockito.ArgumentMatchers.anyLong
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.never
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.verifyNoInteractions
+import org.mockito.Mockito.`when`
+import java.time.Clock
+import java.time.Instant
+import java.time.ZoneOffset
+import java.util.Optional
+
+class AppointmentActionServiceTest {
+    private val clock = Clock.fixed(Instant.parse("2026-10-16T10:00:00Z"), ZoneOffset.UTC)
+    private val appointments = mock(AppointmentRepository::class.java)
+    private val cancellation = mock(AppointmentCancellationService::class.java)
+    private val lifecycle = mock(AppointmentVisitLifecycleService::class.java)
+    private val service = AppointmentActionService(
+        appointments,
+        cancellation,
+        lifecycle,
+        ClinicTimeRangeResolver(clock),
+        PendingAppointmentActionStore(clock),
+        clock,
+    )
+    private val doctor = DoctorProfile(
+        id = 5,
+        user = User(id = 1, passwordHash = "x"),
+        firstName = "Ada",
+        lastName = "Lovelace",
+        timeZone = "UTC",
+    )
+    private val patient = PatientProfile(id = 3L, fullName = "Franco")
+
+    @Test
+    fun `the cancel request itself does not cancel`() {
+        val visit = visit(10L, "2026-10-17T09:00:00Z")
+        stubRange(visit)
+        val preview = service.previewCancellation(doctor, "Cancel Franco tomorrow", 3L, null)
+        assertEquals("AWAITING_CONFIRMATION", preview["status"])
+        verifyNoInteractions(cancellation)
+
+        val sameRequest = service.confirmCancellation(
+            doctor,
+            "Cancel Franco tomorrow",
+            listOf(marker(preview)),
+        )
+        assertEquals("AWAITING_CONFIRMATION", sameRequest["status"])
+        verifyNoInteractions(cancellation)
+    }
+
+    @Test
+    fun `yes after the preview cancels and checks the saved status`() {
+        val visit = visit(10L, "2026-10-17T09:00:00Z")
+        stubRange(visit)
+        `when`(appointments.findById(10L)).thenReturn(Optional.of(visit))
+        `when`(cancellation.cancelByDoctorManual(visit)).thenAnswer {
+            visit.status = Appointment.Status.CANCELLED
+            true
+        }
+        val preview = service.previewCancellation(doctor, "Cancel Franco tomorrow", 3L, null)
+        val result = service.confirmCancellation(doctor, "yes", listOf(marker(preview)))
+        assertEquals("SUCCESS", result["status"])
+        assertEquals(Appointment.Status.CANCELLED, visit.status)
+        verify(cancellation).cancelByDoctorManual(visit)
+    }
+
+    @Test
+    fun `a changed visit is not cancelled`() {
+        val visit = visit(10L, "2026-10-17T09:00:00Z")
+        stubRange(visit)
+        `when`(appointments.findById(10L)).thenReturn(Optional.of(visit))
+        val preview = service.previewCancellation(doctor, "Cancel Franco tomorrow", 3L, null)
+        visit.startAt = Instant.parse("2026-10-18T09:00:00Z")
+        val result = service.confirmCancellation(doctor, "yes", listOf(marker(preview)))
+        assertEquals("FAILURE", result["status"])
+        verify(cancellation, never()).cancelByDoctorManual(visit)
+    }
+
+    @Test
+    fun `another doctors visit is not previewed`() {
+        val other = DoctorProfile(
+            id = 9,
+            user = User(id = 2, passwordHash = "x"),
+            firstName = "Other",
+            lastName = "Doctor",
+            timeZone = "UTC",
+        )
+        val visit = Appointment(
+            id = 10L,
+            doctor = other,
+            patient = patient,
+            startAt = Instant.parse("2026-10-17T09:00:00Z"),
+            endAt = Instant.parse("2026-10-17T09:30:00Z"),
+            location = "Clinic",
+            status = Appointment.Status.CONFIRMED,
+        )
+        `when`(appointments.findById(10L)).thenReturn(Optional.of(visit))
+        val preview = service.previewCancellation(doctor, "Cancel that visit", null, 10L)
+        assertEquals("FAILURE", preview["status"])
+        verifyNoInteractions(cancellation)
+    }
+
+    @Test
+    fun `a past visit is left unchanged`() {
+        val visit = visit(10L, "2026-10-15T09:00:00Z")
+        stubRange(visit)
+        val preview = service.previewCancellation(doctor, "Cancel Franco yesterday", 3L, null)
+        assertTrue((preview["spokenHint"] as String).contains("Nothing was changed"))
+        verifyNoInteractions(cancellation)
+    }
+
+    @Test
+    fun `bulk cancellation reports a partial failure`() {
+        val first = visit(1L, "2026-10-20T09:00:00Z")
+        val second = visit(2L, "2026-10-21T09:00:00Z")
+        `when`(appointments.findByDoctorIdAndStartAtBetween(anyLong(), anyInstant(), anyInstant()))
+            .thenReturn(listOf(first, second))
+        `when`(appointments.findById(1L)).thenReturn(Optional.of(first))
+        `when`(appointments.findById(2L)).thenReturn(Optional.of(second))
+        `when`(cancellation.cancelByDoctorManual(first)).thenAnswer {
+            first.status = Appointment.Status.CANCELLED
+            true
+        }
+        `when`(cancellation.cancelByDoctorManual(second)).thenReturn(false)
+        val preview = service.previewCancellation(doctor, "Cancel all my appointments next week", null, null)
+        assertEquals(2, preview["count"])
+        val result = service.confirmCancellation(doctor, "yes cancel them", listOf(marker(preview)))
+        assertEquals("PARTIAL_SUCCESS", result["status"])
+    }
+
+    @Test
+    fun `confirmation phrases do not include the original request`() {
+        assertFalse(AppointmentActionService.isExplicitConfirmation("Cancel all my appointments next week"))
+        assertTrue(AppointmentActionService.isExplicitConfirmation("yes"))
+        assertTrue(AppointmentActionService.isExplicitConfirmation("Yes, cancel them."))
+    }
+
+    private fun visit(id: Long, start: String): Appointment = Appointment(
+        id = id,
+        doctor = doctor,
+        patient = patient,
+        startAt = Instant.parse(start),
+        endAt = Instant.parse(start).plusSeconds(1800),
+        location = "Clinic",
+        status = Appointment.Status.CONFIRMED,
+    )
+
+    private fun stubRange(visit: Appointment) {
+        `when`(appointments.findByDoctorIdAndStartAtBetween(anyLong(), anyInstant(), anyInstant()))
+            .thenReturn(listOf(visit))
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun marker(preview: Map<String, Any?>): String {
+        val token = (preview["actionContext"] as Map<String, Any?>)["token"]
+        return "I can cancel that visit.\n<appointment_action>$token</appointment_action>"
+    }
+
+    private fun anyInstant(): Instant =
+        org.mockito.ArgumentMatchers.any(Instant::class.java) ?: Instant.EPOCH
+}

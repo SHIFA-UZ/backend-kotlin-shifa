@@ -44,8 +44,6 @@ enum class Modality { VIDEO, IN_PERSON }
 enum class TimeAnchor { APPOINTMENT_START, PAYMENT_COLLECTED_AT }
 
 object AppointmentIntelligenceLimits {
-    const val NO_SHOW =
-        "Shifa does not record a no-show status. A cancelled visit, or a visit whose scheduled time has passed, is not counted as a no-show."
     const val RESCHEDULED =
         "Shifa does not store a rescheduled status. A doctor reschedule changes the visit time. A patient reschedule cancels the old visit and books a new one. Those cannot be counted as reschedules."
     const val FINALIZED =
@@ -174,7 +172,7 @@ class AppointmentIntelligenceQueryParser {
             shape = shape,
             time = (time as ParseOutcome.Ok).request.time,
             comparison = (comparison as ParseOutcome.Ok).request.time,
-            statuses = statusOk.request.statuses,
+            statuses = statusOk.request.statuses.ifEmpty { request.statuses },
             upcoming = statusOk.request.upcoming || bool(filters["upcoming"]),
             patientId = (filters["patientId"] as? Number)?.toLong(),
             patientName = (filters["patientName"] as? String)?.trim()?.takeIf { it.isNotEmpty() },
@@ -212,7 +210,9 @@ class AppointmentIntelligenceQueryParser {
             "REFUND", "SUM_REFUNDED", "REFUND_AMOUNT" ->
                 return ParseOutcome.Unsupported(AppointmentIntelligenceLimits.REFUND)
             "NO_SHOW", "NO_SHOW_RATE" ->
-                return ParseOutcome.Unsupported(AppointmentIntelligenceLimits.NO_SHOW)
+                return ParseOutcome.Ok(
+                    IntelligenceRequest(metric = Metric.COUNT, shape = Shape.AGGREGATE, statuses = setOf("NO_SHOW")),
+                )
             "PARTIAL", "SUM_PARTIAL" ->
                 return ParseOutcome.Unsupported(AppointmentIntelligenceLimits.PARTIAL)
             else -> return ParseOutcome.Unsupported("I can't calculate $metric.")
@@ -292,8 +292,8 @@ class AppointmentIntelligenceQueryParser {
                 "IN_PROGRESS" -> statuses += "IN_PROGRESS"
                 "CANCELLED", "CANCELED" -> statuses += "CANCELLED"
                 "COMPLETED" -> statuses += "COMPLETED"
+                "NO_SHOW", "NOSHOW", "NO-SHOW" -> statuses += "NO_SHOW"
                 "UPCOMING" -> upcoming = true
-                "NO_SHOW", "NOSHOW", "NO-SHOW" -> return ParseOutcome.Unsupported(AppointmentIntelligenceLimits.NO_SHOW)
                 "RESCHEDULED" -> return ParseOutcome.Unsupported(AppointmentIntelligenceLimits.RESCHEDULED)
                 "PENDING" -> return ParseOutcome.Unsupported(
                     "Pending is not an appointment status. Unconfirmed visits are requested. Pending payment is a payment status.",
@@ -521,7 +521,8 @@ object AppointmentQueryContextCodec {
         return enumValues<T>().firstOrNull { it.name == raw }
     }
 
-    private val ALLOWED_STATUSES = setOf("REQUESTED", "CONFIRMED", "IN_PROGRESS", "CANCELLED", "COMPLETED")
+    private val ALLOWED_STATUSES =
+        setOf("REQUESTED", "CONFIRMED", "IN_PROGRESS", "CANCELLED", "COMPLETED", "NO_SHOW")
 }
 
 sealed class MergeResult {
@@ -648,7 +649,6 @@ class AppointmentQueryContextMerger(
     }
 
     private fun unsupportedFromText(text: String): String? = when {
-        Regex("""\bno[-\s]?shows?\b""").containsMatchIn(text) -> AppointmentIntelligenceLimits.NO_SHOW
         Regex("""\breschedul""").containsMatchIn(text) -> AppointmentIntelligenceLimits.RESCHEDULED
         Regex("""\bfinali[sz]ed\b|\bdoctor[-\s]?signed\b|\bunsigned by\b""").containsMatchIn(text) ->
             AppointmentIntelligenceLimits.FINALIZED
@@ -686,6 +686,7 @@ class AppointmentQueryContextMerger(
         if (Regex("""\bconfirmed\b""").containsMatchIn(text) && !mentionsUnconfirmed(text)) out += "CONFIRMED"
         if (Regex("""\bin progress\b""").containsMatchIn(text)) out += "IN_PROGRESS"
         if (Regex("""\brequested\b""").containsMatchIn(text)) out += "REQUESTED"
+        if (Regex("""\bno[-\s]?shows?\b""").containsMatchIn(text)) out += "NO_SHOW"
         return out
     }
 
