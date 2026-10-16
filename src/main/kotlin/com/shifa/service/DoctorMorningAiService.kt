@@ -323,15 +323,22 @@ class DoctorMorningAiService(
             ZoneId.of("Asia/Tashkent")
         }
         val today = LocalDate.now(zone)
+        val nextDays = (0L..6L).joinToString("; ") { offset ->
+            val d = today.plusDays(offset)
+            val name = d.dayOfWeek.name.lowercase().replaceFirstChar { c -> c.uppercaseChar() }
+            "$name=$d"
+        }
         return """
 You are Shifa, the clinical Intelligence assistant for Dr. ${doctor.firstName} ${doctor.lastName}.
 Your name is Shifa. When the doctor says "Hey Shifa", "Hi Shifa", or similar, they are addressing you — respond as Shifa and follow their request.
 
 CLOCK (MANDATORY):
 - Practice timezone: ${zone.id}
-- Today is ${today} (${today.dayOfWeek}). Tomorrow is ${today.plusDays(1)}.
-- When the doctor says today/tomorrow (or сегодня/завтра), pass date as the literal "today" or "tomorrow" — do NOT invent an ISO year from memory.
-- Never use a past year. If you pass ISO, it must be ${today.year} or later.
+- Today is ${today} (${today.dayOfWeek}). Tomorrow is ${today.plusDays(1)} (${today.plusDays(1).dayOfWeek}).
+- Next 7 days (use these exact ISO dates — never invent weekdays): $nextDays
+- When the doctor says today/tomorrow, pass date as "today" or "tomorrow".
+- When they say a weekday (e.g. Tuesday) or "next Tuesday" / "next week", pass that phrase as date (e.g. "tuesday", "next tuesday") — the server resolves it. Do NOT invent a wrong ISO date.
+- Never use a past year. If you pass ISO, it must match the calendar above.
 
 LANGUAGE (MANDATORY):
 - Reply in the SAME language the doctor used in their latest message (English, Russian, or Uzbek).
@@ -597,12 +604,22 @@ Rules:
                 "Do NOT call get_today_schedule. Do NOT mention booked appointments."
         }
         if (!conversationHasBookingIntent(messages)) return base
+        if (looksLikeCalendarOrDateReply(latest)) {
+            return "$base BOOKING IN PROGRESS: the doctor named a day/time or corrected the calendar. " +
+                "Call list_free_slots or propose_appointment with Focus patientId and that date. " +
+                "Do NOT call search_patients. Do NOT invent weekday→ISO mappings — pass tuesday/next tuesday/today/tomorrow."
+        }
+        if (looksLikeIncompleteUtterance(latest)) {
+            return "$base BOOKING IN PROGRESS: the doctor's last line looks incomplete. " +
+                "Ask a short clarifying question. Do NOT call search_patients."
+        }
         if (looksLikePatientNameReply(latest)) {
             return "$base BOOKING IN PROGRESS: the doctor just gave a patient name after asking to make an appointment. " +
                 "Call search_patients with that name NOW. Do NOT call get_today_schedule. " +
                 "After a match, ask which date and time — do not propose until a day is given."
         }
-        return "$base BOOKING IN PROGRESS: stay on booking (search_patients / propose_appointment). " +
+        return "$base BOOKING IN PROGRESS: stay on booking (propose_appointment / list_free_slots with Focus patientId). " +
+            "Do NOT call search_patients again unless they named a different patient. " +
             "Do NOT call get_today_schedule unless they explicitly ask what is on today."
     }
 
@@ -685,6 +702,7 @@ Rules:
     private fun looksLikePatientNameReply(text: String): Boolean {
         val t = text.trim()
         if (t.length < 2 || t.length > 64) return false
+        if (looksLikeCalendarOrDateReply(t) || looksLikeIncompleteUtterance(t)) return false
         if (Regex("""\d{1,2}:\d{2}""").containsMatchIn(t)) return false
         if (Regex(
                 """\b(today|tomorrow|yesterday|schedule|calendar|how many|appointments?|slots?|yes|ok|okay|confirm|please)\b""",
@@ -695,6 +713,42 @@ Rules:
         }
         val words = t.split(Regex("""\s+""")).filter { it.isNotBlank() }
         return words.size in 1..4
+    }
+
+    /** Weekday / relative day / time-of-day — not a patient name. */
+    private fun looksLikeCalendarOrDateReply(text: String): Boolean {
+        val t = text.trim().lowercase()
+        if (t.isEmpty()) return false
+        if (Regex(
+                """\b(today|tomorrow|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|""" +
+                    """next week|this week|morning|afternoon|evening|""" +
+                    """сегодня|завтра|понедельник|вторник|среда|четверг|пятница|суббота|воскресенье|""" +
+                    """утро|вечер|dushanba|seshanba|chorshanba|payshanba|juma|shanba|yakshanba)\b""",
+            ).containsMatchIn(t)
+        ) {
+            return true
+        }
+        // "17th of October", "18 October", "Oct 20"
+        if (Regex(
+                """\b(\d{1,2})(st|nd|rd|th)?\s+(of\s+)?(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b""",
+            ).containsMatchIn(t)
+        ) {
+            return true
+        }
+        if (Regex("""\b\d{4}-\d{2}-\d{2}\b""").containsMatchIn(t)) return true
+        return false
+    }
+
+    /** Trailing fragments like "what about" / "17th of October is" — clarify, don't search. */
+    private fun looksLikeIncompleteUtterance(text: String): Boolean {
+        val t = text.trim().lowercase()
+        if (t.isEmpty() || t.length > 48) return false
+        if (t.endsWith(" is") || t.endsWith(" about") || t.endsWith(" for") ||
+            t.endsWith(" on") || t.endsWith(" at") || t.endsWith(" to")
+        ) {
+            return true
+        }
+        return t in setOf("what about", "how about", "and", "or", "what about the")
     }
 
     /**
@@ -710,6 +764,9 @@ Rules:
         if (toolName == "list_free_slots") {
             var next = args
             relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            // Prefer weekday token over a model-invented wrong ISO when speech named a weekday.
+            weekdayTokenFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            partOfDayFromUserText(latestUserText)?.let { next = next + ("partOfDay" to it) }
             if (next["date"] == null) next = next + ("date" to "today")
             return next
         }
@@ -727,7 +784,9 @@ Rules:
         var next = args
         if (toolName == "propose_appointment" || toolName == "propose_reschedule") {
             relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            weekdayTokenFromUserText(latestUserText)?.let { next = next + ("date" to it) }
             timeFromUserText(latestUserText)?.let { next = next + ("time" to it) }
+            partOfDayFromUserText(latestUserText)?.let { next = next + ("partOfDay" to it) }
         }
         if (toolName == "open_patient_document" || toolName == "list_patient_documents") {
             documentQueryFromUserText(latestUserText)?.let { q ->
@@ -822,6 +881,39 @@ Rules:
         return when {
             Regex("""\b(tomorrow|завтра|ertaga|erta)\b""").containsMatchIn(t) -> "tomorrow"
             Regex("""\b(today|сегодня|bugun)\b""").containsMatchIn(t) -> "today"
+            else -> null
+        }
+    }
+
+    /** Pass weekday phrases through so resolveDateArg maps them — never trust model ISO for weekdays. */
+    private fun weekdayTokenFromUserText(text: String): String? {
+        val t = text.lowercase()
+        val nextWeek = Regex("""\b(next week|следующ|keyingi hafta)\b""").containsMatchIn(t)
+        val next = Regex("""\bnext\b""").containsMatchIn(t) || nextWeek
+        val day = when {
+            Regex("""\b(monday|понедельник|dushanba)\b""").containsMatchIn(t) -> "monday"
+            Regex("""\b(tuesday|вторник|seshanba)\b""").containsMatchIn(t) -> "tuesday"
+            Regex("""\b(wednesday|среда|chorshanba)\b""").containsMatchIn(t) -> "wednesday"
+            Regex("""\b(thursday|четверг|payshanba)\b""").containsMatchIn(t) -> "thursday"
+            Regex("""\b(friday|пятница|juma)\b""").containsMatchIn(t) -> "friday"
+            Regex("""\b(saturday|суббота|shanba)\b""").containsMatchIn(t) -> "saturday"
+            Regex("""\b(sunday|воскресенье|yakshanba)\b""").containsMatchIn(t) -> "sunday"
+            nextWeek -> "next week"
+            else -> null
+        } ?: return null
+        return when {
+            day == "next week" -> "next week"
+            next || nextWeek -> "next $day"
+            else -> day
+        }
+    }
+
+    private fun partOfDayFromUserText(text: String): String? {
+        val t = text.lowercase()
+        return when {
+            Regex("""\b(morning|утро|ertalab)\b""").containsMatchIn(t) -> "morning"
+            Regex("""\b(afternoon|после обеда|днём|днем|tushdan)\b""").containsMatchIn(t) -> "afternoon"
+            Regex("""\b(evening|вечер|kechqurun)\b""").containsMatchIn(t) -> "evening"
             else -> null
         }
     }

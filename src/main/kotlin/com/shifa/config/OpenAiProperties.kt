@@ -36,8 +36,8 @@ class OpenAiProperties {
     var maxRequestsPerMinute: Int = 600
     var promptVersion: String = "1"
 
-    /** OpenAI TTS model for doctor morning spoken replies. Prefer gpt-4o-mini-tts. */
-    var ttsModel: String = "gpt-4o-mini-tts"
-    /** OpenAI TTS voice (coral/nova work well; gpt-4o-mini-tts also supports marin, cedar, verse). */
-    var ttsVoice: String = "coral"
+    /** OpenAI TTS model for Intelligence spoken replies. Prefer fast tts-1 (latency over HD). */
+    var ttsModel: String = "tts-1"
+    /** OpenAI TTS voice for tts-1 (alloy/ash/coral/echo/fable/onyx/nova/sage/shimmer). */
+    var ttsVoice: String = "nova"
 }
