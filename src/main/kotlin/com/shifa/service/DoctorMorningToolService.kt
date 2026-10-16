@@ -37,7 +37,11 @@ class DoctorMorningToolService(
     private val patientDocumentService: PatientDocumentService,
 ) {
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
+    /** Compact labels on UI cards (ok to abbreviate months). */
     private val dateFmt = DateTimeFormatter.ofPattern("d MMM yyyy")
+    /** Full month names for spokenHint — TTS spells "Oct" as O-C-T. */
+    private val speakableDateFmt = DateTimeFormatter.ofPattern("d MMMM yyyy")
+    private val speakableDayDateFmt = DateTimeFormatter.ofPattern("EEEE, d MMMM")
     private val json = jacksonObjectMapper()
 
     /** Tools whose payloads should become UI cards on the client. */
@@ -48,6 +52,7 @@ class DoctorMorningToolService(
         return when (toolName) {
             "get_today_schedule" -> getTodaySchedule(doctor)
             "list_free_slots" -> listFreeSlots(doctor, args)
+            "list_patient_appointments" -> listPatientAppointments(doctor, args)
             "brief_patient" -> briefPatient(doctor, args)
             "get_clinic_patterns" -> getClinicPatterns(doctor)
             "get_most_visited_patients" -> getMostVisitedPatients(doctor, args)
@@ -144,13 +149,14 @@ class DoctorMorningToolService(
             else -> ""
         }
         // Keep card slots full; spokenHint stays short so TTS is not a time laundry list.
+        val spokenDay = speakableDayDate(date)
         val spokenHint = when {
             slots.isEmpty() ->
-                "You have no free$dayPartLabel slots on ${date.format(dateFmt)}."
+                "You have no free$dayPartLabel slots on $spokenDay."
             slots.size == 1 ->
-                "You have 1 free$dayPartLabel slot on ${date.format(dateFmt)}: ${times.first()}."
+                "You have 1 free$dayPartLabel slot on $spokenDay: ${times.first()}."
             else ->
-                "You have ${slots.size} free$dayPartLabel slots on ${date.format(dateFmt)}. Which time works?"
+                "You have ${slots.size} free$dayPartLabel slots on $spokenDay. Which time works?"
         }
         return mapOf(
             "cardType" to "free_slots",
@@ -160,6 +166,70 @@ class DoctorMorningToolService(
             "partOfDay" to partOfDay,
             "count" to slots.size,
             "slots" to slots,
+            "spokenHint" to spokenHint,
+        )
+    }
+
+    /**
+     * Booked appointments for one patient in a date range (this doctor).
+     * Use for "how many / which appointments with him next week" — not get_today_schedule.
+     */
+    @Transactional(readOnly = true)
+    fun listPatientAppointments(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
+        val patientId = (args["patientId"] as? Number)?.toLong()
+            ?: return mapOf(
+                "cardType" to "patient_appointments",
+                "error" to "patientId is required",
+                "spokenHint" to "Which patient should I check appointments for?",
+            )
+        val patient = patientProfileRepository.findById(patientId).orElse(null)
+            ?: return mapOf(
+                "cardType" to "patient_appointments",
+                "error" to "patient not found",
+                "spokenHint" to "I could not find that patient.",
+            )
+        val zone = zoneOf(doctor)
+        val range = resolveDateRange(args["date"] as? String, zone)
+        val start = range.start.atStartOfDay(zone).toInstant()
+        val end = range.endExclusive.atStartOfDay(zone).toInstant()
+        val appointments = appointmentRepository
+            .findByPatientIdAndDoctorIdOrderByStartAtDesc(patientId, doctor.id)
+            .filter { it.status.name != "CANCELLED" }
+            .filter { !it.startAt.isBefore(start) && it.startAt.isBefore(end) }
+            .sortedBy { it.startAt }
+
+        val patientName = patient.fullName.ifBlank { "this patient" }
+        val rows = appointments.map { a ->
+            val local = a.startAt.atZone(zone)
+            mapOf(
+                "appointmentId" to a.id,
+                "patientId" to patientId,
+                "patientName" to patientName,
+                "date" to local.toLocalDate().toString(),
+                "dateLabel" to local.format(dateFmt),
+                "dayOfWeek" to local.dayOfWeek.name,
+                "startLocal" to local.format(timeFmt),
+                "startAt" to a.startAt.toString(),
+                "status" to a.status.name,
+                "isVideo" to a.location.contains("video", ignoreCase = true),
+                "locationLabel" to a.location.takeIf { it.isNotBlank() },
+            )
+        }
+        val spokenHint = buildPatientAppointmentsHint(
+            patientName = patientName,
+            rangeSpoken = range.spokenLabel,
+            appointments = appointments,
+            zone = zone,
+        )
+        return mapOf(
+            "cardType" to "patient_appointments",
+            "patientId" to patientId,
+            "patientName" to patientName,
+            "rangeStart" to range.start.toString(),
+            "rangeEnd" to range.endExclusive.minusDays(1).toString(),
+            "rangeLabel" to range.cardLabel,
+            "count" to appointments.size,
+            "appointments" to rows,
             "spokenHint" to spokenHint,
         )
     }
@@ -190,10 +260,12 @@ class DoctorMorningToolService(
         }
 
         val lastVisitSummary = if (last != null) {
+            val local = last.startAt.atZone(zone)
             mapOf(
                 "appointmentId" to last.id,
-                "date" to last.startAt.atZone(zone).format(dateFmt),
-                "startLocal" to last.startAt.atZone(zone).format(timeFmt),
+                "date" to local.format(dateFmt),
+                "speakableDate" to speakableDate(local.toLocalDate()),
+                "startLocal" to local.format(timeFmt),
                 "reason" to (last.reason?.takeIf { it.isNotBlank() } ?: "not recorded"),
                 "type" to if (last.location.contains("video", ignoreCase = true)) "video" else "in-person",
             )
@@ -488,15 +560,16 @@ class DoctorMorningToolService(
             else -> allSlots.take(12)
         }
 
+        val spokenDay = speakableDayDate(date)
         val spokenHint = when {
             allSlots.isEmpty() ->
-                "No free slots on ${date.format(dateFmt)} (${date.dayOfWeek}) for ${patient.fullName}. Please choose another day."
+                "No free slots on $spokenDay for ${patient.fullName}. Please choose another day."
             preferredTime != null && preferredSlot == null ->
-                "${preferredTime.format(timeFmt)} is not free for ${patient.fullName} on ${date.format(dateFmt)}. Here are other open times."
+                "${preferredTime.format(timeFmt)} is not free for ${patient.fullName} on $spokenDay. Here are other open times."
             preferredSlot != null ->
-                "Booking ${patient.fullName} at ${preferredSlot["startLocal"]} on ${date.format(dateFmt)} (${date.dayOfWeek})."
+                "Booking ${patient.fullName} at ${preferredSlot["startLocal"]} on $spokenDay."
             else ->
-                "I found ${slots.size} free slots on ${date.format(dateFmt)} (${date.dayOfWeek}) for ${patient.fullName}. Which time works?"
+                "I found ${slots.size} free slots on $spokenDay for ${patient.fullName}. Which time works?"
         }
 
         return mapOf(
@@ -505,6 +578,7 @@ class DoctorMorningToolService(
             "patientName" to patient.fullName.ifBlank { "Patient" },
             "date" to date.toString(),
             "dateLabel" to date.format(dateFmt),
+            "speakableDateLabel" to spokenDay,
             "dayOfWeek" to date.dayOfWeek.name,
             "isVideo" to isVideo,
             "reason" to (args["reason"] as? String),
@@ -579,19 +653,20 @@ class DoctorMorningToolService(
             "currentDateLabel" to currentLocal.format(dateFmt),
             "date" to date.toString(),
             "dateLabel" to date.format(dateFmt),
+            "speakableDateLabel" to speakableDayDate(date),
             "requestedTime" to preferredTime?.format(timeFmt),
             "preferredSlot" to preferredSlot,
             "autoConfirm" to (preferredSlot != null),
             "slots" to slots,
             "spokenHint" to when {
                 allSlots.isEmpty() ->
-                    "No free slots on ${date.format(dateFmt)} to move $patientName. Please choose another day."
+                    "No free slots on ${speakableDayDate(date)} to move $patientName. Please choose another day."
                 preferredTime != null && preferredSlot == null ->
-                    "${preferredTime.format(timeFmt)} is not free on ${date.format(dateFmt)}. Here are other open times."
+                    "${preferredTime.format(timeFmt)} is not free on ${speakableDayDate(date)}. Here are other open times."
                 preferredSlot != null ->
-                    "Moving $patientName to ${preferredSlot["startLocal"]} on ${date.format(dateFmt)}."
+                    "Moving $patientName to ${preferredSlot["startLocal"]} on ${speakableDayDate(date)}."
                 else ->
-                    "$patientName is currently at ${currentLocal.format(dateFmt)} ${currentLocal.format(timeFmt)}. Which new time?"
+                    "$patientName is currently at ${speakableDayDate(currentLocal.toLocalDate())} ${currentLocal.format(timeFmt)}. Which new time?"
             },
         )
     }
@@ -844,7 +919,9 @@ class DoctorMorningToolService(
             ?: "permanent"
         val toothCounts = toothServiceCountsFromDocumentation(documentation)
         val marked = toothCounts.values.count { it > 0 }
-        val dateLabel = target.startAt.atZone(zoneOf(doctor)).format(dateFmt)
+        val visitDate = target.startAt.atZone(zoneOf(doctor)).toLocalDate()
+        val dateLabel = visitDate.format(dateFmt)
+        val spokenDay = speakableDayDate(visitDate)
 
         return mapOf(
             "cardType" to "dental_chart",
@@ -858,11 +935,11 @@ class DoctorMorningToolService(
             "notes" to (documentation["notes"] as? String),
             "spokenHint" to when {
                 marked == 0 ->
-                    "Here is the dental diagram for $patientName from $dateLabel."
+                    "Here is the dental diagram for $patientName from $spokenDay."
                 marked == 1 ->
-                    "Here is the dental diagram for $patientName from $dateLabel — 1 tooth has recorded services."
+                    "Here is the dental diagram for $patientName from $spokenDay — 1 tooth has recorded services."
                 else ->
-                    "Here is the dental diagram for $patientName from $dateLabel — $marked teeth have recorded services."
+                    "Here is the dental diagram for $patientName from $spokenDay — $marked teeth have recorded services."
             },
         )
     }
@@ -918,11 +995,20 @@ class DoctorMorningToolService(
             .replace(Regex("""\s+"""), " ")
             .trim()
         val today = LocalDate.now(zone)
+        // "End of next week" → Friday of next calendar week (clinic default), not Monday.
+        if (t.contains("end of next week") ||
+            (t.contains("end of the week") && (t.contains("next") || t.contains("следующ") || t.contains("keyingi"))) ||
+            (t.contains("end of") && t.contains("next week"))
+        ) {
+            return fridayOfNextWeek(today)
+        }
         when (t) {
             "today", "сегодня", "bugun" -> return today
             "tomorrow", "завтра", "ertaga", "erta" -> return today.plusDays(1)
             "next week", "следующей неделе", "на следующей неделе", "keyingi hafta" ->
                 return today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
+            "this week", "этой неделе", "на этой неделе", "shu hafta" ->
+                return today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
         }
         weekdayFromText(t)?.let { dow ->
             val preferNextWeek = t.contains("next week") ||
@@ -939,6 +1025,84 @@ class DoctorMorningToolService(
         } catch (_: Exception) {
             null
         }
+    }
+
+    /** Inclusive start / exclusive end for patient appointment listing. */
+    private data class DateRangeWindow(
+        val start: LocalDate,
+        val endExclusive: LocalDate,
+        val cardLabel: String,
+        val spokenLabel: String,
+    )
+
+    private fun resolveDateRange(raw: String?, zone: ZoneId): DateRangeWindow {
+        val today = LocalDate.now(zone)
+        val t = raw?.trim()?.lowercase()
+            ?.replace(',', ' ')
+            ?.replace(Regex("""\s+"""), " ")
+            ?.trim()
+            .orEmpty()
+        val isNextWeek = t.contains("next week") ||
+            (t.contains("следующ") && t.contains("недел")) ||
+            t.contains("keyingi hafta")
+        // Full next Mon–Sun. "End of next week" is a single Friday via resolveDateArg.
+        if (isNextWeek && !t.contains("end of")) {
+            val start = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
+            return DateRangeWindow(
+                start = start,
+                endExclusive = start.plusWeeks(1),
+                cardLabel = "Next week (${start.format(dateFmt)} – ${start.plusDays(6).format(dateFmt)})",
+                spokenLabel = "next week",
+            )
+        }
+        if (t.contains("this week") || t.contains("этой неделе") || t.contains("shu hafta")) {
+            val start = today.with(java.time.temporal.TemporalAdjusters.previousOrSame(java.time.DayOfWeek.MONDAY))
+            return DateRangeWindow(
+                start = start,
+                endExclusive = start.plusWeeks(1),
+                cardLabel = "This week (${start.format(dateFmt)} – ${start.plusDays(6).format(dateFmt)})",
+                spokenLabel = "this week",
+            )
+        }
+        val day = resolveDateArg(raw, zone) ?: today
+        return DateRangeWindow(
+            start = day,
+            endExclusive = day.plusDays(1),
+            cardLabel = day.format(dateFmt),
+            spokenLabel = speakableDayDate(day),
+        )
+    }
+
+    private fun fridayOfNextWeek(today: LocalDate): LocalDate {
+        val nextMonday = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
+        return nextMonday.plusDays(4) // Friday
+    }
+
+    private fun speakableDate(date: LocalDate): String = date.format(speakableDateFmt)
+
+    private fun speakableDayDate(date: LocalDate): String = date.format(speakableDayDateFmt)
+
+    private fun buildPatientAppointmentsHint(
+        patientName: String,
+        rangeSpoken: String,
+        appointments: List<com.shifa.domain.Appointment>,
+        zone: ZoneId,
+    ): String {
+        if (appointments.isEmpty()) {
+            return "You have no appointments with $patientName $rangeSpoken."
+        }
+        val count = appointments.size
+        val base = if (count == 1) {
+            "You have 1 appointment with $patientName $rangeSpoken"
+        } else {
+            "You have $count appointments with $patientName $rangeSpoken"
+        }
+        val details = appointments.take(4).joinToString("; ") { a ->
+            val local = a.startAt.atZone(zone)
+            "${local.dayOfWeek.name.lowercase().replaceFirstChar { it.titlecase() }} at ${local.format(timeFmt)}"
+        }
+        val more = if (appointments.size > 4) ", and more" else ""
+        return "$base: $details$more."
     }
 
     private fun weekdayFromText(t: String): java.time.DayOfWeek? {
@@ -1014,10 +1178,19 @@ class DoctorMorningToolService(
         if (count == 0) return "You have no appointments today."
         val base = if (count == 1) "You have 1 appointment today." else "You have $count appointments today."
         if (nextName == null || minutesUntil == null) return base
+        val whenPhrase = when {
+            minutesUntil <= 0 -> "is starting now"
+            minutesUntil == 1L -> "in about 1 minute"
+            minutesUntil < 60 -> "in about $minutesUntil minutes"
+            minutesUntil < 120 -> "in about 1 hour"
+            else -> {
+                val hours = (minutesUntil + 30) / 60
+                "in about $hours hours"
+            }
+        }
         return when {
-            minutesUntil <= 0 -> "$base The next one with $nextName is starting now."
-            minutesUntil == 1L -> "$base The first is with $nextName in about 1 minute."
-            else -> "$base The first is with $nextName in about $minutesUntil minutes."
+            minutesUntil <= 0 -> "$base The next one with $nextName $whenPhrase."
+            else -> "$base The first is with $nextName $whenPhrase."
         }
     }
 
@@ -1030,7 +1203,8 @@ class DoctorMorningToolService(
         val fromBrief = spokenSummaryFromBriefing(briefingText)
         if (fromBrief != null) {
             val visitBit = lastVisit?.let {
-                " Last visit ${it["date"]} at ${it["startLocal"]}."
+                val d = it["speakableDate"] ?: it["date"]
+                " Last visit $d at ${it["startLocal"]}."
             }.orEmpty()
             return fromBrief + visitBit
         }
@@ -1042,7 +1216,8 @@ class DoctorMorningToolService(
             parts += "You have seen them $visitCount times."
         }
         lastVisit?.let {
-            parts += "Last visit was on ${it["date"]} at ${it["startLocal"]}. Reason: ${it["reason"]}."
+            val d = it["speakableDate"] ?: it["date"]
+            parts += "Last visit was on $d at ${it["startLocal"]}. Reason: ${it["reason"]}."
         }
         val complaints = timeline.filter {
             it.factType == PatientVisitFact.FactType.SYMPTOM || it.factType == PatientVisitFact.FactType.DIAGNOSIS
@@ -1095,6 +1270,7 @@ class DoctorMorningToolService(
         private val CARD_TOOLS = setOf(
             "get_today_schedule",
             "list_free_slots",
+            "list_patient_appointments",
             "search_patients",
             "propose_appointment",
             "propose_reschedule",

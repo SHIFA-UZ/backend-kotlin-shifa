@@ -348,12 +348,14 @@ LANGUAGE (MANDATORY):
 
 ANSWER ONLY WHAT WAS ASKED (STRICT):
 - Free slots / open times / availability → call list_free_slots. Do NOT call get_today_schedule. Do NOT mention booked appointments unless asked.
-- Today's schedule / who is next / how many visits → call get_today_schedule. Do NOT list free slots unless asked.
+- Today's clinic schedule / who is next / how many visits TODAY (no patient named) → call get_today_schedule. Do NOT list free slots unless asked.
+- How many / which appointments WITH a patient (him/her/focus) this week / next week / on a day → call list_patient_appointments. Do NOT call get_today_schedule for that.
 - Never volunteer today's schedule when the doctor asked for free slots (or the reverse).
 
 You help with:
 - Free / open bookable slots (list_free_slots) — use for "free slots", "available times", "when am I free"
-- Today's booked schedule (get_today_schedule) — ONLY when the doctor asks what is on today / their schedule / who is next
+- Today's booked clinic schedule (get_today_schedule) — ONLY when the doctor asks what is on today / their schedule / who is next (whole clinic, not one patient)
+- A patient's booked visits in a period (list_patient_appointments) — "how many appointments with him next week", "his visits this week"
 - Finding patients by name (search_patients) — never invent a patientId. If the tool returns fuzzy suggestions, ask "Did you mean …?" and wait for the doctor to confirm before booking.
 - Proposing a new appointment (propose_appointment) after patientId and date are known
 - Proposing a reschedule (propose_reschedule) for an upcoming visit
@@ -397,8 +399,26 @@ Rules:
             "type" to "function",
             "function" to mapOf(
                 "name" to "get_today_schedule",
-                "description" to "Get today's BOOKED appointment list. Use ONLY when the doctor asks about today's schedule / how many visits / who is next. Never use for free/open slots. Never use while naming a patient to book a NEW appointment.",
+                "description" to "Get today's BOOKED clinic schedule. Use ONLY when the doctor asks about today's schedule / how many visits today / who is next — with NO specific patient. Never use for free/open slots. Never use for 'appointments with him/her next week'. Never use while naming a patient to book a NEW appointment.",
                 "parameters" to mapOf("type" to "object", "properties" to emptyMap<String, Any>()),
+            ),
+        ),
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "list_patient_appointments",
+                "description" to "List BOOKED appointments for one patient in a date range (this doctor). Use when the doctor asks how many / which appointments with a patient this week, next week, or on a day. Do NOT use get_today_schedule for patient+period questions.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "patientId" to mapOf("type" to "integer"),
+                        "date" to mapOf(
+                            "type" to "string",
+                            "description" to "next week / this week / today / tomorrow / weekday / ISO. Defaults to this week.",
+                        ),
+                    ),
+                    "required" to listOf("patientId"),
+                ),
             ),
         ),
         mapOf(
@@ -411,7 +431,7 @@ Rules:
                     "properties" to mapOf(
                         "date" to mapOf(
                             "type" to "string",
-                            "description" to "today / tomorrow / ISO YYYY-MM-DD. Defaults to today.",
+                            "description" to "today / tomorrow / end of next week / weekday / ISO YYYY-MM-DD. Defaults to today.",
                         ),
                     ),
                 ),
@@ -603,6 +623,10 @@ Rules:
             return "$base FREE SLOTS REQUEST: call list_free_slots with the requested day (default today). " +
                 "Do NOT call get_today_schedule. Do NOT mention booked appointments."
         }
+        if (asksForPatientAppointments(latest)) {
+            return "$base PATIENT APPOINTMENTS REQUEST: call list_patient_appointments with Focus patientId " +
+                "and date=next week / this week / the day they named. Do NOT call get_today_schedule."
+        }
         if (!conversationHasBookingIntent(messages)) return base
         if (looksLikeCalendarOrDateReply(latest)) {
             return "$base BOOKING IN PROGRESS: the doctor named a day/time or corrected the calendar. " +
@@ -771,6 +795,24 @@ Rules:
             return next
         }
 
+        if (toolName == "list_patient_appointments") {
+            var next = args
+            relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            weekdayTokenFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            if (next["date"] == null) next = next + ("date" to "this week")
+            val modelPatientId = (next["patientId"] as? Number)?.toLong()
+            val resolvedPatientId = when {
+                searchedPatientIds.size == 1 -> searchedPatientIds.first()
+                modelPatientId != null && modelPatientId in searchedPatientIds -> modelPatientId
+                focusPatientId != null -> focusPatientId
+                else -> modelPatientId
+            }
+            if (resolvedPatientId != null) {
+                next = next + ("patientId" to resolvedPatientId)
+            }
+            return next
+        }
+
         val needsPatientId = toolName in setOf(
             "propose_appointment",
             "propose_reschedule",
@@ -888,7 +930,16 @@ Rules:
     /** Pass weekday phrases through so resolveDateArg maps them — never trust model ISO for weekdays. */
     private fun weekdayTokenFromUserText(text: String): String? {
         val t = text.lowercase()
+        // Prefer "end of next week" over bare "next week" (Monday).
+        if (Regex("""\bend of (the )?next week\b""").containsMatchIn(t) ||
+            Regex("""\bend of next week\b""").containsMatchIn(t) ||
+            (Regex("""\bend of the week\b""").containsMatchIn(t) &&
+                Regex("""\b(next|следующ|keyingi)\b""").containsMatchIn(t))
+        ) {
+            return "end of next week"
+        }
         val nextWeek = Regex("""\b(next week|следующ|keyingi hafta)\b""").containsMatchIn(t)
+        val thisWeek = Regex("""\b(this week|этой неделе|shu hafta)\b""").containsMatchIn(t)
         val next = Regex("""\bnext\b""").containsMatchIn(t) || nextWeek
         val day = when {
             Regex("""\b(monday|понедельник|dushanba)\b""").containsMatchIn(t) -> "monday"
@@ -899,13 +950,39 @@ Rules:
             Regex("""\b(saturday|суббота|shanba)\b""").containsMatchIn(t) -> "saturday"
             Regex("""\b(sunday|воскресенье|yakshanba)\b""").containsMatchIn(t) -> "sunday"
             nextWeek -> "next week"
+            thisWeek -> "this week"
             else -> null
         } ?: return null
         return when {
             day == "next week" -> "next week"
+            day == "this week" -> "this week"
             next || nextWeek -> "next $day"
             else -> day
         }
+    }
+
+    /** "How many appointments with him next week" — not today's clinic schedule. */
+    private fun asksForPatientAppointments(text: String): Boolean {
+        val t = text.lowercase()
+        val aboutPatient = Regex(
+            """\b(with him|with her|with them|with this patient|for him|for her|""" +
+                """с ним|с ней|у него|у неё|у нее|bilan|unga)\b""",
+        ).containsMatchIn(t) ||
+            Regex("""\b(his|her|their)\s+(appointments?|visits?|bookings?)\b""").containsMatchIn(t)
+        val aboutCountOrList = Regex(
+            """\b(how many|how much|which|list|show|appointments?|visits?|bookings?|""" +
+                """сколько|какие|учрашув|qabul)\b""",
+        ).containsMatchIn(t)
+        val period = Regex(
+            """\b(next week|this week|tomorrow|today|monday|tuesday|wednesday|thursday|friday|""" +
+                """следующ|этой неделе|keyingi hafta|shu hafta)\b""",
+        ).containsMatchIn(t)
+        // Explicit patient+period appointment question
+        if (aboutPatient && aboutCountOrList) return true
+        if (aboutPatient && period && Regex("""\b(appointments?|visits?|bookings?)\b""").containsMatchIn(t)) {
+            return true
+        }
+        return false
     }
 
     private fun partOfDayFromUserText(text: String): String? {
