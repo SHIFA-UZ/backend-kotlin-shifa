@@ -143,14 +143,14 @@ class DoctorMorningToolService(
             "evening", "вечер", "kechqurun" -> " evening"
             else -> ""
         }
+        // Keep card slots full; spokenHint stays short so TTS is not a time laundry list.
         val spokenHint = when {
             slots.isEmpty() ->
                 "You have no free$dayPartLabel slots on ${date.format(dateFmt)}."
             slots.size == 1 ->
                 "You have 1 free$dayPartLabel slot on ${date.format(dateFmt)}: ${times.first()}."
             else ->
-                "You have ${slots.size} free$dayPartLabel slots on ${date.format(dateFmt)}: ${times.take(12).joinToString(", ")}" +
-                    if (times.size > 12) ", and more." else "."
+                "You have ${slots.size} free$dayPartLabel slots on ${date.format(dateFmt)}. Which time works?"
         }
         return mapOf(
             "cardType" to "free_slots",
