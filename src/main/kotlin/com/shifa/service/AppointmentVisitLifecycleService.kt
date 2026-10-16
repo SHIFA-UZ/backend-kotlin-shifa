@@ -33,6 +33,7 @@ class AppointmentVisitLifecycleService(
     private val treatmentPlanStatusService: TreatmentPlanStatusService,
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
     private val scribePipelineService: ScribePipelineService,
+    private val scribeRecordingService: ScribeRecordingService,
     private val clock: Clock,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -46,6 +47,12 @@ class AppointmentVisitLifecycleService(
         val note: ConsultationNote,
         val appointment: Appointment,
         val appended: Boolean,
+    )
+
+    data class CompletionFollowUp(
+        val scribePending: Boolean,
+        val hasDocumentation: Boolean,
+        val hasScribeNote: Boolean,
     )
 
     fun isVideo(appointment: Appointment): Boolean =
@@ -64,15 +71,16 @@ class AppointmentVisitLifecycleService(
      */
     @Transactional
     fun markNoShowIfDue(appointment: Appointment): Appointment {
+        val current = appointments.findByIdForUpdate(appointment.id).orElse(appointment)
         val now = clock.instant()
-        if (appointment.status != Appointment.Status.REQUESTED &&
-            appointment.status != Appointment.Status.CONFIRMED
+        if (current.status != Appointment.Status.REQUESTED &&
+            current.status != Appointment.Status.CONFIRMED
         ) {
-            return appointment
+            return current
         }
-        if (!appointment.startAt.isBefore(now.minus(NO_SHOW_AFTER))) return appointment
-        appointment.status = Appointment.Status.NO_SHOW
-        return appointments.save(appointment)
+        if (!current.startAt.isBefore(now.minus(NO_SHOW_AFTER))) return current
+        current.status = Appointment.Status.NO_SHOW
+        return appointments.save(current)
     }
 
     fun canStartNonVideo(appointment: Appointment, doctor: DoctorProfile): String? {
@@ -99,9 +107,8 @@ class AppointmentVisitLifecycleService(
 
     @Transactional
     fun start(doctor: DoctorProfile, appointmentId: Long): Outcome {
-        val appointment = appointments.findById(appointmentId).orElse(null)
+        val appointment = loadOwned(doctor, appointmentId)
             ?: return Outcome.Failed("I could not find that visit.")
-        if (appointment.doctor.id != doctor.id) return Outcome.Failed("I could not find that visit.")
         val refreshed = markNoShowIfDue(appointment)
         if (refreshed.status == Appointment.Status.NO_SHOW) {
             return Outcome.Failed(
@@ -120,9 +127,8 @@ class AppointmentVisitLifecycleService(
 
     @Transactional
     fun completeFromIntelligence(doctor: DoctorProfile, appointmentId: Long): Outcome {
-        val appointment = appointments.findById(appointmentId).orElse(null)
+        val appointment = loadOwned(doctor, appointmentId)
             ?: return Outcome.Failed("I could not find that visit.")
-        if (appointment.doctor.id != doctor.id) return Outcome.Failed("I could not find that visit.")
         if (appointment.status == Appointment.Status.COMPLETED) {
             return Outcome.Ok(appointment, "That visit is already completed.")
         }
@@ -131,30 +137,7 @@ class AppointmentVisitLifecycleService(
         }
         appointment.status = Appointment.Status.COMPLETED
         val saved = appointments.save(appointment)
-        try {
-            treatmentPlanStatusService.maybeAutoCompletePlansForAppointment(appointmentId)
-        } catch (_: Exception) {
-        }
-        try {
-            aiDraftNoteService.confirmGeneratedScribeDrafts(
-                appointmentId,
-                doctor.id,
-                ScribePipelineService.SCRIBE_LABEL,
-            )
-        } catch (e: Exception) {
-            log.warn("Could not auto-confirm scribe drafts on intelligence complete for {}: {}", appointmentId, e.message)
-        }
-        try {
-            appointmentDocumentationService.generateForAppointment(appointmentId)
-        } catch (e: Exception) {
-            log.warn("Could not generate documentation on intelligence complete for {}: {}", appointmentId, e.message)
-        }
-        try {
-            if (!scribePipelineService.isScribeInFlight(appointmentId)) {
-                visitSummaryService.enqueueGeneration(appointmentId, appointment.patient.language, force = false)
-            }
-        } catch (_: Exception) {
-        }
+        applyCompletionFollowUp(saved, awaitingScribe = false)
         val verified = appointments.findById(appointmentId).orElse(saved)
         return if (verified.status == Appointment.Status.COMPLETED) {
             Outcome.Ok(verified)
@@ -163,35 +146,118 @@ class AppointmentVisitLifecycleService(
         }
     }
 
+    /**
+     * Shared post-complete work for the appointment API and Intelligence.
+     * A failure here does not roll the visit back from COMPLETED.
+     * Repeat calls can generate another documentation PDF; Intelligence skips this
+     * when the visit is already completed.
+     */
+    @Transactional
+    fun applyCompletionFollowUp(appointment: Appointment, awaitingScribe: Boolean): CompletionFollowUp {
+        val appointmentId = appointment.id
+        try {
+            treatmentPlanStatusService.maybeAutoCompletePlansForAppointment(appointmentId)
+        } catch (_: Exception) {
+        }
+        try {
+            aiDraftNoteService.confirmGeneratedScribeDrafts(
+                appointmentId,
+                appointment.doctor.id,
+                ScribePipelineService.SCRIBE_LABEL,
+            )
+        } catch (e: Exception) {
+            log.warn("Could not auto-confirm scribe drafts on complete for {}: {}", appointmentId, e.message)
+        }
+
+        var scribePending = awaitingScribe
+        val roomName = "appointment-$appointmentId"
+        var startedScribePipeline = false
+        try {
+            val recordings = scribeRecordingService.listRecordingsForRoom(roomName)
+            if (recordings.isNotEmpty()) {
+                val alreadyHasScribe = aiDraftNoteService.hasActiveScribeDraft(
+                    appointmentId,
+                    ScribePipelineService.SCRIBE_LABEL,
+                )
+                val finished = recordings.firstOrNull { rec ->
+                    rec.status.equals("finished", ignoreCase = true) ||
+                        rec.status.equals("ready-to-download", ignoreCase = true)
+                }
+                val inFlight = scribePipelineService.isScribeInFlight(appointmentId)
+                if (finished != null && !alreadyHasScribe && !inFlight) {
+                    scribePipelineService.processVideoRecording(roomName, finished.id)
+                    startedScribePipeline = true
+                }
+                if (!alreadyHasScribe) {
+                    scribePending = true
+                }
+            }
+        } catch (e: Exception) {
+            log.warn("Could not inspect Daily recordings for appointment {}: {}", appointmentId, e.message)
+        }
+
+        try {
+            appointmentDocumentationService.generateForAppointment(appointmentId)
+        } catch (e: Exception) {
+            log.warn("Could not generate appointment documentation on complete for {}: {}", appointmentId, e.message)
+        }
+
+        val status = appointmentDocumentationService.statusFor(appointmentId)
+        if (status.hasScribeNote) {
+            scribePending = false
+        }
+        if (!scribePending && !startedScribePipeline && !scribePipelineService.isScribeInFlight(appointmentId)) {
+            try {
+                visitSummaryService.enqueueGeneration(appointmentId, appointment.patient.language, force = false)
+            } catch (_: Exception) {
+            }
+        }
+        return CompletionFollowUp(
+            scribePending = scribePending,
+            hasDocumentation = status.hasDocumentation,
+            hasScribeNote = status.hasScribeNote,
+        )
+    }
+
     @Transactional
     fun requestSignature(doctor: DoctorProfile, appointmentId: Long): Outcome {
-        val appointment = appointments.findById(appointmentId).orElse(null)
+        val appointment = loadOwned(doctor, appointmentId)
             ?: return Outcome.Failed("I could not find that visit.")
-        if (appointment.doctor.id != doctor.id) return Outcome.Failed("I could not find that visit.")
         return requestSignature(appointment)
     }
 
     /** Caller must already enforce clinic or doctor access. */
     @Transactional
     fun requestSignature(appointment: Appointment): Outcome {
-        when (appointment.status) {
+        val current = appointments.findByIdForUpdate(appointment.id).orElse(appointment)
+        when (current.status) {
             Appointment.Status.CANCELLED -> return Outcome.Failed("That visit was cancelled.")
             Appointment.Status.NO_SHOW -> return Outcome.Failed("That visit was marked as a no-show.")
             else -> Unit
         }
-        appointment.signatureRequested = true
-        val saved = appointments.save(appointment)
+        if (current.patientSignedAt != null) {
+            return Outcome.Ok(current, "The patient has already signed.")
+        }
+        if (current.signatureRequested) {
+            return Outcome.Ok(current, "A signature was already requested. I did not send another notification.")
+        }
+        current.signatureRequested = true
+        val saved = appointments.save(current)
         val doctorName =
-            "${appointment.doctor.firstName} ${appointment.doctor.lastName}".trim().ifEmpty { "Doctor" }
+            "${current.doctor.firstName} ${current.doctor.lastName}".trim().ifEmpty { "Doctor" }
         val notif = Notification(
-            patient = appointment.patient,
+            patient = current.patient,
             title = "Signature Requested",
             message = "Dr. $doctorName is requesting your signature for the appointment summary.",
             type = Notification.Type.SIGNATURE_REQUESTED,
-            appointmentId = appointment.id,
+            appointmentId = current.id,
         )
         val savedNotif = notifications.save(notif)
-        appointment.patient.fcmToken?.let { fcmService.sendPatientNotification(it, savedNotif) }
+        try {
+            current.patient.fcmToken?.let { fcmService.sendPatientNotification(it, savedNotif) }
+        } catch (e: Exception) {
+            log.warn("Signature request saved but push failed for {}: {}", current.id, e.message)
+        }
         return Outcome.Ok(saved, "Signature requested. The patient was notified in the app.")
     }
 
@@ -208,19 +274,23 @@ class AppointmentVisitLifecycleService(
         val addition = text.trim()
         if (addition.isEmpty()) return null
         require(addition.length <= MAX_NOTE_CHARS) { "That note is too long." }
-        val appointment = appointments.findById(appointmentId).orElse(null)
-            ?: return null
-        if (appointment.doctor.id != doctor.id) return null
+        val appointment = loadOwned(doctor, appointmentId) ?: return null
         val patientId = appointment.patient.id ?: return null
         when (appointment.status) {
             Appointment.Status.CANCELLED, Appointment.Status.NO_SHOW ->
                 throw IllegalStateException("I can't add notes to a cancelled or no-show visit.")
             else -> Unit
         }
+        if (appointment.patientSignedAt != null) {
+            throw IllegalStateException("The patient has already signed this visit. I can't change the consultation note.")
+        }
         val existing = consultationNotes.findByAppointmentIdOrderByCreatedAtAsc(appointmentId)
             .lastOrNull { it.doctorId == doctor.id }
         if (existing != null) {
             val current = existing.body?.trim().orEmpty()
+            if (current == addition || current.endsWith("\n\n$addition")) {
+                return NoteOutcome(existing, appointment, appended = false)
+            }
             val combined = if (current.isEmpty()) addition else current + "\n\n" + addition
             require(combined.length <= MAX_NOTE_CHARS) { "That note is too long." }
             existing.body = combined
@@ -280,6 +350,12 @@ class AppointmentVisitLifecycleService(
         val startDay = appointment.startAt.atZone(zone).toLocalDate()
         val today = LocalDate.now(clock.withZone(zone))
         return startDay == today || startDay == today.plusDays(1)
+    }
+
+    private fun loadOwned(doctor: DoctorProfile, appointmentId: Long): Appointment? {
+        val appointment = appointments.findByIdForUpdate(appointmentId).orElse(null) ?: return null
+        if (appointment.doctor.id != doctor.id) return null
+        return appointment
     }
 
     companion object {

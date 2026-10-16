@@ -297,9 +297,13 @@ class AppointmentActionService(
                 )
             openCard(outcome.appointment, zone, "documentation") + mapOf(
                 "noteId" to outcome.note.id,
-                "saved" to true,
+                "saved" to outcome.appended,
                 "signatureRequested" to false,
-                "spokenHint" to "I added that to the consultation note. Say when you want to request the patient's signature.",
+                "spokenHint" to if (outcome.appended) {
+                    "I added that to the consultation note. Say when you want to request the patient's signature."
+                } else {
+                    "That is already in the consultation note."
+                },
             )
         } catch (ex: IllegalArgumentException) {
             mapOf(

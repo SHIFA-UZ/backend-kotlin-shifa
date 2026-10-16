@@ -1,8 +1,10 @@
 package com.shifa.repo
 
 import com.shifa.domain.Appointment
+import jakarta.persistence.LockModeType
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
+import org.springframework.data.jpa.repository.Lock
 import org.springframework.data.jpa.repository.Modifying
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -17,6 +19,11 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
      */
     @Query("SELECT a FROM Appointment a LEFT JOIN FETCH a.doctor LEFT JOIN FETCH a.patient WHERE a.id = :id")
     fun findByIdWithDoctorAndPatient(@Param("id") id: Long): Optional<Appointment>
+
+    /** Row lock so start, no-show, complete, and signature cannot pass each other. */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT a FROM Appointment a WHERE a.id = :id")
+    fun findByIdForUpdate(@Param("id") id: Long): Optional<Appointment>
 
     /**
      * Hard delete all appointments for a doctor (admin calendar reset).

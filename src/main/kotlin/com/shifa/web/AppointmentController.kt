@@ -16,16 +16,12 @@ import com.shifa.service.AppointmentVisitLifecycleService
 import com.shifa.i18n.PatientPaymentPushI18n
 import com.shifa.service.FcmService
 import com.shifa.service.ClinicalRagIndexingService
-import com.shifa.service.PatientVisitAiSummaryService
 import com.shifa.service.SlotAvailabilityService
-import com.shifa.service.TreatmentPlanStatusService
 import com.shifa.repo.TreatmentPlanAppointmentLinkRepository
 import com.shifa.repo.TreatmentPlanLineFulfillmentRepository
 import com.shifa.service.TreatmentPlanFulfillmentService
 import com.shifa.service.VisitChargeService
 import com.shifa.service.ScribePipelineService
-import com.shifa.service.ScribeRecordingService
-import com.shifa.service.AiDraftNoteService
 import com.shifa.service.AppointmentDocumentationService
 import com.shifa.domain.ConsultationNote
 import org.slf4j.LoggerFactory
@@ -46,21 +42,17 @@ class AppointmentController(
     private val aiDraftNoteRepo: AiDraftNoteRepository,
     private val fcmService: FcmService,
     private val objectMapper: ObjectMapper,
-    private val visitSummaryService: PatientVisitAiSummaryService,
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
     private val clinicAccess: ClinicAccessService,
     private val visitChargeService: VisitChargeService,
     private val fulfillmentService: TreatmentPlanFulfillmentService,
     private val planLinks: TreatmentPlanAppointmentLinkRepository,
     private val lineFulfillments: TreatmentPlanLineFulfillmentRepository,
-    private val treatmentPlanStatusService: TreatmentPlanStatusService,
     private val slotAvailabilityService: SlotAvailabilityService,
     private val appointmentCancellationService: AppointmentCancellationService,
     private val appointmentVisitLifecycleService: AppointmentVisitLifecycleService,
     private val appointmentBriefingService: com.shifa.service.AppointmentBriefingService,
     private val scribePipelineService: ScribePipelineService,
-    private val scribeRecordingService: ScribeRecordingService,
-    private val aiDraftNoteService: AiDraftNoteService,
     private val appointmentDocumentationService: AppointmentDocumentationService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -453,6 +445,14 @@ class AppointmentController(
 
         clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
 
+        when (appointment.status) {
+            Appointment.Status.CANCELLED ->
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot complete a cancelled appointment")
+            Appointment.Status.NO_SHOW ->
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot complete a no-show appointment")
+            else -> Unit
+        }
+
         val charges = body?.visitCharges
         val cid = body?.clinicId
         if (!charges.isNullOrEmpty() && cid != null) {
@@ -482,6 +482,12 @@ class AppointmentController(
         }
 
         val doctorNotes = body?.doctorNotes?.trim().orEmpty()
+        if (!wasAlreadyCompleted && doctorNotes.isNotEmpty() && appointment.patientSignedAt != null) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "The patient has already signed this visit. I can't change the consultation note.",
+            )
+        }
         if (!wasAlreadyCompleted && doctorNotes.isNotEmpty()) {
             val patientId = appointment.patient.id
                 ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment has no patient")
@@ -500,78 +506,15 @@ class AppointmentController(
         appointment.status = Appointment.Status.COMPLETED
         appts.save(appointment)
 
-        // If every non-cancelled line on any linked treatment plan is complete,
-        // promote that plan to COMPLETED. The service runs in its own
-        // REQUIRES_NEW transaction and swallows errors, so it cannot block or
-        // roll back this completion call.
-        try {
-            treatmentPlanStatusService.maybeAutoCompletePlansForAppointment(appointmentId)
-        } catch (_: Exception) {
-            // Best-effort: appointment completion must not fail because the
-            // plan-status follow-up failed.
-        }
-
-        var scribePending = body?.awaitingScribe == true
-        try {
-            aiDraftNoteService.confirmGeneratedScribeDrafts(
-                appointmentId,
-                appointment.doctor.id,
-                ScribePipelineService.SCRIBE_LABEL,
-            )
-        } catch (e: Exception) {
-            log.warn("Could not auto-confirm scribe drafts on complete for {}: {}", appointmentId, e.message)
-        }
-
-        val roomName = "appointment-$appointmentId"
-        var startedScribePipeline = false
-        try {
-            val recordings = scribeRecordingService.listRecordingsForRoom(roomName)
-            if (recordings.isNotEmpty()) {
-                val alreadyHasScribe = aiDraftNoteService.hasActiveScribeDraft(
-                    appointmentId,
-                    ScribePipelineService.SCRIBE_LABEL,
-                )
-                val finished = recordings.firstOrNull { rec ->
-                    rec.status.equals("finished", ignoreCase = true) ||
-                        rec.status.equals("ready-to-download", ignoreCase = true)
-                }
-                val inFlight = scribePipelineService.isScribeInFlight(appointmentId)
-                if (finished != null && !alreadyHasScribe && !inFlight) {
-                    scribePipelineService.processVideoRecording(roomName, finished.id)
-                    startedScribePipeline = true
-                }
-                if (!alreadyHasScribe) {
-                    scribePending = true
-                }
-            }
-        } catch (e: Exception) {
-            log.warn("Could not inspect Daily recordings for appointment {}: {}", appointmentId, e.message)
-        }
-
-        try {
-            appointmentDocumentationService.generateForAppointment(appointmentId)
-        } catch (e: Exception) {
-            log.warn("Could not generate appointment documentation on complete for {}: {}", appointmentId, e.message)
-        }
-
-        val status = appointmentDocumentationService.statusFor(appointmentId)
-        if (status.hasScribeNote) {
-            scribePending = false
-        }
-        // Visit summary is produced once the scribe lands. Starting it here while a
-        // pipeline is still running caused repeated OpenAI jobs and duplicate patient pushes.
-        if (!scribePending && !startedScribePipeline && !scribePipelineService.isScribeInFlight(appointmentId)) {
-            try {
-                visitSummaryService.enqueueGeneration(appointmentId, appointment.patient.language, force = false)
-            } catch (_: Exception) {
-                // Never fail appointment completion due to AI summary generation issues.
-            }
-        }
+        val followUp = appointmentVisitLifecycleService.applyCompletionFollowUp(
+            appointment,
+            awaitingScribe = body?.awaitingScribe == true,
+        )
         return CompleteAppointmentResponse(
             status = "COMPLETED",
-            scribePending = scribePending,
-            hasDocumentation = status.hasDocumentation,
-            hasScribeNote = status.hasScribeNote,
+            scribePending = followUp.scribePending,
+            hasDocumentation = followUp.hasDocumentation,
+            hasScribeNote = followUp.hasScribeNote,
         )
     }
 

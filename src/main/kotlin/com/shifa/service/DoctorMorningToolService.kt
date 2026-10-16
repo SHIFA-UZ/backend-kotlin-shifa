@@ -51,7 +51,7 @@ class DoctorMorningToolService(
     /** Tools whose payloads should become UI cards on the client. */
     fun isCardTool(toolName: String): Boolean = toolName in CARD_TOOLS
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun execute(
         doctor: DoctorProfile,
         toolName: String,

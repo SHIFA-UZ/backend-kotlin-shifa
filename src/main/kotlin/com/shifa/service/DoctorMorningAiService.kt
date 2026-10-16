@@ -783,32 +783,7 @@ Rules:
         if (Regex("""\bcancel\b""", RegexOption.IGNORE_CASE).containsMatchIn(latest)) {
             return "$base CANCELLATION REQUEST: call preview_appointment_cancellation only. Do not confirm in this same turn."
         }
-        if (Regex("""\b(start|begin) (the |my )?(appointment|consultation|visit)\b""", RegexOption.IGNORE_CASE)
-                .containsMatchIn(latest)
-        ) {
-            return "$base START VISIT: call start_appointment for a non-video visit. Do not complete or request a signature."
-        }
-        if (Regex("""\b(open|show) (my )?(next|the) (appointment|consultation|visit)\b""", RegexOption.IGNORE_CASE)
-                .containsMatchIn(latest) ||
-            Regex("""\bopen the documentation\b""", RegexOption.IGNORE_CASE).containsMatchIn(latest)
-        ) {
-            return "$base OPEN VISIT: call open_appointment. Do not start or change the appointment status."
-        }
-        if (Regex("""\b(complete|finish|end) (the |this )?(appointment|consultation|visit)\b""", RegexOption.IGNORE_CASE)
-                .containsMatchIn(latest)
-        ) {
-            return "$base COMPLETE VISIT: call complete_appointment only. Do not request a signature unless they asked."
-        }
-        if (Regex("""\b(request|ask for|get) (the |a |patient )?signature\b""", RegexOption.IGNORE_CASE)
-                .containsMatchIn(latest)
-        ) {
-            return "$base SIGNATURE: call request_appointment_signature only."
-        }
-        if (Regex("""\b(add that|the patient reports|save the draft|read the note|dictate)\b""", RegexOption.IGNORE_CASE)
-                .containsMatchIn(latest)
-        ) {
-            return "$base DOCUMENTATION: call append_consultation_draft. Pass only the clinical words in text. Do not complete the visit. Do not request a signature."
-        }
+        com.shifa.intelligence.appointment.MorningVisitIntent.nudge(latest)?.let { return "$base $it" }
         if (asksForAppointmentAnalytics(latest)) {
             return "$base APPOINTMENT ANALYTICS: call query_appointment_intelligence once. " +
                 "Put the doctor's period words in timeRange.expression. " +
