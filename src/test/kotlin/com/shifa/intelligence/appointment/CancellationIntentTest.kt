@@ -46,6 +46,16 @@ class CancellationIntentTest {
     }
 
     @Test
+    fun `sentences and common words are never a patient name`() {
+        assertNull(CancellationIntent.patientName("what time is it"))
+        assertNull(CancellationIntent.patientName("can you check again"))
+        assertNull(CancellationIntent.patientName("I think there should be three"))
+        assertNull(CancellationIntent.patientName("hello shifa good morning how are you doing today"))
+        assertEquals("franco herselman", CancellationIntent.patientName("Franco Herselman"))
+        assertEquals("botir muzrabov", CancellationIntent.patientName("cancel Botir Muzrabov next week"))
+    }
+
+    @Test
     fun `a doubt about the count is not a patient name`() {
         val text = "are you sure because I should have three appointments for next week"
         assertNull(CancellationIntent.patientName(text))

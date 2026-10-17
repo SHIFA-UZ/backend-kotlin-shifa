@@ -153,8 +153,14 @@ class DoctorMorningToolService(
             val matches = found["matches"] as? List<Map<String, Any?>> ?: emptyList()
             val usable = matches.size == 1 &&
                 (found["fuzzy"] != true || found["uniqueFirstName"] == true)
-            if (!usable) return found
-            patientId = (matches.first()["patientId"] as? Number)?.toLong() ?: return found
+            when {
+                usable -> patientId = (matches.first()["patientId"] as? Number)?.toLong()
+                // Several candidates: the doctor has to pick one, so the search card is the answer.
+                matches.size > 1 -> return found
+                // No such patient: stay in the cancellation and list what can be cancelled,
+                // instead of answering with an empty roster search.
+                else -> Unit
+            }
         }
         if (patientId == null && aboutPronoun && searchedPatientIds.size == 1) {
             patientId = searchedPatientIds.first()
