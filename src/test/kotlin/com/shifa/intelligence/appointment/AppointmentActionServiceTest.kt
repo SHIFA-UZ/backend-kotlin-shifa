@@ -159,6 +159,29 @@ class AppointmentActionServiceTest {
     }
 
     @Test
+    fun `an already cancelled visit is not offered again`() {
+        val open = visit(1L, "2026-10-20T09:00:00Z")
+        val second = visit(2L, "2026-10-21T09:00:00Z")
+        val third = visit(3L, "2026-10-22T09:00:00Z")
+        val cancelled = visit(1211L, "2026-10-23T04:00:00Z")
+        cancelled.status = Appointment.Status.CANCELLED
+        `when`(appointments.findByDoctorIdAndStartAtBetween(anyLong(), anyInstant(), anyInstant()))
+            .thenReturn(listOf(open, second, third, cancelled))
+        val preview = service.previewCancellation(
+            doctor,
+            "cancel appointment for next week",
+            null,
+            null,
+        )
+        assertEquals("AWAITING_CLARIFICATION", preview["status"])
+        @Suppress("UNCHECKED_CAST")
+        val listed = preview["appointments"] as List<Map<String, Any?>>
+        assertEquals(3, listed.size)
+        assertTrue((preview["spokenHint"] as String).contains("already cancelled"))
+        verifyNoInteractions(cancellation)
+    }
+
+    @Test
     fun `one visit next week is previewed for a single cancellation`() {
         val only = visit(1211L, "2026-10-23T04:00:00Z")
         `when`(appointments.findByDoctorIdAndStartAtBetween(anyLong(), anyInstant(), anyInstant()))

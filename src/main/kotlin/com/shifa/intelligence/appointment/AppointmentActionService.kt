@@ -376,6 +376,18 @@ class AppointmentActionService(
         val end = range?.endExclusive ?: now.atZone(zone).plusDays(120).toInstant()
         var rows = appointments.findByDoctorIdAndStartAtBetween(doctor.id, start, end)
         if (patientId != null) rows = rows.filter { it.patient.id == patientId }
+        val alreadyCancelled = if (!upcomingOnly) {
+            rows.filter { it.status == Appointment.Status.CANCELLED }
+        } else {
+            emptyList()
+        }
+        if (!upcomingOnly) {
+            rows = rows.filter {
+                it.status != Appointment.Status.CANCELLED &&
+                    it.status != Appointment.Status.COMPLETED &&
+                    it.status != Appointment.Status.NO_SHOW
+            }
+        }
         if (upcomingOnly) {
             rows = rows.filter {
                 it.status != Appointment.Status.CANCELLED &&
@@ -408,12 +420,20 @@ class AppointmentActionService(
             }
         }
         if (rows.size > 1 && !wantsAll) {
+            val cancelledNote = if (alreadyCancelled.isEmpty()) {
+                ""
+            } else {
+                val sample = alreadyCancelled.first()
+                val who = sample.patient.fullName.ifBlank { "A patient" }
+                val local = sample.startAt.atZone(zone)
+                " ${alreadyCancelled.size} ${if (alreadyCancelled.size == 1) "is" else "are"} already cancelled, including $who ${local.format(dayFmt)} at ${local.format(timeFmt)}."
+            }
             return Selection.NeedsClarification(
                 mapOf(
                     "supported" to true,
                     "status" to "AWAITING_CLARIFICATION",
                     "appointments" to rows.take(8).map { row(it, zone) },
-                    "spokenHint" to "I found ${rows.size} visits. Which one should I cancel?",
+                    "spokenHint" to "I found ${rows.size} visits that can be cancelled.$cancelledNote Which one should I cancel?",
                 ),
             )
         }

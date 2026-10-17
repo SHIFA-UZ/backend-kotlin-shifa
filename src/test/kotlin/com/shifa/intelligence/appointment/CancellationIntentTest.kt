@@ -46,6 +46,20 @@ class CancellationIntentTest {
     }
 
     @Test
+    fun `a doubt about the count is not a patient name`() {
+        val text = "are you sure because I should have three appointments for next week"
+        assertNull(CancellationIntent.patientName(text))
+        assertTrue(CancellationIntent.isCountQuestion(text))
+        assertTrue(
+            CancellationIntent.shouldPreview(
+                text,
+                listOf("I would like to cancel appointment for next week"),
+                emptyList(),
+            ),
+        )
+    }
+
+    @Test
     fun `cancel it refers to the visit just shown`() {
         assertTrue(CancellationIntent.refersToShown("cancel it"))
         assertFalse(CancellationIntent.refersToLast("cancel it"))

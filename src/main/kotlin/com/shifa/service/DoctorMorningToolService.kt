@@ -141,8 +141,12 @@ class DoctorMorningToolService(
         val aboutPronoun = Regex("""\b(him|her|them|this patient)\b""", RegexOption.IGNORE_CASE)
             .containsMatchIn(latestUserText)
         var patientId = (args["patientId"] as? Number)?.toLong()
-        val name = (args["patientName"] as? String)?.trim().orEmpty()
-            .ifEmpty { CancellationIntent.patientName(latestUserText).orEmpty() }
+        val name = if (CancellationIntent.isCountQuestion(latestUserText)) {
+            ""
+        } else {
+            (args["patientName"] as? String)?.trim().orEmpty()
+                .ifEmpty { CancellationIntent.patientName(latestUserText).orEmpty() }
+        }
         if (name.isNotEmpty() && patientId == null) {
             val found = searchPatients(doctor, mapOf("query" to name))
             @Suppress("UNCHECKED_CAST")

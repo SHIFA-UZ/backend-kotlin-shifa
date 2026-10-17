@@ -22,6 +22,10 @@ object CancellationIntent {
     )
     private val LAST = Regex("""\blast (appointment|visit|one)\b""", RegexOption.IGNORE_CASE)
     private val CANCEL = Regex("""\bcancel\b""", RegexOption.IGNORE_CASE)
+    private val NOT_A_NAME = Regex(
+        """\b(are you sure|because|should have|how many|why|i think|i thought|wrong|count)\b""",
+        RegexOption.IGNORE_CASE,
+    )
 
     fun shouldPreview(current: String, priorUsers: List<String>, priorAssistants: List<String>): Boolean {
         if (AppointmentActionService.isExplicitConfirmation(current) &&
@@ -31,11 +35,16 @@ object CancellationIntent {
         }
         if (CANCEL.containsMatchIn(current)) return true
         if (priorUsers.none { CANCEL.containsMatchIn(it) }) return false
-        if (Regex("""\b(list|how many|free slots)\b""", RegexOption.IGNORE_CASE).containsMatchIn(current)) {
+        if (Regex("""\b(list|how many|free slots)\b""", RegexOption.IGNORE_CASE).containsMatchIn(current) &&
+            !NOT_A_NAME.containsMatchIn(current)
+        ) {
             return false
         }
+        if (NOT_A_NAME.containsMatchIn(current)) return true
         return patientName(current) != null || SHOWN.containsMatchIn(current) || LAST.containsMatchIn(current)
     }
+
+    fun isCountQuestion(text: String): Boolean = NOT_A_NAME.containsMatchIn(text)
 
     fun refersToShown(text: String): Boolean = SHOWN.containsMatchIn(text) || LAST.containsMatchIn(text)
 
@@ -49,6 +58,7 @@ object CancellationIntent {
     }
 
     fun patientName(text: String): String? {
+        if (isCountQuestion(text)) return null
         val stripped = NOISE.replace(text.lowercase(), " ").replace(Regex("""\s+"""), " ").trim()
         val tokens = stripped.split(' ').filter { it.length >= 3 && it !in FILLERS && !PERIOD.containsMatchIn(it) }
         if (tokens.isEmpty()) return null
