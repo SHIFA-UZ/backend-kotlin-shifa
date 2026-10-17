@@ -100,6 +100,41 @@ class RescheduleIntentTest {
     }
 
     @Test
+    fun `a time said before the day is kept when the day arrives`() {
+        val choice = RescheduleIntent.choose(
+            visits = visits,
+            current = "move to 5th of November",
+            priorUsers = listOf(
+                "I would like to reschedule one of the appointments",
+                "Franco Hair Salon on 23rd of October 9:00 a.m.",
+                "11:00",
+            ),
+            priorAssistants = listOf(listed),
+            today = today,
+        )
+        assertEquals(1211, choice!!.visitId)
+        assertEquals(LocalDate.parse("2026-11-05"), choice.destination)
+        assertEquals(LocalTime.of(11, 0), choice.time)
+    }
+
+    @Test
+    fun `5 october is not rolled into next year`() {
+        val choice = RescheduleIntent.choose(
+            visits = visits,
+            current = "movie to 5th of October",
+            priorUsers = listOf(
+                "I would like to reschedule one of the appointments",
+                "Franco Hair Salon on 23rd of October 9:00 a.m.",
+            ),
+            priorAssistants = listOf(listed),
+            today = today,
+        )
+        assertEquals(1211, choice!!.visitId)
+        assertNull(choice.destination)
+        assertEquals(LocalDate.parse("2026-10-05"), choice.pastDay)
+    }
+
+    @Test
     fun `yes after a named destination keeps that day and time`() {
         val choice = RescheduleIntent.choose(
             visits = visits,

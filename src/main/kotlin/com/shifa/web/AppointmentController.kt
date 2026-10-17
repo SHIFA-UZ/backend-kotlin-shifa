@@ -8,6 +8,7 @@ import com.shifa.domain.Notification
 import com.shifa.domain.AiDraftNote
 import com.shifa.repo.AiDraftNoteRepository
 import com.shifa.repo.AppointmentRepository
+import com.shifa.repo.DoctorLocationRepository
 import com.shifa.repo.ConsultationNoteRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.service.ClinicAccessService
@@ -37,6 +38,7 @@ import java.time.*
 @RequestMapping("/api/appointments")
 class AppointmentController(
     private val appts: AppointmentRepository,
+    private val doctorLocations: DoctorLocationRepository,
     private val notifications: NotificationRepository,
     private val consultationNoteRepo: ConsultationNoteRepository,
     private val aiDraftNoteRepo: AiDraftNoteRepository,
@@ -363,7 +365,9 @@ class AppointmentController(
     /** startAt: ISO 8601 UTC. */
     data class ChangeSlotReq(
         val startAt: String,
-        val slotMinutes: Int
+        val slotMinutes: Int,
+        /** Clinic of the free slot. A move can land at a different location than the original visit. */
+        val locationId: Long? = null,
     )
 
     @DeleteMapping("/{appointmentId}")
@@ -566,13 +570,22 @@ class AppointmentController(
             )
         }
 
+        val doctorLocs = doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(appointment.doctor.id)
+        val movedLocation = req.locationId?.let { locationId ->
+            doctorLocs.firstOrNull { it.id == locationId }
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid locationId for this doctor")
+        }
         slotAvailabilityService.assertBookableConsecutiveRange(
             doctor = appointment.doctor,
             startAt = newStartAt,
             endAt = newEndAt,
-            filterLocationId = appointment.locationRef?.id,
+            filterLocationId = movedLocation?.id ?: appointment.locationRef?.id,
             excludeAppointmentId = appointmentId
         )
+        if (movedLocation != null) {
+            appointment.locationRef = movedLocation
+            appointment.location = movedLocation.clinic?.takeIf { it.isNotBlank() } ?: movedLocation.label
+        }
 
         val oldStartLdt = appointment.startAt.atZone(zone).toLocalDateTime()
         val newStartLdt = newStartAt.atZone(zone).toLocalDateTime()

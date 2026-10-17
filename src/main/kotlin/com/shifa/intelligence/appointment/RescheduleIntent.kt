@@ -20,6 +20,8 @@ object RescheduleIntent {
         val visitId: Long,
         val destination: LocalDate?,
         val time: LocalTime?,
+        /** A day the doctor named that is already in the past. Not rolled into next year. */
+        val pastDay: LocalDate? = null,
     )
 
     fun shouldMove(current: String, priorUsers: List<String>, priorAssistants: List<String>): Boolean {
@@ -66,8 +68,13 @@ object RescheduleIntent {
         } ?: return null
         val visit = visits.first { it.id == visitId }
         val destination = destinationDay(threadUsers, priorAssistants, visit.day, today)
-        val time = newTime(current, priorAssistants, destination)
-        return Choice(visitId, destination, time)
+        val time = newTime(current, threadUsers, priorAssistants, destination, visit.time)
+        val pastDay = if (destination == null) {
+            pastDatesIn(current, today).lastOrNull()
+        } else {
+            null
+        }
+        return Choice(visitId, destination, time, pastDay)
     }
 
     fun textNamesSomeoneElse(text: String, patientName: String): Boolean {
@@ -122,12 +129,21 @@ object RescheduleIntent {
         return datesIn(asked, today).lastOrNull { it != sourceDay }
     }
 
-    private fun newTime(current: String, priorAssistants: List<String>, destination: LocalDate?): LocalTime? {
+    private fun newTime(
+        current: String,
+        threadUsers: List<String>,
+        priorAssistants: List<String>,
+        destination: LocalDate?,
+        sourceTime: LocalTime,
+    ): LocalTime? {
         if (destination == null) return null
-        clockIn(current)?.let { return it }
+        val named = threadUsers.asReversed().firstNotNullOfOrNull { line ->
+            clockIn(line)?.takeIf { it != sourceTime }
+        }
+        if (named != null) return named
         if (!isExplicitYes(current)) return null
         val asked = priorAssistants.lastOrNull { confirmationOfOneVisit(it) } ?: return null
-        return clockIn(asked)
+        return clockIn(asked)?.takeIf { it != sourceTime }
     }
 
     private fun moveThread(priorUsers: List<String>, current: String): List<String> {
@@ -154,19 +170,19 @@ object RescheduleIntent {
         return raw.split(',').mapNotNull { it.trim().toLongOrNull() }
     }
 
-    fun datesIn(text: String, today: LocalDate): List<LocalDate> {
+    fun datesIn(text: String, today: LocalDate): List<LocalDate> =
+        rawDates(text, today).filter { !it.isBefore(today) }
+
+    fun pastDatesIn(text: String, today: LocalDate): List<LocalDate> =
+        rawDates(text, today).filter { it.isBefore(today) }
+
+    private fun rawDates(text: String, today: LocalDate): List<LocalDate> {
         return DAY_MONTH.findAll(text.lowercase()).map { match ->
             val day = match.groupValues[1].toInt()
             val month = MONTHS[match.groupValues[2]] ?: return@map null
             if (day !in 1..31) return@map null
-            val year = if (Month.of(month).length(java.time.Year.of(today.year).isLeap) < day) {
-                return@map null
-            } else {
-                today.year
-            }
-            var date = LocalDate.of(year, month, day)
-            if (date.isBefore(today)) date = date.plusYears(1)
-            date
+            if (Month.of(month).length(java.time.Year.of(today.year).isLeap) < day) return@map null
+            LocalDate.of(today.year, month, day)
         }.filterNotNull().toList()
     }
 

@@ -918,6 +918,16 @@ class DoctorMorningToolService(
         val destination = picked.destination
         if (destination == null) {
             val patientName = appointment.patient.fullName.ifBlank { "The patient" }
+            val past = picked.pastDay
+            if (past != null) {
+                return mapOf(
+                    "cardType" to "propose_reschedule",
+                    "appointmentId" to appointment.id,
+                    "patientId" to appointment.patient.id,
+                    "patientName" to patientName,
+                    "spokenHint" to "${speakableDayDate(past)} has already passed. Name a future day for $patientName.",
+                )
+            }
             return mapOf(
                 "cardType" to "propose_reschedule",
                 "appointmentId" to appointment.id,
@@ -983,7 +993,7 @@ class DoctorMorningToolService(
                 preferredSlot != null ->
                     "Moving $patientName to ${preferredSlot["startLocal"]} on ${speakableDayDate(date)}."
                 else ->
-                    "$patientName is currently at ${speakableDayDate(currentLocal.toLocalDate())} ${currentLocal.format(timeFmt)}. Which new time?"
+                    "Moving $patientName to ${speakableDayDate(date)}. Which time?"
             },
         )
     }
