@@ -128,7 +128,8 @@ openai:
   maxRequestsPerMinute: ${OPENAI_GLOBAL_MAX_REQ_PER_MIN:600}
   # Most capable REST TTS: gpt-4o-mini-tts (falls back to tts-1-hd / tts-1 if the project lacks access).
   tts-model: ${OPENAI_TTS_MODEL:gpt-4o-mini-tts}
-  tts-voice: ${OPENAI_TTS_VOICE:coral}
+  tts-voice: ${OPENAI_TTS_VOICE:sage}
+  tts-speed: ${OPENAI_TTS_SPEED:0.92}
 
 # Daily.co Video API configuration
 # Get your API key from https://dashboard.daily.co/

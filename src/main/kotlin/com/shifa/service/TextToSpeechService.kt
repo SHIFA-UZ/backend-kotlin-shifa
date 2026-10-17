@@ -53,13 +53,17 @@ class TextToSpeechService(
         }
         val voice = voiceForModel(model, props.ttsVoice)
         return callSpeechApi(
-            text = cleaned,
+            text = paceForSpeech(cleaned),
             language = language,
             model = model,
             voice = voice,
             withInstructions = false,
         )
     }
+
+    /** Semicolons make tts-1 run through a list in one breath. Periods add a normal pause. */
+    internal fun paceForSpeech(text: String): String =
+        text.replace("; ", ". ").replace(Regex("""\s+"""), " ").trim()
 
     /**
      * Keep screen text full on the client; only speak a short lead so TTS stays snappy.
@@ -108,11 +112,13 @@ class TextToSpeechService(
         voice: String,
         withInstructions: Boolean,
     ): SpeechResult {
+        val speed = props.ttsSpeed.coerceIn(0.85, 1.0)
         val body = linkedMapOf<String, Any>(
             "model" to model,
             "voice" to voice,
             "input" to text,
             "response_format" to "mp3",
+            "speed" to speed,
         )
         if (withInstructions) {
             body["instructions"] = when (language) {

@@ -39,5 +39,10 @@ class OpenAiProperties {
     /** OpenAI TTS model for Intelligence spoken replies. Prefer fast tts-1 (latency over HD). */
     var ttsModel: String = "tts-1"
     /** OpenAI TTS voice for tts-1 (alloy/ash/coral/echo/fable/onyx/nova/sage/shimmer). */
-    var ttsVoice: String = "nova"
+    var ttsVoice: String = "sage"
+    /**
+     * 1.0 is OpenAI's default and sounds rushed on lists of names and times.
+     * A little under 1.0 keeps short greetings and long lists at one pace.
+     */
+    var ttsSpeed: Double = 0.92
 }

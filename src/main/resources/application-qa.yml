@@ -106,7 +106,8 @@ openai:
   requestTimeoutMs: ${OPENAI_REQUEST_TIMEOUT_MS:15000}
   maxRequestsPerMinute: ${OPENAI_GLOBAL_MAX_REQ_PER_MIN:600}
   tts-model: ${OPENAI_TTS_MODEL:gpt-4o-mini-tts}
-  tts-voice: ${OPENAI_TTS_VOICE:coral}
+  tts-voice: ${OPENAI_TTS_VOICE:sage}
+  tts-speed: ${OPENAI_TTS_SPEED:0.92}
 
 daily:
   apiKey: ${DAILY_API_KEY}
