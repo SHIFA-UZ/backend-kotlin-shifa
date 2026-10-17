@@ -142,6 +142,38 @@ class AppointmentActionServiceTest {
     }
 
     @Test
+    fun `one of next week asks which visit instead of cancelling them all`() {
+        val first = visit(1L, "2026-10-20T09:00:00Z")
+        val second = visit(2L, "2026-10-21T09:00:00Z")
+        `when`(appointments.findByDoctorIdAndStartAtBetween(anyLong(), anyInstant(), anyInstant()))
+            .thenReturn(listOf(first, second))
+        val preview = service.previewCancellation(
+            doctor,
+            "cancel one of the appointments from next week",
+            null,
+            null,
+        )
+        assertEquals("AWAITING_CLARIFICATION", preview["status"])
+        assertEquals(null, preview["actionContext"])
+        verifyNoInteractions(cancellation)
+    }
+
+    @Test
+    fun `one visit next week is previewed for a single cancellation`() {
+        val only = visit(1211L, "2026-10-23T04:00:00Z")
+        `when`(appointments.findByDoctorIdAndStartAtBetween(anyLong(), anyInstant(), anyInstant()))
+            .thenReturn(listOf(only))
+        val preview = service.previewCancellation(
+            doctor,
+            "cancel one of the appointments from next week",
+            null,
+            null,
+        )
+        assertEquals("AWAITING_CONFIRMATION", preview["status"])
+        assertEquals(1, preview["count"])
+    }
+
+    @Test
     fun `confirmation phrases do not include the original request`() {
         assertFalse(AppointmentActionService.isExplicitConfirmation("Cancel all my appointments next week"))
         assertTrue(AppointmentActionService.isExplicitConfirmation("yes"))

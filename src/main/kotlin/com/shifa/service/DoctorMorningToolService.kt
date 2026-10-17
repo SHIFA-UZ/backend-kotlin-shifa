@@ -2,11 +2,14 @@ package com.shifa.service
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.shifa.domain.Appointment
 import com.shifa.domain.DoctorProfile
 import com.shifa.domain.PatientProfile
 import com.shifa.domain.PatientVisitFact
 import com.shifa.intelligence.appointment.AppointmentActionService
 import com.shifa.intelligence.appointment.AppointmentIntelligenceService
+import com.shifa.intelligence.appointment.CancellationIntent
+import com.shifa.intelligence.appointment.RescheduleIntent
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
 import com.shifa.repo.PatientProfileRepository
@@ -57,6 +60,7 @@ class DoctorMorningToolService(
         toolName: String,
         args: Map<String, Any?>,
         priorAssistantMessages: List<String> = emptyList(),
+        priorUserMessages: List<String> = emptyList(),
         latestUserText: String = "",
         focusPatientId: Long? = null,
         searchedPatientIds: Set<Long> = emptySet(),
@@ -69,7 +73,13 @@ class DoctorMorningToolService(
                 doctor, args, priorAssistantMessages, latestUserText, focusPatientId, searchedPatientIds,
             )
             "preview_appointment_cancellation" -> previewCancellation(
-                doctor, args, latestUserText, focusPatientId, searchedPatientIds,
+                doctor,
+                args,
+                latestUserText,
+                priorAssistantMessages,
+                priorUserMessages,
+                focusPatientId,
+                searchedPatientIds,
             )
             "confirm_appointment_cancellation" -> appointmentActionService.confirmCancellation(
                 doctor, latestUserText, priorAssistantMessages,
@@ -102,7 +112,9 @@ class DoctorMorningToolService(
             "get_most_visited_patients" -> getMostVisitedPatients(doctor, args)
             "search_patients" -> searchPatients(doctor, args)
             "propose_appointment" -> proposeAppointment(doctor, args)
-            "propose_reschedule" -> proposeReschedule(doctor, args)
+            "propose_reschedule" -> proposeReschedule(
+                doctor, args, latestUserText, priorAssistantMessages, priorUserMessages,
+            )
             "list_draft_visit_facts" -> listDraftVisitFacts(doctor, args)
             "list_patient_documents" -> listPatientDocuments(doctor, args)
             "open_patient_document" -> openPatientDocument(doctor, args)
@@ -121,33 +133,73 @@ class DoctorMorningToolService(
         doctor: DoctorProfile,
         args: Map<String, Any?>,
         latestUserText: String,
+        priorAssistantMessages: List<String>,
+        priorUserMessages: List<String>,
         focusPatientId: Long?,
         searchedPatientIds: Set<Long>,
     ): Map<String, Any?> {
-        val name = (args["patientName"] as? String)?.trim().orEmpty()
+        val aboutPronoun = Regex("""\b(him|her|them|this patient)\b""", RegexOption.IGNORE_CASE)
+            .containsMatchIn(latestUserText)
         var patientId = (args["patientId"] as? Number)?.toLong()
+        val name = (args["patientName"] as? String)?.trim().orEmpty()
+            .ifEmpty { CancellationIntent.patientName(latestUserText).orEmpty() }
         if (name.isNotEmpty() && patientId == null) {
             val found = searchPatients(doctor, mapOf("query" to name))
             @Suppress("UNCHECKED_CAST")
             val matches = found["matches"] as? List<Map<String, Any?>> ?: emptyList()
-            if (matches.size != 1 || found["fuzzy"] == true) return found
+            val usable = matches.size == 1 &&
+                (found["fuzzy"] != true || found["uniqueFirstName"] == true)
+            if (!usable) return found
             patientId = (matches.first()["patientId"] as? Number)?.toLong() ?: return found
         }
-        if (patientId == null && searchedPatientIds.size == 1 &&
-            Regex("""\b(him|her|them|this patient)\b""", RegexOption.IGNORE_CASE).containsMatchIn(latestUserText)
-        ) {
+        if (patientId == null && aboutPronoun && searchedPatientIds.size == 1) {
             patientId = searchedPatientIds.first()
         }
-        if (patientId == null && focusPatientId != null &&
-            Regex("""\b(him|her|them|this patient)\b""", RegexOption.IGNORE_CASE).containsMatchIn(latestUserText)
-        ) {
+        if (patientId == null && aboutPronoun && focusPatientId != null) {
             patientId = focusPatientId
+        }
+        var appointmentId = (args["appointmentId"] as? Number)?.toLong()
+        if (appointmentId != null) {
+            val row = appointmentRepository.findById(appointmentId).orElse(null)
+            if (row == null || row.doctor.id != doctor.id) appointmentId = null
+        }
+        val shown = RescheduleIntent.shownIds(priorAssistantMessages)
+        if (appointmentId == null && CancellationIntent.refersToShown(latestUserText)) {
+            appointmentId = when {
+                CancellationIntent.refersToLast(latestUserText) && shown.isNotEmpty() -> shown.last()
+                shown.size == 1 -> shown.first()
+                else -> null
+            }
+            if (appointmentId == null && shown.size > 1) return clarifyShownVisits(doctor, shown)
         }
         return appointmentActionService.previewCancellation(
             doctor = doctor,
-            userText = latestUserText,
+            userText = CancellationIntent.rangeText(latestUserText, priorUserMessages),
             patientId = patientId,
-            appointmentId = (args["appointmentId"] as? Number)?.toLong(),
+            appointmentId = appointmentId,
+        )
+    }
+
+    private fun clarifyShownVisits(doctor: DoctorProfile, ids: List<Long>): Map<String, Any?> {
+        val zone = zoneOf(doctor)
+        val rows = ids.mapNotNull { id ->
+            val appointment = appointmentRepository.findById(id).orElse(null) ?: return@mapNotNull null
+            if (appointment.doctor.id != doctor.id) return@mapNotNull null
+            val local = appointment.startAt.atZone(zone)
+            mapOf(
+                "appointmentId" to appointment.id,
+                "patientId" to appointment.patient.id,
+                "patientName" to appointment.patient.fullName.ifBlank { "Patient" },
+                "whenLabel" to "${local.format(speakableDayDateFmt)} at ${local.format(timeFmt)}",
+            )
+        }
+        val names = rows.take(6).joinToString("; ") { "${it["patientName"]} ${it["whenLabel"]}" }
+        return mapOf(
+            "supported" to true,
+            "status" to "AWAITING_CLARIFICATION",
+            "cardType" to "cancel_preview",
+            "appointments" to rows,
+            "spokenHint" to "Which of those visits should I cancel? $names",
         )
     }
 
@@ -585,6 +637,13 @@ class DoctorMorningToolService(
             .take(5)
         val matches = ranked.map { (p, score) ->
             patientMatchRow(p) + ("score" to String.format("%.2f", score))
+        }.toMutableList()
+        var uniqueFirstName = false
+        if (matches.isEmpty()) {
+            uniqueByFirstName(query, roster.content)?.let { person ->
+                uniqueFirstName = true
+                matches += patientMatchRow(person)
+            }
         }
         val spokenHint = when {
             matches.isEmpty() ->
@@ -600,9 +659,21 @@ class DoctorMorningToolService(
             "cardType" to "patient_search",
             "query" to query,
             "fuzzy" to matches.isNotEmpty(),
+            "uniqueFirstName" to uniqueFirstName,
             "matches" to matches,
             "spokenHint" to spokenHint,
         )
+    }
+
+    /** "Franco Harrison man" still means the only Franco on the roster. */
+    private fun uniqueByFirstName(query: String, roster: List<PatientProfile>): PatientProfile? {
+        val first = CancellationIntent.nameTokens(query).firstOrNull() ?: return null
+        val matches = roster.filter { person ->
+            val nameFirst = person.fullName.lowercase().split(Regex("""\s+"""))
+                .firstOrNull { it.length >= 3 } ?: return@filter false
+            nameFirst == first || stringSimilarity(first, nameFirst) >= 0.88
+        }
+        return matches.singleOrNull()
     }
 
     private fun patientMatchRow(p: PatientProfile): Map<String, Any?> = mapOf(
@@ -770,29 +841,98 @@ class DoctorMorningToolService(
     }
 
     @Transactional(readOnly = true)
-    fun proposeReschedule(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
-        val patientId = (args["patientId"] as? Number)?.toLong()
-        val appointmentId = (args["appointmentId"] as? Number)?.toLong()
+    fun proposeReschedule(
+        doctor: DoctorProfile,
+        args: Map<String, Any?>,
+        latestUserText: String = "",
+        priorAssistantMessages: List<String> = emptyList(),
+        priorUserMessages: List<String> = emptyList(),
+    ): Map<String, Any?> {
         val zone = zoneOf(doctor)
         val now = Instant.now()
-
-        val appointment = when {
-            appointmentId != null -> appointmentRepository.findById(appointmentId).orElse(null)
-                ?.takeIf { it.doctor.id == doctor.id }
-            patientId != null -> appointmentRepository
-                .findByPatientIdAndDoctorIdOrderByStartAtDesc(patientId, doctor.id)
-                .firstOrNull { it.status.name != "CANCELLED" && it.startAt.isAfter(now) }
-            else -> null
-        } ?: return mapOf(
+        val today = java.time.LocalDate.now(zone)
+        val upcoming = appointmentRepository.findByDoctorIdAndStartAtBetween(
+            doctor.id,
+            now.minus(java.time.Duration.ofDays(1)),
+            now.plus(java.time.Duration.ofDays(120)),
+        ).filter {
+            it.status == Appointment.Status.REQUESTED ||
+                it.status == Appointment.Status.CONFIRMED ||
+                it.status == Appointment.Status.IN_PROGRESS
+        }
+        val listed = upcoming.map { appointment ->
+            val local = appointment.startAt.atZone(zone)
+            RescheduleIntent.Visit(
+                id = appointment.id,
+                patientName = appointment.patient.fullName,
+                day = local.toLocalDate(),
+                time = local.toLocalTime(),
+            )
+        }
+        val window = RescheduleIntent.queryWindow(priorAssistantMessages)
+        val lastListedId = window?.let { (startRaw, endRaw) ->
+            val start = runCatching { Instant.parse(startRaw) }.getOrNull() ?: return@let null
+            val end = runCatching { Instant.parse(endRaw) }.getOrNull() ?: return@let null
+            upcoming.filter { !it.startAt.isBefore(start) && it.startAt.isBefore(end) }
+                .maxByOrNull { it.startAt }
+                ?.id
+        }
+        val modelId = (args["appointmentId"] as? Number)?.toLong()
+        val modelVisit = modelId?.let { id -> upcoming.firstOrNull { it.id == id } }
+        val modelIsStale = modelVisit != null &&
+            RescheduleIntent.textNamesSomeoneElse(
+                (priorUserMessages + latestUserText).joinToString("\n"),
+                modelVisit.patient.fullName,
+            )
+        val choice = if (modelVisit != null && !modelIsStale) {
+            RescheduleIntent.choose(
+                visits = listed.filter { it.id == modelVisit.id },
+                current = latestUserText,
+                priorUsers = priorUserMessages,
+                priorAssistants = priorAssistantMessages,
+                today = today,
+                lastListedId = modelVisit.id,
+            ) ?: RescheduleIntent.Choice(modelVisit.id, null, null)
+        } else {
+            RescheduleIntent.choose(
+                visits = listed,
+                current = latestUserText,
+                priorUsers = priorUserMessages,
+                priorAssistants = priorAssistantMessages,
+                today = today,
+                lastListedId = lastListedId,
+            )
+        }
+        val picked = choice ?: return mapOf(
             "cardType" to "propose_reschedule",
             "error" to "No upcoming appointment found",
-            "spokenHint" to "I could not find an upcoming appointment to reschedule.",
+            "spokenHint" to "I could not tell which visit to move. Say the patient and the day.",
         )
+        val appointment = upcoming.firstOrNull { it.id == picked.visitId }
+            ?: return mapOf(
+                "cardType" to "propose_reschedule",
+                "error" to "No upcoming appointment found",
+                "spokenHint" to "I could not tell which visit to move. Say the patient and the day.",
+            )
+        val currentLocal = appointment.startAt.atZone(zone)
+        val destination = picked.destination
+        if (destination == null) {
+            val patientName = appointment.patient.fullName.ifBlank { "The patient" }
+            return mapOf(
+                "cardType" to "propose_reschedule",
+                "appointmentId" to appointment.id,
+                "patientId" to appointment.patient.id,
+                "patientName" to patientName,
+                "currentStartAt" to appointment.startAt.toString(),
+                "currentStartLocal" to currentLocal.format(timeFmt),
+                "currentDateLabel" to currentLocal.format(dateFmt),
+                "spokenHint" to "$patientName is on ${speakableDayDate(currentLocal.toLocalDate())} at ${currentLocal.format(timeFmt)}. Which day should I move that visit to?",
+            )
+        }
 
-        val date = resolveDateArg(args["date"] as? String, zone)
-            ?: appointment.startAt.atZone(zone).toLocalDate()
+        val date = destination
 
-        val preferredTime = resolveTimeArg(
+        val preferredTime = picked.time ?: resolveTimeArg(
             (args["time"] as? String) ?: (args["preferredTime"] as? String),
         )
         val allSlots = patientDaySlotsService.availableSlotsForDay(
@@ -820,7 +960,6 @@ class DoctorMorningToolService(
         }
 
         val patientName = appointment.patient.fullName.ifBlank { "Patient" }
-        val currentLocal = appointment.startAt.atZone(zone)
         return mapOf(
             "cardType" to "propose_reschedule",
             "appointmentId" to appointment.id,

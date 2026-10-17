@@ -396,7 +396,8 @@ class AppointmentActionService(
                 ),
             )
         }
-        val wantsAll = userText.contains("all", ignoreCase = true) || (patientId == null && range != null && !upcomingOnly)
+        val wantsAll = Regex("""\b(all|every|whole)\b""", RegexOption.IGNORE_CASE).containsMatchIn(userText) &&
+            !Regex("""\bone of\b""", RegexOption.IGNORE_CASE).containsMatchIn(userText)
         if (upcomingOnly) {
             val inProgress = rows.filter { it.status == Appointment.Status.IN_PROGRESS }.minByOrNull { it.startAt }
             val next = inProgress ?: rows.minBy { it.startAt }

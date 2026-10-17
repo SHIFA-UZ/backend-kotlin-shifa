@@ -142,12 +142,82 @@ class DoctorMorningAiService(
         val latestSpokenHint: String?,
     )
 
+    /**
+     * Cancellation is resolved here so "cancel it" and "next week" cannot be dropped
+     * or replaced by a list of a different patient.
+     */
+    private fun forcedCancellation(
+        doctor: DoctorProfile,
+        messages: List<AiMessageDto>,
+        focusPatientId: Long?,
+    ): ToolLoopOutcome? {
+        val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val priorAssistant = messages.filter { it.role == "assistant" }.map { it.content }
+        val priorUsers = messages.filter { it.role == "user" }.map { it.content }.dropLast(1)
+        val confirm = com.shifa.intelligence.appointment.AppointmentActionService.isExplicitConfirmation(latest) &&
+            com.shifa.intelligence.appointment.AppointmentActionService.actionToken(priorAssistant) != null
+        val preview = com.shifa.intelligence.appointment.CancellationIntent.shouldPreview(
+            latest, priorUsers, priorAssistant,
+        )
+        if (!confirm && !preview) return null
+        val tool = if (confirm) "confirm_appointment_cancellation" else "preview_appointment_cancellation"
+        val result = morningTools.execute(
+            doctor = doctor,
+            toolName = tool,
+            args = emptyMap(),
+            priorAssistantMessages = priorAssistant,
+            priorUserMessages = priorUsers,
+            latestUserText = latest,
+            focusPatientId = focusPatientId,
+        )
+        return ToolLoopOutcome(
+            loopMessages = emptyList(),
+            toolEvents = listOf(MorningStreamEvent.Tool(name = tool, payload = result)),
+            directReply = null,
+            latestSpokenHint = result["spokenHint"] as? String,
+        )
+    }
+
+    /**
+     * A move is resolved here, before the model can answer from memory.
+     * That is what turned "Franco on 23 October" into "no such appointment".
+     */
+    private fun forcedReschedule(
+        doctor: DoctorProfile,
+        messages: List<AiMessageDto>,
+        focusPatientId: Long?,
+    ): ToolLoopOutcome? {
+        val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val priorAssistant = messages.filter { it.role == "assistant" }.map { it.content }
+        val priorUsers = messages.filter { it.role == "user" }.map { it.content }.dropLast(1)
+        if (!com.shifa.intelligence.appointment.RescheduleIntent.shouldMove(latest, priorUsers, priorAssistant)) {
+            return null
+        }
+        val result = morningTools.execute(
+            doctor = doctor,
+            toolName = "propose_reschedule",
+            args = emptyMap(),
+            priorAssistantMessages = priorAssistant,
+            priorUserMessages = priorUsers,
+            latestUserText = latest,
+            focusPatientId = focusPatientId,
+        )
+        return ToolLoopOutcome(
+            loopMessages = emptyList(),
+            toolEvents = listOf(MorningStreamEvent.Tool(name = "propose_reschedule", payload = result)),
+            directReply = null,
+            latestSpokenHint = result["spokenHint"] as? String,
+        )
+    }
+
     private fun runToolLoop(
         doctor: DoctorProfile,
         messages: List<AiMessageDto>,
         systemMessages: List<Map<String, String>>,
         focusPatientId: Long?,
     ): ToolLoopOutcome {
+        forcedCancellation(doctor, messages, focusPatientId)?.let { return it }
+        forcedReschedule(doctor, messages, focusPatientId)?.let { return it }
         val loopMessages = mutableListOf<Map<String, Any?>>()
         val toolEvents = mutableListOf<MorningStreamEvent.Tool>()
         // patientIds returned by search_patients in this request (same tool loop).
@@ -256,6 +326,7 @@ class DoctorMorningAiService(
                     toolName = name,
                     args = safeArgs,
                     priorAssistantMessages = messages.filter { it.role == "assistant" }.map { it.content },
+                    priorUserMessages = messages.filter { it.role == "user" }.map { it.content }.dropLast(1),
                     latestUserText = latestUserText,
                     focusPatientId = focusPatientId,
                     searchedPatientIds = searchedPatientIds,
@@ -977,7 +1048,6 @@ Rules:
 
         val needsPatientId = toolName in setOf(
             "propose_appointment",
-            "propose_reschedule",
             "brief_patient",
             "list_patient_documents",
             "open_patient_document",
@@ -986,7 +1056,18 @@ Rules:
         if (!needsPatientId) return args
 
         var next = args
-        if (toolName == "propose_appointment" || toolName == "propose_reschedule") {
+        if (toolName == "propose_reschedule") {
+            relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            weekdayTokenFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            timeFromUserText(latestUserText)?.let { next = next + ("time" to it) }
+            val aboutFocus = Regex("""\b(him|her|them|this patient)\b""", RegexOption.IGNORE_CASE)
+                .containsMatchIn(latestUserText)
+            if (aboutFocus && focusPatientId != null) {
+                next = next + ("patientId" to focusPatientId)
+            }
+            return next
+        }
+        if (toolName == "propose_appointment") {
             relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
             weekdayTokenFromUserText(latestUserText)?.let { next = next + ("date" to it) }
             timeFromUserText(latestUserText)?.let { next = next + ("time" to it) }
