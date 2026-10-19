@@ -21,9 +21,9 @@ import java.util.Base64
 class GeminiSpeechClient(
     private val props: AiRoutingProperties,
     baseClient: OkHttpClient = OkHttpClient.Builder()
-        .connectTimeout(Duration.ofSeconds(10))
-        .writeTimeout(Duration.ofSeconds(20))
-        .readTimeout(Duration.ofSeconds(20))
+        .connectTimeout(Duration.ofSeconds(15))
+        .writeTimeout(Duration.ofSeconds(60))
+        .readTimeout(Duration.ofSeconds(90))
         .build(),
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -39,6 +39,10 @@ class GeminiSpeechClient(
     fun transcribe(file: File, mimeType: String, languageBcp47: String?): Transcription {
         val key = apiKey()
         val model = props.speech.sttModel.ifBlank { "gemini-3.5-transcribe" }
+        log.info("gemini_stt_start model={} bytes={}", model, file.length())
+        if (file.length() < 256) {
+            throw IllegalStateException("audio too short")
+        }
         val audioB64 = Base64.getEncoder().encodeToString(file.readBytes())
         val generation = linkedMapOf<String, Any>(
             "transcription_config" to buildMap {
