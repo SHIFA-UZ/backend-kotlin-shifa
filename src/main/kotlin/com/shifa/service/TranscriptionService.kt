@@ -5,6 +5,7 @@ import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.fasterxml.jackson.module.kotlin.readValue
 import com.shifa.ai.MedicalBiasPrompt
 import com.shifa.ai.TranscriptPromptLeakStripper
+import com.shifa.ai.speech.GeminiSpeechClient
 import com.shifa.config.OpenAiProperties
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
@@ -19,12 +20,14 @@ import java.nio.file.Path
 import java.time.Duration
 
 /**
- * Speech-to-text via OpenAI Audio API ([OpenAiProperties.transcriptionModel]),
- * default **gpt-4o-transcribe** (falls back to whisper-1 if overridden).
+ * Speech-to-text. Intelligence / voice uploads in Uzbek (or auto-detect) use Gemini
+ * [gemini-3.5-transcribe] when a Gemini key is configured; otherwise OpenAI
+ * [OpenAiProperties.transcriptionModel]. Scribe stays on OpenAI.
  */
 @Service
 class TranscriptionService(
-    private val openAiProps: OpenAiProperties
+    private val openAiProps: OpenAiProperties,
+    private val geminiSpeech: GeminiSpeechClient? = null,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val mapper = jacksonObjectMapper()
@@ -73,6 +76,24 @@ class TranscriptionService(
             "ru", "rus", "russian", "ru-ru", "ru_ru" -> "ru"
             "en", "eng", "english", "en-us", "en_us", "en-gb", "en_gb" -> "en"
             else -> null
+        }
+
+        if (shouldUseGeminiStt(normalizedLanguageHint, purpose)) {
+            try {
+                val gemini = geminiSpeech!!.transcribe(
+                    file = file,
+                    mimeType = mimeTypeOf(file),
+                    languageBcp47 = if (normalizedLanguageHint == "uz") "uz-UZ" else null,
+                )
+                val stripped = TranscriptPromptLeakStripper.strip(gemini.transcript).ifBlank { gemini.transcript }
+                log.info("Transcription complete (gemini): {} chars", stripped.length)
+                return TranscriptionResult(
+                    transcript = stripped.ifBlank { "(No speech detected)" },
+                    language = gemini.language ?: normalizedLanguageHint,
+                )
+            } catch (e: Exception) {
+                log.warn("gemini_stt_fallback_openai reason={}", e.javaClass.simpleName)
+            }
         }
 
         val modelId = openAiProps.transcriptionModel.trim().ifBlank { "gpt-4o-transcribe" }
@@ -164,6 +185,25 @@ class TranscriptionService(
      * Uzbek (`uz`) and other unlisted codes rely on [MedicalBiasPrompt] only — gpt-4o-transcribe
      * may reject `language=uz` (see README: OPENAI_TRANSCRIPTION_SEND_LANG).
      */
+    /** Intelligence auto-detect (no hint) and explicit Uzbek use Gemini; en/ru and scribe stay OpenAI. */
+    internal fun shouldUseGeminiStt(normalizedHint: String?, purpose: TranscriptionPurpose): Boolean {
+        if (geminiSpeech?.isAvailable() != true) return false
+        if (purpose != TranscriptionPurpose.VOICE_UPLOAD) return false
+        return normalizedHint == null || normalizedHint == "uz"
+    }
+
+    private fun mimeTypeOf(file: File): String {
+        val name = file.name.lowercase()
+        return when {
+            name.endsWith(".wav") -> "audio/wav"
+            name.endsWith(".mp3") -> "audio/mp3"
+            name.endsWith(".webm") -> "audio/webm"
+            name.endsWith(".ogg") -> "audio/ogg"
+            name.endsWith(".mp4") -> "audio/mp4"
+            else -> "audio/mp4"
+        }
+    }
+
     internal fun openAiLanguageParam(normalizedHint: String?, modelId: String): String? {
         if (normalizedHint.isNullOrBlank()) return null
         val isWhisperModel = modelId.startsWith("whisper", ignoreCase = true)

@@ -50,6 +50,8 @@ dependencies {
 
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // Fake OpenAI-compatible endpoints for LLM client tests (same vendor as the runtime OkHttp client).
+    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 	
 	//OPEN AI 
 	implementation("com.squareup.okhttp3:okhttp:4.12.0")

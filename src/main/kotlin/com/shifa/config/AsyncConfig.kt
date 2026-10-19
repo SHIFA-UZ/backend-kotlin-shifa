@@ -56,4 +56,22 @@ class AsyncConfig {
         log.info("Briefing task executor initialized: corePoolSize=1, maxPoolSize=2, queueCapacity=20")
         return executor
     }
+
+    /** Intelligence memory extraction: best-effort, bounded; saturation drops the job with a log line. */
+    @Bean(name = ["intelligenceMemoryExecutor"])
+    fun intelligenceMemoryExecutor(): Executor {
+        val executor = ThreadPoolTaskExecutor().apply {
+            corePoolSize = 1
+            maxPoolSize = 2
+            queueCapacity = 50
+            setThreadNamePrefix("intel-mem-")
+            setWaitForTasksToCompleteOnShutdown(false)
+            setRejectedExecutionHandler { _, pool ->
+                log.warn("Intelligence memory queue saturated (active={}, queue={}); dropping extraction", pool.activeCount, pool.queue.size)
+            }
+        }
+        executor.initialize()
+        log.info("Intelligence memory executor initialized: corePoolSize=1, maxPoolSize=2, queueCapacity=50")
+        return executor
+    }
 }

@@ -133,6 +133,8 @@ class SecurityConfig(
                 it.requestMatchers("/api/prophylaxis/**").hasAnyRole("DOCTOR", "CLINIC_STAFF")
                 it.requestMatchers("/api/clinical-engine/**").hasRole("DOCTOR")
                 it.requestMatchers("/api/care-partnerships/**").hasRole("DOCTOR")
+                // Intelligence memories are doctor-scoped; must be before the shared /api/ai/** matcher.
+                it.requestMatchers("/api/ai/memories", "/api/ai/memories/**").hasRole("DOCTOR")
                 // Shared (authenticated): notifications, AI, video
                 it.requestMatchers("/api/notifications/**", "/api/ai/**", "/api/video/**").authenticated()
 

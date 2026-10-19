@@ -5,46 +5,44 @@ import com.shifa.ai.MedicalPromptBuilder
 import com.shifa.ai.OutputLanguage
 import com.shifa.ai.PatientAiContext
 import com.shifa.ai.RedFlagEngine
+import com.shifa.ai.llm.LlmGateway
+import com.shifa.ai.llm.LlmPurpose
+import com.shifa.ai.llm.LlmRequest
+import com.shifa.ai.llm.LlmTurnContext
+import com.shifa.ai.llm.LlmUnavailableException
+import com.shifa.ai.llm.RequestCategoryClassifier
+import com.shifa.ai.llm.RouteLanguageDetector
+import com.shifa.ai.memory.IntelligenceMemoryExtractor
+import com.shifa.ai.memory.IntelligenceMemoryService
 import com.shifa.config.OpenAiProperties
 import com.shifa.domain.DoctorProfile
 import com.shifa.web.AiStreamException
 import com.shifa.web.dto.AiMessageDto
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
-import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.RequestBody.Companion.toRequestBody
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import java.time.Duration
 import java.time.LocalDate
 import java.time.ZoneId
 
 /**
  * Spoken morning / Intelligence session: tool-augmented assistant.
  * Emits [MorningStreamEvent.Tool] for card UI, then short spoken [MorningStreamEvent.Token]s.
+ *
+ * Model calls go through [LlmGateway] (provider-agnostic, routed by language/category, bounded fallback).
+ * One turn is pinned to the provider that produced the first executed tool call.
  */
 @Service
 class DoctorMorningAiService(
     private val props: OpenAiProperties,
     private val morningTools: DoctorMorningToolService,
+    private val llm: LlmGateway,
+    private val memoryService: IntelligenceMemoryService,
+    private val memoryExtractor: IntelligenceMemoryExtractor,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val mapper = jacksonObjectMapper()
     private val rateLimiter = SimpleRateLimiter(props.maxRequestsPerMinute)
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(Duration.ofSeconds(15))
-        .writeTimeout(Duration.ofSeconds(15))
-        .readTimeout(Duration.ZERO)
-        .build()
-
-    private val toolClient = OkHttpClient.Builder()
-        .connectTimeout(Duration.ofSeconds(15))
-        .writeTimeout(Duration.ofSeconds(15))
-        .readTimeout(Duration.ofSeconds(45))
-        .build()
 
     fun streamMorningAssistant(
         doctor: DoctorProfile,
@@ -64,11 +62,22 @@ class DoctorMorningAiService(
             throw AiStreamException(code = "RATE_LIMIT", message = "AI rate limit exceeded. Please try again later.")
         }
 
+        val latestUserText = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val ctx = LlmTurnContext(
+            doctorId = doctor.id,
+            language = RouteLanguageDetector.detect(latestUserText, language),
+            category = RequestCategoryClassifier.classify(latestUserText),
+        )
+
         val systemMessages = mutableListOf(
             mapOf("role" to "system", "content" to morningSystemPrompt(doctor, language)),
         )
         patientContext?.let {
             systemMessages += mapOf("role" to "system", "content" to MedicalPromptBuilder.patientContextPrompt(it))
+        }
+        val memories = memoryService.retrieveForTurn(doctor, latestUserText)
+        memoryService.promptBlock(memories)?.let {
+            systemMessages += mapOf("role" to "system", "content" to it)
         }
         selectedPatientId?.let {
             systemMessages += mapOf(
@@ -86,53 +95,88 @@ class DoctorMorningAiService(
             messages = messages,
             systemMessages = systemMessages,
             focusPatientId = selectedPatientId,
+            ctx = ctx,
         )
         for (tool in toolOutcome.toolEvents) {
             emit(tool)
         }
 
-        // Fast path: first model turn already had the spoken answer and needed no tools.
-        val direct = toolOutcome.directReply?.trim().orEmpty()
-        if (direct.isNotEmpty() && toolOutcome.toolEvents.isEmpty()) {
-            emit(MorningStreamEvent.Token(direct))
-            return@flow
-        }
-
-        // Fast path: tools produced a spokenHint — translate/speak that only (skip full regen).
-        val hint = toolOutcome.latestSpokenHint?.trim().orEmpty()
-        if (hint.isNotEmpty()) {
-            if (language == OutputLanguage.EN) {
-                emit(MorningStreamEvent.Token(hint))
-            } else {
-                val langName = when (language) {
-                    OutputLanguage.RU -> "Russian"
-                    OutputLanguage.UZ -> "Uzbek"
-                    OutputLanguage.EN -> "English"
-                }
-                val translated = completeChat(
-                    messages = listOf(
-                        mapOf(
-                            "role" to "system",
-                            "content" to "Translate the following clinical assistant line into $langName. Output ONLY the spoken sentence — no quotes, no preamble.",
-                        ),
-                        mapOf("role" to "user", "content" to hint),
-                    ),
-                    maxTokens = 120,
-                    temperature = 0.1,
-                )
-                if (translated.isNotBlank()) emit(MorningStreamEvent.Token(translated))
+        var spoken = ""
+        try {
+            // Fast path: first model turn already had the spoken answer and needed no tools.
+            val direct = toolOutcome.directReply?.trim().orEmpty()
+            if (direct.isNotEmpty() && toolOutcome.toolEvents.isEmpty()) {
+                spoken = direct
+                emit(MorningStreamEvent.Token(direct))
+                return@flow
             }
-            return@flow
-        }
 
-        val reply = completeChat(
-            messages = systemMessages +
-                messages.map { mapOf("role" to it.role, "content" to it.content) } +
-                toolOutcome.loopMessages,
-            maxTokens = 220,
-            temperature = 0.2,
-        )
-        if (reply.isNotBlank()) emit(MorningStreamEvent.Token(reply))
+            // Fast path: tools produced a spokenHint — translate/speak that only (skip full regen).
+            val hint = toolOutcome.latestSpokenHint?.trim().orEmpty()
+            if (hint.isNotEmpty()) {
+                if (language == OutputLanguage.EN) {
+                    spoken = hint
+                    emit(MorningStreamEvent.Token(hint))
+                } else {
+                    val langName = when (language) {
+                        OutputLanguage.RU -> "Russian"
+                        OutputLanguage.UZ -> "Uzbek"
+                        OutputLanguage.EN -> "English"
+                    }
+                    val translated = completeChat(
+                        messages = listOf(
+                            mapOf(
+                                "role" to "system",
+                                "content" to "Translate the following clinical assistant line into $langName. Output ONLY the spoken sentence — no quotes, no preamble.",
+                            ),
+                            mapOf("role" to "user", "content" to hint),
+                        ),
+                        maxTokens = 120,
+                        temperature = 0.1,
+                        ctx = ctx,
+                    )
+                    spoken = translated
+                    if (translated.isNotBlank()) emit(MorningStreamEvent.Token(translated))
+                }
+                return@flow
+            }
+
+            val reply = completeChat(
+                messages = systemMessages +
+                    messages.map { mapOf("role" to it.role, "content" to it.content) } +
+                    toolOutcome.loopMessages,
+                maxTokens = 220,
+                temperature = 0.2,
+                ctx = ctx,
+            )
+            spoken = reply
+            if (reply.isNotBlank()) emit(MorningStreamEvent.Token(reply))
+        } finally {
+            scheduleMemoryExtraction(doctor, latestUserText, spoken, toolOutcome, ctx)
+        }
+    }
+
+    /** Best-effort, off the critical path; never throws into the stream. */
+    private fun scheduleMemoryExtraction(
+        doctor: DoctorProfile,
+        latestUserText: String,
+        spoken: String,
+        outcome: ToolLoopOutcome,
+        ctx: LlmTurnContext,
+    ) {
+        try {
+            if (!memoryService.enabled() || !memoryExtractor.shouldExtract(latestUserText)) return
+            memoryExtractor.extractAsync(
+                doctor = doctor,
+                latestUserText = latestUserText,
+                assistantReply = spoken,
+                toolNames = outcome.toolEvents.map { it.name }.distinct(),
+                patientNamesInTurn = outcome.patientNames,
+                requestId = ctx.requestId,
+            )
+        } catch (e: Exception) {
+            log.warn("intelligence_memory_schedule_failed reason={}", e.javaClass.simpleName)
+        }
     }
 
     private data class ToolLoopOutcome(
@@ -140,6 +184,8 @@ class DoctorMorningAiService(
         val toolEvents: List<MorningStreamEvent.Tool>,
         val directReply: String?,
         val latestSpokenHint: String?,
+        /** Patient names surfaced by tools this turn; memory extraction must never store them. */
+        val patientNames: Set<String> = emptySet(),
     )
 
     /**
@@ -215,6 +261,7 @@ class DoctorMorningAiService(
         messages: List<AiMessageDto>,
         systemMessages: List<Map<String, String>>,
         focusPatientId: Long?,
+        ctx: LlmTurnContext,
     ): ToolLoopOutcome {
         forcedCancellation(doctor, messages, focusPatientId)?.let { return it }
         forcedReschedule(doctor, messages, focusPatientId)?.let { return it }
@@ -222,72 +269,44 @@ class DoctorMorningAiService(
         val toolEvents = mutableListOf<MorningStreamEvent.Tool>()
         // patientIds returned by search_patients in this request (same tool loop).
         val searchedPatientIds = linkedSetOf<Long>()
+        val patientNames = linkedSetOf<String>()
+        // (tool name + canonical args) already executed this turn: never run the same call twice,
+        // even if the model repeats it or a later iteration re-emits it.
+        val executedKeys = hashSetOf<String>()
         var latestSpokenHint: String? = null
         // Cap at 2: search + propose is enough; more iterations made voice feel slow.
         val maxIterations = 2
         for (iteration in 1..maxIterations) {
-            val payload = mapper.writeValueAsString(
-                mapOf(
-                    "model" to props.model,
-                    "stream" to false,
-                    "temperature" to 0.0,
-                    "max_tokens" to 400,
-                    "tools" to morningToolsSchema(),
-                    "tool_choice" to "auto",
-                    "messages" to systemMessages +
-                        messages.map { mapOf("role" to it.role, "content" to it.content) } +
-                        loopMessages +
-                        listOf(
-                            mapOf(
-                                "role" to "system",
-                                "content" to toolLoopNudge(messages),
-                            )
-                        ),
-                )
+            val request = LlmRequest(
+                messages = systemMessages +
+                    messages.map { mapOf("role" to it.role, "content" to it.content) } +
+                    loopMessages +
+                    listOf(
+                        mapOf(
+                            "role" to "system",
+                            "content" to toolLoopNudge(messages),
+                        )
+                    ),
+                tools = morningToolsSchema(),
+                toolChoice = "auto",
+                temperature = 0.0,
+                maxTokens = 400,
             )
-            val request = Request.Builder()
-                .url("https://api.openai.com/v1/chat/completions")
-                .addHeader("Authorization", "Bearer ${props.apiKey}")
-                .addHeader("OpenAI-Project", props.projectId)
-                .addHeader("Content-Type", "application/json")
-                .post(payload.toRequestBody("application/json".toMediaType()))
-                .build()
-
-            val bodyText = toolClient.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    log.warn("Morning tool loop HTTP {}", response.code)
-                    return ToolLoopOutcome(loopMessages, toolEvents, null, latestSpokenHint)
-                }
-                response.body?.string().orEmpty()
+            val response = try {
+                llm.complete(request, ctx, LlmPurpose.TOOL_LOOP)
+            } catch (e: LlmUnavailableException) {
+                log.warn("Morning tool loop unavailable iteration={} attempts={}", iteration, e.attempts)
+                return ToolLoopOutcome(loopMessages, toolEvents, null, latestSpokenHint, patientNames)
             }
-            val json = try {
-                mapper.readTree(bodyText)
-            } catch (_: Exception) {
-                return ToolLoopOutcome(loopMessages, toolEvents, null, latestSpokenHint)
-            }
-            val modelMsg = json.path("choices").path(0).path("message")
-            val content = modelMsg.path("content").asText(null)?.trim().orEmpty()
-            val toolCalls = modelMsg.path("tool_calls")
-            if (!toolCalls.isArray || toolCalls.isEmpty) {
+            val content = response.content
+            if (response.toolCalls.isEmpty()) {
                 // No tools — reuse this answer instead of a second LLM round-trip.
-                return ToolLoopOutcome(loopMessages, toolEvents, content.ifBlank { null }, latestSpokenHint)
+                return ToolLoopOutcome(loopMessages, toolEvents, content.ifBlank { null }, latestSpokenHint, patientNames)
             }
+            // From here on this turn is pinned: tool results below only make sense to this provider.
+            ctx.pinnedProvider = response.providerId
 
-            val normalizedCalls = toolCalls.take(3).mapNotNull { tc ->
-                val id = tc.path("id").asText(null) ?: return@mapNotNull null
-                val name = tc.path("function").path("name").asText(null) ?: return@mapNotNull null
-                val argsRaw = tc.path("function").path("arguments").asText("{}")
-                val args = try {
-                    @Suppress("UNCHECKED_CAST")
-                    mapper.readValue(argsRaw, Map::class.java) as Map<String, Any?>
-                } catch (_: Exception) {
-                    emptyMap()
-                }
-                Triple(id, name, args)
-            }
-            if (normalizedCalls.isEmpty()) {
-                return ToolLoopOutcome(loopMessages, toolEvents, content.ifBlank { null }, latestSpokenHint)
-            }
+            val normalizedCalls = response.toolCalls.take(3).map { Triple(it.id, it.name, it.arguments) }
 
             loopMessages += mapOf(
                 "role" to "assistant",
@@ -334,6 +353,16 @@ class DoctorMorningAiService(
                     name = "query_appointment_intelligence"
                     safeArgs = generalAppointmentListArgs(safeArgs)
                 }
+                val executionKey = name + "|" + canonicalArgs(safeArgs)
+                if (!executedKeys.add(executionKey)) {
+                    log.info("morning_tool iteration={} tool={} skipped=duplicate_in_turn", iteration, name)
+                    loopMessages += mapOf(
+                        "role" to "tool",
+                        "tool_call_id" to id,
+                        "content" to mapper.writeValueAsString(mapOf("skipped" to "already executed in this turn")),
+                    )
+                    continue
+                }
                 val result = morningTools.execute(
                     doctor = doctor,
                     toolName = name,
@@ -346,6 +375,7 @@ class DoctorMorningAiService(
                 )
                 if (name == "search_patients") {
                     extractSearchPatientIds(result).forEach { searchedPatientIds += it }
+                    extractSearchPatientNames(result).forEach { patientNames += it }
                 }
                 loopMessages += mapOf(
                     "role" to "tool",
@@ -360,46 +390,45 @@ class DoctorMorningAiService(
                 }
                 log.info("morning_tool iteration={} tool={} ok={}", iteration, name, !result.containsKey("error"))
             }
+            // Search is a stepping-stone (search then book). Any other successful card/hint is the answer —
+            // skip a second model round-trip that only restates the spokenHint.
+            val searchedThisIteration = orderedCalls.any { it.second == "search_patients" }
+            if (!searchedThisIteration && (toolEvents.isNotEmpty() || !latestSpokenHint.isNullOrBlank())) {
+                return ToolLoopOutcome(loopMessages, toolEvents, null, latestSpokenHint, patientNames)
+            }
         }
-        return ToolLoopOutcome(loopMessages, toolEvents, null, latestSpokenHint)
+        return ToolLoopOutcome(loopMessages, toolEvents, null, latestSpokenHint, patientNames)
     }
 
-    /** Non-streaming completion — morning replies are short; avoids a second long wait. */
+    /** Stable string for the duplicate-execution guard (sorted keys, no whitespace noise). */
+    private fun canonicalArgs(args: Map<String, Any?>): String =
+        args.entries.sortedBy { it.key }.joinToString(",") { (k, v) -> "$k=${v?.toString()?.trim()}" }
+
+    /**
+     * Non-streaming completion — morning replies are short; avoids a second long wait.
+     * Read-only, so it may fall back across providers even when the tool loop was pinned.
+     */
     private fun completeChat(
         messages: List<Map<String, Any?>>,
         maxTokens: Int,
         temperature: Double,
+        ctx: LlmTurnContext,
     ): String {
-        val payload = mapper.writeValueAsString(
-            mapOf(
-                "model" to props.model,
-                "stream" to false,
-                "temperature" to temperature,
-                "max_tokens" to maxTokens,
-                "messages" to messages,
-            )
+        val spokenCtx = LlmTurnContext(
+            doctorId = ctx.doctorId,
+            language = ctx.language,
+            category = ctx.category,
+            requestId = ctx.requestId,
+            startedAtMs = ctx.startedAtMs,
         )
-        val request = Request.Builder()
-            .url("https://api.openai.com/v1/chat/completions")
-            .addHeader("Authorization", "Bearer ${props.apiKey}")
-            .addHeader("OpenAI-Project", props.projectId)
-            .addHeader("Content-Type", "application/json")
-            .post(payload.toRequestBody("application/json".toMediaType()))
-            .build()
-
-        val bodyText = client.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                throw AiStreamException(code = "AI_UNAVAILABLE", message = "AI is temporarily unavailable.")
-            }
-            response.body?.string().orEmpty()
-        }
         return try {
-            mapper.readTree(bodyText)
-                .path("choices").path(0).path("message").path("content")
-                .asText("")
-                .trim()
-        } catch (_: Exception) {
-            ""
+            llm.complete(
+                LlmRequest(messages = messages, temperature = temperature, maxTokens = maxTokens),
+                spokenCtx,
+                LlmPurpose.SPOKEN_REPLY,
+            ).content
+        } catch (e: LlmUnavailableException) {
+            throw AiStreamException(code = "AI_UNAVAILABLE", message = "AI is temporarily unavailable.")
         }
     }
 
@@ -1206,6 +1235,14 @@ Rules:
         return matches.mapNotNull { row ->
             val map = row as? Map<*, *> ?: return@mapNotNull null
             (map["patientId"] as? Number)?.toLong()
+        }
+    }
+
+    private fun extractSearchPatientNames(result: Map<String, Any?>): List<String> {
+        val matches = result["matches"] as? List<*> ?: return emptyList()
+        return matches.mapNotNull { row ->
+            val map = row as? Map<*, *> ?: return@mapNotNull null
+            (map["patientName"] as? String)?.takeIf { it.isNotBlank() }
         }
     }
 

@@ -131,6 +131,69 @@ openai:
   tts-voice: ${OPENAI_TTS_VOICE:sage}
   tts-speed: ${OPENAI_TTS_SPEED:0.92}
 
+# Shifa Intelligence LLM routing (provider-agnostic morning assistant).
+# A provider is used only when it has a non-blank API key. Missing keys are skipped, so
+# OpenAI-only deployments stay OpenAI-only until GEMINI_API_KEY / XAI_API_KEY are set.
+# Set GEMINI_ENABLED=false or XAI_ENABLED=false to keep a key without sending traffic.
+ai:
+  routing:
+    enabled: true
+    default-provider: openai
+    max-provider-attempts: ${AI_MAX_PROVIDER_ATTEMPTS:2}
+    request-deadline-ms: ${AI_REQUEST_DEADLINE_MS:40000}
+    cooldown-ms: ${AI_PROVIDER_COOLDOWN_MS:60000}
+  providers:
+    openai:
+      enabled: true
+      base-url: https://api.openai.com/v1
+      api-key: ${OPENAI_API_KEY:}
+      project-id: ${OPENAI_PROJECT_ID:}
+      chat-model: ${OPENAI_MODEL:gpt-4o-mini}
+      timeout-ms: 45000
+      daily-token-budget: ${OPENAI_DAILY_TOKEN_BUDGET:0}
+      monthly-token-budget: ${OPENAI_MONTHLY_TOKEN_BUDGET:0}
+    gemini:
+      enabled: ${GEMINI_ENABLED:true}
+      base-url: https://generativelanguage.googleapis.com/v1beta/openai
+      api-key: ${GEMINI_API_KEY:}
+      chat-model: ${GEMINI_CHAT_MODEL:gemini-2.5-flash}
+      timeout-ms: 45000
+      daily-token-budget: ${GEMINI_DAILY_TOKEN_BUDGET:0}
+      monthly-token-budget: ${GEMINI_MONTHLY_TOKEN_BUDGET:0}
+    grok:
+      enabled: ${XAI_ENABLED:true}
+      base-url: https://api.x.ai/v1
+      api-key: ${XAI_API_KEY:}
+      chat-model: ${XAI_CHAT_MODEL:grok-3-mini}
+      timeout-ms: 45000
+      daily-token-budget: ${XAI_DAILY_TOKEN_BUDGET:0}
+      monthly-token-budget: ${XAI_MONTHLY_TOKEN_BUDGET:0}
+  # Ordered provider ids. Ineligible ids (no key / disabled) are skipped automatically.
+  routes:
+    uz:
+      default:
+        - gemini
+        - openai
+    ru:
+      default:
+        - openai
+        - grok
+    en:
+      default:
+        - openai
+        - grok
+  memory:
+    enabled: ${AI_MEMORY_ENABLED:true}
+    extraction-provider: openai
+    max-retrieved: 5
+    min-confidence: 0.7
+    temporary-ttl-minutes: 120
+  speech:
+    uzbek-provider: gemini
+    stt-model: ${GEMINI_STT_MODEL:gemini-3.5-transcribe}
+    tts-model: ${GEMINI_TTS_MODEL:gemini-3.8-flash-lite-tts}
+    tts-voice: ${GEMINI_TTS_VOICE:Kore}
+
 # Daily.co Video API configuration
 # Get your API key from https://dashboard.daily.co/
 # In production, set DAILY_API_KEY environment variable

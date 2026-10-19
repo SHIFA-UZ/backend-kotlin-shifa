@@ -17,7 +17,8 @@ import org.springframework.scheduling.annotation.EnableScheduling
     OpenAiProperties::class,
     AiRateLimitProperties::class,
     DevSmsProperties::class,
-    com.shifa.config.ScribeProperties::class
+    com.shifa.config.ScribeProperties::class,
+    com.shifa.ai.llm.AiRoutingProperties::class,
 )
 @EnableScheduling
 @EnableCaching

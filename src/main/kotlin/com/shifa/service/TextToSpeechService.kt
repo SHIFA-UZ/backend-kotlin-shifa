@@ -1,6 +1,7 @@
 package com.shifa.service
 
 import com.shifa.ai.OutputLanguage
+import com.shifa.ai.speech.GeminiSpeechClient
 import com.shifa.config.OpenAiProperties
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -11,14 +12,14 @@ import org.springframework.stereotype.Service
 import java.time.Duration
 
 /**
- * OpenAI TTS for short spoken replies in the doctor morning / Intelligence session.
- *
- * Intelligence path prioritizes latency: single fast model ([tts-1]), short input,
- * and a tight read timeout — no multi-model fallback chain that can hang for minutes.
+ * Intelligence spoken replies.
+ * Uzbek uses Gemini TTS ([gemini-3.8-flash-lite-tts]) when a Gemini key is configured;
+ * English/Russian stay on OpenAI tts-1. Gemini failure falls back to OpenAI so voice still works.
  */
 @Service
 class TextToSpeechService(
     private val props: OpenAiProperties,
+    private val geminiSpeech: GeminiSpeechClient? = null,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val mapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
@@ -38,6 +39,18 @@ class TextToSpeechService(
         if (cleaned.isBlank()) {
             throw IllegalArgumentException("text is required")
         }
+        if (language == OutputLanguage.UZ && geminiSpeech?.isAvailable() == true) {
+            try {
+                val audio = geminiSpeech.speak(
+                    text = paceForSpeech(cleaned),
+                    style = "Calm professional clinic assistant. Speak natural Northern Uzbek. Short sentences.",
+                )
+                return SpeechResult(audioBytes = audio.bytes, contentType = audio.contentType)
+            } catch (e: Exception) {
+                log.warn("gemini_tts_fallback_openai reason={}", e.javaClass.simpleName)
+            }
+        }
+
         if (props.apiKey.isBlank()) {
             throw IllegalStateException("OpenAI API key is not configured")
         }
