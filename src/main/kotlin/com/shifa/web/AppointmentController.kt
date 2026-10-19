@@ -24,7 +24,6 @@ import com.shifa.service.TreatmentPlanFulfillmentService
 import com.shifa.service.VisitChargeService
 import com.shifa.service.ScribePipelineService
 import com.shifa.service.AppointmentDocumentationService
-import com.shifa.domain.ConsultationNote
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -191,6 +190,37 @@ class AppointmentController(
                 source = n.source,
                 createdAt = n.createdAt.toString()
             )
+        }
+    }
+
+    data class PutConsultationNotesRequest(
+        val body: String? = null,
+    )
+
+    /** Save the doctor's appointment notes without completing the visit. */
+    @PutMapping("/{appointmentId}/consultation-notes")
+    fun putConsultationNotes(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable appointmentId: Long,
+        @RequestBody body: PutConsultationNotesRequest,
+    ) {
+        val appointment = appts.findById(appointmentId)
+            .orElseThrow {
+                ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
+            }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
+        val text = body.body?.trim().orEmpty()
+        if (text.isEmpty()) return
+        try {
+            appointmentVisitLifecycleService.upsertManualConsultationNote(
+                appointment.doctor,
+                appointmentId,
+                text,
+            )
+        } catch (ex: IllegalStateException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message)
+        } catch (ex: IllegalArgumentException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message)
         }
     }
 
@@ -493,18 +523,17 @@ class AppointmentController(
             )
         }
         if (!wasAlreadyCompleted && doctorNotes.isNotEmpty()) {
-            val patientId = appointment.patient.id
-                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment has no patient")
-            val savedNote = consultationNoteRepo.save(
-                ConsultationNote(
-                    doctorId = appointment.doctor.id,
-                    patientId = patientId,
-                    appointmentId = appointment.id,
-                    body = doctorNotes,
-                    source = "MANUAL",
+            try {
+                appointmentVisitLifecycleService.upsertManualConsultationNote(
+                    appointment.doctor,
+                    appointmentId,
+                    doctorNotes,
                 )
-            )
-            savedNote.id?.let { clinicalRagIndexingService.reindexConsultationNote(it) }
+            } catch (ex: IllegalStateException) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message)
+            } catch (ex: IllegalArgumentException) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message)
+            }
         }
 
         appointment.status = Appointment.Status.COMPLETED

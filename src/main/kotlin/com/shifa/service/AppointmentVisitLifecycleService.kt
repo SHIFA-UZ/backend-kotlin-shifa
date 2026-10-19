@@ -1,5 +1,7 @@
 package com.shifa.service
 
+import com.fasterxml.jackson.core.type.TypeReference
+import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.domain.Appointment
 import com.shifa.domain.ConsultationNote
 import com.shifa.domain.DoctorProfile
@@ -35,6 +37,7 @@ class AppointmentVisitLifecycleService(
     private val scribePipelineService: ScribePipelineService,
     private val scribeRecordingService: ScribeRecordingService,
     private val clock: Clock,
+    private val objectMapper: ObjectMapper,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -284,16 +287,64 @@ class AppointmentVisitLifecycleService(
         if (appointment.patientSignedAt != null) {
             throw IllegalStateException("The patient has already signed this visit. I can't change the consultation note.")
         }
-        val existing = consultationNotes.findByAppointmentIdOrderByCreatedAtAsc(appointmentId)
-            .lastOrNull { it.doctorId == doctor.id }
+        val existing = latestManualNote(doctor.id, appointmentId)
         if (existing != null) {
             val current = existing.body?.trim().orEmpty()
             if (current == addition || current.endsWith("\n\n$addition")) {
+                mergeNotesIntoDentalDocumentation(appointment, addition)
                 return NoteOutcome(existing, appointment, appended = false)
             }
             val combined = if (current.isEmpty()) addition else current + "\n\n" + addition
             require(combined.length <= MAX_NOTE_CHARS) { "That note is too long." }
             existing.body = combined
+            val saved = consultationNotes.save(existing)
+            saved.id?.let { clinicalRagIndexingService.reindexConsultationNote(it) }
+            mergeNotesIntoDentalDocumentation(appointment, addition)
+            return NoteOutcome(saved, appointment, appended = true)
+        }
+        val saved = consultationNotes.save(
+            ConsultationNote(
+                doctorId = doctor.id,
+                patientId = patientId,
+                appointmentId = appointment.id,
+                body = addition,
+                source = "MANUAL",
+            ),
+        )
+        saved.id?.let { clinicalRagIndexingService.reindexConsultationNote(it) }
+        mergeNotesIntoDentalDocumentation(appointment, addition)
+        return NoteOutcome(saved, appointment, appended = true)
+    }
+
+    /**
+     * Replaces the doctor's manual consultation note for this visit so Intelligence
+     * dictation and the appointment notes field stay the same document.
+     */
+    @Transactional
+    fun upsertManualConsultationNote(
+        doctor: DoctorProfile,
+        appointmentId: Long,
+        text: String,
+    ): NoteOutcome? {
+        val body = text.trim()
+        if (body.isEmpty()) return null
+        require(body.length <= MAX_NOTE_CHARS) { "That note is too long." }
+        val appointment = loadOwned(doctor, appointmentId) ?: return null
+        val patientId = appointment.patient.id ?: return null
+        when (appointment.status) {
+            Appointment.Status.CANCELLED, Appointment.Status.NO_SHOW ->
+                throw IllegalStateException("I can't add notes to a cancelled or no-show visit.")
+            else -> Unit
+        }
+        if (appointment.patientSignedAt != null) {
+            throw IllegalStateException("The patient has already signed this visit. I can't change the consultation note.")
+        }
+        val existing = latestManualNote(doctor.id, appointmentId)
+        if (existing != null) {
+            if (existing.body?.trim() == body) {
+                return NoteOutcome(existing, appointment, appended = false)
+            }
+            existing.body = body
             val saved = consultationNotes.save(existing)
             saved.id?.let { clinicalRagIndexingService.reindexConsultationNote(it) }
             return NoteOutcome(saved, appointment, appended = true)
@@ -303,7 +354,7 @@ class AppointmentVisitLifecycleService(
                 doctorId = doctor.id,
                 patientId = patientId,
                 appointmentId = appointment.id,
-                body = addition,
+                body = body,
                 source = "MANUAL",
             ),
         )
@@ -317,6 +368,45 @@ class AppointmentVisitLifecycleService(
             ?.body
             ?.trim()
             .orEmpty()
+
+    private fun latestManualNote(doctorId: Long, appointmentId: Long): ConsultationNote? =
+        consultationNotes.findByAppointmentIdOrderByCreatedAtAsc(appointmentId)
+            .lastOrNull { it.doctorId == doctorId && !it.source.equals("AI_DRAFT", ignoreCase = true) }
+
+    /** Copy Intelligence notes into dental-chart notes so both editors show the same text. */
+    private fun mergeNotesIntoDentalDocumentation(appointment: Appointment, text: String) {
+        val addition = text.trim()
+        if (addition.isEmpty()) return
+        val raw = appointment.dentalDocumentation?.trim().orEmpty()
+        val root: MutableMap<String, Any?> = if (raw.isEmpty()) {
+            linkedMapOf(
+                "version" to 2,
+                "dentition" to "permanent",
+                "teeth" to emptyMap<String, Any>(),
+                "discountPercent" to 0,
+                "notes" to addition,
+            )
+        } else {
+            try {
+                objectMapper.readValue(raw, object : TypeReference<MutableMap<String, Any?>>() {})
+            } catch (_: Exception) {
+                log.warn("Could not merge Intelligence notes into dental documentation for {}", appointment.id)
+                return
+            }
+        }
+        val current = root["notes"]?.toString()?.trim().orEmpty()
+        val merged = when {
+            current.isEmpty() -> addition
+            current.contains(addition) -> current
+            addition.contains(current) -> addition
+            else -> "$current\n\n$addition"
+        }
+        if (merged == current && raw.isNotEmpty()) return
+        root["notes"] = merged
+        appointment.dentalDocumentation = objectMapper.writeValueAsString(root)
+        appointments.save(appointment)
+        clinicalRagIndexingService.reindexAppointmentDentalDocumentation(appointment.id)
+    }
 
     fun openPayloadFields(appointment: Appointment, zone: ZoneId): Map<String, Any?> {
         val localStart = appointment.startAt.atZone(zone)

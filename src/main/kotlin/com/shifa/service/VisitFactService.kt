@@ -9,6 +9,7 @@ import com.shifa.repo.PatientProfileRepository
 import com.shifa.repo.PatientVisitFactRepository
 import com.shifa.repo.RemoteCareTaskRepository
 import org.slf4j.LoggerFactory
+import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
@@ -22,6 +23,7 @@ class VisitFactService(
     private val extractionService: VisitFactExtractionService,
     private val taskRepository: RemoteCareTaskRepository,
     private val patientProfileRepository: PatientProfileRepository,
+    @Lazy private val visitLifecycle: AppointmentVisitLifecycleService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -189,6 +191,15 @@ class VisitFactService(
             }.forEach {
                 it.status = PatientVisitFact.Status.REJECTED
                 factRepository.save(it)
+            }
+        }
+
+        val noteText = committed.joinToString("\n") { it.text.trim() }.trim()
+        if (noteText.isNotEmpty()) {
+            runCatching {
+                visitLifecycle.appendConsultationNote(doctor, appointmentId, noteText)
+            }.onFailure {
+                log.warn("Could not copy visit facts into consultation note: {}", it.message)
             }
         }
 

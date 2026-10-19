@@ -13,6 +13,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.any
@@ -74,6 +75,7 @@ class AppointmentVisitLifecycleServiceTest {
             scribe,
             recordings,
             clock,
+            ObjectMapper(),
         )
         `when`(appointments.save(anyAppointment())).thenAnswer { it.arguments[0] }
         `when`(consultationNotes.save(anyNote())).thenAnswer { it.arguments[0] }
@@ -166,6 +168,56 @@ class AppointmentVisitLifecycleServiceTest {
             anyNotification(),
             org.mockito.ArgumentMatchers.anyMap(),
         )
+    }
+
+    @Test
+    fun `intelligence note is copied into dental documentation notes`() {
+        val visit = visit(start = "2026-10-16T09:00:00Z", status = Appointment.Status.IN_PROGRESS)
+        stubFind(visit)
+        `when`(consultationNotes.findByAppointmentIdOrderByCreatedAtAsc(visit.id)).thenReturn(emptyList())
+
+        service.appendConsultationNote(doctor, visit.id, "Patient reports mild pain.")
+
+        assertTrue(visit.dentalDocumentation!!.contains("Patient reports mild pain."))
+    }
+
+    @Test
+    fun `upsert replaces the manual note instead of appending`() {
+        val visit = visit(start = "2026-10-16T09:00:00Z", status = Appointment.Status.IN_PROGRESS)
+        stubFind(visit)
+        val existing = ConsultationNote(
+            id = 44L,
+            doctorId = doctor.id,
+            patientId = patient.id!!,
+            appointmentId = visit.id,
+            body = "First line.",
+            source = "MANUAL",
+        )
+        `when`(consultationNotes.findByAppointmentIdOrderByCreatedAtAsc(visit.id)).thenReturn(listOf(existing))
+
+        val updated = service.upsertManualConsultationNote(doctor, visit.id, "First line.\n\nAdded from calendar.")
+        assertEquals("First line.\n\nAdded from calendar.", updated!!.note.body)
+        assertEquals(44L, updated.note.id)
+    }
+
+    @Test
+    fun `append does not write into an AI draft note`() {
+        val visit = visit(start = "2026-10-16T09:00:00Z", status = Appointment.Status.IN_PROGRESS)
+        stubFind(visit)
+        val ai = ConsultationNote(
+            id = 8L,
+            doctorId = doctor.id,
+            patientId = patient.id!!,
+            appointmentId = visit.id,
+            body = "Scribe summary.",
+            source = "AI_DRAFT",
+        )
+        `when`(consultationNotes.findByAppointmentIdOrderByCreatedAtAsc(visit.id)).thenReturn(listOf(ai))
+
+        val saved = service.appendConsultationNote(doctor, visit.id, "Doctor addendum.")
+        assertEquals("Doctor addendum.", saved!!.note.body)
+        assertEquals("MANUAL", saved.note.source)
+        assertEquals("Scribe summary.", ai.body)
     }
 
     @Test
