@@ -2,6 +2,7 @@ package com.shifa.web
 
 import com.shifa.domain.DoctorService
 import com.shifa.domain.DoctorServiceGroup
+import com.shifa.domain.ServicePaymentType
 import com.shifa.domain.DoctorServicePrice
 import com.shifa.repo.DoctorLocationRepository
 import com.shifa.repo.DoctorServiceGroupRepository
@@ -38,6 +39,7 @@ class DoctorServiceController(
         val isActive: Boolean,
         /** When true, video bookings with this service skip payment (free consultation). */
         val isFreeConsultation: Boolean = false,
+        val paymentType: String = "PAY_NOW",
         /** Managed via clinic workspace catalog; cannot be edited here. */
         val clinicManaged: Boolean = false,
         val groupId: Long? = null,
@@ -51,6 +53,7 @@ class DoctorServiceController(
         val description: String? = null,
         val isActive: Boolean = true,
         val isFreeConsultation: Boolean = false,
+        val paymentType: String? = null,
         val groupId: Long? = null,
         val prices: List<PriceDto> = emptyList()
     )
@@ -80,6 +83,7 @@ class DoctorServiceController(
                 description = body.description?.trim(),
                 isActive = body.isActive,
                 isFreeConsultation = body.isFreeConsultation,
+                paymentType = resolvePaymentType(body),
                 group = group
             )
         )
@@ -112,6 +116,7 @@ class DoctorServiceController(
         service.description = body.description?.trim()
         service.isActive = body.isActive
         service.isFreeConsultation = body.isFreeConsultation
+        body.paymentType?.let { service.paymentType = resolvePaymentType(body) }
         service.group = resolveGroup(doctorId, body.groupId)
         service.updatedAt = Instant.now()
         services.save(service)
@@ -154,6 +159,9 @@ class DoctorServiceController(
     }
 
     private fun validateUpsert(body: UpsertServiceRequest, doctorId: Long) {
+        if (body.isFreeConsultation && body.paymentType?.equals("PAY_LATER", ignoreCase = true) == true) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "A free consultation cannot be pay-later")
+        }
         if (!body.isFreeConsultation) {
             val valid = body.prices.any { it.amountMinor > 0 && it.currency.isNotBlank() }
             if (!valid) {
@@ -230,12 +238,20 @@ class DoctorServiceController(
             description = this.description,
             isActive = this.isActive,
             isFreeConsultation = this.isFreeConsultation,
+            paymentType = this.paymentType.name,
             clinicManaged = this.sourceCatalogItem != null,
             groupId = this.group?.id,
             groupName = this.group?.name,
             groupSortOrder = this.group?.sortOrder,
             prices = servicePrices
         )
+    }
+
+    private fun resolvePaymentType(body: UpsertServiceRequest): ServicePaymentType {
+        val raw = body.paymentType?.trim()?.uppercase() ?: return ServicePaymentType.PAY_NOW
+        return runCatching { ServicePaymentType.valueOf(raw) }.getOrElse {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "paymentType must be PAY_NOW or PAY_LATER")
+        }
     }
 
     private fun serviceDisplayOrder(): Comparator<DoctorService> =

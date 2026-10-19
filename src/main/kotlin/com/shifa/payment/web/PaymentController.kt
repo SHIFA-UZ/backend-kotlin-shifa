@@ -5,6 +5,7 @@ import com.shifa.payment.service.PaymentService
 import com.shifa.security.PatientPrincipal
 import org.springframework.http.MediaType
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import io.swagger.v3.oas.annotations.Operation
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -77,6 +78,17 @@ class PaymentController(
   <p>$message</p>
 </body>
 </html>""".trimIndent()
+
+    @Operation(
+        summary = "Enabled online payment methods for a service",
+        description = "One item is the single-method sheet. Two items are the choice sheet. Empty when the service is free or pay-at-clinic. Amounts are minor units; UZS has no subunit, so 300000 is 300000.00 UZS.",
+    )
+    @GetMapping("/methods")
+    fun methods(
+        @RequestParam serviceId: Long,
+        @RequestParam(required = false) locationId: Long?,
+    ): List<PaymentService.PaymentMethodQuote> =
+        paymentService.listConsultationMethods(serviceId, locationId)
 
     @PostMapping("/consultation/checkout")
     fun createConsultationCheckout(

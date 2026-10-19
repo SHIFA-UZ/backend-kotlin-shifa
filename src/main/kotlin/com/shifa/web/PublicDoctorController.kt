@@ -66,6 +66,8 @@ class PublicDoctorController(
         val description: String?,
         /** True when this video-bookable service is free (no patient payment). */
         val isFreeConsultation: Boolean = false,
+        val paymentType: String = "PAY_NOW",
+        val videoAllowed: Boolean = false,
         val groupId: Long? = null,
         val groupName: String? = null,
         val groupSortOrder: Int? = null,
@@ -625,6 +627,8 @@ class PublicDoctorController(
                 title = s.title,
                 description = s.description,
                 isFreeConsultation = s.isFreeConsultation,
+                paymentType = s.paymentType.name,
+                videoAllowed = s.isFreeConsultation || s.paymentType == com.shifa.domain.ServicePaymentType.PAY_NOW,
                 groupId = s.group?.id,
                 groupName = s.group?.name,
                 groupSortOrder = s.group?.sortOrder,

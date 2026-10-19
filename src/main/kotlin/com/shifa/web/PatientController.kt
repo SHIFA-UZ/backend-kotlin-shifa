@@ -2,8 +2,11 @@
 package com.shifa.web
 
 import com.shifa.config.AppProperties
+import com.shifa.config.PaymentProperties
+import com.shifa.payment.service.PaymentService
 import java.time.ZoneOffset
 import com.shifa.domain.Appointment
+import com.shifa.domain.ServicePaymentType
 import com.shifa.domain.Notification
 import com.shifa.domain.PatientProfile
 import com.shifa.repo.AppointmentRepository
@@ -14,6 +17,7 @@ import com.shifa.repo.DoctorServiceRepository
 import com.shifa.repo.NotificationRepository
 import com.shifa.repo.PatientProfileRepository
 import com.shifa.security.PatientPrincipal
+import com.shifa.service.BookingPaymentPolicy
 import com.shifa.service.DoctorServicePricing
 import com.shifa.service.FcmService
 import com.shifa.service.NotificationFormatting
@@ -55,7 +59,9 @@ class PatientController(
     private val notifications: NotificationRepository,
     private val fcmService: FcmService,
     private val subscriptionTierService: com.shifa.service.SubscriptionTierService,
-    private val slotAvailabilityService: SlotAvailabilityService
+    private val slotAvailabilityService: SlotAvailabilityService,
+    private val paymentService: PaymentService,
+    private val paymentProperties: PaymentProperties,
 ) {
 
     // -------------------- Helper --------------------
@@ -139,7 +145,25 @@ class PatientController(
         val paymentCurrency: String? = null,
         val locationId: Long? = null,
         val locationLabel: String? = null,
-        val locationAddress: String? = null
+        val locationAddress: String? = null,
+        val isVideoConsultation: Boolean = false,
+        val paymentType: String? = null,
+        val paymentBadge: String? = null,
+        val holdExpiresAt: String? = null,
+        val serviceId: Long? = null,
+        val serviceTitle: String? = null,
+        val isLocked24h: Boolean = false,
+        val canCancel: Boolean = false,
+        val canReschedule: Boolean = false,
+        val refundRequired: Boolean = false,
+        val payment: PaymentCheckoutDto? = null,
+    )
+
+    data class PaymentCheckoutDto(
+        val id: Long,
+        val provider: String,
+        val checkoutUrl: String,
+        val expiresAt: String?,
     )
 
     /** startAt: ISO 8601 UTC (e.g. 2026-02-12T13:00:00Z). */
@@ -167,6 +191,11 @@ class PatientController(
          * instead of booked + cancelled.
          */
         val rescheduleAppointmentId: Long? = null,
+        /**
+         * CLICK or STRIPE. The new app sends this for pay-now, including when only one method is listed.
+         * Omitted by the current app, which still books first and pays from the appointments screen.
+         */
+        val paymentProvider: String? = null,
     )
 
     // -------------------- FCM Token (push notifications) --------------------
@@ -295,24 +324,13 @@ class PatientController(
             appts.filter { it.status.name.equals(s, ignoreCase = true) }
         } ?: appts
 
-        return filtered.map { appt ->
-            AppointmentDto(
-                id = appt.id,
-                doctorId = appt.doctor.id,
-                doctorName = "${appt.doctor.firstName} ${appt.doctor.lastName}".trim(),
-                doctorProfession = appt.doctor.profession,
-                doctorClinic = appt.doctor.clinic,
-                doctorPhotoUrl = normalizeAvatarUrl(appt.doctor.avatarUrl, appProps.publicBaseUrl),
-                startAt = appt.startAt.toString(),
-                endAt = appt.endAt.toString(),
-                location = appt.location,
-                reason = appt.reason,
-                status = appt.status.name,
-                locationId = appt.locationRef?.id,
-                locationLabel = appt.locationRef?.label,
-                locationAddress = appt.locationRef?.address
-            )
+        val hidden = setOf(Appointment.Status.EXPIRED, Appointment.Status.PAYMENT_FAILED)
+        val visible = if (status != null && hidden.any { it.name.equals(status, ignoreCase = true) }) {
+            filtered
+        } else {
+            filtered.filter { it.status !in hidden }
         }
+        return visible.map { toAppointmentDto(it) }
     }
 
     // GET /api/patients/me/appointments/{id} is handled by PatientAppointmentController.getById
@@ -331,8 +349,17 @@ class PatientController(
         if (appointment.patient.id != profile.id) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
+        if (BookingPaymentPolicy.isLocked24h(appointment.startAt, Instant.now())) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, BookingPaymentPolicy.LOCKED_24H)
+        }
+        if (appointment.paymentStatus == Appointment.PaymentStatus.PAID) {
+            appointment.refundRequired = true
+        } else if (appointment.paymentStatus == Appointment.PaymentStatus.PENDING) {
+            paymentService.cancelOpenConsultation(appointment.id)
+        }
 
         appointment.status = Appointment.Status.CANCELLED
+        appointment.holdExpiresAt = null
         appointments.save(appointment)
 
         // Notify doctor that patient cancelled the appointment.
@@ -362,8 +389,13 @@ class PatientController(
 
         val doctor = doctorProfiles.findById(req.doctorId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found") }
+        // shortcut: row lock on the doctor, not a range exclusion constraint. Add that after a one-time overlap audit.
+        doctorProfiles.findByIdForUpdate(doctor.id!!)
 
         val startAt = Instant.parse(req.startAt)
+        if (!startAt.isAfter(Instant.now())) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Time slot is in the past")
+        }
         val endAt = startAt.plusSeconds(req.slotMinutes * 60L)
 
         // Check for overlapping appointments for the doctor
@@ -433,6 +465,9 @@ class PatientController(
         if (selectedService != null && !selectedService.isActive) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service is not active")
         }
+        if (req.isVideo && selectedService != null && !BookingPaymentPolicy.videoAllowed(selectedService)) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Video consultation is not allowed for this service")
+        }
         val selectedServicePrice = selectedService?.let { svc ->
             if (svc.isFreeConsultation) {
                 null
@@ -443,17 +478,34 @@ class PatientController(
             }
         }
 
-        val paymentAmountMinor = when {
-            selectedService?.isFreeConsultation == true -> null
-            selectedServicePrice != null -> selectedServicePrice.amountMinor
-            else -> doctor.consultationPriceMinor
+        val kind = BookingPaymentPolicy.kind(selectedService)
+        val paymentAmountMinor = when (kind) {
+            BookingPaymentPolicy.Kind.FREE -> null
+            BookingPaymentPolicy.Kind.PAY_LATER, BookingPaymentPolicy.Kind.PAY_NOW -> selectedServicePrice!!.amountMinor
+            BookingPaymentPolicy.Kind.LEGACY -> doctor.consultationPriceMinor
         }
-        val paymentCurrency = when {
-            selectedService?.isFreeConsultation == true -> null
-            selectedServicePrice != null -> selectedServicePrice.currency
-            else -> doctor.consultationCurrency
+        val paymentCurrency = when (kind) {
+            BookingPaymentPolicy.Kind.FREE -> null
+            BookingPaymentPolicy.Kind.PAY_LATER, BookingPaymentPolicy.Kind.PAY_NOW -> selectedServicePrice!!.currency
+            BookingPaymentPolicy.Kind.LEGACY -> doctor.consultationCurrency
         }
-        val needsPayment = paymentAmountMinor != null
+        val legacyNeedsPayment = kind == BookingPaymentPolicy.Kind.LEGACY && paymentAmountMinor != null
+        val provider = if (kind == BookingPaymentPolicy.Kind.PAY_NOW) {
+            try {
+                BookingPaymentPolicy.chooseProvider(req.paymentProvider, paymentService.enabledConsultationProviders())
+            } catch (ex: IllegalArgumentException) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message)
+            }
+        } else {
+            null
+        }
+        val holdPayNow = kind == BookingPaymentPolicy.Kind.PAY_NOW && provider != null
+        if (holdPayNow && !paymentCurrency.equals("UZS", ignoreCase = true)) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Online payment is available in UZS only (currency=$paymentCurrency).",
+            )
+        }
 
         val appointment = Appointment(
             doctor = doctor,
@@ -463,22 +515,35 @@ class PatientController(
             location = location,
             locationRef = locationRef,
             reason = req.reason,
-            // Business rule:
-            // - On-site (no payment required): immediately confirmed.
-            // - Paid video: requested until payment webhook marks it paid+confirmed.
-            status = if (needsPayment) {
-                Appointment.Status.REQUESTED
+            isVideoConsultation = req.isVideo,
+            paymentType = when (kind) {
+                BookingPaymentPolicy.Kind.PAY_NOW -> ServicePaymentType.PAY_NOW
+                BookingPaymentPolicy.Kind.PAY_LATER -> ServicePaymentType.PAY_LATER
+                else -> null
+            },
+            holdExpiresAt = if (holdPayNow) {
+                Instant.now().plusSeconds(paymentProperties.holdMinutes.coerceAtLeast(1) * 60)
             } else {
-                Appointment.Status.CONFIRMED
+                null
+            },
+            status = when {
+                holdPayNow -> Appointment.Status.PENDING_PAYMENT
+                kind == BookingPaymentPolicy.Kind.PAY_NOW && provider == null -> Appointment.Status.REQUESTED
+                kind == BookingPaymentPolicy.Kind.PAY_LATER -> Appointment.Status.CONFIRMED
+                kind == BookingPaymentPolicy.Kind.FREE -> Appointment.Status.CONFIRMED
+                legacyNeedsPayment -> Appointment.Status.REQUESTED
+                else -> Appointment.Status.CONFIRMED
             },
             paymentAmountMinor = paymentAmountMinor,
             paymentCurrency = paymentCurrency,
             serviceId = selectedService?.id,
             serviceTitle = selectedService?.title,
-            paymentStatus = if (needsPayment) {
-                Appointment.PaymentStatus.PENDING
-            } else {
-                Appointment.PaymentStatus.NOT_REQUIRED
+            paymentStatus = when {
+                holdPayNow || legacyNeedsPayment ||
+                    (kind == BookingPaymentPolicy.Kind.PAY_NOW && provider == null) ->
+                    Appointment.PaymentStatus.PENDING
+                kind == BookingPaymentPolicy.Kind.PAY_LATER -> Appointment.PaymentStatus.PAY_IN_CLINIC
+                else -> Appointment.PaymentStatus.NOT_REQUIRED
             }
         )
 
@@ -511,10 +576,27 @@ class PatientController(
             if (old.status == Appointment.Status.CANCELLED) {
                 null
             } else {
+                if (BookingPaymentPolicy.isLocked24h(old.startAt, Instant.now())) {
+                    throw ResponseStatusException(HttpStatus.CONFLICT, BookingPaymentPolicy.LOCKED_24H)
+                }
+                if (old.paymentStatus == Appointment.PaymentStatus.PAID) {
+                    old.refundRequired = true
+                }
                 old.status = Appointment.Status.CANCELLED
+                old.holdExpiresAt = null
                 appointments.save(old)
                 old
             }
+        }
+
+        var checkout: PaymentService.ConsultationCheckoutResult? = null
+        if (saved.status == Appointment.Status.PENDING_PAYMENT && provider != null) {
+            appointments.flush()
+            checkout = paymentService.createConsultationCheckout(
+                userId = principal.user.id ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "User id missing"),
+                appointmentId = saved.id,
+                preferredGateway = provider,
+            )
         }
 
         val patientName = profile.fullName ?: "Patient"
@@ -543,35 +625,67 @@ class PatientController(
                 Notification.Type.APPOINTMENT_BOOKED_BY_PATIENT,
             )
         }
-        val notif = Notification(
-            patient = null,
-            doctor = doctor,
-            title = notifTitle,
-            message = notifMessage,
-            type = notifType,
-            appointmentId = saved.id
-        )
-        val savedNotif = notifications.save(notif)
-        fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
+        if (saved.status != Appointment.Status.PENDING_PAYMENT) {
+            val notif = Notification(
+                patient = null,
+                doctor = doctor,
+                title = notifTitle,
+                message = notifMessage,
+                type = notifType,
+                appointmentId = saved.id
+            )
+            val savedNotif = notifications.save(notif)
+            fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
+        }
 
+        return toAppointmentDto(
+            saved,
+            payment = checkout?.let {
+                PaymentCheckoutDto(
+                    id = it.paymentId,
+                    provider = it.gateway,
+                    checkoutUrl = it.checkoutUrl,
+                    expiresAt = saved.holdExpiresAt?.toString(),
+                )
+            },
+        )
+    }
+
+    private fun toAppointmentDto(
+        appt: Appointment,
+        payment: PaymentCheckoutDto? = null,
+    ): AppointmentDto {
+        val locked = BookingPaymentPolicy.isLocked24h(appt.startAt, Instant.now())
+        val canChange = BookingPaymentPolicy.canPatientChange(appt.status, locked)
         return AppointmentDto(
-            id = saved.id,
-            doctorId = saved.doctor.id,
-            doctorName = "${saved.doctor.firstName} ${saved.doctor.lastName}".trim(),
-            doctorProfession = saved.doctor.profession,
-            doctorClinic = saved.doctor.clinic,
-            doctorPhotoUrl = normalizeAvatarUrl(saved.doctor.avatarUrl, appProps.publicBaseUrl),
-            startAt = saved.startAt.toString(),
-            endAt = saved.endAt.toString(),
-            location = saved.location,
-            reason = saved.reason,
-            status = saved.status.name,
-            paymentStatus = saved.paymentStatus.name,
-            paymentAmountMinor = saved.paymentAmountMinor,
-            paymentCurrency = saved.paymentCurrency,
-            locationId = saved.locationRef?.id,
-            locationLabel = saved.locationRef?.label,
-            locationAddress = saved.locationRef?.address
+            id = appt.id,
+            doctorId = appt.doctor.id,
+            doctorName = "${appt.doctor.firstName} ${appt.doctor.lastName}".trim(),
+            doctorProfession = appt.doctor.profession,
+            doctorClinic = appt.locationRef?.clinic?.takeIf { it.isNotBlank() } ?: appt.doctor.clinic,
+            doctorPhotoUrl = normalizeAvatarUrl(appt.doctor.avatarUrl, appProps.publicBaseUrl),
+            startAt = appt.startAt.toString(),
+            endAt = appt.endAt.toString(),
+            location = appt.location,
+            reason = appt.reason,
+            status = appt.status.name,
+            paymentStatus = appt.paymentStatus.name,
+            paymentAmountMinor = appt.paymentAmountMinor,
+            paymentCurrency = appt.paymentCurrency,
+            locationId = appt.locationRef?.id,
+            locationLabel = appt.locationRef?.label,
+            locationAddress = appt.locationRef?.address,
+            isVideoConsultation = appt.isVideoConsultation,
+            paymentType = appt.paymentType?.name,
+            paymentBadge = BookingPaymentPolicy.paymentBadge(appt.paymentStatus),
+            holdExpiresAt = appt.holdExpiresAt?.toString(),
+            serviceId = appt.serviceId,
+            serviceTitle = appt.serviceTitle,
+            isLocked24h = locked,
+            canCancel = canChange,
+            canReschedule = canChange,
+            refundRequired = appt.refundRequired,
+            payment = payment,
         )
     }
 

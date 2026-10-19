@@ -39,7 +39,7 @@ class ScheduleBlockService(
         val now = Instant.now()
         return appts.findOverlapping(doctorId, startAt, endAt)
             .filter {
-                it.status != Appointment.Status.CANCELLED &&
+                !it.releasesSlot() &&
                     it.status != Appointment.Status.COMPLETED &&
                     it.endAt.isAfter(now)
             }

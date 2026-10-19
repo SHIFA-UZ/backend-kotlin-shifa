@@ -30,6 +30,11 @@ class DoctorService(
     @Column(name = "is_free_consultation", nullable = false)
     var isFreeConsultation: Boolean = false,
 
+    /** Ignored when [isFreeConsultation] is true. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_type", nullable = false, length = 16)
+    var paymentType: ServicePaymentType = ServicePaymentType.PAY_NOW,
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "group_id")
     var group: DoctorServiceGroup? = null,

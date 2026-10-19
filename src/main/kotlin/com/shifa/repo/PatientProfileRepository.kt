@@ -105,7 +105,7 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
         SELECT DISTINCT p FROM PatientProfile p
         WHERE p.id IN (
             SELECT DISTINCT a.patient.id FROM Appointment a
-            WHERE a.doctor.id IN :clinicDoctorIds AND a.status != 'CANCELLED'
+            WHERE a.doctor.id IN :clinicDoctorIds AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
         )
         AND (
             :q IS NULL OR :q = '' OR
@@ -132,7 +132,7 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
         WHERE (
             p.id IN (
                 SELECT DISTINCT a.patient.id FROM Appointment a
-                WHERE a.doctor.id = :actorDoctorId AND a.status != 'CANCELLED'
+                WHERE a.doctor.id = :actorDoctorId AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             )
             OR p.createdByDoctor.id = :actorDoctorId
             OR p.id IN (

@@ -428,7 +428,7 @@ class ClinicFinanceController(
         val prepared = mutableListOf<PreparedRow>()
         for (apptId in apptPage.content) {
             val appt = appts.findByIdWithDoctorAndPatient(apptId).orElse(null) ?: continue
-            if (appt.status == com.shifa.domain.Appointment.Status.CANCELLED) continue
+            if (appt.releasesSlot()) continue
             val patientId = appt.patient.id ?: continue
             if (patientFilter != null && patientId !in patientFilter) continue
             val lines = linesRepo.findByLinkedAppointment_Id(apptId)

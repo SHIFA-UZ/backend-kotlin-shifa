@@ -52,7 +52,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         WHERE a.doctor.id = :doctorId
           AND a.startAt < :end
           AND a.endAt   > :start
-          AND a.status != 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
     """)
     fun findOverlapping(doctorId: Long, start: Instant, end: Instant): List<Appointment>
 
@@ -65,7 +65,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         WHERE a.doctor.id = :doctorId
           AND a.startAt >= :start
           AND a.endAt   <  :end
-          AND a.status != 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
         ORDER BY a.startAt ASC
     """)
     fun findForDay(doctorId: Long, start: Instant, end: Instant): List<Appointment>
@@ -102,7 +102,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         SELECT a FROM Appointment a
         WHERE a.patient.id = :patientId
           AND a.doctor.id = :doctorId
-          AND a.status != 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
         ORDER BY a.startAt DESC
     """)
     fun findByPatientIdAndDoctorIdOrderByStartAtDesc(
@@ -139,7 +139,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         WHERE a.patient.id = :patientId
           AND a.startAt < :end
           AND a.endAt > :start
-          AND a.status != 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
     """)
     fun findOverlappingForPatient(patientId: Long, start: Instant, end: Instant): List<Appointment>
 
@@ -186,7 +186,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
     @Query(
         """
         SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END FROM Appointment a
-        WHERE a.patient.id = :patientId AND a.status != 'CANCELLED' AND a.doctor.id IN :doctorIds
+        WHERE a.patient.id = :patientId AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED') AND a.doctor.id IN :doctorIds
         """
     )
     fun existsNonCancelledByPatientIdAndDoctorIds(
@@ -242,7 +242,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         SELECT COUNT(a) FROM Appointment a
         WHERE a.doctor.id = :doctorId
           AND a.locationRef.id = :locationId
-          AND a.status != 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
           AND a.endAt > :now
     """)
     fun countFutureByDoctorAndLocation(
@@ -257,7 +257,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         JOIN FETCH a.patient
         JOIN FETCH a.doctor
         WHERE a.startAt >= :start AND a.startAt < :end
-          AND a.status != 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
     """)
     fun findAppointmentsStartingBetween(
         @Param("start") start: Instant,
@@ -274,7 +274,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         JOIN FETCH a.patient p
         JOIN FETCH a.doctor d
         WHERE a.startAt > :now AND a.startAt < :horizonEnd
-          AND a.status != 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
           AND a.smsReminderSentAt IS NULL
           AND p.smsReminderEnabled = true
           AND p.smsReminderHoursBefore = :hoursBefore
@@ -329,7 +329,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         WHERE a.doctor.id IN :doctorIds
           AND a.startAt >= :start
           AND a.startAt < :end
-          AND a.status != 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
         """
     )
     fun countByDoctorIdsAndStartAtBetween(
@@ -344,7 +344,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         WHERE a.doctor.id IN :doctorIds
           AND a.startAt >= :start
           AND a.startAt < :end
-          AND a.status != 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
         """
     )
     fun countDistinctPatientsByDoctorIdsAndStartAtBetween(
@@ -355,7 +355,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
 
     @Query("""
         SELECT COUNT(DISTINCT a.patient.id) FROM Appointment a WHERE a.doctor.id = :doctorId
-          AND a.status <> 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
     """)
     fun countDistinctPatientsByDoctor(@Param("doctorId") doctorId: Long): Long
 
@@ -382,6 +382,16 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
 
     fun countByDoctor_IdAndStatus(doctor_Id: Long, status: Appointment.Status): Long
 
+    @Query(
+        """
+        SELECT a FROM Appointment a
+        WHERE a.status = 'PENDING_PAYMENT'
+          AND a.holdExpiresAt IS NOT NULL
+          AND a.holdExpiresAt < :now
+        """
+    )
+    fun findExpiredPaymentHolds(@Param("now") now: Instant): List<Appointment>
+
     @Query("SELECT MAX(a.startAt) FROM Appointment a WHERE a.doctor.id = :doctorId")
     fun findMaxStartAtByDoctorId(@Param("doctorId") doctorId: Long): Instant?
 
@@ -394,7 +404,7 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         SELECT a.patient.id, a.patient.fullName, COUNT(a)
         FROM Appointment a
         WHERE a.doctor.id = :doctorId
-          AND a.status != 'CANCELLED'
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
           AND a.startAt >= :since
         GROUP BY a.patient.id, a.patient.fullName
         ORDER BY COUNT(a) DESC, a.patient.fullName ASC

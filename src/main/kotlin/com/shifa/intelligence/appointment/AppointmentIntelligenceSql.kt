@@ -225,6 +225,8 @@ internal object AppointmentIntelligenceSql {
             require(filter.statuses.all { it in STATUSES }) { "status" }
             clauses += "a.status IN (:statuses)"
             params["statuses"] = filter.statuses.toList()
+        } else {
+            clauses += "a.status NOT IN ('EXPIRED', 'PAYMENT_FAILED')"
         }
         if (filter.upcomingOnly) {
             clauses += "a.start_at >= :now"

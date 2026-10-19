@@ -3,7 +3,9 @@ package com.shifa.web
 
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.DoctorReviewRepository
+import com.shifa.repo.PatientDocumentRepository
 import com.shifa.repo.PatientProfileRepository
+import com.shifa.service.BookingPaymentPolicy
 import com.shifa.security.PatientPrincipal
 import com.shifa.service.PatientVisitAiSummaryService
 import com.shifa.service.PatientProfileMapper
@@ -22,7 +24,8 @@ class PatientAppointmentController(
     private val patientProfiles: PatientProfileRepository,
     private val profileMapper: PatientProfileMapper,
     private val reviewRepository: DoctorReviewRepository,
-    private val visitSummaryService: PatientVisitAiSummaryService
+    private val visitSummaryService: PatientVisitAiSummaryService,
+    private val documents: PatientDocumentRepository,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -43,7 +46,21 @@ class PatientAppointmentController(
         val paymentAmountMinor: Long?,
         val paymentCurrency: String?,
         val signatureRequested: Boolean,
-        val alreadySigned: Boolean
+        val alreadySigned: Boolean,
+        val isVideoConsultation: Boolean = false,
+        val paymentType: String? = null,
+        val paymentBadge: String? = null,
+        val serviceId: Long? = null,
+        val serviceTitle: String? = null,
+        val locationId: Long? = null,
+        val locationLabel: String? = null,
+        val locationAddress: String? = null,
+        val documentsCount: Int = 0,
+        val isLocked24h: Boolean = false,
+        val canCancel: Boolean = false,
+        val canReschedule: Boolean = false,
+        val refundRequired: Boolean = false,
+        val holdExpiresAt: String? = null,
     )
 
     @GetMapping("/{appointmentId}")
@@ -62,13 +79,15 @@ class PatientAppointmentController(
         }
         val doctor = appointment.doctor
         val doctorName = "${doctor.firstName ?: ""} ${doctor.lastName ?: ""}".trim().ifEmpty { "Doctor" }
+        val locked = BookingPaymentPolicy.isLocked24h(appointment.startAt, Instant.now())
+        val canChange = BookingPaymentPolicy.canPatientChange(appointment.status, locked)
         return try {
             AppointmentSummaryDto(
                 id = appointment.id,
                 doctorId = doctor.id,
                 doctorName = doctorName,
                 doctorProfession = doctor.profession,
-                doctorClinic = doctor.clinic,
+                doctorClinic = appointment.locationRef?.clinic?.takeIf { it.isNotBlank() } ?: doctor.clinic,
                 doctorPhotoUrl = profileMapper.normalizePhotoUrl(doctor.avatarUrl),
                 startAt = appointment.startAt.toString(),
                 endAt = appointment.endAt.toString(),
@@ -79,7 +98,21 @@ class PatientAppointmentController(
                 paymentAmountMinor = appointment.paymentAmountMinor,
                 paymentCurrency = appointment.paymentCurrency,
                 signatureRequested = appointment.signatureRequested,
-                alreadySigned = appointment.patientSignatureImage != null
+                alreadySigned = appointment.patientSignatureImage != null,
+                isVideoConsultation = appointment.isVideoConsultation,
+                paymentType = appointment.paymentType?.name,
+                paymentBadge = BookingPaymentPolicy.paymentBadge(appointment.paymentStatus),
+                serviceId = appointment.serviceId,
+                serviceTitle = appointment.serviceTitle,
+                locationId = appointment.locationRef?.id,
+                locationLabel = appointment.locationRef?.label,
+                locationAddress = appointment.locationRef?.address,
+                documentsCount = documents.findByAppointmentId(appointment.id).size,
+                isLocked24h = locked,
+                canCancel = canChange,
+                canReschedule = canChange,
+                refundRequired = appointment.refundRequired,
+                holdExpiresAt = appointment.holdExpiresAt?.toString(),
             )
         } catch (e: Exception) {
             log.error("Failed to build appointment summary for id=$appointmentId", e)

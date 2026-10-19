@@ -271,7 +271,7 @@ class ClinicWorkspaceService(
         if (doctorIds.isEmpty()) return emptyList()
         return appointments.findByPatientId(patientId)
             .asSequence()
-            .filter { it.doctor.id != null && doctorIds.contains(it.doctor.id) && it.status != Appointment.Status.CANCELLED }
+            .filter { it.doctor.id != null && doctorIds.contains(it.doctor.id) && !it.releasesSlot() }
             .sortedByDescending { it.startAt }
             .map {
                 ClinicPatientAppointmentRow(

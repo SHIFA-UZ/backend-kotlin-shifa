@@ -86,7 +86,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
-            AND a.status <> 'CANCELLED'
+            AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             ORDER BY l.linked_appointment_id DESC
             """,
         countQuery = """
@@ -94,7 +94,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
-            AND a.status <> 'CANCELLED'
+            AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             """,
         nativeQuery = true,
     )
@@ -109,7 +109,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
-            AND a.status <> 'CANCELLED'
+            AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             AND a.patient_id IN (:patientIds)
             ORDER BY l.linked_appointment_id DESC
             """,
@@ -118,7 +118,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
-            AND a.status <> 'CANCELLED'
+            AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             AND a.patient_id IN (:patientIds)
             """,
         nativeQuery = true,
@@ -135,7 +135,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
-            AND a.status <> 'CANCELLED'
+            AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             AND a.start_at >= :from AND a.start_at < :toExclusive
             ORDER BY a.start_at DESC, l.linked_appointment_id DESC
             """,
@@ -144,7 +144,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
-            AND a.status <> 'CANCELLED'
+            AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             AND a.start_at >= :from AND a.start_at < :toExclusive
             """,
         nativeQuery = true,
@@ -162,7 +162,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
-            AND a.status <> 'CANCELLED'
+            AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             AND a.patient_id IN (:patientIds)
             AND a.start_at >= :from AND a.start_at < :toExclusive
             ORDER BY a.start_at DESC, l.linked_appointment_id DESC
@@ -172,7 +172,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
-            AND a.status <> 'CANCELLED'
+            AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             AND a.patient_id IN (:patientIds)
             AND a.start_at >= :from AND a.start_at < :toExclusive
             """,
@@ -196,7 +196,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
         LEFT JOIN FETCH l.assignedDoctor
         WHERE p.clinic.id = :clinicId
           AND l.linkedAppointment IS NOT NULL
-          AND a.status <> com.shifa.domain.Appointment.Status.CANCELLED
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
         """
     )
     fun findAllLinesForClinicLedger(clinicId: Long): List<TreatmentPlanLine>
@@ -211,7 +211,7 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
         LEFT JOIN FETCH l.assignedDoctor
         WHERE p.clinic.id = :clinicId
           AND l.linkedAppointment IS NOT NULL
-          AND a.status <> com.shifa.domain.Appointment.Status.CANCELLED
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
           AND a.startAt >= :from
           AND a.startAt < :toExclusive
         """

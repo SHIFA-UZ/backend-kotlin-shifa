@@ -195,6 +195,25 @@ class StripeWebhookService(
                     log.warn("Stripe invoice.payment_failed missing subscription id: eventId={}", eventId)
                 }
             }
+            "checkout.session.expired" -> {
+                val ref = root.path("data").path("object").path("client_reference_id").asText("")
+                val sessionId = root.path("data").path("object").path("id").asText("")
+                paymentService.markConsultationCheckoutClosed(
+                    externalRef = ref.ifBlank { null },
+                    gatewayPaymentId = sessionId.ifBlank { null },
+                    expired = true,
+                )
+                log.info("Stripe checkout.session.expired applied: eventId={}, sessionId={}", eventId, sessionId)
+            }
+            "payment_intent.payment_failed" -> {
+                val ref = root.path("data").path("object").path("metadata").path("externalRef").asText("")
+                if (ref.isBlank()) {
+                    log.warn("Stripe payment_intent.payment_failed missing externalRef: eventId={}", eventId)
+                    return
+                }
+                paymentService.markConsultationCheckoutClosed(externalRef = ref, gatewayPaymentId = null, expired = false)
+                log.info("Stripe payment_intent.payment_failed applied: eventId={}, externalRef={}", eventId, ref)
+            }
             "customer.subscription.deleted" -> {
                 val subId = root.path("data").path("object").path("id").asText(null)
                 if (subId.isNullOrBlank()) {

@@ -122,4 +122,9 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
         """
     )
     fun findByUserIdInWithPracticeClinic(@Param("userIds") userIds: Collection<Long>): List<DoctorProfile>
+
+    /** Serializes patient bookings for one doctor so two requests cannot take the same slot. */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @org.springframework.data.jpa.repository.Query("SELECT d FROM DoctorProfile d WHERE d.id = :id")
+    fun findByIdForUpdate(@Param("id") id: Long): Optional<DoctorProfile>
 }

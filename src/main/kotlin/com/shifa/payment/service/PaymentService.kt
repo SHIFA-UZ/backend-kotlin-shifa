@@ -2,10 +2,17 @@ package com.shifa.payment.service
 
 import com.shifa.config.AppProperties
 import com.shifa.config.ClickProperties
+import com.shifa.config.PaymentProperties
+import com.shifa.config.StripeProperties
 import com.shifa.domain.Appointment
 import com.shifa.domain.InstallmentItem
 import com.shifa.domain.Notification
 import com.shifa.domain.TreatmentPlanPayment
+import com.shifa.repo.DoctorServicePriceRepository
+import com.shifa.repo.DoctorServiceRepository
+import com.shifa.service.AppointmentPaymentSettlement
+import com.shifa.service.BookingPaymentPolicy
+import com.shifa.service.DoctorServicePricing
 import com.shifa.payment.domain.Payment
 import com.shifa.payment.domain.PaymentGatewayCode
 import com.shifa.payment.domain.PaymentKind
@@ -49,7 +56,12 @@ class PaymentService(
     private val clickGateway: ClickGateway,
     private val manualPaymentGateway: ManualPaymentGateway,
     private val clickProperties: ClickProperties,
-    private val appProperties: AppProperties
+    private val appProperties: AppProperties,
+    private val paymentProperties: PaymentProperties,
+    private val stripeProperties: StripeProperties,
+    private val doctorServices: DoctorServiceRepository,
+    private val doctorServicePrices: DoctorServicePriceRepository,
+    private val settlement: AppointmentPaymentSettlement,
 ) {
     private val log = LoggerFactory.getLogger(PaymentService::class.java)
 
@@ -85,6 +97,17 @@ class PaymentService(
 
         if (appointment.patient?.id != patient.id) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to current patient")
+        }
+        if (appointment.status == Appointment.Status.EXPIRED ||
+            appointment.status == Appointment.Status.PAYMENT_FAILED ||
+            appointment.status == Appointment.Status.CANCELLED
+        ) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "This appointment is no longer payable")
+        }
+        if (appointment.paymentStatus == Appointment.PaymentStatus.NOT_REQUIRED ||
+            appointment.paymentStatus == Appointment.PaymentStatus.PAY_IN_CLINIC
+        ) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "This appointment does not require online payment")
         }
         if (appointment.paymentStatus == Appointment.PaymentStatus.PAID) {
             val existing = paymentRepository.findByAppointment_Id(appointment.id)
@@ -547,19 +570,7 @@ class PaymentService(
         payment.status = PaymentStatus.PAID
         payment.paidAt = Instant.now()
         payment.updatedAt = Instant.now()
-        payment.appointment?.let {
-            it.paymentStatus = Appointment.PaymentStatus.PAID
-            when (it.status) {
-                Appointment.Status.IN_PROGRESS,
-                Appointment.Status.COMPLETED,
-                Appointment.Status.CANCELLED -> Unit
-
-                else -> {
-                    it.status = Appointment.Status.CONFIRMED
-                }
-            }
-            appointmentRepository.save(it)
-        }
+        payment.appointment?.id?.let { settlement.onGatewayPaid(it) }
         val saved = paymentRepository.save(payment)
         when (saved.kind) {
             PaymentKind.CONSULTATION -> notifyDoctorConsultationPaid(saved)
@@ -579,9 +590,72 @@ class PaymentService(
         payment.failureReason = detail
         payment.updatedAt = Instant.now()
         paymentRepository.save(payment)
-        payment.appointment?.let { apt ->
-            apt.paymentStatus = Appointment.PaymentStatus.FAILED
-            appointmentRepository.save(apt)
+        payment.appointment?.id?.let { settlement.onGatewayFailed(it, expired = false) }
+    }
+
+    @Transactional
+    fun markConsultationCheckoutClosed(externalRef: String?, gatewayPaymentId: String?, expired: Boolean) {
+        val payment = when {
+            !externalRef.isNullOrBlank() -> paymentRepository.findByExternalRef(externalRef)
+            !gatewayPaymentId.isNullOrBlank() -> paymentRepository.findByGatewayPaymentId(gatewayPaymentId)
+            else -> null
+        } ?: return
+        if (payment.status == PaymentStatus.PAID || payment.status == PaymentStatus.REFUNDED) return
+        payment.status = if (expired) PaymentStatus.CANCELLED else PaymentStatus.FAILED
+        payment.failureReason = if (expired) "Checkout expired" else "Payment failed"
+        payment.updatedAt = Instant.now()
+        paymentRepository.save(payment)
+        payment.appointment?.id?.let { settlement.onGatewayFailed(it, expired) }
+    }
+
+    /** Releases the slot locally. The provider session is left to expire on its own. */
+    @Transactional
+    fun cancelOpenConsultation(appointmentId: Long) {
+        val payment = paymentRepository.findByAppointment_Id(appointmentId) ?: return
+        if (payment.status == PaymentStatus.PAID || payment.status == PaymentStatus.REFUNDED) return
+        payment.status = PaymentStatus.CANCELLED
+        payment.failureReason = "Cancelled by patient"
+        payment.updatedAt = Instant.now()
+        paymentRepository.save(payment)
+        // shortcut: provider session is not revoked remotely, upgrade when refunds or session cancel is required
+    }
+
+    fun enabledConsultationProviders(): List<com.shifa.payment.domain.PaymentGatewayCode> =
+        BookingPaymentPolicy.readyProviders(
+            configured = paymentProperties.configuredProviders(),
+            clickReady = clickSkipReason() == null,
+            stripeReady = stripeProperties.secretKey.isNotBlank(),
+        )
+
+    data class PaymentMethodQuote(
+        val provider: String,
+        val amountMinor: Long,
+        val currency: String,
+    )
+
+    @Transactional(readOnly = true)
+    fun listConsultationMethods(serviceId: Long, locationId: Long?): List<PaymentMethodQuote> {
+        val service = doctorServices.findById(serviceId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Selected service not found")
+        }
+        if (!service.isActive) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service is not active")
+        }
+        if (service.isFreeConsultation || service.paymentType == com.shifa.domain.ServicePaymentType.PAY_LATER) {
+            return emptyList()
+        }
+        val price = DoctorServicePricing.pickPaymentPrice(
+            doctorServicePrices.findByService_IdOrderByCurrencyAsc(service.id),
+            locationId,
+        ) ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service has no price configured")
+        if (!price.currency.equals("UZS", ignoreCase = true)) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Online payment is available in UZS only (currency=${price.currency}).",
+            )
+        }
+        return enabledConsultationProviders().map {
+            PaymentMethodQuote(provider = it.name, amountMinor = price.amountMinor, currency = price.currency.uppercase())
         }
     }
 
@@ -597,19 +671,7 @@ class PaymentService(
         payment.status = PaymentStatus.PAID
         payment.paidAt = Instant.now()
         payment.updatedAt = Instant.now()
-        payment.appointment?.let {
-            it.paymentStatus = Appointment.PaymentStatus.PAID
-            when (it.status) {
-                Appointment.Status.IN_PROGRESS,
-                Appointment.Status.COMPLETED,
-                Appointment.Status.CANCELLED -> Unit
-
-                else -> {
-                    it.status = Appointment.Status.CONFIRMED
-                }
-            }
-            appointmentRepository.save(it)
-        }
+        payment.appointment?.id?.let { settlement.onGatewayPaid(it) }
         val saved = paymentRepository.save(payment)
         when (saved.kind) {
             PaymentKind.CONSULTATION -> notifyDoctorConsultationPaid(saved)

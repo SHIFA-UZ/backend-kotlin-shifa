@@ -245,7 +245,7 @@ class CalendarController(
                     )
                 }
                 // Additional check: Ensure status is valid (not CANCELLED)
-                val isValidStatus = appointment.status != com.shifa.domain.Appointment.Status.CANCELLED
+                val isValidStatus = !appointment.releasesSlot()
                 if (!isValidStatus) {
                     logger.warn("Appointment ${appointment.id} has status ${appointment.status}, filtering out")
                 }

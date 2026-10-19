@@ -38,6 +38,22 @@ class Appointment(
 
     var reason: String? = null,
 
+    @Column(name = "is_video_consultation", nullable = false)
+    var isVideoConsultation: Boolean = false,
+
+    /** Snapshot of the service payment type at booking. Null for free and legacy rows. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_type", length = 16)
+    var paymentType: ServicePaymentType? = null,
+
+    /** When a pay-now hold ends. Null once the visit is confirmed, failed, or not a hold. */
+    @Column(name = "hold_expires_at")
+    var holdExpiresAt: Instant? = null,
+
+    /** Paid, but the visit was not kept. Staff refund manually. */
+    @Column(name = "refund_required", nullable = false)
+    var refundRequired: Boolean = false,
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     var status: Status = Status.REQUESTED,
@@ -82,6 +98,13 @@ class Appointment(
     @Column(name = "sms_reminder_sent_at")
     var smsReminderSentAt: Instant? = null
 ) {
-    enum class Status { REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED, NO_SHOW }
-    enum class PaymentStatus { NOT_REQUIRED, PENDING, PAID, FAILED, REFUNDED }
+    enum class Status {
+        REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED, NO_SHOW,
+        PENDING_PAYMENT, EXPIRED, PAYMENT_FAILED,
+    }
+    enum class PaymentStatus { NOT_REQUIRED, PENDING, PAID, FAILED, REFUNDED, PAY_IN_CLINIC }
+
+    /** Slot is free for someone else. */
+    fun releasesSlot(): Boolean =
+        status == Status.CANCELLED || status == Status.EXPIRED || status == Status.PAYMENT_FAILED
 }

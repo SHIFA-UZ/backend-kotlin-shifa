@@ -40,6 +40,16 @@ class StripeGateway(
             )
             .build()
 
+        val intent = PaymentIntentData.builder()
+            .putMetadata("externalRef", request.externalRef)
+        if (!request.destinationAccountId.isNullOrBlank()) {
+            intent.setTransferData(
+                PaymentIntentData.TransferData.builder()
+                    .setDestination(request.destinationAccountId)
+                    .build()
+            )
+        }
+
         val builder = SessionCreateParams.builder()
             .setMode(SessionCreateParams.Mode.PAYMENT)
             .setClientReferenceId(request.externalRef)
@@ -48,18 +58,7 @@ class StripeGateway(
             .setSuccessUrl(request.successUrl ?: "https://example.com/payment-success")
             .setCancelUrl(request.cancelUrl ?: "https://example.com/payment-cancel")
             .addPaymentMethodType(PaymentMethodType.CARD)
-
-        if (!request.destinationAccountId.isNullOrBlank()) {
-            builder.setPaymentIntentData(
-                PaymentIntentData.builder()
-                    .setTransferData(
-                        PaymentIntentData.TransferData.builder()
-                            .setDestination(request.destinationAccountId)
-                            .build()
-                    )
-                    .build()
-            )
-        }
+            .setPaymentIntentData(intent.build())
 
         val session = try {
             Session.create(builder.build())

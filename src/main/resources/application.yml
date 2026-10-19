@@ -226,6 +226,10 @@ devsms:
   billing-currency: ${DEVSMS_BILLING_CURRENCY:UZS}
 
 # Click.uz — video consultation + treatment-plan bill checkout (UZS). Secrets via env in production (never commit).
+payment:
+  enabled-providers: ${PAYMENT_ENABLED_PROVIDERS:CLICK,STRIPE}
+  hold-minutes: ${PAYMENT_HOLD_MINUTES:15}
+
 click:
   enabled: ${CLICK_ENABLED:true}
   merchant-id: ${CLICK_MERCHANT_ID:0}

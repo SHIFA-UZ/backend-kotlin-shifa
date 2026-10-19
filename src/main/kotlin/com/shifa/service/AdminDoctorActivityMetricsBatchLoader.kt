@@ -107,6 +107,9 @@ class AdminDoctorActivityMetricsBatchLoader(
             val status = row[1] as Appointment.Status
             val count = (row[2] as Number).toLong()
             val b = builders[doctorId] ?: continue
+            if (status == Appointment.Status.EXPIRED || status == Appointment.Status.PAYMENT_FAILED) {
+                continue
+            }
             b.appointmentsBooked += count
             when (status) {
                 Appointment.Status.COMPLETED -> b.completed = count
@@ -160,7 +163,7 @@ class AdminDoctorActivityMetricsBatchLoader(
         } else {
             em.createQuery(
                 """SELECT a.doctor.id, COUNT(DISTINCT a.patient.id) FROM Appointment a
-                   WHERE a.doctor.id IN :ids AND a.status <> 'CANCELLED'
+                   WHERE a.doctor.id IN :ids AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
                    GROUP BY a.doctor.id""",
                 Array<Any>::class.java,
             ).setParameter("ids", doctorIds)

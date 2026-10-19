@@ -97,6 +97,9 @@ class AppointmentVisitLifecycleService(
             Appointment.Status.CANCELLED -> return "That visit was cancelled."
             Appointment.Status.NO_SHOW -> return "That visit was marked as a no-show."
             Appointment.Status.REQUESTED, Appointment.Status.CONFIRMED -> Unit
+            Appointment.Status.PENDING_PAYMENT -> return "That visit is still waiting for payment."
+            Appointment.Status.EXPIRED -> return "That visit expired before payment."
+            Appointment.Status.PAYMENT_FAILED -> return "Payment failed for that visit."
         }
         val now = clock.instant()
         if (appointment.startAt.isBefore(now.minus(NO_SHOW_AFTER))) {
