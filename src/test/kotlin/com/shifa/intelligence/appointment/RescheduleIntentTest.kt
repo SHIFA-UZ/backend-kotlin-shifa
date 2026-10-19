@@ -135,6 +135,48 @@ class RescheduleIntentTest {
     }
 
     @Test
+    fun `uzbek ko chir keeps the 15 00 visit and 24 october 8 30`() {
+        assertTrue(
+            RescheduleIntent.shouldMove(
+                "8:30 to'g'ri keladi.",
+                listOf(
+                    "Bu hafta uchun qabullarni ko'rsat.",
+                    "21 22-oktabr kungi 15:00 dagi qabulni",
+                    "Yig'ilishni 22-oktabr 15:00 dagi qabulni 24-oktabrga ko'chir.",
+                ),
+                emptyList(),
+            ),
+        )
+        val choice = RescheduleIntent.choose(
+            visits = visits,
+            current = "8:30 to'g'ri keladi.",
+            priorUsers = listOf(
+                "Bu hafta uchun qabullarni ko'rsat.",
+                "21 22-oktabr kungi 15:00 dagi qabulni",
+                "Yig'ilishni 22-oktabr 15:00 dagi qabulni 24-oktabrga ko'chir. Qara-chi, 24-oktabrda qaysi vaqtlarda bo'sh vaqtim bor?",
+            ),
+            priorAssistants = listOf(listed),
+            today = today,
+        )
+        assertEquals(1209, choice!!.visitId)
+        assertEquals(LocalDate.parse("2026-10-24"), choice.destination)
+        assertEquals(LocalTime.of(8, 30), choice.time)
+    }
+
+    @Test
+    fun `uzbek 22 oktabr 15 00 names that visit without english months`() {
+        val choice = RescheduleIntent.choose(
+            visits = visits,
+            current = "722 Muzrabov, 22-oktabr, 15:00 dagi qabul.",
+            priorUsers = listOf("Yig'ilishni 22-oktabr 15:00 dagi qabulni 24-oktabrga ko'chir."),
+            priorAssistants = listOf(listed),
+            today = today,
+        )
+        assertEquals(1209, choice!!.visitId)
+        assertEquals(LocalDate.parse("2026-10-24"), choice.destination)
+    }
+
+    @Test
     fun `yes after a named destination keeps that day and time`() {
         val choice = RescheduleIntent.choose(
             visits = visits,

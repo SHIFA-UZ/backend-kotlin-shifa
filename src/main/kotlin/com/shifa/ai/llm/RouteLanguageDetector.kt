@@ -20,6 +20,7 @@ object RouteLanguageDetector {
         "bilan", "uchun", "yozib", "yozing", "ko'rsat", "korsat", "ochib", "oching", "bekor", "qil",
         "ayting", "ayt", "bormi", "bor", "yo'q", "yoq", "salom", "rahmat", "iltimos", "shifa",
         "dushanba", "seshanba", "chorshanba", "payshanba", "juma", "shanba", "yakshanba",
+        "oktabr", "oktyabr", "ko'chir", "kochir", "dagi", "kungi", "keladi", "qara",
     )
     private val ruWords = setOf(
         "сегодня", "завтра", "вчера", "пациент", "пациента", "приём", "прием", "запись", "записать",

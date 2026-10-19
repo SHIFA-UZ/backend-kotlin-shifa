@@ -154,6 +154,21 @@ class ClinicTimeRangeResolverTest {
     }
 
     @Test
+    fun `day and month without a year is this clock year not a stale model year`() {
+        val iso = ranges.findRanges("on 2024-10-23", utc).single()
+        assertEquals(Instant.parse("2026-10-23T00:00:00Z"), iso.startInclusive)
+        assertEquals(Instant.parse("2026-10-24T00:00:00Z"), iso.endExclusive)
+        assertEquals("on 23 October 2026", iso.label)
+
+        val english = ranges.findRanges("23 of October", utc).single()
+        assertEquals(iso.startInclusive, english.startInclusive)
+        assertEquals(iso.label, english.label)
+
+        val uzbek = ranges.findRanges("23-oktabrdagi qabul", utc).single()
+        assertEquals(iso.startInclusive, uzbek.startInclusive)
+    }
+
+    @Test
     fun `end of one period is the start of the next`() {
         val yesterday = ranges.findRanges("yesterday", utc).single()
         val today = ranges.findRanges("today", utc).single()

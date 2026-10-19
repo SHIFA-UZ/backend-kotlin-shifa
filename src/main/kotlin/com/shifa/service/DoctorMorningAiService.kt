@@ -472,6 +472,7 @@ CLOCK (MANDATORY):
 - Next 7 days (use these exact ISO dates — never invent weekdays): $nextDays
 - When the doctor says today/tomorrow, pass date as "today" or "tomorrow".
 - When they say a weekday (e.g. Tuesday) or "next Tuesday" / "next week", pass that phrase as date (e.g. "tuesday", "next tuesday") — the server resolves it. Do NOT invent a wrong ISO date.
+- When they say a day and month with no year (23 October, 23-oktabr, 23 of October), pass that phrase. Never invent a year such as 2023 or 2024.
 - Never use a past year. If you pass ISO, it must match the calendar above.
 
 LANGUAGE (MANDATORY):
@@ -511,6 +512,7 @@ CRITICAL WRITE RULES:
 - You NEVER book, reschedule, cancel, or commit chart facts yourself.
 - Cancelling visits uses preview_appointment_cancellation first. Nothing is cancelled until the doctor says yes in a later message and you call confirm_appointment_cancellation.
 - Moving a visit still uses propose_reschedule. Do not cancel it first.
+- Keep the visit already identified in this thread. A new day or time (24-oktabr, 8:30) is the destination — do not ask the patient and day again.
 - Start an in-person visit with start_appointment (sets IN_PROGRESS). Open without starting with open_appointment. Video visits start when the doctor joins the call.
 - Complete a visit only with complete_appointment after an explicit finish command.
 - Request a patient signature only with request_appointment_signature after an explicit signature command.
@@ -560,7 +562,7 @@ Rules:
                         ),
                         "date" to mapOf(
                             "type" to "string",
-                            "description" to "next week / this week / today / tomorrow / weekday / ISO, or an open range: upcoming (all future visits), from tomorrow, from monday. Use upcoming when the doctor says in the future / upcoming / onwards. Defaults to this week.",
+                            "description" to "next week / this week / today / tomorrow / weekday / day+month (23 October, 23-oktabr) / ISO, or an open range: upcoming (all future visits), from tomorrow, from monday. Day+month with no year is this calendar year. Use upcoming when the doctor says in the future / upcoming / onwards. Defaults to this week.",
                         ),
                     ),
                 ),
@@ -576,7 +578,7 @@ Rules:
                     "properties" to mapOf(
                         "date" to mapOf(
                             "type" to "string",
-                            "description" to "today / tomorrow / end of next week / weekday / ISO YYYY-MM-DD. Defaults to today.",
+                            "description" to "today / tomorrow / end of next week / weekday / day+month (23 October, 23-oktabr) / ISO YYYY-MM-DD of the current year. Defaults to today.",
                         ),
                     ),
                 ),
@@ -607,7 +609,7 @@ Rules:
                         "patientId" to mapOf("type" to "integer"),
                         "date" to mapOf(
                             "type" to "string",
-                            "description" to "Prefer literal today or tomorrow. ISO YYYY-MM-DD only if the doctor gave a specific calendar day (current year or later).",
+                            "description" to "Prefer literal today, tomorrow, or day+month (23 October, 23-oktabr). ISO YYYY-MM-DD only if the doctor gave a specific calendar day (current year or later — never a past year).",
                         ),
                         "time" to mapOf(
                             "type" to "string",
@@ -624,7 +626,7 @@ Rules:
             "type" to "function",
             "function" to mapOf(
                 "name" to "propose_reschedule",
-                "description" to "Propose moving an upcoming appointment. Pass time when named. Does NOT change the appointment until auto-confirm/UI.",
+                "description" to "Propose moving an upcoming appointment already named in this thread. A later day/time is the destination. Pass time when named. Does NOT change the appointment until auto-confirm/UI.",
                 "parameters" to mapOf(
                     "type" to "object",
                     "properties" to mapOf(

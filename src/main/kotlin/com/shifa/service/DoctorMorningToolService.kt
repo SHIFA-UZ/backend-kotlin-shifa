@@ -9,6 +9,7 @@ import com.shifa.domain.PatientVisitFact
 import com.shifa.intelligence.appointment.AppointmentActionService
 import com.shifa.intelligence.appointment.AppointmentIntelligenceService
 import com.shifa.intelligence.appointment.CancellationIntent
+import com.shifa.intelligence.appointment.ClinicCalendarDay
 import com.shifa.intelligence.appointment.RescheduleIntent
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
@@ -1354,14 +1355,7 @@ class DoctorMorningToolService(
                 t.contains("keyingi")
             return nextWeekday(today, dow, preferNextWeek = preferNextWeek)
         }
-        return try {
-            val parsed = LocalDate.parse(raw.trim())
-            // Models sometimes invent a past year (e.g. 2023). Reject past days
-            // for booking so we ask again instead of proposing a dead calendar.
-            if (parsed.isBefore(today)) null else parsed
-        } catch (_: Exception) {
-            null
-        }
+        return ClinicCalendarDay.parse(raw.trim(), today)?.takeUnless { it.isBefore(today) }
     }
 
     /** Inclusive start / exclusive end for patient appointment listing. */

@@ -16,6 +16,7 @@ class RouteLanguageAndCategoryTest {
     fun `uzbek latin and cyrillic are detected`() {
         assertEquals(OutputLanguage.UZ, RouteLanguageDetector.detect("Bugun qancha bemor qabul qilaman?", OutputLanguage.EN))
         assertEquals(OutputLanguage.UZ, RouteLanguageDetector.detect("Ertaga bo'sh vaqtlarim bormi", OutputLanguage.EN))
+        assertEquals(OutputLanguage.UZ, RouteLanguageDetector.detect("24-oktabr soat 8:00 ga ko'chir", OutputLanguage.EN))
         assertEquals(OutputLanguage.UZ, RouteLanguageDetector.detect("Бугун қанча бемор бор?", OutputLanguage.RU))
     }
 

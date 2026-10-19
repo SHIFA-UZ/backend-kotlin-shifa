@@ -2,7 +2,6 @@ package com.shifa.intelligence.appointment
 
 import java.time.LocalDate
 import java.time.LocalTime
-import java.time.Month
 
 /**
  * Decides when a spoken turn is a move, and which listed visit it refers to.
@@ -109,7 +108,10 @@ object RescheduleIntent {
             if (unique && blob.contains(first)) score += 5
         }
         if (mentionsDay(blob, visit.day)) score += 4
-        if (mentionsTime(blob, visit.time)) score += 3
+        if (mentionsTime(blob, visit.time)) {
+            score += 3
+            if (visits.count { mentionsTime(blob, it.time) } == 1) score += 2
+        }
         return score
     }
 
@@ -176,15 +178,8 @@ object RescheduleIntent {
     fun pastDatesIn(text: String, today: LocalDate): List<LocalDate> =
         rawDates(text, today).filter { it.isBefore(today) }
 
-    private fun rawDates(text: String, today: LocalDate): List<LocalDate> {
-        return DAY_MONTH.findAll(text.lowercase()).map { match ->
-            val day = match.groupValues[1].toInt()
-            val month = MONTHS[match.groupValues[2]] ?: return@map null
-            if (day !in 1..31) return@map null
-            if (Month.of(month).length(java.time.Year.of(today.year).isLeap) < day) return@map null
-            LocalDate.of(today.year, month, day)
-        }.filterNotNull().toList()
-    }
+    private fun rawDates(text: String, today: LocalDate): List<LocalDate> =
+        ClinicCalendarDay.findDayMonths(text, today).map { it.date }
 
     private fun weeksPhrase(text: String): Int? {
         val match = WEEKS.find(text.lowercase()) ?: return null
@@ -216,11 +211,10 @@ object RescheduleIntent {
         return LocalTime.of(hour, minute)
     }
 
-    private fun mentionsDay(blob: String, day: LocalDate): Boolean {
-        val month = day.month.name.lowercase()
-        if (!blob.contains(month)) return false
-        return Regex("""\b${day.dayOfMonth}(?:st|nd|rd|th)?\b""").containsMatchIn(blob)
-    }
+    private fun mentionsDay(blob: String, day: LocalDate): Boolean =
+        ClinicCalendarDay.findDayMonths(blob, day).any {
+            it.date.month == day.month && it.date.dayOfMonth == day.dayOfMonth
+        }
 
     private fun mentionsTime(blob: String, time: LocalTime): Boolean {
         val spaced = blob.replace(".", "")
@@ -239,15 +233,12 @@ object RescheduleIntent {
         text.trim().equals("yes", ignoreCase = true) || text.trim().equals("yeah", ignoreCase = true)
 
     private val MOVE = Regex(
-        """\b(reschedul\w*|move (the |my |this |that )?(appointment|visit)|change the (last |next )?(appointment|visit))\b""",
+        """(?:reschedul\w*|move (the |my |this |that )?(appointment|visit)|change the (last |next )?(appointment|visit)|""" +
+            """ko['ʼʻ''`]?chir|kochir|o['ʼʻ''`]?tkaz|otkaz|перенес)""",
         RegexOption.IGNORE_CASE,
     )
     private val LIST_ONLY = Regex("""\b(list|show me|how many)\b""", RegexOption.IGNORE_CASE)
     private val WEEKS = Regex("""\bin\s+(a|one|two|three|four|\d+)\s+weeks?\b""", RegexOption.IGNORE_CASE)
-    private val DAY_MONTH = Regex(
-        """\b(\d{1,2})(?:st|nd|rd|th)?(?:\s+of)?\s+(january|february|march|april|may|june|july|august|september|october|november|december)\b""",
-        RegexOption.IGNORE_CASE,
-    )
     private val CLOCK = Regex("""\b(\d{1,2}):(\d{2})\s*([ap]m?)?\b""", RegexOption.IGNORE_CASE)
     private val LIST = Regex("""<appointment_list>([\d,\s]+)</appointment_list>""")
     private val QUERY = Regex("""<appointment_query>(.*?)</appointment_query>""", RegexOption.DOT_MATCHES_ALL)

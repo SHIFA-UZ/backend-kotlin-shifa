@@ -35,7 +35,10 @@ class ClinicTimeRangeResolver(
         is TimeSpec.Fixed -> spec.range
         is TimeSpec.Calendar -> resolvePeriod(spec.period, zone)
         is TimeSpec.Rolling -> resolveRolling(spec.direction, spec.count, spec.unit, zone)
-        is TimeSpec.ExplicitRange -> between(spec.start, spec.end, zone)
+        is TimeSpec.ExplicitRange -> {
+            val today = LocalDate.now(clock.withZone(zone))
+            between(ClinicCalendarDay.alignYear(spec.start, today), ClinicCalendarDay.alignYear(spec.end, today), zone)
+        }
         is TimeSpec.Expression -> {
             val found = findRanges(spec.text, zone)
             if (found.isEmpty()) {
@@ -122,25 +125,33 @@ class ClinicTimeRangeResolver(
             val friday = fridayOfNextWeek(LocalDate.now(clock.withZone(zone)))
             add(endIdx, endIdx + endOfNext.length, day(friday, zone, "Friday of next week"))
         }
+        val today = LocalDate.now(clock.withZone(zone))
         BETWEEN.findAll(t).forEach { m ->
             add(
                 m.range.first,
                 m.range.last + 1,
-                between(LocalDate.parse(m.groupValues[1]), LocalDate.parse(m.groupValues[2]), zone),
+                between(
+                    ClinicCalendarDay.alignYear(LocalDate.parse(m.groupValues[1]), today),
+                    ClinicCalendarDay.alignYear(LocalDate.parse(m.groupValues[2]), today),
+                    zone,
+                ),
             )
         }
         SINCE.findAll(t).forEach { m ->
-            add(m.range.first, m.range.last + 1, since(LocalDate.parse(m.groupValues[1]), zone))
+            add(m.range.first, m.range.last + 1, since(ClinicCalendarDay.alignYear(LocalDate.parse(m.groupValues[1]), today), zone))
         }
         BEFORE.findAll(t).forEach { m ->
-            add(m.range.first, m.range.last + 1, before(LocalDate.parse(m.groupValues[1]), zone))
+            add(m.range.first, m.range.last + 1, before(ClinicCalendarDay.alignYear(LocalDate.parse(m.groupValues[1]), today), zone))
         }
         AFTER.findAll(t).forEach { m ->
-            add(m.range.first, m.range.last + 1, after(LocalDate.parse(m.groupValues[1]), zone))
+            add(m.range.first, m.range.last + 1, after(ClinicCalendarDay.alignYear(LocalDate.parse(m.groupValues[1]), today), zone))
         }
         ON_DATE.findAll(t).forEach { m ->
-            val date = LocalDate.parse(m.groupValues[1])
+            val date = ClinicCalendarDay.alignYear(LocalDate.parse(m.groupValues[1]), today)
             add(m.range.first, m.range.last + 1, day(date, zone, "on ${speak(date)}"))
+        }
+        ClinicCalendarDay.findDayMonths(t, today).forEach { hit ->
+            add(hit.start, hit.end, day(hit.date, zone, "on ${speak(hit.date)}"))
         }
         ROLLING.findAll(t).forEach { m ->
             val direction = if (m.groupValues[1] == "next") RollingDirection.NEXT else RollingDirection.LAST
@@ -153,7 +164,7 @@ class ClinicTimeRangeResolver(
             add(m.range.first, m.range.last + 1, resolveRolling(direction, count, unit, zone))
         }
         ISO.findAll(t).forEach { m ->
-            val date = LocalDate.parse(m.groupValues[1])
+            val date = ClinicCalendarDay.alignYear(LocalDate.parse(m.groupValues[1]), today)
             add(m.range.first, m.range.last + 1, day(date, zone, "on ${speak(date)}"))
         }
         for ((phrase, period) in CALENDAR_PHRASES) {
