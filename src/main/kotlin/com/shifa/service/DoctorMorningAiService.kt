@@ -123,18 +123,31 @@ class DoctorMorningAiService(
                         OutputLanguage.UZ -> "Uzbek"
                         OutputLanguage.EN -> "English"
                     }
-                    val translated = completeChat(
+                    val translatePrompt =
+                        "Translate the following clinical assistant line into $langName. " +
+                            "Keep every patient name, weekday, and time. Do not summarize or drop the list. " +
+                            "Output ONLY the spoken sentence — no quotes, no preamble."
+                    var translated = completeChat(
                         messages = listOf(
-                            mapOf(
-                                "role" to "system",
-                                "content" to "Translate the following clinical assistant line into $langName. Output ONLY the spoken sentence — no quotes, no preamble.",
-                            ),
+                            mapOf("role" to "system", "content" to translatePrompt),
                             mapOf("role" to "user", "content" to hint),
                         ),
-                        maxTokens = 120,
+                        maxTokens = 400,
                         temperature = 0.1,
                         ctx = ctx,
                     )
+                    if (!spokenTranslationUsable(hint, translated)) {
+                        val retry = completeChat(
+                            messages = listOf(
+                                mapOf("role" to "system", "content" to translatePrompt),
+                                mapOf("role" to "user", "content" to hint),
+                            ),
+                            maxTokens = 600,
+                            temperature = 0.1,
+                            ctx = ctx,
+                        )
+                        translated = if (spokenTranslationUsable(hint, retry)) retry else hint
+                    }
                     spoken = translated
                     if (translated.isNotBlank()) emit(MorningStreamEvent.Token(translated))
                 }
@@ -1366,6 +1379,22 @@ Rules:
             Regex("""\b(afternoon|после обеда|днём|днем|tushdan)\b""").containsMatchIn(t) -> "afternoon"
             Regex("""\b(evening|вечер|kechqurun)\b""").containsMatchIn(t) -> "evening"
             else -> null
+        }
+    }
+
+    companion object {
+        /**
+         * Gemini 3 thinking often spends a small max_tokens budget, leaving a stub
+         * like "Bu hafta 4" instead of the appointment list.
+         */
+        internal fun spokenTranslationUsable(source: String, translated: String): Boolean {
+            val t = translated.trim()
+            val s = source.trim()
+            if (t.isEmpty()) return false
+            if (s.length <= 24) return t.length >= 2
+            if (t.length < 24 && s.length >= 48) return false
+            if (s.length > 60 && t.length * 4 < s.length) return false
+            return true
         }
     }
 }

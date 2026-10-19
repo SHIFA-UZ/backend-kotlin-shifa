@@ -79,9 +79,9 @@ class TextToSpeechService(
         text.replace("; ", ". ").replace(Regex("""\s+"""), " ").trim()
 
     /**
-     * Keep screen text full on the client; only speak a short lead so TTS stays snappy.
+     * Speak the clinical list, not a headline. ~560 chars covers a week of visits.
      */
-    internal fun truncateForSpeech(text: String, maxChars: Int = 280): String {
+    internal fun truncateForSpeech(text: String, maxChars: Int = 560): String {
         if (text.length <= maxChars) return text
         val cut = text.take(maxChars)
         val sentenceEnd = listOf('.', '!', '?')

@@ -52,13 +52,23 @@ class OpenAiCompatibleLlmClient(
     private val http = baseClient
 
     override fun complete(request: LlmRequest, provider: LlmProviderConfig): LlmResponse {
+        val asked = request.maxTokens.coerceAtMost(provider.maxOutputTokens)
+        val gemini = provider.id.equals("gemini", ignoreCase = true)
         val body = linkedMapOf<String, Any?>(
             "model" to provider.chatModel,
             "stream" to false,
             "temperature" to request.temperature,
-            "max_tokens" to request.maxTokens.coerceAtMost(provider.maxOutputTokens),
+            // Gemini 3 thinking counts against max_tokens; pad so the spoken line is not a stub.
+            "max_tokens" to if (gemini) {
+                (asked + 512).coerceAtMost(maxOf(provider.maxOutputTokens, asked + 512))
+            } else {
+                asked
+            },
             "messages" to request.messages,
         )
+        if (gemini) {
+            body["reasoning_effort"] = "low"
+        }
         if (!request.tools.isNullOrEmpty()) {
             if (!provider.toolCalling) {
                 throw LlmException(LlmErrorKind.UNSUPPORTED_TOOLS, provider.id, null, "provider has tool-calling disabled")

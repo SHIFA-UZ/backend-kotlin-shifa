@@ -165,4 +165,17 @@ class OpenAiCompatibleLlmClientTest {
         assertEquals("json_object", sent.path("response_format").path("type").asText())
         assertEquals(false, sent.path("parallel_tool_calls").asBoolean())
     }
+
+    @Test
+    fun `gemini pads max tokens and sets low reasoning effort`() {
+        server.enqueue(ok("""{"choices":[{"message":{"content":"ok"}}]}"""))
+        client.complete(
+            LlmRequest(messages = emptyList(), maxTokens = 120),
+            provider.copy(id = "gemini"),
+        )
+        val sent = mapper.readTree(server.takeRequest().body.readUtf8())
+        assertEquals("low", sent.path("reasoning_effort").asText())
+        assertEquals(632, sent.path("max_tokens").asInt())
+        assertTrue(sent.get("reasoning_effort") != null)
+    }
 }

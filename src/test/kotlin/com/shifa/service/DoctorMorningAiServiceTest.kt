@@ -226,4 +226,43 @@ class DoctorMorningAiServiceTest {
         run(service, "What is on my schedule today?")
         verify(extractor, times(1)).extractAsync(anyDoctor(), anyString(), anyString(), anyStrings(), anyNames(), anyString())
     }
+
+    @Test
+    fun `stub uzbek translation is retried so the appointment list is not cut`() {
+        val client = ScriptedClient().apply {
+            on(
+                "openai",
+                toolCall("get_today_schedule"),
+                reply("Bu hafta 4"),
+                reply("Bu hafta to'rtta qabul: Botir chorshanba soat 12:00, Ali payshanba soat 15:00."),
+            )
+        }
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "schedule",
+                "spokenHint" to
+                    "You have 4 appointments this week: Botir Wednesday at 12:00; Ali Thursday at 15:00.",
+            ),
+        )
+        val events = run(build(client), "Bu hafta qabullarimni ko'rsat", OutputLanguage.UZ)
+        val token = events.last() as MorningStreamEvent.Token
+        assertTrue(token.text.contains("Botir"))
+        assertTrue(token.text.length > 24)
+        assertEquals(3, client.requests.size)
+    }
+
+    @Test
+    fun `spoken translation rejects gemini thinking stubs`() {
+        val hint =
+            "You have 4 appointments scheduled this week: Botir Wednesday at 12:00; Ali Thursday at 15:00."
+        assertEquals(false, DoctorMorningAiService.spokenTranslationUsable(hint, "Bu hafta 4"))
+        assertEquals(false, DoctorMorningAiService.spokenTranslationUsable(hint, "Bu hafta"))
+        assertEquals(
+            true,
+            DoctorMorningAiService.spokenTranslationUsable(
+                hint,
+                "Bu hafta to'rtta qabul: Botir chorshanba soat 12:00, Ali payshanba soat 15:00.",
+            ),
+        )
+    }
 }
