@@ -1379,6 +1379,7 @@ class DoctorMorningToolService(
             ?.replace(Regex("""\s+"""), " ")
             ?.trim()
             .orEmpty()
+        openEndedRange(t, today, zone)?.let { return it }
         val isNextWeek = t.contains("next week") ||
             (t.contains("следующ") && t.contains("недел")) ||
             t.contains("keyingi hafta")
@@ -1410,6 +1411,38 @@ class DoctorMorningToolService(
         )
     }
 
+    /**
+     * "In the future", "upcoming", "from tomorrow onwards", "from Monday" — everything booked
+     * from a start day forward, not a single day or one calendar week.
+     */
+    private fun openEndedRange(t: String, today: LocalDate, zone: ZoneId): DateRangeWindow? {
+        val hasFromPrefix = Regex("""^(?:from|starting|starting from|after|since)\b""").containsMatchIn(t)
+        val hasOnwardsSuffix = Regex("""\b(?:onwards?|forward|ahead)$""").containsMatchIn(t)
+        val isUpcoming = Regex("""\b(upcoming|future|from now|now on|coming up|going forward)\b""").containsMatchIn(t)
+        if (!hasFromPrefix && !hasOnwardsSuffix && !isUpcoming) return null
+
+        // "from tomorrow onwards" → "tomorrow"; "monday onwards" → "monday"; "upcoming" → "".
+        val anchor = t
+            .replace(Regex("""^(?:from|starting|starting from|after|since)\s+"""), "")
+            .replace(Regex("""\s*\b(?:onwards?|on|forward|ahead)$"""), "")
+            .replace(Regex("""\b(upcoming|future|now|coming up|going forward)\b"""), "")
+            .trim()
+        val start = if (anchor.isEmpty()) today else resolveDateArg(anchor, zone) ?: today
+        // "after today" means tomorrow onwards.
+        val effectiveStart = if (t.startsWith("after") && start == today) today.plusDays(1) else start
+        val spoken = when {
+            effectiveStart == today -> "coming up"
+            effectiveStart == today.plusDays(1) -> "from tomorrow onwards"
+            else -> "from ${speakableDayDate(effectiveStart)} onwards"
+        }
+        return DateRangeWindow(
+            start = effectiveStart,
+            endExclusive = effectiveStart.plusYears(1),
+            cardLabel = "Upcoming (from ${effectiveStart.format(dateFmt)})",
+            spokenLabel = spoken,
+        )
+    }
+
     private fun fridayOfNextWeek(today: LocalDate): LocalDate {
         val nextMonday = today.with(java.time.temporal.TemporalAdjusters.next(java.time.DayOfWeek.MONDAY))
         return nextMonday.plusDays(4) // Friday
@@ -1434,9 +1467,19 @@ class DoctorMorningToolService(
         } else {
             "You have $count appointments with $patientName $rangeSpoken"
         }
+        // Bare weekdays are ambiguous once the range is longer than a week.
+        val first = appointments.first().startAt.atZone(zone).toLocalDate()
+        val last = appointments.last().startAt.atZone(zone).toLocalDate()
+        val spansWeeks = java.time.temporal.ChronoUnit.DAYS.between(first, last) > 6 ||
+            rangeSpoken == "coming up" || rangeSpoken.endsWith("onwards")
         val details = appointments.take(4).joinToString("; ") { a ->
             val local = a.startAt.atZone(zone)
-            "${local.dayOfWeek.name.lowercase().replaceFirstChar { it.titlecase() }} at ${local.format(timeFmt)}"
+            val day = if (spansWeeks) {
+                speakableDayDate(local.toLocalDate())
+            } else {
+                local.dayOfWeek.name.lowercase().replaceFirstChar { it.titlecase() }
+            }
+            "$day at ${local.format(timeFmt)}"
         }
         val more = if (appointments.size > 4) ", and more" else ""
         return "$base: $details$more."

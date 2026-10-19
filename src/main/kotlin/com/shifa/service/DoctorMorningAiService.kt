@@ -313,14 +313,27 @@ class DoctorMorningAiService(
                     else -> 1
                 }
             }
-            for ((id, name, args) in orderedCalls) {
-                val safeArgs = sanitizeToolArgs(
+            for ((id, modelToolName, args) in orderedCalls) {
+                var name = modelToolName
+                var safeArgs = sanitizeToolArgs(
                     toolName = name,
                     args = args,
                     latestUserText = latestUserText,
                     focusPatientId = focusPatientId,
                     searchedPatientIds = searchedPatientIds,
                 )
+                // A per-patient listing needs a patient the doctor actually picked. When the model
+                // invents one (no search, no focus), answer the general question instead.
+                if (name == "list_patient_appointments" &&
+                    !hasVerifiedPatient(safeArgs, focusPatientId, searchedPatientIds)
+                ) {
+                    log.info(
+                        "morning_tool rerouted list_patient_appointments -> query_appointment_intelligence (unverified patientId={})",
+                        safeArgs["patientId"],
+                    )
+                    name = "query_appointment_intelligence"
+                    safeArgs = generalAppointmentListArgs(safeArgs)
+                }
                 val result = morningTools.execute(
                     doctor = doctor,
                     toolName = name,
@@ -429,6 +442,7 @@ ANSWER ONLY WHAT WAS ASKED (STRICT):
 - Free slots / open times / availability → call list_free_slots. Do NOT call get_today_schedule. Do NOT mention booked appointments unless asked.
 - Today's clinic schedule / who is next / how many visits TODAY (no patient named) → call get_today_schedule. Do NOT list free slots unless asked.
 - How many / which appointments WITH a patient (him/her/focus) this week / next week / on a day → call list_patient_appointments. Do NOT call get_today_schedule for that.
+- "What appointments do I have this week / next week / on Friday" with NO patient named → call query_appointment_intelligence (timeRange.expression = their words). NEVER call list_patient_appointments with a guessed patientId.
 - Appointment counts for other periods (yesterday, last week, last month, rolling ranges), statuses, documentation, payments, grouping, or comparisons → call query_appointment_intelligence once. Pass the doctor's period words in timeRange.expression. Do NOT invent counts, names, or dates. Do NOT send a doctorId. Do NOT use get_today_schedule for those.
 - Never volunteer today's schedule when the doctor asked for free slots (or the reverse).
 
@@ -493,17 +507,20 @@ Rules:
             "type" to "function",
             "function" to mapOf(
                 "name" to "list_patient_appointments",
-                "description" to "List BOOKED appointments for one patient in a date range (this doctor). Use when the doctor asks how many / which appointments with a patient this week, next week, or on a day. Do NOT use get_today_schedule for patient+period questions.",
+                "description" to "List BOOKED appointments for ONE specific patient in a date range (this doctor). Use ONLY when the doctor names a patient or means the Focus patient (him/her/this patient). Never invent a patientId: use the Focus patientId or a search_patients result; if the doctor named someone not yet searched, pass patientName instead. When the doctor asks about their appointments in general (no patient), call query_appointment_intelligence instead.",
                 "parameters" to mapOf(
                     "type" to "object",
                     "properties" to mapOf(
                         "patientId" to mapOf("type" to "integer"),
+                        "patientName" to mapOf(
+                            "type" to "string",
+                            "description" to "Spoken patient name when no verified patientId is available.",
+                        ),
                         "date" to mapOf(
                             "type" to "string",
-                            "description" to "next week / this week / today / tomorrow / weekday / ISO. Defaults to this week.",
+                            "description" to "next week / this week / today / tomorrow / weekday / ISO, or an open range: upcoming (all future visits), from tomorrow, from monday. Use upcoming when the doctor says in the future / upcoming / onwards. Defaults to this week.",
                         ),
                     ),
-                    "required" to listOf("patientId"),
                 ),
             ),
         ),
@@ -1008,6 +1025,35 @@ Rules:
         return t in setOf("what about", "how about", "and", "or", "what about the")
     }
 
+    /** True only when the patientId came from a search in this chat or the client's focus patient. */
+    private fun hasVerifiedPatient(
+        args: Map<String, Any?>,
+        focusPatientId: Long?,
+        searchedPatientIds: Set<Long>,
+    ): Boolean {
+        val id = (args["patientId"] as? Number)?.toLong() ?: return false
+        return id == focusPatientId || id in searchedPatientIds
+    }
+
+    /**
+     * Turn an unverified per-patient listing into a general listing for the same period,
+     * keeping a spoken patient name (if the model passed one) so the server can resolve it.
+     */
+    private fun generalAppointmentListArgs(args: Map<String, Any?>): Map<String, Any?> {
+        val period = (args["date"] as? String)?.trim().orEmpty().ifEmpty { "this week" }
+        val filters = mutableMapOf<String, Any?>(
+            "statuses" to listOf("REQUESTED", "CONFIRMED", "IN_PROGRESS", "COMPLETED"),
+        )
+        (args["patientName"] as? String)?.trim()?.takeIf { it.isNotEmpty() }?.let { filters["patientName"] = it }
+        return mapOf(
+            "metric" to "LIST",
+            "shape" to "LIST",
+            "timeRange" to mapOf("expression" to period),
+            "filters" to filters,
+            "sort" to "START_AT_ASC",
+        )
+    }
+
     /**
      * Correct date/patient args the model invents (stale years, wrong patientId).
      */
@@ -1032,6 +1078,8 @@ Rules:
             var next = args
             relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
             weekdayTokenFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            // "In the future" / "from tomorrow onwards" is an open range, not one day or one week.
+            openEndedRangeFromUserText(latestUserText)?.let { next = next + ("date" to it) }
             if (next["date"] == null) next = next + ("date" to "this week")
             val modelPatientId = (next["patientId"] as? Number)?.toLong()
             val resolvedPatientId = when {
@@ -1170,6 +1218,35 @@ Rules:
         }
     }
 
+    /**
+     * Open-ended period words → a `date` token resolveDateRange understands:
+     * "from tomorrow onwards" → "from tomorrow", "from Monday" → "from monday",
+     * "in the future" / "upcoming" / "from now on" → "upcoming".
+     */
+    private fun openEndedRangeFromUserText(text: String): String? {
+        val t = text.lowercase()
+        Regex("""\b(?:from|starting|starting from|after)\s+(tomorrow|today|now|monday|tuesday|wednesday|thursday|friday|saturday|sunday|next week)\b""")
+            .find(t)
+            ?.let { m ->
+                val anchor = m.groupValues[1]
+                return when {
+                    anchor == "now" || anchor == "today" -> if (t.contains("after")) "from tomorrow" else "upcoming"
+                    anchor == "next week" -> "from next monday"
+                    else -> "from $anchor"
+                }
+            }
+        if (Regex("""\b(tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+onwards?\b""").find(t) != null) {
+            val anchor = Regex("""\b(tomorrow|today|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+onwards?\b""")
+                .find(t)!!.groupValues[1]
+            return if (anchor == "today") "upcoming" else "from $anchor"
+        }
+        val upcoming = Regex(
+            """\b(in (the )?future|upcoming|future|from now on|going forward|coming up|onwards?|ahead|""" +
+                """в будущем|предстоящ|kelajakda|bo'lajak)\b""",
+        ).containsMatchIn(t)
+        return if (upcoming) "upcoming" else null
+    }
+
     /** Pass weekday phrases through so resolveDateArg maps them — never trust model ISO for weekdays. */
     private fun weekdayTokenFromUserText(text: String): String? {
         val t = text.lowercase()
@@ -1225,7 +1302,7 @@ Rules:
     private fun asksForPatientAppointments(text: String): Boolean {
         val t = text.lowercase()
         val aboutPatient = Regex(
-            """\b(with him|with her|with them|with this patient|for him|for her|""" +
+            """\b(with him|with her|with them|with this patient|for this patient|for him|for her|""" +
                 """с ним|с ней|у него|у неё|у нее|bilan|unga)\b""",
         ).containsMatchIn(t) ||
             Regex("""\b(his|her|their)\s+(appointments?|visits?|bookings?)\b""").containsMatchIn(t)

@@ -20,6 +20,7 @@ import java.time.LocalDate
 
 class DoctorMorningToolDispatchTest {
     private val appointments = mock(AppointmentRepository::class.java)
+    private val patients = mock(PatientProfileRepository::class.java)
     private val slots = mock(PatientDaySlotsService::class.java)
     private val intelligence = mock(AppointmentIntelligenceService::class.java)
     private val tools = DoctorMorningToolService(
@@ -27,7 +28,7 @@ class DoctorMorningToolDispatchTest {
         mock(PatientBriefingService::class.java),
         mock(PatientVisitFactRepository::class.java),
         mock(ClinicVisitPatternRepository::class.java),
-        mock(PatientProfileRepository::class.java),
+        patients,
         slots,
         mock(PatientDocumentService::class.java),
         intelligence,
@@ -89,6 +90,39 @@ class DoctorMorningToolDispatchTest {
             anyIds(),
             org.mockito.ArgumentMatchers.any(),
         )
+    }
+
+    @Test
+    fun `in the future and from tomorrow list every upcoming visit, not one day or week`() {
+        val patient = com.shifa.domain.PatientProfile(id = 59L, fullName = "Botir Muzrabov")
+        `when`(patients.findById(59L)).thenReturn(java.util.Optional.of(patient))
+        val zone = java.time.ZoneId.of("Asia/Tashkent")
+        val today = LocalDate.now(zone)
+        fun visit(id: Long, daysAhead: Long, status: com.shifa.domain.Appointment.Status = com.shifa.domain.Appointment.Status.CONFIRMED) =
+            com.shifa.domain.Appointment(
+                id = id,
+                doctor = doctor,
+                patient = patient,
+                startAt = today.plusDays(daysAhead).atTime(10, 0).atZone(zone).toInstant(),
+                endAt = today.plusDays(daysAhead).atTime(10, 30).atZone(zone).toInstant(),
+                location = "Clinic",
+                status = status,
+            )
+        `when`(appointments.findByPatientIdAndDoctorIdOrderByStartAtDesc(59L, 5L)).thenReturn(
+            listOf(visit(1, 0), visit(2, 2), visit(3, 9), visit(4, 40), visit(5, 3, com.shifa.domain.Appointment.Status.CANCELLED)),
+        )
+
+        val upcoming = tools.execute(doctor, "list_patient_appointments", mapOf("patientId" to 59L, "date" to "upcoming"))
+        assertEquals(4, upcoming["count"])
+        assertEquals("Upcoming (from ${today.format(java.time.format.DateTimeFormatter.ofPattern("d MMM yyyy"))})", upcoming["rangeLabel"])
+        assertEquals(true, (upcoming["spokenHint"] as String).startsWith("You have 4 appointments with Botir Muzrabov coming up"))
+
+        val fromTomorrow = tools.execute(doctor, "list_patient_appointments", mapOf("patientId" to 59L, "date" to "from tomorrow onwards"))
+        assertEquals(3, fromTomorrow["count"])
+        assertEquals(true, (fromTomorrow["spokenHint"] as String).contains("from tomorrow onwards"))
+
+        val afterToday = tools.execute(doctor, "list_patient_appointments", mapOf("patientId" to 59L, "date" to "after today"))
+        assertEquals(3, afterToday["count"])
     }
 
     private fun anyInstant(): Instant =
