@@ -156,7 +156,9 @@ ai:
       enabled: ${GEMINI_ENABLED:true}
       base-url: https://generativelanguage.googleapis.com/v1beta/openai
       api-key: ${GEMINI_API_KEY:}
-      chat-model: ${GEMINI_CHAT_MODEL:gemini-2.5-flash}
+      # 2.5-flash 404s for new Gemini keys (legacy access only). 3.8-flash is the
+      # current OpenAI-compat example and matches the working Gemini 3.x speech models.
+      chat-model: ${GEMINI_CHAT_MODEL:gemini-3.8-flash}
       timeout-ms: 45000
       daily-token-budget: ${GEMINI_DAILY_TOKEN_BUDGET:0}
       monthly-token-budget: ${GEMINI_MONTHLY_TOKEN_BUDGET:0}

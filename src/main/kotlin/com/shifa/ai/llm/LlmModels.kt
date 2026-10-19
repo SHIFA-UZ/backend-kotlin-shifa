@@ -47,11 +47,17 @@ enum class LlmErrorKind {
 
     /** Failures where trying the next provider in the chain is reasonable. */
     val retryableOnOtherProvider: Boolean
-        get() = this in setOf(RATE_LIMITED, QUOTA_EXHAUSTED, TIMEOUT, SERVER, CONNECTION, UNSUPPORTED_TOOLS, AUTH)
+        get() = this in setOf(
+            RATE_LIMITED, QUOTA_EXHAUSTED, TIMEOUT, SERVER, CONNECTION,
+            UNSUPPORTED_TOOLS, AUTH, INVALID_REQUEST,
+        )
 
     /** Failures that should temporarily remove the provider from routing. */
     val triggersCooldown: Boolean
-        get() = this in setOf(RATE_LIMITED, QUOTA_EXHAUSTED, TIMEOUT, SERVER, CONNECTION, AUTH, UNSUPPORTED_TOOLS)
+        get() = this in setOf(
+            RATE_LIMITED, QUOTA_EXHAUSTED, TIMEOUT, SERVER, CONNECTION,
+            AUTH, UNSUPPORTED_TOOLS, INVALID_REQUEST,
+        )
 }
 
 class LlmException(

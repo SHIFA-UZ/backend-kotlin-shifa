@@ -155,14 +155,15 @@ class LlmRouterAndGatewayTest {
     }
 
     @Test
-    fun `invalid request does not fall through to other providers`() {
+    fun `invalid request on gemini falls through to openai`() {
         val (gw, client, _) = build({
             providers["openai"] = provider(); providers["gemini"] = provider()
             routes["en"] = mutableMapOf("default" to mutableListOf("gemini", "openai"))
         })
         client.on("gemini", LlmErrorKind.INVALID_REQUEST)
-        assertThrows<LlmUnavailableException> { gw.complete(toolReq, ctx(), LlmPurpose.TOOL_LOOP) }
-        assertEquals(listOf("gemini"), client.calls)
+        val resp = gw.complete(toolReq, ctx(), LlmPurpose.TOOL_LOOP)
+        assertEquals("openai", resp.providerId)
+        assertEquals(listOf("gemini", "openai"), client.calls)
     }
 
     @Test
