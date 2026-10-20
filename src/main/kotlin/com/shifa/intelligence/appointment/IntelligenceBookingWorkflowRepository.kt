@@ -28,6 +28,9 @@ class IntelligenceBookingWorkflowRepository(
             confirmationToken = rs.getObject("confirmation_token")?.let { it as UUID },
             idempotencyKey = rs.getObject("idempotency_key", UUID::class.java),
             appointmentId = rs.getObject("appointment_id")?.let { (it as Number).toLong() },
+            pendingQuestionType = rs.getString("pending_question_type")?.let(PendingQuestionType::valueOf),
+            pendingQuestionJson = rs.getString("pending_question_json"),
+            pendingQuestionToken = rs.getObject("pending_question_token")?.let { it as UUID },
             version = rs.getLong("version"),
             expiresAt = rs.getTimestamp("expires_at").toInstant(),
         )
@@ -36,7 +39,8 @@ class IntelligenceBookingWorkflowRepository(
     private val columns = """
         id, doctor_id, conversation_id, status, patient_id, patient_name,
         appointment_date, appointment_time, proposal_json, confirmation_token,
-        idempotency_key, appointment_id, version, expires_at
+        idempotency_key, appointment_id, pending_question_type, pending_question_json,
+        pending_question_token, version, expires_at
     """.trimIndent()
 
     fun findActive(doctorId: Long, conversationId: String, now: Instant): IntelligenceBookingWorkflow? {
@@ -82,8 +86,9 @@ class IntelligenceBookingWorkflowRepository(
             INSERT INTO intelligence_booking_workflows
               (id, doctor_id, conversation_id, status, patient_id, patient_name,
                appointment_date, appointment_time, proposal_json, confirmation_token,
-               idempotency_key, appointment_id, version, expires_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)
+               idempotency_key, appointment_id, pending_question_type, pending_question_json,
+               pending_question_token, version, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)
             """.trimIndent(),
             workflow.id,
             workflow.doctorId,
@@ -97,6 +102,9 @@ class IntelligenceBookingWorkflowRepository(
             workflow.confirmationToken,
             workflow.idempotencyKey,
             workflow.appointmentId,
+            workflow.pendingQuestionType?.name,
+            workflow.pendingQuestionJson,
+            workflow.pendingQuestionToken,
             workflow.version,
             Timestamp.from(workflow.expiresAt),
         )
@@ -108,7 +116,8 @@ class IntelligenceBookingWorkflowRepository(
             UPDATE intelligence_booking_workflows
             SET status = ?, patient_id = ?, patient_name = ?, appointment_date = ?,
                 appointment_time = ?, proposal_json = ?::jsonb, confirmation_token = ?,
-                appointment_id = ?, expires_at = ?, version = version + 1, updated_at = NOW(),
+                appointment_id = ?, pending_question_type = ?, pending_question_json = ?::jsonb,
+                pending_question_token = ?, expires_at = ?, version = version + 1, updated_at = NOW(),
                 completed_at = CASE WHEN ? IN ('COMPLETED','REJECTED','ABANDONED','EXPIRED','FAILED')
                                     THEN NOW() ELSE completed_at END
             WHERE id = ? AND doctor_id = ? AND version = ?
@@ -121,6 +130,9 @@ class IntelligenceBookingWorkflowRepository(
             workflow.proposalJson,
             workflow.confirmationToken,
             workflow.appointmentId,
+            workflow.pendingQuestionType?.name,
+            workflow.pendingQuestionJson,
+            workflow.pendingQuestionToken,
             Timestamp.from(workflow.expiresAt),
             workflow.status.name,
             workflow.id,

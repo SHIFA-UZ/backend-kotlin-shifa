@@ -25,6 +25,7 @@ import com.shifa.domain.User
 import com.shifa.intelligence.appointment.IntelligenceBookingWorkflowService
 import com.shifa.intelligence.appointment.IntelligenceBookingWorkflow
 import com.shifa.intelligence.appointment.BookingWorkflowStatus
+import com.shifa.intelligence.appointment.PendingQuestionType
 import com.shifa.web.dto.AiMessageDto
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -110,7 +111,23 @@ class DoctorMorningAiServiceTest {
     private fun anyMemories(): List<IntelligenceMemory> = any<List<IntelligenceMemory>>() ?: emptyList()
 
     private fun execArgs() =
-        tools.execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds(), any())
+        tools.execute(
+            anyDoctor(),
+            anyString(),
+            anyArgs(),
+            anyStrings(),
+            anyStrings(),
+            anyString(),
+            nullableLong(),
+            anyIds(),
+            nullableString(),
+        )
+
+    private fun nullableLong(): Long? =
+        org.mockito.ArgumentMatchers.nullable(Long::class.java)
+
+    private fun nullableString(): String? =
+        org.mockito.ArgumentMatchers.nullable(String::class.java)
 
     @Test
     fun `direct reply without tools emits one token and no tool events`() {
@@ -169,6 +186,58 @@ class DoctorMorningAiServiceTest {
 
         assertEquals("manage_booking_workflow", (events.first() as MorningStreamEvent.Tool).name)
         assertEquals(MorningStreamEvent.Token("Booked Franco Herselman at 08:00 on 2026-10-23."), events.last())
+    }
+
+    @Test
+    fun `pending patient confirmation does not repeat search_patients`() {
+        val workflow = IntelligenceBookingWorkflow(
+            id = UUID.randomUUID(),
+            doctorId = doctor.id,
+            conversationId = "chat_patient",
+            status = BookingWorkflowStatus.COLLECTING_DETAILS,
+            patientId = null,
+            patientName = "Franko Hersonman",
+            appointmentDate = null,
+            appointmentTime = null,
+            proposalJson = null,
+            confirmationToken = null,
+            idempotencyKey = UUID.randomUUID(),
+            appointmentId = null,
+            pendingQuestionType = PendingQuestionType.CONFIRM_PATIENT,
+            pendingQuestionJson = """[{"patientId":30,"patientName":"Franco Herselman"}]""",
+            pendingQuestionToken = UUID.randomUUID(),
+            version = 1,
+            expiresAt = Instant.parse("2026-10-20T11:00:00Z"),
+        )
+        `when`(bookingWorkflows.active(doctor.id, "chat_patient")).thenReturn(workflow)
+        `when`(bookingWorkflows.contextLine(workflow)).thenReturn("Pending question type=CONFIRM_PATIENT")
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "propose_appointment",
+                "patientId" to 30L,
+                "workflowStatus" to "COLLECTING_DETAILS",
+                "spokenHint" to "Which day should I book for Franco Herselman?",
+            ),
+        )
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("search_patients", mapOf("query" to "Franko Hersonman")))
+        }
+
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(AiMessageDto("user", "Ha shunday.")),
+                OutputLanguage.EN,
+                null,
+                "chat_patient",
+            ).toList()
+        }
+
+        val tool = events.first() as MorningStreamEvent.Tool
+        assertEquals("manage_booking_workflow", tool.name)
+        assertEquals(30L, tool.payload["patientId"])
+        assertEquals(0, client.requests.size)
     }
 
     @Test

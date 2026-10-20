@@ -34,6 +34,7 @@ class AppointmentActionService(
         userText: String,
         patientId: Long?,
         appointmentId: Long?,
+        conversationId: String? = null,
     ): Map<String, Any?> {
         val zone = ranges.zoneOf(doctor.timeZone)
         val now = clock.instant()
@@ -55,7 +56,7 @@ class AppointmentActionService(
             if (reason == null) eligible += appointment else skipped += row(appointment, zone) + mapOf("reason" to reason)
         }
         if (eligible.isEmpty()) {
-            pending.clear(doctor.id)
+            pending.clear(doctor.id, conversationId.orEmpty())
             return mapOf(
                 "supported" to true,
                 "status" to "SUCCESS",
@@ -73,6 +74,7 @@ class AppointmentActionService(
                 appointmentIds = eligible.map { it.id },
                 fingerprints = eligible.associate { it.id to fingerprint(it) },
                 createdAt = now,
+                conversationId = conversationId.orEmpty(),
             ),
         )
         val previewRows = eligible.map { row(it, zone) }
@@ -92,7 +94,12 @@ class AppointmentActionService(
     }
 
     @Transactional
-    fun confirmCancellation(doctor: DoctorProfile, userText: String, priorAssistantMessages: List<String>): Map<String, Any?> {
+    fun confirmCancellation(
+        doctor: DoctorProfile,
+        userText: String,
+        priorAssistantMessages: List<String>,
+        conversationId: String? = null,
+    ): Map<String, Any?> {
         if (!isExplicitConfirmation(userText)) {
             return mapOf(
                 "supported" to true,
@@ -100,7 +107,7 @@ class AppointmentActionService(
                 "spokenHint" to "Nothing was cancelled. Say yes if you want me to cancel the visits I just listed.",
             )
         }
-        val stored = pending.get(doctor.id)
+        val stored = pending.get(doctor.id, conversationId.orEmpty())
         val token = actionToken(priorAssistantMessages)
         if (stored == null || token == null || stored.token != token || stored.doctorId != doctor.id) {
             return mapOf(
@@ -114,7 +121,7 @@ class AppointmentActionService(
         }
         val fingerprints = current.associate { it.id to fingerprint(it) }
         if (fingerprints != stored.fingerprints || current.size != stored.appointmentIds.size) {
-            pending.clear(doctor.id)
+            pending.clear(doctor.id, conversationId.orEmpty())
             return mapOf(
                 "supported" to false,
                 "status" to "FAILURE",
@@ -134,7 +141,7 @@ class AppointmentActionService(
                 failed += snapshot + mapOf("status" to (saved?.status?.name ?: "UNKNOWN"))
             }
         }
-        pending.clear(doctor.id)
+        pending.clear(doctor.id, conversationId.orEmpty())
         val status = when {
             cancelled.isNotEmpty() && failed.isEmpty() -> "SUCCESS"
             cancelled.isNotEmpty() -> "PARTIAL_SUCCESS"

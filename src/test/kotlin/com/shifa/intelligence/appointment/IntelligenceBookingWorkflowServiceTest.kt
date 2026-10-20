@@ -6,6 +6,7 @@ import com.shifa.domain.DoctorProfile
 import com.shifa.domain.PatientProfile
 import com.shifa.domain.User
 import com.shifa.service.DoctorAppointmentBookingService
+import com.shifa.service.DoctorAppointmentRescheduleService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -30,9 +31,11 @@ class IntelligenceBookingWorkflowServiceTest {
     private val now = Instant.parse("2026-10-20T10:00:00Z")
     private val repository = mock(IntelligenceBookingWorkflowRepository::class.java)
     private val booking = mock(DoctorAppointmentBookingService::class.java)
+    private val reschedule = mock(DoctorAppointmentRescheduleService::class.java)
     private val service = IntelligenceBookingWorkflowService(
         repository,
         booking,
+        reschedule,
         ObjectMapper().findAndRegisterModules(),
         Clock.fixed(now, ZoneOffset.UTC),
     )
@@ -143,6 +146,48 @@ class IntelligenceBookingWorkflowServiceTest {
         assertEquals("09:00", (result["preferredSlot"] as Map<*, *>)["startLocal"])
     }
 
+    @Test
+    fun `reschedule confirmation is bound to source fingerprint and executes once`() {
+        val pending = pendingRescheduleWorkflow()
+        val patient = PatientProfile(id = 30, fullName = "Franco Herselman")
+        val moved = Appointment(
+            id = 1217,
+            doctor = doctor,
+            patient = patient,
+            startAt = Instant.parse("2026-10-21T07:00:00Z"),
+            endAt = Instant.parse("2026-10-21T07:30:00Z"),
+            location = "Clinic",
+            status = Appointment.Status.CONFIRMED,
+        )
+        `when`(repository.findActive(5, "move:chat_1", now)).thenReturn(pending, null)
+        `when`(repository.update(anyWorkflow(), anyLong())).thenReturn(true)
+        `when`(reschedule.reschedule(anyDoctor(), anyRescheduleCommand())).thenReturn(moved)
+
+        val first = service.confirmReschedule(doctor, "chat_1")
+        val completed = captureLastUpdated()
+        `when`(repository.findLatest(5, "move:chat_1")).thenReturn(completed)
+        val duplicate = service.confirmReschedule(doctor, "chat_1")
+
+        assertEquals(true, first["moved"])
+        assertEquals(true, duplicate["replayed"])
+        verify(reschedule, times(1)).reschedule(anyDoctor(), anyRescheduleCommand())
+    }
+
+    @Test
+    fun `stale reschedule proposal fails without substituting another slot`() {
+        val pending = pendingRescheduleWorkflow()
+        `when`(repository.findActive(5, "move:chat_1", now)).thenReturn(pending)
+        `when`(repository.update(anyWorkflow(), anyLong())).thenReturn(true)
+        `when`(reschedule.reschedule(anyDoctor(), anyRescheduleCommand()))
+            .thenThrow(IllegalStateException("The appointment changed after the proposal was created"))
+
+        val result = service.confirmReschedule(doctor, "chat_1")
+
+        assertEquals("FAILED", result["workflowStatus"])
+        assertFalse(result["moved"] == true)
+        verify(reschedule, times(1)).reschedule(anyDoctor(), anyRescheduleCommand())
+    }
+
     private fun proposalPayload(
         time: String = "08:00",
         startAt: String = "2026-10-23T03:00:00Z",
@@ -180,6 +225,34 @@ class IntelligenceBookingWorkflowServiceTest {
         expiresAt = now.plusSeconds(600),
     )
 
+    private fun pendingRescheduleWorkflow() = IntelligenceBookingWorkflow(
+        id = UUID.randomUUID(),
+        doctorId = 5,
+        conversationId = "move:chat_1",
+        status = BookingWorkflowStatus.AWAITING_CONFIRMATION,
+        patientId = 30,
+        patientName = "Franco Herselman",
+        appointmentDate = LocalDate.parse("2026-10-21"),
+        appointmentTime = LocalTime.parse("12:00"),
+        proposalJson = ObjectMapper().writeValueAsString(
+            mapOf(
+                "appointmentId" to 1217L,
+                "currentStartAt" to "2026-10-20T05:00:00Z",
+                "currentStatus" to "CONFIRMED",
+                "preferredSlot" to mapOf(
+                    "startAt" to "2026-10-21T07:00:00Z",
+                    "startLocal" to "12:00",
+                    "slotMinutes" to 30,
+                ),
+            ),
+        ),
+        confirmationToken = UUID.randomUUID(),
+        idempotencyKey = UUID.randomUUID(),
+        appointmentId = 1217,
+        version = 2,
+        expiresAt = now.plusSeconds(600),
+    )
+
     private fun captureInserted(): IntelligenceBookingWorkflow {
         val captor = ArgumentCaptor.forClass(IntelligenceBookingWorkflow::class.java)
         verify(repository).insert(captor.capture() ?: pendingWorkflow())
@@ -207,4 +280,14 @@ class IntelligenceBookingWorkflowServiceTest {
     private fun anyCommand(): com.shifa.service.DoctorBookingCommand =
         org.mockito.ArgumentMatchers.any(com.shifa.service.DoctorBookingCommand::class.java)
             ?: com.shifa.service.DoctorBookingCommand(30, now, 30)
+
+    private fun anyRescheduleCommand(): com.shifa.service.DoctorRescheduleCommand =
+        org.mockito.ArgumentMatchers.any(com.shifa.service.DoctorRescheduleCommand::class.java)
+            ?: com.shifa.service.DoctorRescheduleCommand(
+                appointmentId = 1217,
+                expectedStartAt = now,
+                expectedStatus = Appointment.Status.CONFIRMED,
+                newStartAt = now.plusSeconds(3600),
+                slotMinutes = 30,
+            )
 }

@@ -16,7 +16,11 @@ import com.shifa.ai.memory.IntelligenceMemoryExtractor
 import com.shifa.ai.memory.IntelligenceMemoryService
 import com.shifa.config.OpenAiProperties
 import com.shifa.domain.DoctorProfile
+import com.shifa.intelligence.appointment.BookingWorkflowStatus
+import com.shifa.intelligence.appointment.IntelligenceBookingWorkflow
 import com.shifa.intelligence.appointment.IntelligenceBookingWorkflowService
+import com.shifa.intelligence.appointment.PendingPatientAnswer
+import com.shifa.intelligence.appointment.RescheduleIntent
 import com.shifa.web.AiStreamException
 import com.shifa.web.dto.AiMessageDto
 import kotlinx.coroutines.flow.Flow
@@ -89,6 +93,13 @@ class DoctorMorningAiService(
                 "content" to bookingWorkflowService.contextLine(it),
             )
         }
+        val activeReschedule = bookingWorkflowService.activeReschedule(doctor.id, conversationId)
+        activeReschedule?.let {
+            systemMessages += mapOf(
+                "role" to "system",
+                "content" to bookingWorkflowService.rescheduleContextLine(it),
+            )
+        }
         val effectivePatientId = activeBooking?.patientId ?: selectedPatientId
         effectivePatientId?.let {
             systemMessages += mapOf(
@@ -108,7 +119,9 @@ class DoctorMorningAiService(
             focusPatientId = effectivePatientId,
             ctx = ctx,
             conversationId = conversationId,
-            hasActiveBooking = activeBooking != null,
+            hasActiveBooking = activeBooking != null || activeReschedule != null,
+            activeBooking = activeBooking,
+            activeReschedule = activeReschedule,
         )
         for (tool in toolOutcome.toolEvents) {
             emit(tool)
@@ -251,18 +264,106 @@ class DoctorMorningAiService(
     }
 
     /**
-     * A move is resolved here, before the model can answer from memory.
-     * That is what turned "Franco on 23 October" into "no such appointment".
+     * A pending patient-match question is answered here so the model cannot
+     * re-run search_patients on a short confirmation.
      */
+    private fun forcedPendingPatientAnswer(
+        doctor: DoctorProfile,
+        messages: List<AiMessageDto>,
+        conversationId: String?,
+        workflow: IntelligenceBookingWorkflow?,
+    ): ToolLoopOutcome? {
+        if (workflow?.pendingQuestionType == null || conversationId.isNullOrBlank()) return null
+        val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val answer = PendingPatientAnswer.classify(latest)
+        if (answer.kind == PendingPatientAnswer.Kind.UNRELATED) return null
+        log.info(
+            "intelligence_workflow pending_answer conversationId={} workflowId={} pending={} kind={} turnType={}",
+            conversationId,
+            workflow.id,
+            workflow.pendingQuestionType,
+            answer.kind,
+            answer.turnType,
+        )
+        val args = buildMap<String, Any?> {
+            put("turnType", answer.turnType.name)
+            answer.correctionName?.let { put("patientName", it) }
+        }
+        val result = morningTools.execute(
+            doctor = doctor,
+            toolName = "manage_booking_workflow",
+            args = args,
+            priorAssistantMessages = messages.filter { it.role == "assistant" }.map { it.content },
+            priorUserMessages = messages.filter { it.role == "user" }.map { it.content }.dropLast(1),
+            latestUserText = latest,
+            focusPatientId = workflow.patientId,
+            conversationId = conversationId,
+        )
+        return ToolLoopOutcome(
+            loopMessages = emptyList(),
+            toolEvents = listOf(MorningStreamEvent.Tool(name = "manage_booking_workflow", payload = result)),
+            directReply = null,
+            latestSpokenHint = result["spokenHint"] as? String,
+        )
+    }
+
+    private fun forcedProposalConfirmation(
+        doctor: DoctorProfile,
+        messages: List<AiMessageDto>,
+        conversationId: String?,
+        activeBooking: IntelligenceBookingWorkflow?,
+        activeReschedule: IntelligenceBookingWorkflow?,
+    ): ToolLoopOutcome? {
+        if (conversationId.isNullOrBlank()) return null
+        val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val answer = PendingPatientAnswer.classify(latest)
+        if (answer.kind != PendingPatientAnswer.Kind.CONFIRM &&
+            answer.kind != PendingPatientAnswer.Kind.REJECT
+        ) {
+            return null
+        }
+        val (toolName, workflow) = when {
+            activeReschedule?.status == BookingWorkflowStatus.AWAITING_CONFIRMATION ->
+                "propose_reschedule" to activeReschedule
+            activeBooking?.status == BookingWorkflowStatus.AWAITING_CONFIRMATION &&
+                activeBooking.pendingQuestionType == null ->
+                "manage_booking_workflow" to activeBooking
+            else -> return null
+        }
+        log.info(
+            "intelligence_workflow proposal_answer conversationId={} workflowId={} tool={} kind={}",
+            conversationId,
+            workflow.id,
+            toolName,
+            answer.kind,
+        )
+        val result = morningTools.execute(
+            doctor = doctor,
+            toolName = toolName,
+            args = mapOf("turnType" to answer.turnType.name),
+            priorAssistantMessages = messages.filter { it.role == "assistant" }.map { it.content },
+            priorUserMessages = messages.filter { it.role == "user" }.map { it.content }.dropLast(1),
+            latestUserText = latest,
+            conversationId = conversationId,
+        )
+        return ToolLoopOutcome(
+            loopMessages = emptyList(),
+            toolEvents = listOf(MorningStreamEvent.Tool(name = toolName, payload = result)),
+            directReply = null,
+            latestSpokenHint = result["spokenHint"] as? String,
+        )
+    }
+
     private fun forcedReschedule(
         doctor: DoctorProfile,
         messages: List<AiMessageDto>,
         focusPatientId: Long?,
+        conversationId: String?,
     ): ToolLoopOutcome? {
         val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
         val priorAssistant = messages.filter { it.role == "assistant" }.map { it.content }
         val priorUsers = messages.filter { it.role == "user" }.map { it.content }.dropLast(1)
-        if (!com.shifa.intelligence.appointment.RescheduleIntent.shouldMove(latest, priorUsers, priorAssistant)) {
+        if (!RescheduleIntent.shouldMove(latest, priorUsers, priorAssistant)) {
             return null
         }
         val result = morningTools.execute(
@@ -273,6 +374,7 @@ class DoctorMorningAiService(
             priorUserMessages = priorUsers,
             latestUserText = latest,
             focusPatientId = focusPatientId,
+            conversationId = conversationId,
         )
         return ToolLoopOutcome(
             loopMessages = emptyList(),
@@ -344,10 +446,21 @@ class DoctorMorningAiService(
         ctx: LlmTurnContext,
         conversationId: String?,
         hasActiveBooking: Boolean,
+        activeBooking: IntelligenceBookingWorkflow? = null,
+        activeReschedule: IntelligenceBookingWorkflow? = null,
     ): ToolLoopOutcome {
+        forcedPendingPatientAnswer(doctor, messages, conversationId, activeBooking)?.let { return it }
+        forcedProposalConfirmation(
+            doctor, messages, conversationId, activeBooking, activeReschedule,
+        )?.let { return it }
+        val latestForMove = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val pendingBlocksMove = activeBooking?.pendingQuestionType != null &&
+            PendingPatientAnswer.classify(latestForMove).kind != PendingPatientAnswer.Kind.UNRELATED
+        if (!pendingBlocksMove) {
+            forcedReschedule(doctor, messages, focusPatientId, conversationId)?.let { return it }
+        }
         if (!hasActiveBooking) {
             forcedCancellation(doctor, messages, focusPatientId)?.let { return it }
-            forcedReschedule(doctor, messages, focusPatientId)?.let { return it }
             forcedBooking(doctor, messages, focusPatientId, conversationId)?.let { return it }
         }
         val loopMessages = mutableListOf<Map<String, Any?>>()
@@ -369,7 +482,10 @@ class DoctorMorningAiService(
                     listOf(
                         mapOf(
                             "role" to "system",
-                            "content" to toolLoopNudge(messages),
+                            "content" to toolLoopNudge(
+                                messages,
+                                activeBooking?.pendingQuestionType != null,
+                            ),
                         )
                     ),
                 tools = morningToolsSchema(),
@@ -432,6 +548,22 @@ class DoctorMorningAiService(
                     safeArgs = (safeArgs - "patientId") +
                         ("turnType" to if (hasActiveBooking) "SLOT_UPDATE" else "START_WORKFLOW") +
                         ("_trustedPatientId" to trustedPatientId)
+                }
+                if (name == "search_patients" && activeBooking?.pendingQuestionType != null) {
+                    val pendingAnswer = PendingPatientAnswer.classify(latestUserText)
+                    if (pendingAnswer.kind != PendingPatientAnswer.Kind.UNRELATED) {
+                        log.info(
+                            "intelligence_workflow pending_answer conversationId={} kind={} " +
+                                "rerouted=search_patients outcome=manage_booking_workflow",
+                            conversationId,
+                            pendingAnswer.kind,
+                        )
+                        name = "manage_booking_workflow"
+                        safeArgs = buildMap {
+                            put("turnType", pendingAnswer.turnType.name)
+                            pendingAnswer.correctionName?.let { put("patientName", it) }
+                        }
+                    }
                 }
                 // A named clock time with a focus patient is a booking, not a new search.
                 if (name == "search_patients" && focusPatientId != null) {
@@ -681,6 +813,11 @@ Rules:
                 "parameters" to mapOf(
                     "type" to "object",
                     "properties" to mapOf(
+                        "turnType" to mapOf(
+                            "type" to "string",
+                            "enum" to listOf("PROPOSE", "CONFIRM", "REJECT", "ABANDON"),
+                            "description" to "CONFIRM/REJECT only when an Active RESCHEDULE proposal is present.",
+                        ),
                         "patientId" to mapOf("type" to "integer"),
                         "patientName" to mapOf(
                             "type" to "string",
@@ -758,6 +895,18 @@ Rules:
                     "properties" to mapOf(
                         "patientId" to mapOf("type" to "integer"),
                         "appointmentId" to mapOf("type" to "integer"),
+                        "sourcePatientName" to mapOf(
+                            "type" to "string",
+                            "description" to "Patient name describing the existing appointment, if stated.",
+                        ),
+                        "sourceDate" to mapOf(
+                            "type" to "string",
+                            "description" to "Date of the existing appointment, if stated.",
+                        ),
+                        "sourceTime" to mapOf(
+                            "type" to "string",
+                            "description" to "Clock time of the existing appointment, if stated.",
+                        ),
                         "date" to mapOf(
                             "type" to "string",
                             "description" to "Prefer today / tomorrow. ISO only for an explicit future day. Defaults to current appointment day.",
@@ -1011,12 +1160,22 @@ Rules:
     )
 
     /** Extra turn-specific guidance so booking/free-slots do not derail into today's schedule. */
-    private fun toolLoopNudge(messages: List<AiMessageDto>): String {
+    private fun toolLoopNudge(
+        messages: List<AiMessageDto>,
+        pendingPatientQuestion: Boolean = false,
+    ): String {
         val base =
             "Call tools when you need live schedule, free slots, appointment statistics, patient match, documents, dental chart, or draft facts. Prefer one tool batch. " +
                 "If the doctor only says yes/ok/confirm after a time was already proposed, do NOT call propose_appointment again. " +
                 "If no tool is needed, answer in one short spoken paragraph now. Answer ONLY what was asked."
         val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        if (pendingPatientQuestion &&
+            PendingPatientAnswer.classify(latest).kind != PendingPatientAnswer.Kind.UNRELATED
+        ) {
+            return "$base PENDING PATIENT QUESTION: the latest utterance answers the stored patient-match question. " +
+                "Call manage_booking_workflow with CONFIRM, REJECT, CORRECT_SLOT, or AMBIGUOUS. " +
+                "Do NOT call search_patients."
+        }
         if (asksForDentalChart(latest)) {
             return "$base DENTAL DIAGRAM REQUEST: call open_dental_chart with Focus patientId (or search_patients first if no focus). " +
                 "Do NOT call get_today_schedule."

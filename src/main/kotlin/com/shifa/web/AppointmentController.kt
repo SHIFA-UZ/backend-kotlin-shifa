@@ -24,6 +24,8 @@ import com.shifa.service.TreatmentPlanFulfillmentService
 import com.shifa.service.VisitChargeService
 import com.shifa.service.ScribePipelineService
 import com.shifa.service.AppointmentDocumentationService
+import com.shifa.service.DoctorAppointmentRescheduleService
+import com.shifa.service.DoctorRescheduleCommand
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -55,6 +57,7 @@ class AppointmentController(
     private val appointmentBriefingService: com.shifa.service.AppointmentBriefingService,
     private val scribePipelineService: ScribePipelineService,
     private val appointmentDocumentationService: AppointmentDocumentationService,
+    private val doctorAppointmentRescheduleService: DoctorAppointmentRescheduleService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -564,81 +567,28 @@ class AppointmentController(
 
         clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
 
-        // Past appointments cannot be changed
-        if (appointment.startAt.isBefore(Instant.now())) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot change a past appointment")
-        }
-
         val newStartAt = Instant.parse(req.startAt)
-        // Cannot move appointment to a past date or time
-        if (newStartAt.isBefore(Instant.now())) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot move appointment to a past date or time")
-        }
-        val newEndAt = newStartAt.plusSeconds(req.slotMinutes * 60L)
-        val zone = ZoneId.of(appointment.doctor.timeZone)
-
-        // Check for overlaps for the doctor (excluding the current appointment)
-        val overlapping = appts.findOverlapping(appointment.doctor.id!!, newStartAt, newEndAt)
-            .filter { it.id != appointmentId }
-        
-        if (overlapping.isNotEmpty()) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "Overlapping appointment exists")
-        }
-
-        // Check for overlapping appointments for the patient (prevent double booking)
-        val patientOverlapping = appts.findOverlappingForPatient(
-            appointment.patient?.id ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found"),
-            newStartAt,
-            newEndAt
-        ).filter { it.id != appointmentId }
-
-        if (patientOverlapping.isNotEmpty()) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Patient already has an appointment scheduled at this date and time. Please choose a different time slot."
+        try {
+            doctorAppointmentRescheduleService.reschedule(
+                appointment.doctor,
+                DoctorRescheduleCommand(
+                    appointmentId = appointment.id,
+                    expectedStartAt = appointment.startAt,
+                    expectedStatus = appointment.status,
+                    newStartAt = newStartAt,
+                    slotMinutes = req.slotMinutes,
+                    locationId = req.locationId,
+                ),
             )
+        } catch (e: NoSuchElementException) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, e.message, e)
+        } catch (e: IllegalArgumentException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message, e)
+        } catch (e: IllegalStateException) {
+            val status = if (e.message?.contains("Overlapping") == true ||
+                e.message?.contains("already has an appointment") == true
+            ) HttpStatus.CONFLICT else HttpStatus.BAD_REQUEST
+            throw ResponseStatusException(status, e.message, e)
         }
-
-        val doctorLocs = doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(appointment.doctor.id)
-        val movedLocation = req.locationId?.let { locationId ->
-            doctorLocs.firstOrNull { it.id == locationId }
-                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid locationId for this doctor")
-        }
-        slotAvailabilityService.assertBookableConsecutiveRange(
-            doctor = appointment.doctor,
-            startAt = newStartAt,
-            endAt = newEndAt,
-            filterLocationId = movedLocation?.id ?: appointment.locationRef?.id,
-            excludeAppointmentId = appointmentId
-        )
-        if (movedLocation != null) {
-            appointment.locationRef = movedLocation
-            appointment.location = movedLocation.clinic?.takeIf { it.isNotBlank() } ?: movedLocation.label
-        }
-
-        val oldStartLdt = appointment.startAt.atZone(zone).toLocalDateTime()
-        val newStartLdt = newStartAt.atZone(zone).toLocalDateTime()
-        val startChanged = appointment.startAt != newStartAt
-        appointment.startAt = newStartAt
-        appointment.endAt = newEndAt
-        if (startChanged) {
-            appointment.smsReminderSentAt = null
-        }
-        appts.save(appointment)
-
-        val oldMonthName = oldStartLdt.month.name.lowercase().replaceFirstChar { it.uppercase() }
-        val newMonthName = newStartLdt.month.name.lowercase().replaceFirstChar { it.uppercase() }
-        val oldDateStr = "${oldStartLdt.dayOfMonth} $oldMonthName ${oldStartLdt.year}"
-        val newDateStr = "${newStartLdt.dayOfMonth} $newMonthName ${newStartLdt.year}"
-        
-        val notif = com.shifa.domain.Notification(
-            patient = appointment.patient,
-            title = "Appointment Changed",
-            message = "Doctor changed your appointment from $oldDateStr to $newDateStr. If you are okay with this appointment, that's good, otherwise reschedule yourself.",
-            type = com.shifa.domain.Notification.Type.APPOINTMENT_CHANGED,
-            appointmentId = appointment.id
-        )
-        val savedNotif = notifications.save(notif)
-        appointment.patient.fcmToken?.let { fcmService.sendPatientNotification(it, savedNotif) }
     }
 }

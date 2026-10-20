@@ -28,6 +28,16 @@ enum class BookingTurnType {
     AMBIGUOUS,
 }
 
+enum class PendingQuestionType {
+    CONFIRM_PATIENT,
+    CHOOSE_PATIENT,
+}
+
+data class PendingPatientCandidate(
+    val patientId: Long,
+    val patientName: String,
+)
+
 data class IntelligenceBookingWorkflow(
     val id: UUID,
     val doctorId: Long,
@@ -41,6 +51,9 @@ data class IntelligenceBookingWorkflow(
     val confirmationToken: UUID?,
     val idempotencyKey: UUID,
     val appointmentId: Long?,
+    val pendingQuestionType: PendingQuestionType? = null,
+    val pendingQuestionJson: String? = null,
+    val pendingQuestionToken: UUID? = null,
     val version: Long,
     val expiresAt: Instant,
 )
