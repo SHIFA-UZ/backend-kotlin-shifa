@@ -408,7 +408,8 @@ class AppointmentActionService(
                 ),
             )
         }
-        val wantsAll = Regex("""\b(all|every|whole)\b""", RegexOption.IGNORE_CASE).containsMatchIn(userText) &&
+        val wantsAll = Regex("""\b(all|every|whole|barcha|hamma|все)\b""", RegexOption.IGNORE_CASE)
+            .containsMatchIn(userText) &&
             !Regex("""\bone of\b""", RegexOption.IGNORE_CASE).containsMatchIn(userText)
         if (upcomingOnly) {
             val inProgress = rows.filter { it.status == Appointment.Status.IN_PROGRESS }.minByOrNull { it.startAt }
@@ -480,6 +481,7 @@ class AppointmentActionService(
 
         fun isExplicitConfirmation(text: String): Boolean {
             val normalized = text.trim().lowercase()
+                .replace(Regex("""[''ʻ’`]"""), "'")
                 .replace(Regex("""[,.!?]+"""), " ")
                 .replace(Regex("""\s+"""), " ")
                 .trim()
@@ -508,6 +510,17 @@ class AppointmentActionService(
             "cancel them",
             "cancel those",
             "proceed",
+            "ha",
+            "haa",
+            "ha bekor qil",
+            "ha bekor qiling",
+            "xo'p",
+            "xop",
+            "mayli",
+            "да",
+            "да отмени",
+            "отмени",
+            "подтверждаю",
         )
         private val ACTION = Regex("""<appointment_action>([0-9a-fA-F-]{36})</appointment_action>""")
         private val FOCUS = Regex("""<appointment_focus>(\d+)</appointment_focus>""")

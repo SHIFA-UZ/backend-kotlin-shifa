@@ -201,6 +201,9 @@ class AppointmentActionServiceTest {
         assertFalse(AppointmentActionService.isExplicitConfirmation("Cancel all my appointments next week"))
         assertTrue(AppointmentActionService.isExplicitConfirmation("yes"))
         assertTrue(AppointmentActionService.isExplicitConfirmation("Yes, cancel them."))
+        assertTrue(AppointmentActionService.isExplicitConfirmation("Ha."))
+        assertTrue(AppointmentActionService.isExplicitConfirmation("ha bekor qiling"))
+        assertFalse(AppointmentActionService.isExplicitConfirmation("23-oktabr kunga barcha qabullarni bekor qil."))
     }
 
     private fun visit(id: Long, start: String): Appointment = Appointment(

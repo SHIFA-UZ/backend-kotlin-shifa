@@ -135,6 +135,25 @@ class AppointmentIntelligenceServiceTest {
     }
 
     @Test
+    fun `this week list hides cancelled visits unless asked`() {
+        service.execute(
+            doctor,
+            mapOf(
+                "metric" to "LIST",
+                "shape" to "LIST",
+                "timeRange" to mapOf("expression" to "this week"),
+            ),
+            emptyList(),
+            "Bu haftagi qabullarimni ko'rsat.",
+            null,
+        )
+        assertEquals(
+            setOf("REQUESTED", "CONFIRMED", "IN_PROGRESS", "COMPLETED"),
+            readModel.lists.single().first.statuses,
+        )
+    }
+
+    @Test
     fun `cancelled counts name the scheduled time limitation`() {
         val result = service.execute(
             doctor,

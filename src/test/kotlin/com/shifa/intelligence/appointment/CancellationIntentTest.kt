@@ -75,4 +75,22 @@ class CancellationIntentTest {
         assertFalse(CancellationIntent.refersToLast("cancel it"))
         assertTrue(CancellationIntent.refersToLast("cancel the last one"))
     }
+
+    @Test
+    fun `uzbek bekor is a cancel preview`() {
+        assertTrue(
+            CancellationIntent.shouldPreview(
+                "23-oktabr kunga barcha qabullarni bekor qil.",
+                emptyList(),
+                emptyList(),
+            ),
+        )
+        assertTrue(
+            CancellationIntent.shouldPreview(
+                "Menga qabullarni ro'yxatdan olib tashla.",
+                emptyList(),
+                emptyList(),
+            ),
+        )
+    }
 }

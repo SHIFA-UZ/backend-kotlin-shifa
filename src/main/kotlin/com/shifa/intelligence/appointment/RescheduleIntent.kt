@@ -24,7 +24,7 @@ object RescheduleIntent {
     )
 
     fun shouldMove(current: String, priorUsers: List<String>, priorAssistants: List<String>): Boolean {
-        if (Regex("""\bcancel\b""", RegexOption.IGNORE_CASE).containsMatchIn(current)) return false
+        if (Regex("""(?:\bcancel\b|bekor|отмен)""", RegexOption.IGNORE_CASE).containsMatchIn(current)) return false
         if (isExplicitYes(current) && priorAssistants.any { it.contains("<appointment_action>") }) return false
         if (MOVE.containsMatchIn(current)) return true
         val thread = priorUsers.any { MOVE.containsMatchIn(it) }

@@ -21,7 +21,10 @@ object CancellationIntent {
         RegexOption.IGNORE_CASE,
     )
     private val LAST = Regex("""\blast (appointment|visit|one)\b""", RegexOption.IGNORE_CASE)
-    private val CANCEL = Regex("""\bcancel\b""", RegexOption.IGNORE_CASE)
+    private val CANCEL = Regex(
+        """(?:\bcancel(?:led|ed)?\b|bekor|olib tashla|o'chirib tashla|otmen|отмен)""",
+        RegexOption.IGNORE_CASE,
+    )
     private val NOT_A_NAME = Regex(
         """\b(are you sure|because|should have|how many|why|i think|i thought|wrong|count)\b""",
         RegexOption.IGNORE_CASE,

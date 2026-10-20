@@ -359,7 +359,14 @@ class AppointmentIntelligenceService(
     }
 
     private fun effectiveStatuses(request: IntelligenceRequest): Set<String>? {
-        if (!request.upcoming) return request.statuses
+        if (!request.upcoming) {
+            if (request.statuses.isNotEmpty()) return request.statuses
+            // "This week's appointments" is the live book, not cancelled/no-show visits.
+            if (request.shape == Shape.LIST) {
+                return BOOKED_LIST_STATUSES
+            }
+            return request.statuses
+        }
         val allowed = setOf("REQUESTED", "CONFIRMED", "IN_PROGRESS")
         val selected = if (request.statuses.isEmpty()) allowed else request.statuses.intersect(allowed)
         return selected.takeIf { it.isNotEmpty() }
@@ -611,5 +618,6 @@ class AppointmentIntelligenceService(
 
     companion object {
         private const val DEFAULT_LIST = 20
+        private val BOOKED_LIST_STATUSES = setOf("REQUESTED", "CONFIRMED", "IN_PROGRESS", "COMPLETED")
     }
 }

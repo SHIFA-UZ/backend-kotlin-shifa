@@ -912,7 +912,7 @@ Rules:
         ) {
             return "$base CANCELLATION CONFIRMATION: call confirm_appointment_cancellation only. Do not preview again."
         }
-        if (Regex("""\bcancel\b""", RegexOption.IGNORE_CASE).containsMatchIn(latest)) {
+        if (Regex("""(?:\bcancel\b|bekor|olib tashla|отмен)""", RegexOption.IGNORE_CASE).containsMatchIn(latest)) {
             return "$base CANCELLATION REQUEST: call preview_appointment_cancellation only. Do not confirm in this same turn."
         }
         com.shifa.intelligence.appointment.MorningVisitIntent.nudge(latest)?.let { return "$base $it" }
