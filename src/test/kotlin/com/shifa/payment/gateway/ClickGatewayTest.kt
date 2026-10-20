@@ -43,4 +43,25 @@ class ClickGatewayTest {
         assertTrue(query.contains("transaction_param=abc123"), query)
         assertEquals("CLICK", gateway.code.name)
     }
+
+    @Test
+    fun `return_url with its own query string is encoded, not rejected`() {
+        val successUrl = "https://api.example.com/api/payments/checkout/success?ref=abc123"
+        val result = gateway.createCheckout(
+            GatewayCheckoutRequest(
+                externalRef = "abc123",
+                amountMinor = 5_000_000L,
+                currency = "UZS",
+                kind = PaymentKind.CONSULTATION,
+                description = "visit",
+                successUrl = successUrl,
+                cancelUrl = "https://api.example.com/api/payments/checkout/cancel?ref=abc123",
+            )
+        )
+        val uri = java.net.URI(result.checkoutUrl)
+        assertTrue(uri.rawQuery.contains("return_url=https%3A%2F%2Fapi.example.com%2Fapi%2Fpayments%2Fcheckout%2Fsuccess%3Fref%3Dabc123"), uri.rawQuery)
+        val returnUrl = org.springframework.web.util.UriComponentsBuilder.fromUri(uri).build().queryParams.getFirst("return_url")
+        assertEquals(successUrl, java.net.URLDecoder.decode(returnUrl, Charsets.UTF_8))
+        assertTrue(uri.rawQuery.contains("transaction_param=abc123"), uri.rawQuery)
+    }
 }
