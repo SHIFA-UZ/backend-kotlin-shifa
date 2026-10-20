@@ -4,6 +4,7 @@ import com.shifa.domain.DoctorProfile
 import com.shifa.domain.User
 import com.shifa.intelligence.appointment.AppointmentActionService
 import com.shifa.intelligence.appointment.AppointmentIntelligenceService
+import com.shifa.intelligence.appointment.IntelligenceBookingWorkflowService
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
 import com.shifa.repo.PatientProfileRepository
@@ -23,6 +24,7 @@ class DoctorMorningToolDispatchTest {
     private val patients = mock(PatientProfileRepository::class.java)
     private val slots = mock(PatientDaySlotsService::class.java)
     private val intelligence = mock(AppointmentIntelligenceService::class.java)
+    private val bookingWorkflows = mock(IntelligenceBookingWorkflowService::class.java)
     private val tools = DoctorMorningToolService(
         appointments,
         mock(PatientBriefingService::class.java),
@@ -33,7 +35,25 @@ class DoctorMorningToolDispatchTest {
         mock(PatientDocumentService::class.java),
         intelligence,
         mock(AppointmentActionService::class.java),
+        bookingWorkflows,
     )
+
+    @Test
+    fun `booking confirmation is delegated to the persistent workflow`() {
+        `when`(bookingWorkflows.confirm(doctor, "chat_1")).thenReturn(
+            mapOf("workflowStatus" to "COMPLETED", "booked" to true),
+        )
+
+        val result = tools.execute(
+            doctor = doctor,
+            toolName = "manage_booking_workflow",
+            args = mapOf("turnType" to "CONFIRM"),
+            conversationId = "chat_1",
+        )
+
+        assertEquals(true, result["booked"])
+        verify(bookingWorkflows).confirm(doctor, "chat_1")
+    }
     private val doctor = DoctorProfile(
         id = 5,
         user = User(id = 1, passwordHash = "x"),

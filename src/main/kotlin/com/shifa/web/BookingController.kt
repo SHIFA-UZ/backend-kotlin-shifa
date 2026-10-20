@@ -1,37 +1,25 @@
 // src/main/kotlin/com/shifa/web/BookingController.kt
 package com.shifa.web
 
-import com.shifa.domain.Appointment
-import com.shifa.repo.AppointmentRepository
-import com.shifa.repo.DoctorLocationRepository
 import com.shifa.repo.DoctorProfileRepository
-import com.shifa.repo.NotificationRepository
-import com.shifa.repo.PatientProfileRepository
 import com.shifa.repo.UserRepository
 import com.shifa.security.DoctorPrincipal
 import com.shifa.service.ClinicAccessService
-import com.shifa.service.FcmService
-import com.shifa.service.SlotAvailabilityService
+import com.shifa.service.DoctorAppointmentBookingService
+import com.shifa.service.DoctorBookingCommand
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import java.time.Instant
-import java.time.ZoneId
-import java.time.ZonedDateTime
 
 @RestController
 @RequestMapping("/api/schedule/book")
 class BookingController(
-    private val patients: PatientProfileRepository,
-    private val appts: AppointmentRepository,
-    private val notifications: NotificationRepository,
-    private val doctorLocations: DoctorLocationRepository,
     private val doctors: DoctorProfileRepository,
     private val users: UserRepository,
     private val clinicAccess: ClinicAccessService,
-    private val fcmService: FcmService,
-    private val slotAvailabilityService: SlotAvailabilityService
+    private val bookingService: DoctorAppointmentBookingService,
 ) {
 
     /** startAt: ISO 8601 UTC (e.g. 2026-02-12T13:00:00Z). No timezone guessing. */
@@ -79,103 +67,37 @@ class BookingController(
         val doctor = doctors.findById(resourceDoctorId).orElseThrow {
             ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found")
         }
+        val bookedBy = users.findById(clinicAccess.resolveBookingActorUserId(principal)).orElse(null)
         val patientId = b.patientId
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "patientId is required")
-
-        val patient = patients.findById(patientId)
-            .orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found: $patientId")
-            }
-
-        // Intentionally do not require prior visits / created-by-doctor link: calendar may book walk-ins and
-        // profiles that are not yet on GET /api/patients (visited-only directory).
-
-        val startAt = Instant.parse(b.startAt)
-        val endAt = startAt.plusSeconds(b.slotMinutes * 60L)
-
-        if (appts.findOverlapping(doctor.id!!, startAt, endAt).isNotEmpty()) {
-            throw ResponseStatusException(HttpStatus.CONFLICT, "Overlapping appointment exists")
-        }
-
-        val patientOverlapping = appts.findOverlappingForPatient(patientId, startAt, endAt)
-        if (patientOverlapping.isNotEmpty()) {
-            throw ResponseStatusException(
-                HttpStatus.CONFLICT,
-                "Patient already has an appointment scheduled at this date and time. Please choose a different time slot."
-            )
-        }
-
-        val doctorLocs = doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(doctor.id!!)
-
-        val locationRef = when {
-            b.isVideo -> null
-            b.locationId != null -> doctorLocs.firstOrNull { it.id == b.locationId }
-                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid locationId for this doctor")
-            // Backwards compatibility: if doctor has a single location, attach it automatically.
-            doctorLocs.size == 1 -> doctorLocs.first()
-            // Multi-location doctor without explicit locationId falls back to primary.
-            doctorLocs.isNotEmpty() -> doctorLocs.firstOrNull { it.isPrimary } ?: doctorLocs.first()
-            else -> null
-        }
-
-        val filterLocationForSlots = when {
-            b.isVideo -> null
-            else -> locationRef?.id
-        }
-        slotAvailabilityService.assertBookableConsecutiveRange(
-            doctor = doctor,
-            startAt = startAt,
-            endAt = endAt,
-            filterLocationId = filterLocationForSlots,
-            excludeAppointmentId = null
-        )
-
-        val location = when {
-            b.isVideo -> "Video Consultation"
-            locationRef != null -> locationRef.clinic?.takeIf { it.isNotBlank() }
-                ?: locationRef.label
-            !b.location.isNullOrBlank() -> b.location
-            else -> "Clinic"
-        }
-
-        val bookedBy = users.findById(clinicAccess.resolveBookingActorUserId(principal)).orElse(null)
-
-        val saved = appts.save(
-            Appointment(
+        val saved = try {
+            bookingService.book(
                 doctor = doctor,
-                patient = patient,
-                bookedByUser = bookedBy,
-                startAt = startAt,
-                endAt = endAt,
-                location = location,
-                locationRef = locationRef,
-                reason = b.reason,
-                status = Appointment.Status.CONFIRMED,
-                paymentStatus = Appointment.PaymentStatus.NOT_REQUIRED
+                actor = bookedBy,
+                command = DoctorBookingCommand(
+                    patientId = patientId,
+                    startAt = Instant.parse(b.startAt),
+                    slotMinutes = b.slotMinutes,
+                    locationId = b.locationId,
+                    location = b.location,
+                    reason = b.reason,
+                    isVideo = b.isVideo,
+                ),
             )
-        )
-
-        val zone = ZoneId.of(doctor.timeZone)
-        val startZ = saved.startAt.atZone(zone)
-        val monthName = startZ.month.name.lowercase().replaceFirstChar { it.uppercase() }
-        val dateStr = "${startZ.dayOfMonth} $monthName ${startZ.year}"
-        val timeStr = "${startZ.hour.toString().padStart(2, '0')}:${startZ.minute.toString().padStart(2, '0')}"
-        val notif = com.shifa.domain.Notification(
-            patient = patient,
-            title = "New Appointment Scheduled",
-            message = "Doctor has scheduled an appointment for you on $dateStr at $timeStr. Location: $location.",
-            type = com.shifa.domain.Notification.Type.APPOINTMENT_REMINDER,
-            appointmentId = saved.id
-        )
-        val savedNotif = notifications.save(notif)
-        patient.fcmToken?.let { fcmService.sendPatientNotification(it, savedNotif) }
+        } catch (e: NoSuchElementException) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, e.message)
+        } catch (e: IllegalArgumentException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, e.message)
+        } catch (e: IllegalStateException) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, e.message)
+        }
 
         return ApptDto(
             id = saved.id,
             startAt = saved.startAt.toString(),
             endAt = saved.endAt.toString(),
-            patientId = patient.id,
-            patientName = patient.fullName ?: "",
+            patientId = saved.patient.id,
+            patientName = saved.patient.fullName,
             location = saved.location,
             reason = saved.reason,
             status = saved.status.name,

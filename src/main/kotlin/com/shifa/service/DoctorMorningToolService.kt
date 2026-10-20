@@ -10,6 +10,8 @@ import com.shifa.intelligence.appointment.AppointmentActionService
 import com.shifa.intelligence.appointment.AppointmentIntelligenceService
 import com.shifa.intelligence.appointment.CancellationIntent
 import com.shifa.intelligence.appointment.ClinicCalendarDay
+import com.shifa.intelligence.appointment.BookingTurnType
+import com.shifa.intelligence.appointment.IntelligenceBookingWorkflowService
 import com.shifa.intelligence.appointment.RescheduleIntent
 import com.shifa.repo.AppointmentRepository
 import com.shifa.repo.ClinicVisitPatternRepository
@@ -43,6 +45,7 @@ class DoctorMorningToolService(
     private val patientDocumentService: PatientDocumentService,
     private val appointmentIntelligenceService: AppointmentIntelligenceService,
     private val appointmentActionService: AppointmentActionService,
+    private val bookingWorkflowService: IntelligenceBookingWorkflowService,
 ) {
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm")
     /** Compact labels on UI cards (ok to abbreviate months). */
@@ -65,6 +68,7 @@ class DoctorMorningToolService(
         latestUserText: String = "",
         focusPatientId: Long? = null,
         searchedPatientIds: Set<Long> = emptySet(),
+        conversationId: String? = null,
     ): Map<String, Any?> {
         return when (toolName) {
             "get_today_schedule" -> getTodaySchedule(doctor)
@@ -113,6 +117,12 @@ class DoctorMorningToolService(
             "get_most_visited_patients" -> getMostVisitedPatients(doctor, args)
             "search_patients" -> searchPatients(doctor, args)
             "propose_appointment" -> proposeAppointment(doctor, args)
+            "manage_booking_workflow" -> manageBookingWorkflow(
+                doctor = doctor,
+                args = args,
+                focusPatientId = focusPatientId,
+                conversationId = conversationId,
+            )
             "propose_reschedule" -> proposeReschedule(
                 doctor, args, latestUserText, priorAssistantMessages, priorUserMessages,
             )
@@ -122,6 +132,108 @@ class DoctorMorningToolService(
             "open_dental_chart" -> openDentalChart(doctor, args)
             else -> mapOf("error" to "Unknown tool: $toolName")
         }
+    }
+
+    private fun manageBookingWorkflow(
+        doctor: DoctorProfile,
+        args: Map<String, Any?>,
+        focusPatientId: Long?,
+        conversationId: String?,
+    ): Map<String, Any?> {
+        val conversation = conversationId?.trim().orEmpty()
+        if (conversation.isEmpty()) {
+            return mapOf(
+                "cardType" to "propose_appointment",
+                "error" to "conversationId is required",
+                "spokenHint" to "Please reopen this Intelligence chat and try the booking again.",
+            )
+        }
+        val action = runCatching {
+            BookingTurnType.valueOf(args["turnType"]?.toString()?.uppercase() ?: "SLOT_UPDATE")
+        }.getOrDefault(BookingTurnType.AMBIGUOUS)
+        if (action == BookingTurnType.CONFIRM) {
+            return bookingWorkflowService.confirm(doctor, conversation)
+        }
+        if (action == BookingTurnType.REJECT || action == BookingTurnType.ABANDON) {
+            return bookingWorkflowService.reject(
+                doctorId = doctor.id,
+                conversationId = conversation,
+                abandon = action == BookingTurnType.ABANDON,
+            )
+        }
+        val active = bookingWorkflowService.active(doctor.id, conversation)
+        val trustedPatientId = (args["_trustedPatientId"] as? Number)?.toLong()
+        var patientId = active?.patientId ?: focusPatientId ?: trustedPatientId
+        var patientName = (args["patientName"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: active?.patientName
+        if (patientId == null && patientName != null) {
+            val found = searchPatients(doctor, mapOf("query" to patientName))
+            @Suppress("UNCHECKED_CAST")
+            val matches = found["matches"] as? List<Map<String, Any?>> ?: emptyList()
+            val usable = matches.size == 1 && (found["fuzzy"] != true || found["uniqueFirstName"] == true)
+            if (!usable) {
+                bookingWorkflowService.saveDetails(
+                    doctor = doctor,
+                    conversationId = conversation,
+                    patientId = null,
+                    patientName = patientName,
+                    date = active?.appointmentDate,
+                    time = active?.appointmentTime,
+                )
+                return LinkedHashMap(found).apply {
+                    put("workflowStatus", "COLLECTING_DETAILS")
+                }
+            }
+            patientId = (matches.first()["patientId"] as? Number)?.toLong()
+            patientName = matches.first()["patientName"]?.toString() ?: patientName
+        }
+        if (patientId == null) {
+            bookingWorkflowService.saveDetails(
+                doctor = doctor,
+                conversationId = conversation,
+                patientId = null,
+                patientName = patientName,
+                date = active?.appointmentDate,
+                time = active?.appointmentTime,
+            )
+            return mapOf(
+                "cardType" to "propose_appointment",
+                "workflowStatus" to "COLLECTING_DETAILS",
+                "spokenHint" to "Which patient should I book?",
+            )
+        }
+        val date = (args["date"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: active?.appointmentDate?.toString()
+        val time = (args["time"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: active?.appointmentTime?.toString()
+        if (date == null) {
+            bookingWorkflowService.saveDetails(
+                doctor = doctor,
+                conversationId = conversation,
+                patientId = patientId,
+                patientName = patientName,
+                date = null,
+                time = time?.let { resolveTimeArg(it) },
+            )
+            return mapOf(
+                "cardType" to "propose_appointment",
+                "patientId" to patientId,
+                "patientName" to patientName,
+                "workflowStatus" to "COLLECTING_DETAILS",
+                "spokenHint" to "Which day should I book for $patientName?",
+            )
+        }
+        val proposal = proposeAppointment(
+            doctor,
+            mapOf(
+                "patientId" to patientId,
+                "date" to date,
+                "time" to time,
+                "isVideo" to (args["isVideo"] == true),
+                "reason" to args["reason"],
+            ),
+        )
+        return bookingWorkflowService.attachProposal(doctor, conversation, proposal)
     }
 
     private fun looksLikeReadBack(text: String): Boolean {
@@ -1646,6 +1758,7 @@ class DoctorMorningToolService(
             "list_free_slots",
             "list_patient_appointments",
             "search_patients",
+            "manage_booking_workflow",
             "propose_appointment",
             "propose_reschedule",
             "list_draft_visit_facts",

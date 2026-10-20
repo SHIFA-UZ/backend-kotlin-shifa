@@ -217,6 +217,7 @@ class DoctorAiController(
                         messages = conversation,
                         language = request.language,
                         selectedPatientId = request.patientId,
+                        conversationId = request.conversationId,
                     ).collect { event ->
                         if (!clientConnected) return@collect
                         clientConnected = when (event) {

@@ -16,6 +16,7 @@ import com.shifa.ai.memory.IntelligenceMemoryExtractor
 import com.shifa.ai.memory.IntelligenceMemoryService
 import com.shifa.config.OpenAiProperties
 import com.shifa.domain.DoctorProfile
+import com.shifa.intelligence.appointment.IntelligenceBookingWorkflowService
 import com.shifa.web.AiStreamException
 import com.shifa.web.dto.AiMessageDto
 import kotlinx.coroutines.flow.Flow
@@ -39,6 +40,7 @@ class DoctorMorningAiService(
     private val llm: LlmGateway,
     private val memoryService: IntelligenceMemoryService,
     private val memoryExtractor: IntelligenceMemoryExtractor,
+    private val bookingWorkflowService: IntelligenceBookingWorkflowService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
     private val mapper = jacksonObjectMapper()
@@ -50,6 +52,7 @@ class DoctorMorningAiService(
         messages: List<AiMessageDto>,
         language: OutputLanguage,
         selectedPatientId: Long?,
+        conversationId: String? = null,
     ): Flow<MorningStreamEvent> = flow {
         val combined = messages.joinToString(" ") { it.content }
         if (RedFlagEngine.analyze(combined).hasEmergency) {
@@ -79,7 +82,15 @@ class DoctorMorningAiService(
         memoryService.promptBlock(memories)?.let {
             systemMessages += mapOf("role" to "system", "content" to it)
         }
-        selectedPatientId?.let {
+        val activeBooking = bookingWorkflowService.active(doctor.id, conversationId)
+        activeBooking?.let {
+            systemMessages += mapOf(
+                "role" to "system",
+                "content" to bookingWorkflowService.contextLine(it),
+            )
+        }
+        val effectivePatientId = activeBooking?.patientId ?: selectedPatientId
+        effectivePatientId?.let {
             systemMessages += mapOf(
                 "role" to "system",
                 "content" to
@@ -94,8 +105,10 @@ class DoctorMorningAiService(
             doctor = doctor,
             messages = messages,
             systemMessages = systemMessages,
-            focusPatientId = selectedPatientId,
+            focusPatientId = effectivePatientId,
             ctx = ctx,
+            conversationId = conversationId,
+            hasActiveBooking = activeBooking != null,
         )
         for (tool in toolOutcome.toolEvents) {
             emit(tool)
@@ -269,15 +282,74 @@ class DoctorMorningAiService(
         )
     }
 
+    /**
+     * "8:00" after free slots must book the focus patient, not start a new search.
+     */
+    private fun forcedBooking(
+        doctor: DoctorProfile,
+        messages: List<AiMessageDto>,
+        focusPatientId: Long?,
+        conversationId: String?,
+    ): ToolLoopOutcome? {
+        if (focusPatientId == null) return null
+        val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val time = timeFromUserText(latest) ?: return null
+        val date = dateTokenFromMessages(messages) ?: return null
+        val thread = messages.takeLast(8).joinToString("\n") { it.content }.lowercase()
+        val inBooking = conversationHasBookingIntent(messages) ||
+            thread.contains("free slot") ||
+            thread.contains("bo'sh") ||
+            thread.contains("bosh joy") ||
+            thread.contains("qaysi vaqt") ||
+            thread.contains("which time")
+        if (!inBooking) return null
+        val workflowEnabled = !conversationId.isNullOrBlank()
+        val toolName = if (workflowEnabled) "manage_booking_workflow" else "propose_appointment"
+        val toolArgs = if (workflowEnabled) {
+            mapOf(
+                "turnType" to "START_WORKFLOW",
+                "date" to date,
+                "time" to time,
+            )
+        } else {
+            mapOf(
+                "patientId" to focusPatientId,
+                "date" to date,
+                "time" to time,
+            )
+        }
+        val result = morningTools.execute(
+            doctor = doctor,
+            toolName = toolName,
+            args = toolArgs,
+            priorAssistantMessages = messages.filter { it.role == "assistant" }.map { it.content },
+            priorUserMessages = messages.filter { it.role == "user" }.map { it.content }.dropLast(1),
+            latestUserText = latest,
+            focusPatientId = focusPatientId,
+            conversationId = conversationId,
+        ) ?: return null
+        return ToolLoopOutcome(
+            loopMessages = emptyList(),
+            toolEvents = listOf(MorningStreamEvent.Tool(name = toolName, payload = result)),
+            directReply = null,
+            latestSpokenHint = result["spokenHint"] as? String,
+        )
+    }
+
     private fun runToolLoop(
         doctor: DoctorProfile,
         messages: List<AiMessageDto>,
         systemMessages: List<Map<String, String>>,
         focusPatientId: Long?,
         ctx: LlmTurnContext,
+        conversationId: String?,
+        hasActiveBooking: Boolean,
     ): ToolLoopOutcome {
-        forcedCancellation(doctor, messages, focusPatientId)?.let { return it }
-        forcedReschedule(doctor, messages, focusPatientId)?.let { return it }
+        if (!hasActiveBooking) {
+            forcedCancellation(doctor, messages, focusPatientId)?.let { return it }
+            forcedReschedule(doctor, messages, focusPatientId)?.let { return it }
+            forcedBooking(doctor, messages, focusPatientId, conversationId)?.let { return it }
+        }
         val loopMessages = mutableListOf<Map<String, Any?>>()
         val toolEvents = mutableListOf<MorningStreamEvent.Tool>()
         // patientIds returned by search_patients in this request (same tool loop).
@@ -354,6 +426,27 @@ class DoctorMorningAiService(
                     focusPatientId = focusPatientId,
                     searchedPatientIds = searchedPatientIds,
                 )
+                if (name == "propose_appointment" && !conversationId.isNullOrBlank()) {
+                    name = "manage_booking_workflow"
+                    val trustedPatientId = (safeArgs["patientId"] as? Number)?.toLong()
+                    safeArgs = (safeArgs - "patientId") +
+                        ("turnType" to if (hasActiveBooking) "SLOT_UPDATE" else "START_WORKFLOW") +
+                        ("_trustedPatientId" to trustedPatientId)
+                }
+                // A named clock time with a focus patient is a booking, not a new search.
+                if (name == "search_patients" && focusPatientId != null) {
+                    val time = timeFromUserText(latestUserText)
+                    val date = dateTokenFromMessages(messages)
+                    if (time != null && date != null) {
+                        log.info("morning_tool rerouted search_patients -> propose_appointment (named time)")
+                        name = "propose_appointment"
+                        safeArgs = mapOf(
+                            "patientId" to focusPatientId,
+                            "date" to date,
+                            "time" to time,
+                        )
+                    }
+                }
                 // A per-patient listing needs a patient the doctor actually picked. When the model
                 // invents one (no search, no focus), answer the general question instead.
                 if (name == "list_patient_appointments" &&
@@ -385,6 +478,7 @@ class DoctorMorningAiService(
                     latestUserText = latestUserText,
                     focusPatientId = focusPatientId,
                     searchedPatientIds = searchedPatientIds,
+                    conversationId = conversationId,
                 )
                 if (name == "search_patients") {
                     extractSearchPatientIds(result).forEach { searchedPatientIds += it }
@@ -494,7 +588,7 @@ You help with:
 - Today's booked clinic schedule (get_today_schedule) — ONLY when the doctor asks what is on today / their schedule / who is next (whole clinic, not one patient)
 - A patient's booked visits in a period (list_patient_appointments) — "how many appointments with him next week", "his visits this week"
 - Finding patients by name (search_patients) — never invent a patientId. If the tool returns fuzzy suggestions, ask "Did you mean …?" and wait for the doctor to confirm before booking.
-- Proposing a new appointment (propose_appointment) after patientId and date are known
+- Starting or continuing a new booking (manage_booking_workflow). Extract meaning and slots; Kotlin owns the state and booking.
 - Proposing a reschedule (propose_reschedule) for an upcoming visit
 - Draft visit facts / document everything (list_draft_visit_facts) when an appointmentId is known
 - Most visited patients and clinic patterns
@@ -509,7 +603,7 @@ DOCUMENTS & DENTAL DIAGRAM (MANDATORY):
 - Do NOT invent document ids. Do NOT say documents open in a separate window — the client shows an inline viewer card.
 
 CRITICAL WRITE RULES:
-- You NEVER book, reschedule, cancel, or commit chart facts yourself.
+- You NEVER book, reschedule, cancel, or commit chart facts yourself. manage_booking_workflow only proposes meaning; Kotlin validates every transition.
 - Cancelling visits uses preview_appointment_cancellation first. Nothing is cancelled until the doctor says yes in a later message and you call confirm_appointment_cancellation.
 - Moving a visit still uses propose_reschedule. Do not cancel it first.
 - Keep the visit already identified in this thread. A new day or time (24-oktabr, 8:30) is the destination — do not ask the patient and day again.
@@ -517,17 +611,18 @@ CRITICAL WRITE RULES:
 - Complete a visit only with complete_appointment after an explicit finish command.
 - Request a patient signature only with request_appointment_signature after an explicit signature command.
 - Dictation uses append_consultation_draft and appends the official consultation note. It does not complete the visit and does not request a signature.
-- Tools only propose. When the doctor names a free time, the client auto-confirms that slot — do not ask them to pick or say yes again.
+- A named free time creates an exact proposal. Booking executes only after a later explicit confirmation of that proposal.
 - Never invent patient names, ids, times, or free slots. Use tools.
 - patientId for propose_appointment MUST be the Focus patientId above, or an id returned by search_patients in this same turn — never invent ids and never reuse a different patient from memory.
 
 BOOKING FLOW (MANDATORY — follow turn by turn):
-1. Doctor wants to make/book/schedule an appointment → ask for the patient name (no tools yet unless name already given).
-2. Doctor gives a name → call search_patients with that name. Do NOT call get_today_schedule.
-3. After a clear match → ask which date and time they want. Do NOT show today's full schedule. Do NOT call propose_appointment until a day is known.
-4. Doctor gives a day (and optional time) → call propose_appointment with patientId, date, and time when known.
-5. If spokenHint / autoConfirm matched a time, say it is booked — do NOT ask to confirm again.
-6. If they say yes/ok after a time was already proposed, do NOT call propose_appointment again.
+1. Any natural request to make/book/schedule an appointment → call manage_booking_workflow with START_WORKFLOW and every slot the doctor supplied.
+2. While an Active BOOK workflow is present, interpret short replies against it. A name/day/time is SLOT_UPDATE or CORRECT_SLOT, not a new request.
+3. Never generate patient ids. Pass patientName; Kotlin resolves and stores the trusted patient id.
+4. A chosen free time returns an exact proposal awaiting confirmation. Ask the doctor to confirm it.
+5. A later yes/ok/ha confirming the exact proposal → call manage_booking_workflow with CONFIRM.
+6. No/another time → REJECT or CORRECT_SLOT. “Stop/forget it/cancel this task” → ABANDON.
+7. An unrelated read-only question uses its normal read tool and leaves the active booking unchanged.
 - An existing visit with that patient today does NOT replace booking a new one — stay on the booking flow.
 
 Rules:
@@ -539,6 +634,37 @@ Rules:
     }
 
     private fun morningToolsSchema(): List<Map<String, Any?>> = listOf(
+        mapOf(
+            "type" to "function",
+            "function" to mapOf(
+                "name" to "manage_booking_workflow",
+                "description" to "Start or continue the persistent BOOK workflow. Use for any natural booking request and for name/date/time answers, corrections, confirmations, rejection, or abandonment while an Active BOOK workflow exists. The backend owns state, patient ids, availability, confirmation, and execution.",
+                "parameters" to mapOf(
+                    "type" to "object",
+                    "properties" to mapOf(
+                        "turnType" to mapOf(
+                            "type" to "string",
+                            "enum" to listOf(
+                                "START_WORKFLOW", "SLOT_UPDATE", "CORRECT_SLOT", "CONFIRM",
+                                "REJECT", "ABANDON", "UNRELATED_QUERY", "AMBIGUOUS",
+                            ),
+                        ),
+                        "patientName" to mapOf("type" to "string"),
+                        "date" to mapOf(
+                            "type" to "string",
+                            "description" to "The doctor's exact date expression: today, tomorrow, weekday, day+month, or valid ISO. Never invent a year.",
+                        ),
+                        "time" to mapOf(
+                            "type" to "string",
+                            "description" to "24-hour HH:mm when supplied or corrected.",
+                        ),
+                        "isVideo" to mapOf("type" to "boolean"),
+                        "reason" to mapOf("type" to "string"),
+                    ),
+                    "required" to listOf("turnType"),
+                ),
+            ),
+        ),
         mapOf(
             "type" to "function",
             "function" to mapOf(
@@ -1012,9 +1138,24 @@ Rules:
             "запис",
             "прием",
             "приём",
+            "назнач",
             "uchrashuv",
             "yozib",
+            "belgilang",
+            "belgila",
+            "qabul belgil",
+            "qabul yoz",
+            "bron qil",
         ).any { window.contains(it) }
+    }
+
+    private fun dateTokenFromMessages(messages: List<AiMessageDto>): String? {
+        val texts = messages.map { it.content }.asReversed()
+        for (text in texts) {
+            weekdayTokenFromUserText(text)?.let { return it }
+            relativeDateFromUserText(text)?.let { return it }
+        }
+        return null
     }
 
     private fun looksLikePatientNameReply(text: String): Boolean {
@@ -1054,6 +1195,8 @@ Rules:
             return true
         }
         if (Regex("""\b\d{4}-\d{2}-\d{2}\b""").containsMatchIn(t)) return true
+        if (Regex("""\b([01]?\d|2[0-3]):[0-5]\d\b""").containsMatchIn(t)) return true
+        if (Regex("""\bsoat\s+([01]?\d|2[0-3])\b""").containsMatchIn(t)) return true
         return false
     }
 
@@ -1108,6 +1251,13 @@ Rules:
         focusPatientId: Long?,
         searchedPatientIds: Set<Long>,
     ): Map<String, Any?> {
+        if (toolName == "manage_booking_workflow") {
+            var next = args - "patientId"
+            relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            weekdayTokenFromUserText(latestUserText)?.let { next = next + ("date" to it) }
+            timeFromUserText(latestUserText)?.let { next = next + ("time" to it) }
+            return next
+        }
         if (toolName == "list_free_slots") {
             var next = args
             relativeDateFromUserText(latestUserText)?.let { next = next + ("date" to it) }

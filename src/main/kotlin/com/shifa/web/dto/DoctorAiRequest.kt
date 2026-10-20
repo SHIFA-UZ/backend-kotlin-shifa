@@ -15,6 +15,8 @@ data class AiMessageDto(
 data class DoctorAiRequest(
     val patientId: Long?,
     val consultationId: Long? = null,
+    @get:Size(max = 128, message = "Conversation id must not exceed 128 characters")
+    val conversationId: String? = null,
     @get:Size(max = 4000, message = "Question must not exceed 4000 characters")
     val question: String? = null,
     val messages: List<AiMessageDto>? = null,

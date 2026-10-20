@@ -22,6 +22,9 @@ import com.shifa.ai.memory.IntelligenceMemoryType
 import com.shifa.config.OpenAiProperties
 import com.shifa.domain.DoctorProfile
 import com.shifa.domain.User
+import com.shifa.intelligence.appointment.IntelligenceBookingWorkflowService
+import com.shifa.intelligence.appointment.IntelligenceBookingWorkflow
+import com.shifa.intelligence.appointment.BookingWorkflowStatus
 import com.shifa.web.dto.AiMessageDto
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -40,6 +43,10 @@ import org.mockito.Mockito.verify
 import org.mockito.Mockito.`when`
 import org.springframework.jdbc.core.JdbcTemplate
 import java.time.OffsetDateTime
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.util.UUID
 
 /**
  * Regression anchor for the morning assistant: same SSE events, now through the routed LLM gateway.
@@ -67,6 +74,7 @@ class DoctorMorningAiServiceTest {
     private val tools = mock(DoctorMorningToolService::class.java)
     private val memoryService = mock(IntelligenceMemoryService::class.java)
     private val extractor = mock(IntelligenceMemoryExtractor::class.java)
+    private val bookingWorkflows = mock(IntelligenceBookingWorkflowService::class.java)
     private val doctor = DoctorProfile(id = 5, user = User(id = 1, passwordHash = "x"), firstName = "Ada", lastName = "Lovelace", timeZone = "Asia/Tashkent")
 
     private fun build(client: ScriptedClient, configure: AiRoutingProperties.() -> Unit = {}): DoctorMorningAiService {
@@ -77,8 +85,13 @@ class DoctorMorningAiServiceTest {
         val gateway = LlmGateway(client, LlmRouter(props, registry, usage), registry, usage, props)
         `when`(memoryService.enabled()).thenReturn(true)
         `when`(memoryService.retrieveForTurn(anyDoctor(), anyString())).thenReturn(emptyList())
-        `when`(tools.isCardTool(anyString())).thenAnswer { (it.arguments[0] as String) in setOf("free_slots", "list_free_slots", "schedule", "get_today_schedule", "patient_search", "search_patients") }
-        return DoctorMorningAiService(openAi, tools, gateway, memoryService, extractor)
+        `when`(tools.isCardTool(anyString())).thenAnswer {
+            (it.arguments[0] as String) in setOf(
+                "free_slots", "list_free_slots", "schedule", "get_today_schedule",
+                "patient_search", "search_patients", "propose_appointment", "manage_booking_workflow",
+            )
+        }
+        return DoctorMorningAiService(openAi, tools, gateway, memoryService, extractor, bookingWorkflows)
     }
 
     private fun provider() = AiRoutingProperties.Provider().apply { enabled = true; apiKey = "k"; chatModel = "m"; baseUrl = "https://x.example/v1" }
@@ -97,18 +110,107 @@ class DoctorMorningAiServiceTest {
     private fun anyMemories(): List<IntelligenceMemory> = any<List<IntelligenceMemory>>() ?: emptyList()
 
     private fun execArgs() =
-        tools.execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds())
+        tools.execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds(), any())
 
     @Test
     fun `direct reply without tools emits one token and no tool events`() {
         val client = ScriptedClient().apply { on("openai", reply("Good morning, doctor.")) }
         val events = run(build(client), "Hello Shifa, how are you doing today?")
         assertEquals(listOf<MorningStreamEvent>(MorningStreamEvent.Token("Good morning, doctor.")), events)
-        verify(tools, never()).execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds())
+        verify(tools, never()).execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds(), any())
         // Exactly one model call, with tools attached, on openai.
         assertEquals(1, client.requests.size)
         assertEquals("openai", client.requests[0].first)
         assertTrue(!client.requests[0].second.tools.isNullOrEmpty())
+    }
+
+    @Test
+    fun `active booking confirmation is interpreted through the workflow tool`() {
+        val workflow = IntelligenceBookingWorkflow(
+            id = UUID.randomUUID(),
+            doctorId = doctor.id,
+            conversationId = "chat_1",
+            status = BookingWorkflowStatus.AWAITING_CONFIRMATION,
+            patientId = 30,
+            patientName = "Franco Herselman",
+            appointmentDate = LocalDate.parse("2026-10-23"),
+            appointmentTime = LocalTime.parse("08:00"),
+            proposalJson = "{}",
+            confirmationToken = UUID.randomUUID(),
+            idempotencyKey = UUID.randomUUID(),
+            appointmentId = null,
+            version = 1,
+            expiresAt = Instant.parse("2026-10-20T11:00:00Z"),
+        )
+        `when`(bookingWorkflows.active(doctor.id, "chat_1")).thenReturn(workflow)
+        `when`(bookingWorkflows.contextLine(workflow)).thenReturn("Active BOOK workflow awaiting confirmation.")
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "propose_appointment",
+                "workflowStatus" to "COMPLETED",
+                "booked" to true,
+                "spokenHint" to "Booked Franco Herselman at 08:00 on 2026-10-23.",
+            ),
+        )
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("manage_booking_workflow", mapOf("turnType" to "CONFIRM")))
+        }
+
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(AiMessageDto("user", "Ha.")),
+                OutputLanguage.EN,
+                null,
+                "chat_1",
+            ).toList()
+        }
+
+        assertEquals("manage_booking_workflow", (events.first() as MorningStreamEvent.Tool).name)
+        assertEquals(MorningStreamEvent.Token("Booked Franco Herselman at 08:00 on 2026-10-23."), events.last())
+    }
+
+    @Test
+    fun `read only question does not consume an active booking`() {
+        val workflow = IntelligenceBookingWorkflow(
+            id = UUID.randomUUID(),
+            doctorId = doctor.id,
+            conversationId = "chat_1",
+            status = BookingWorkflowStatus.COLLECTING_DETAILS,
+            patientId = 30,
+            patientName = "Franco Herselman",
+            appointmentDate = LocalDate.parse("2026-10-23"),
+            appointmentTime = null,
+            proposalJson = null,
+            confirmationToken = null,
+            idempotencyKey = UUID.randomUUID(),
+            appointmentId = null,
+            version = 1,
+            expiresAt = Instant.parse("2026-10-20T11:00:00Z"),
+        )
+        `when`(bookingWorkflows.active(doctor.id, "chat_1")).thenReturn(workflow)
+        `when`(bookingWorkflows.contextLine(workflow)).thenReturn("Active BOOK workflow waiting for a time.")
+        `when`(execArgs()).thenReturn(
+            mapOf("cardType" to "schedule", "spokenHint" to "You have two visits tomorrow."),
+        )
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("get_today_schedule"))
+        }
+
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(AiMessageDto("user", "Show tomorrow's schedule first.")),
+                OutputLanguage.EN,
+                null,
+                "chat_1",
+            ).toList()
+        }
+
+        assertEquals("get_today_schedule", (events.first() as MorningStreamEvent.Tool).name)
+        verify(bookingWorkflows, never()).confirm(anyDoctor(), anyString())
     }
 
     @Test
@@ -167,7 +269,7 @@ class DoctorMorningAiServiceTest {
         // First call gemini (tool), second call gemini again (pinned) fails -> no openai tool-loop replay.
         val toolLoopProviders = client.requests.filter { !it.second.tools.isNullOrEmpty() }.map { it.first }
         assertEquals(listOf("gemini", "gemini"), toolLoopProviders)
-        verify(tools, times(1)).execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds())
+        verify(tools, times(1)).execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds(), any())
         // Spoken hint still delivered (translated via the read-only spoken path, which may use any provider).
         assertTrue(events.any { it is MorningStreamEvent.Token })
     }
@@ -187,7 +289,7 @@ class DoctorMorningAiServiceTest {
         }
         `when`(execArgs()).thenReturn(mapOf("cardType" to "free_slots", "spokenHint" to "Free at nine."))
         run(build(client), "When am I free today?")
-        verify(tools, times(1)).execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds())
+        verify(tools, times(1)).execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds(), any())
     }
 
     @Test
@@ -249,6 +351,39 @@ class DoctorMorningAiServiceTest {
         assertTrue(token.text.contains("Botir"))
         assertTrue(token.text.length > 24)
         assertEquals(3, client.requests.size)
+    }
+
+    @Test
+    fun `a named time after friday slots books instead of searching again`() {
+        val client = ScriptedClient()
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "propose_appointment",
+                "patientId" to 30L,
+                "autoConfirm" to true,
+                "spokenHint" to "Booking Franco Herselman at 08:00 on Friday, 23 October.",
+            ),
+        )
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(
+                    AiMessageDto("user", "Franko Herselman uchun"),
+                    AiMessageDto("assistant", "Did you mean Franco Herselman?"),
+                    AiMessageDto("user", "Albatta."),
+                    AiMessageDto("assistant", "Found Franco Herselman."),
+                    AiMessageDto("user", "Juma kunga qabul belgilang."),
+                    AiMessageDto("assistant", "Sizda 23-oktabr, juma kuni 16 ta bo'sh joy mavjud. Qaysi vaqt mos keladi?"),
+                    AiMessageDto("user", "8:00"),
+                ),
+                OutputLanguage.UZ,
+                30L,
+            ).toList()
+        }
+        val tool = events.first() as MorningStreamEvent.Tool
+        assertEquals("propose_appointment", tool.name)
+        assertTrue(client.requests.none { !it.second.tools.isNullOrEmpty() })
     }
 
     @Test
