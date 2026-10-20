@@ -6,6 +6,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.util.UriComponentsBuilder
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
 
 @Component
 class ClickGateway(
@@ -39,7 +41,8 @@ class ClickGateway(
             .queryParam("merchant_id", clickProperties.merchantId)
             .queryParam("amount", amountSoums)
             .queryParam("transaction_param", request.externalRef)
-            .queryParam("return_url", returnUrl)
+            // Fully encoded: it carries its own "?ref=", which build(true) rejected as an invalid '='.
+            .queryParam("return_url", URLEncoder.encode(returnUrl, StandardCharsets.UTF_8))
             .build(true)
             .toUri()
 
