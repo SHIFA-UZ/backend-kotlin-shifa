@@ -26,6 +26,7 @@ import com.shifa.intelligence.appointment.IntelligenceBookingWorkflowService
 import com.shifa.intelligence.appointment.IntelligenceBookingWorkflow
 import com.shifa.intelligence.appointment.BookingWorkflowStatus
 import com.shifa.intelligence.appointment.PendingQuestionType
+import com.shifa.intelligence.appointment.PendingPatientCandidate
 import com.shifa.web.dto.AiMessageDto
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
@@ -238,6 +239,105 @@ class DoctorMorningAiServiceTest {
         assertEquals("manage_booking_workflow", tool.name)
         assertEquals(30L, tool.payload["patientId"])
         assertEquals(0, client.requests.size)
+    }
+
+    @Test
+    fun `affirmative patient answer keeps the open and does not cancel`() {
+        val workflow = IntelligenceBookingWorkflow(
+            id = UUID.randomUUID(),
+            doctorId = doctor.id,
+            conversationId = "open:chat_open",
+            status = BookingWorkflowStatus.COLLECTING_DETAILS,
+            patientId = null,
+            patientName = "Franko Herselmen",
+            appointmentDate = null,
+            appointmentTime = null,
+            proposalJson = null,
+            confirmationToken = null,
+            idempotencyKey = UUID.randomUUID(),
+            appointmentId = null,
+            pendingQuestionType = PendingQuestionType.CONFIRM_PATIENT,
+            pendingQuestionJson = """[{"patientId":30,"patientName":"Franco Herselman"}]""",
+            pendingQuestionToken = UUID.randomUUID(),
+            version = 1,
+            expiresAt = Instant.parse("2026-10-20T16:00:00Z"),
+        )
+        `when`(bookingWorkflows.activeOpen(doctor.id, "chat_open")).thenReturn(workflow)
+        `when`(bookingWorkflows.pendingPatientCandidates(workflow)).thenReturn(
+            listOf(PendingPatientCandidate(30, "Franco Herselman")),
+        )
+        `when`(bookingWorkflows.resolvePendingOpenPatient(doctor.id, "chat_open", 30L)).thenReturn(workflow)
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "open_appointment",
+                "appointmentId" to 1217L,
+                "patientId" to 30L,
+                "spokenHint" to "Opening Franco Herselman.",
+            ),
+        )
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("preview_appointment_cancellation"))
+        }
+
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(AiMessageDto("user", "Ha, aynan shunday.")),
+                OutputLanguage.EN,
+                null,
+                "chat_open",
+            ).toList()
+        }
+
+        val tool = events.first() as MorningStreamEvent.Tool
+        assertEquals("open_appointment", tool.name)
+        assertEquals(1217L, tool.payload["appointmentId"])
+        assertEquals(0, client.requests.size)
+    }
+
+    @Test
+    fun `uzbek note request is documented and not booked`() {
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "open_appointment",
+                "appointmentId" to 1217L,
+                "saved" to true,
+                "spokenHint" to "I added that to the consultation note.",
+            ),
+        )
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("manage_booking_workflow", mapOf("turnType" to "START_WORKFLOW", "time" to "10:00")))
+        }
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(
+                    AiMessageDto(
+                        "user",
+                        "Franko Xerselman bilan bo'ladigan 10:00 dagi qabulga quyidagi qaydlarni yozib bor: Franko Xerselman yuragida shikoyat bilan yonimga keldi.",
+                    ),
+                ),
+                OutputLanguage.EN,
+                null,
+                "chat_note",
+            ).toList()
+        }
+
+        assertEquals("append_consultation_draft", (events.first() as MorningStreamEvent.Tool).name)
+        assertEquals(1217L, (events.first() as MorningStreamEvent.Tool).payload["appointmentId"])
+        assertEquals(0, client.requests.size)
+    }
+
+    @Test
+    fun `an affirmative answer with no pending question does not cancel`() {
+        val client = ScriptedClient().apply { on("openai", reply("What would you like me to do?")) }
+        val events = run(
+            build(client),
+            "Ha, aynan shunday.",
+        )
+        assertEquals(listOf<MorningStreamEvent>(MorningStreamEvent.Token("What would you like me to do?")), events)
     }
 
     @Test

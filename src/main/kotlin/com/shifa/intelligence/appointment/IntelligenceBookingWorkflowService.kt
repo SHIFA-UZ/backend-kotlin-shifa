@@ -30,6 +30,11 @@ class IntelligenceBookingWorkflowService(
         return repository.findActive(doctorId, conversation, clock.instant())
     }
 
+    fun activeOpen(doctorId: Long, conversationId: String?): IntelligenceBookingWorkflow? {
+        val conversation = validConversationId(conversationId) ?: return null
+        return repository.findActive(doctorId, openConversation(conversation), clock.instant())
+    }
+
     fun activeReschedule(doctorId: Long, conversationId: String?): IntelligenceBookingWorkflow? {
         val conversation = validConversationId(conversationId) ?: return null
         return repository.findActive(doctorId, rescheduleConversation(conversation), clock.instant())
@@ -59,6 +64,32 @@ class IntelligenceBookingWorkflowService(
             )
         }.getOrDefault(emptyList())
     }
+
+    @Transactional
+    fun setPendingOpenPatient(
+        doctor: DoctorProfile,
+        conversationId: String,
+        originalName: String?,
+        candidates: List<PendingPatientCandidate>,
+    ): IntelligenceBookingWorkflow = setPendingPatientQuestion(
+        doctor = doctor,
+        conversationId = openConversation(conversationId),
+        originalName = originalName,
+        candidates = candidates,
+        date = null,
+        time = null,
+    )
+
+    fun resolvePendingOpenPatient(
+        doctorId: Long,
+        conversationId: String,
+        patientId: Long,
+    ): IntelligenceBookingWorkflow? = resolvePendingPatient(doctorId, openConversation(conversationId), patientId)
+
+    fun clearPendingOpenPatient(
+        doctorId: Long,
+        conversationId: String,
+    ): IntelligenceBookingWorkflow? = clearPendingPatient(doctorId, openConversation(conversationId), clearPatientName = true)
 
     @Transactional
     fun setPendingPatientQuestion(
@@ -487,6 +518,9 @@ class IntelligenceBookingWorkflowService(
 
     private fun rescheduleConversation(conversationId: String): String =
         "move:${conversationId.take(123)}"
+
+    private fun openConversation(conversationId: String): String =
+        "open:${conversationId.take(123)}"
 
     private fun pendingContext(workflow: IntelligenceBookingWorkflow): String {
         val type = workflow.pendingQuestionType ?: return ""

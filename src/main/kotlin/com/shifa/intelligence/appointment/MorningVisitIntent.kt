@@ -32,7 +32,7 @@ object MorningVisitIntent {
             Action.OPEN in actions -> steps += "call open_appointment. Do not change the appointment status."
         }
         if (Action.NOTE in actions) {
-            steps += "call append_consultation_draft with only the clinical words. Saving a note does not complete the visit and does not request a signature."
+            steps += "call append_consultation_draft with only the clinical words. Saving a note does not complete the visit, does not request a signature, and does not book a new appointment."
         }
         if (Action.COMPLETE in actions) steps += "call complete_appointment."
         if (Action.SIGNATURE in actions) steps += "call request_appointment_signature."
@@ -41,6 +41,12 @@ object MorningVisitIntent {
         if (Action.SIGNATURE !in actions) withheld += "do not request a signature"
         if (Action.START !in actions && Action.OPEN !in actions) withheld += "do not start or open a visit unless they asked"
         return "VISIT INTENT: ${steps.joinToString(" ")} ${withheld.joinToString("; ")}."
+    }
+
+    fun noteBody(text: String): String {
+        val trimmed = text.trim()
+        val split = Regex(""":\s+""").find(trimmed) ?: return trimmed
+        return trimmed.substring(split.range.last + 1).trim()
     }
 
     private fun isNote(text: String): Boolean =
@@ -67,7 +73,8 @@ object MorningVisitIntent {
         RegexOption.IGNORE_CASE,
     )
     private val NOTE = Regex(
-        """\b(add that|the patient reports|save the draft|read the note|dictate|consultation notes?|save (these |the |my )?(notes|consultation))\b""",
+        """\b(add that|the patient reports|save the draft|read the note|dictate|consultation notes?|save (these |the |my )?(notes|consultation))\b|""" +
+            """qayd\w*|yozib\s+bor|eslatma|заметк|в карту|notizen|dokumentier""",
         RegexOption.IGNORE_CASE,
     )
     private val NOTE_AS_COMPLETE = Regex(

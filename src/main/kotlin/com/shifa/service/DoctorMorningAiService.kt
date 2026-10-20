@@ -307,6 +307,121 @@ class DoctorMorningAiService(
         )
     }
 
+    /**
+     * An affirmative answer to "Did you mean Franco?" continues the open that asked,
+     * and must not start a cancellation or a booking.
+     */
+    private fun forcedOpenPatientAnswer(
+        doctor: DoctorProfile,
+        messages: List<AiMessageDto>,
+        focusPatientId: Long?,
+        conversationId: String?,
+    ): ToolLoopOutcome? {
+        if (conversationId.isNullOrBlank()) return null
+        val workflow = bookingWorkflowService.activeOpen(doctor.id, conversationId) ?: return null
+        if (workflow.pendingQuestionType == null) return null
+        val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val answer = PendingPatientAnswer.classify(latest)
+        if (answer.kind != PendingPatientAnswer.Kind.CONFIRM &&
+            answer.kind != PendingPatientAnswer.Kind.REJECT &&
+            answer.kind != PendingPatientAnswer.Kind.CORRECT
+        ) {
+            return null
+        }
+        log.info(
+            "intelligence_workflow operation=OPEN_APPOINTMENT conversationId={} workflowId={} pending={} kind={}",
+            conversationId,
+            workflow.id,
+            workflow.pendingQuestionType,
+            answer.kind,
+        )
+        if (answer.kind == PendingPatientAnswer.Kind.REJECT) {
+            bookingWorkflowService.clearPendingOpenPatient(doctor.id, conversationId)
+            return ToolLoopOutcome(
+                loopMessages = emptyList(),
+                toolEvents = listOf(
+                    MorningStreamEvent.Tool(
+                        name = "open_appointment",
+                        payload = mapOf(
+                            "cardType" to "patient_search",
+                            "workflowStatus" to "COLLECTING_DETAILS",
+                            "spokenHint" to "Okay. Which patient should I open?",
+                        ),
+                    ),
+                ),
+                directReply = null,
+                latestSpokenHint = "Okay. Which patient should I open?",
+            )
+        }
+        val candidates = bookingWorkflowService.pendingPatientCandidates(workflow)
+        val selected = if (answer.kind == PendingPatientAnswer.Kind.CONFIRM) {
+            candidates.singleOrNull()
+        } else {
+            null
+        }
+        if (selected != null) {
+            bookingWorkflowService.resolvePendingOpenPatient(doctor.id, conversationId, selected.patientId)
+        }
+        val args = if (selected != null) {
+            mapOf("patientId" to selected.patientId, "patientName" to selected.patientName)
+        } else {
+            mapOf("patientName" to answer.correctionName)
+        }
+        val result = morningTools.execute(
+            doctor = doctor,
+            toolName = "open_appointment",
+            args = args,
+            priorAssistantMessages = messages.filter { it.role == "assistant" }.map { it.content },
+            priorUserMessages = messages.filter { it.role == "user" }.map { it.content }.dropLast(1),
+            latestUserText = latest,
+            focusPatientId = selected?.patientId ?: focusPatientId,
+            conversationId = conversationId,
+        )
+        return ToolLoopOutcome(
+            loopMessages = emptyList(),
+            toolEvents = listOf(MorningStreamEvent.Tool(name = "open_appointment", payload = result)),
+            directReply = null,
+            latestSpokenHint = result["spokenHint"] as? String,
+        )
+    }
+
+    private fun forcedDocumentation(
+        doctor: DoctorProfile,
+        messages: List<AiMessageDto>,
+        focusPatientId: Long?,
+        conversationId: String?,
+    ): ToolLoopOutcome? {
+        val latest = messages.lastOrNull { it.role == "user" }?.content.orEmpty()
+        val actions = com.shifa.intelligence.appointment.MorningVisitIntent.explicit(latest)
+        if (com.shifa.intelligence.appointment.MorningVisitIntent.Action.NOTE !in actions) return null
+        if (com.shifa.intelligence.appointment.MorningVisitIntent.Action.COMPLETE in actions ||
+            com.shifa.intelligence.appointment.MorningVisitIntent.Action.SIGNATURE in actions
+        ) {
+            return null
+        }
+        log.info(
+            "intelligence_workflow operation=DOCUMENT_ENCOUNTER conversationId={} noteChars={}",
+            conversationId,
+            com.shifa.intelligence.appointment.MorningVisitIntent.noteBody(latest).length,
+        )
+        val result = morningTools.execute(
+            doctor = doctor,
+            toolName = "append_consultation_draft",
+            args = emptyMap(),
+            priorAssistantMessages = messages.filter { it.role == "assistant" }.map { it.content },
+            priorUserMessages = messages.filter { it.role == "user" }.map { it.content }.dropLast(1),
+            latestUserText = latest,
+            focusPatientId = focusPatientId,
+            conversationId = conversationId,
+        )
+        return ToolLoopOutcome(
+            loopMessages = emptyList(),
+            toolEvents = listOf(MorningStreamEvent.Tool(name = "append_consultation_draft", payload = result)),
+            directReply = null,
+            latestSpokenHint = result["spokenHint"] as? String,
+        )
+    }
+
     private fun forcedProposalConfirmation(
         doctor: DoctorProfile,
         messages: List<AiMessageDto>,
@@ -450,6 +565,7 @@ class DoctorMorningAiService(
         activeReschedule: IntelligenceBookingWorkflow? = null,
     ): ToolLoopOutcome {
         forcedPendingPatientAnswer(doctor, messages, conversationId, activeBooking)?.let { return it }
+        forcedOpenPatientAnswer(doctor, messages, focusPatientId, conversationId)?.let { return it }
         forcedProposalConfirmation(
             doctor, messages, conversationId, activeBooking, activeReschedule,
         )?.let { return it }
@@ -457,6 +573,7 @@ class DoctorMorningAiService(
         val pendingBlocksMove = activeBooking?.pendingQuestionType != null &&
             PendingPatientAnswer.classify(latestForMove).kind != PendingPatientAnswer.Kind.UNRELATED
         if (!pendingBlocksMove) {
+            forcedDocumentation(doctor, messages, focusPatientId, conversationId)?.let { return it }
             forcedReschedule(doctor, messages, focusPatientId, conversationId)?.let { return it }
         }
         if (!hasActiveBooking) {
@@ -542,6 +659,18 @@ class DoctorMorningAiService(
                     focusPatientId = focusPatientId,
                     searchedPatientIds = searchedPatientIds,
                 )
+                if ((name == "manage_booking_workflow" || name == "propose_appointment" || name == "search_patients") &&
+                    com.shifa.intelligence.appointment.MorningVisitIntent.Action.NOTE in
+                    com.shifa.intelligence.appointment.MorningVisitIntent.explicit(latestUserText)
+                ) {
+                    log.info(
+                        "intelligence_workflow rerouted tool={} operation=DOCUMENT_ENCOUNTER conversationId={}",
+                        name,
+                        conversationId,
+                    )
+                    name = "append_consultation_draft"
+                    safeArgs = emptyMap()
+                }
                 if (name == "propose_appointment" && !conversationId.isNullOrBlank()) {
                     name = "manage_booking_workflow"
                     val trustedPatientId = (safeArgs["patientId"] as? Number)?.toLong()

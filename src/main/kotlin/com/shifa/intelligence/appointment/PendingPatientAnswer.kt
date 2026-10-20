@@ -29,7 +29,7 @@ object PendingPatientAnswer {
         val first = tokens.first()
         if (first in CONFIRM_STEMS) {
             val rest = tokens.drop(1).filter { it !in FILLER }
-            return if (rest.isEmpty()) Result(Kind.CONFIRM)
+            return if (rest.isEmpty() || rest.all { it in FILLER }) Result(Kind.CONFIRM)
             else if (looksLikeName(rest)) Result(Kind.CORRECT, rest.joinToString(" "))
             else Result(Kind.CONFIRM)
         }
@@ -52,12 +52,14 @@ object PendingPatientAnswer {
             .trim()
 
     private val CONFIRM_STEMS = setOf(
-        "ha", "haa", "yes", "yeah", "yep", "ok", "okay", "da", "да",
+        "ha", "haa", "yes", "yeah", "yep", "ok", "okay", "da", "да", "ja",
         "xo'p", "xop", "mayli", "confirm", "proceed",
+        "to'g'ri", "togri", "richtig", "genau", "именно", "exactly", "aynan",
     )
     private val FILLER = setOf(
-        "shunday", "albatta", "please", "definitely", "thanks", "rahmat",
-        "tasdiqlayman", "to'g'ri", "togri", "correct", "right", "that", "is",
+        "shunday", "aynan", "exactly", "genau", "именно", "richtig", "shu",
+        "albatta", "please", "definitely", "thanks", "rahmat",
+        "tasdiqlayman", "to'g'ri", "togri", "correct", "right", "that", "is", "so",
     )
     private val REJECT_STEMS = setOf("no", "nope", "yo'q", "yoq", "нет", "not", "emas", "nah")
     private val NOT_A_NAME = setOf(

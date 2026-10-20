@@ -111,10 +111,10 @@ class DoctorMorningToolService(
                 doctor, latestUserText, priorAssistantMessages, conversationId,
             )
             "open_appointment" -> openAppointment(
-                doctor, args, latestUserText, focusPatientId, searchedPatientIds, startIfNeeded = false,
+                doctor, args, latestUserText, focusPatientId, searchedPatientIds, conversationId, startIfNeeded = false,
             )
             "start_appointment" -> openAppointment(
-                doctor, args, latestUserText, focusPatientId, searchedPatientIds, startIfNeeded = true,
+                doctor, args, latestUserText, focusPatientId, searchedPatientIds, conversationId, startIfNeeded = true,
             )
             "complete_appointment" -> appointmentActionService.completeAppointment(
                 doctor,
@@ -126,12 +126,12 @@ class DoctorMorningToolService(
                 (args["appointmentId"] as? Number)?.toLong(),
                 priorAssistantMessages,
             )
-            "append_consultation_draft" -> appointmentActionService.appendDictation(
+            "append_consultation_draft" -> appendConsultationDraft(
                 doctor = doctor,
-                userText = (args["text"] as? String)?.trim().orEmpty(),
-                appointmentId = (args["appointmentId"] as? Number)?.toLong(),
+                args = args,
+                latestUserText = latestUserText,
                 priorAssistantMessages = priorAssistantMessages,
-                readBack = args["readBack"] == true || looksLikeReadBack(latestUserText),
+                conversationId = conversationId,
             )
             "brief_patient" -> briefPatient(doctor, args)
             "get_clinic_patterns" -> getClinicPatterns(doctor)
@@ -455,16 +455,22 @@ class DoctorMorningToolService(
         latestUserText: String,
         focusPatientId: Long?,
         searchedPatientIds: Set<Long>,
+        conversationId: String?,
         startIfNeeded: Boolean,
     ): Map<String, Any?> {
         val name = (args["patientName"] as? String)?.trim().orEmpty()
         var patientId = (args["patientId"] as? Number)?.toLong()
+        var resolvedName = name
         if (name.isNotEmpty() && patientId == null) {
             val found = searchPatients(doctor, mapOf("query" to name))
             @Suppress("UNCHECKED_CAST")
             val matches = found["matches"] as? List<Map<String, Any?>> ?: emptyList()
-            if (matches.size != 1 || found["fuzzy"] == true) return found
+            if (matches.size != 1 || found["fuzzy"] == true) {
+                rememberOpenPatientQuestion(doctor, conversationId, name, matches)
+                return found
+            }
             patientId = (matches.first()["patientId"] as? Number)?.toLong() ?: return found
+            resolvedName = matches.first()["patientName"]?.toString().orEmpty().ifBlank { name }
         }
         val aboutFocus = Regex("""\b(him|her|them|this patient)\b""", RegexOption.IGNORE_CASE)
             .containsMatchIn(latestUserText)
@@ -481,15 +487,137 @@ class DoctorMorningToolService(
                 "appointment"
             }
         }
+        val suppliedId = (args["appointmentId"] as? Number)?.toLong()
+        val resolvedId = suppliedId ?: resolveTrustedAppointmentId(
+            doctor = doctor,
+            conversationId = conversationId,
+            patientName = resolvedName.ifBlank { null },
+            userText = latestUserText,
+        )
+        if (resolvedId == null && suppliedId == null) {
+            val several = trustedAppointmentMatches(doctor, conversationId, resolvedName.ifBlank { null }, latestUserText)
+            if (several.size > 1) return clarifyVisitOperation(several, "Which visit should I open?")
+        }
+        LOGGER.info(
+            "intelligence_workflow operation=OPEN_APPOINTMENT conversationId={} patientId={} appointmentId={}",
+            conversationId,
+            patientId,
+            resolvedId,
+        )
         return appointmentActionService.openAppointment(
             doctor = doctor,
             userText = latestUserText,
             patientId = patientId,
-            appointmentId = (args["appointmentId"] as? Number)?.toLong(),
+            appointmentId = resolvedId,
             target = target,
             startIfNeeded = startIfNeeded,
         )
     }
+
+    private fun appendConsultationDraft(
+        doctor: DoctorProfile,
+        args: Map<String, Any?>,
+        latestUserText: String,
+        priorAssistantMessages: List<String>,
+        conversationId: String?,
+    ): Map<String, Any?> {
+        val suppliedId = (args["appointmentId"] as? Number)?.toLong()
+        val speechName = (args["patientName"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+        val matches = if (suppliedId == null) {
+            trustedAppointmentMatches(doctor, conversationId, speechName, latestUserText)
+        } else {
+            emptyList()
+        }
+        if (suppliedId == null && matches.size > 1) {
+            return clarifyVisitOperation(matches, "Which visit should I add that note to?")
+        }
+        val appointmentId = suppliedId ?: matches.singleOrNull()?.appointmentId
+        val body = (args["text"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
+            ?: com.shifa.intelligence.appointment.MorningVisitIntent.noteBody(latestUserText)
+        LOGGER.info(
+            "intelligence_workflow operation=DOCUMENT_ENCOUNTER conversationId={} appointmentId={} noteChars={} matches={}",
+            conversationId,
+            appointmentId,
+            body.length,
+            matches.size,
+        )
+        return appointmentActionService.appendDictation(
+            doctor = doctor,
+            userText = body,
+            appointmentId = appointmentId,
+            priorAssistantMessages = priorAssistantMessages,
+            readBack = args["readBack"] == true || looksLikeReadBack(latestUserText),
+        )
+    }
+
+    private fun rememberOpenPatientQuestion(
+        doctor: DoctorProfile,
+        conversationId: String?,
+        originalName: String,
+        matches: List<Map<String, Any?>>,
+    ) {
+        if (conversationId.isNullOrBlank()) return
+        val candidates = matches.mapNotNull { row ->
+            val id = (row["patientId"] as? Number)?.toLong() ?: return@mapNotNull null
+            PendingPatientCandidate(id, row["patientName"]?.toString().orEmpty().ifBlank { "Patient" })
+        }
+        if (candidates.isEmpty()) return
+        bookingWorkflowService.setPendingOpenPatient(doctor, conversationId, originalName, candidates)
+        LOGGER.info(
+            "intelligence_workflow operation=OPEN_APPOINTMENT conversationId={} pending=CONFIRM_PATIENT candidates={}",
+            conversationId,
+            candidates.size,
+        )
+    }
+
+    private fun resolveTrustedAppointmentId(
+        doctor: DoctorProfile,
+        conversationId: String?,
+        patientName: String?,
+        userText: String,
+    ): Long? = trustedAppointmentMatches(doctor, conversationId, patientName, userText).singleOrNull()?.appointmentId
+
+    private fun trustedAppointmentMatches(
+        doctor: DoctorProfile,
+        conversationId: String?,
+        patientName: String?,
+        userText: String,
+    ): List<com.shifa.intelligence.appointment.TrustedAppointmentReference> {
+        if (conversationId.isNullOrBlank()) return emptyList()
+        val zone = zoneOf(doctor)
+        val today = LocalDate.now(clock.withZone(zone))
+        val speech = AppointmentSpeechReference.parse(userText, today)
+        val name = patientName?.trim()?.takeIf { it.isNotEmpty() } ?: speech.patientName
+        val time = speech.sourceTime ?: speech.destinationTime
+        return toolReferenceService.resolveAppointment(
+            doctorId = doctor.id,
+            conversationId = conversationId,
+            appointmentId = null,
+            patientName = name,
+            sourceDate = null,
+            sourceTime = time,
+        )
+    }
+
+    private fun clarifyVisitOperation(
+        matches: List<com.shifa.intelligence.appointment.TrustedAppointmentReference>,
+        spokenHint: String,
+    ): Map<String, Any?> = mapOf(
+        "supported" to true,
+        "status" to "AWAITING_CLARIFICATION",
+        "operation" to "OPEN_APPOINTMENT",
+        "appointments" to matches.map {
+            mapOf(
+                "appointmentId" to it.appointmentId,
+                "patientId" to it.patientId,
+                "patientName" to it.patientName,
+                "date" to it.localDate.toString(),
+                "startLocal" to it.localTime.format(timeFmt),
+                "status" to it.status,
+            )
+        },
+        "spokenHint" to spokenHint,
+    )
 
     /**
      * Name lookup reuses [searchPatients], including the fuzzy roster match.

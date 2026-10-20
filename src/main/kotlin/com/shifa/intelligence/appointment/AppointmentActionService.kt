@@ -419,6 +419,8 @@ class AppointmentActionService(
             .containsMatchIn(userText) &&
             !Regex("""\bone of\b""", RegexOption.IGNORE_CASE).containsMatchIn(userText)
         if (upcomingOnly) {
+            val timed = rowsMatchingSpokenTime(rows, userText, zone)
+            if (timed.size == 1) return Selection.Ready(timed)
             val inProgress = rows.filter { it.status == Appointment.Status.IN_PROGRESS }.minByOrNull { it.startAt }
             val next = inProgress ?: rows.minBy { it.startAt }
             if (rows.size == 1 || patientId == null || userText.contains("next", ignoreCase = true) ||
@@ -426,6 +428,15 @@ class AppointmentActionService(
             ) {
                 return Selection.Ready(listOf(next))
             }
+            return Selection.NeedsClarification(
+                mapOf(
+                    "supported" to true,
+                    "status" to "AWAITING_CLARIFICATION",
+                    "operation" to "OPEN_APPOINTMENT",
+                    "appointments" to rows.take(8).map { row(it, zone) },
+                    "spokenHint" to "I found ${rows.size} visits for this patient. Which one should I open?",
+                ),
+            )
         }
         if (rows.size > 1 && !wantsAll) {
             val cancelledNote = if (alreadyCancelled.isEmpty()) {
@@ -446,6 +457,21 @@ class AppointmentActionService(
             )
         }
         return Selection.Ready(rows.sortedBy { it.startAt })
+    }
+
+    private fun rowsMatchingSpokenTime(
+        rows: List<Appointment>,
+        userText: String,
+        zone: ZoneId,
+    ): List<Appointment> {
+        val clocks = Regex("""\b([01]?\d|2[0-3]):([0-5]\d)\b""").findAll(userText).mapNotNull { match ->
+            val hour = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
+            val minute = match.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+            if (hour !in 0..23 || minute !in 0..59) null else java.time.LocalTime.of(hour, minute)
+        }.toSet()
+        if (clocks.size != 1) return emptyList()
+        val wanted = clocks.single()
+        return rows.filter { it.startAt.atZone(zone).toLocalTime().withSecond(0).withNano(0) == wanted }
     }
 
     private fun ineligibleReason(appointment: Appointment, now: java.time.Instant): String? = when {

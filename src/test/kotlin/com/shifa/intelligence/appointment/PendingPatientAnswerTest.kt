@@ -27,6 +27,18 @@ class PendingPatientAnswerTest {
     }
 
     @Test
+    fun `affirmative answers in supported languages confirm the pending question`() {
+        listOf("Ha.", "Ha, aynan shunday.", "To'g'ri.", "Yes, exactly.", "Ja, genau.", "Да, именно.")
+            .forEach { phrase ->
+                assertEquals(
+                    PendingPatientAnswer.Kind.CONFIRM,
+                    PendingPatientAnswer.classify(phrase).kind,
+                    phrase,
+                )
+            }
+    }
+
+    @Test
     fun `a reschedule request is unrelated to the pending patient question`() {
         val result = PendingPatientAnswer.classify(
             "Tushunarli. Demak, 10:00 dagi Franko Herselman bilan qilingan uchrashuvni ertaga ko'chiring.",

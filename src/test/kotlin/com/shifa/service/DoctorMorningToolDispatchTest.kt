@@ -36,6 +36,7 @@ class DoctorMorningToolDispatchTest {
     private val intelligence = mock(AppointmentIntelligenceService::class.java)
     private val bookingWorkflows = mock(IntelligenceBookingWorkflowService::class.java)
     private val toolReferences = mock(IntelligenceToolReferenceService::class.java)
+    private val actions = mock(AppointmentActionService::class.java)
     private val fixedClock = Clock.fixed(Instant.parse("2026-10-20T04:00:00Z"), java.time.ZoneOffset.UTC)
     private val tools = DoctorMorningToolService(
         appointments,
@@ -46,7 +47,7 @@ class DoctorMorningToolDispatchTest {
         slots,
         mock(PatientDocumentService::class.java),
         intelligence,
-        mock(AppointmentActionService::class.java),
+        actions,
         bookingWorkflows,
         toolReferences,
         fixedClock,
@@ -458,6 +459,98 @@ class DoctorMorningToolDispatchTest {
         lastName = "Lovelace",
         timeZone = "Asia/Tashkent",
     )
+
+    @Test
+    fun `trusted schedule reference opens appointment 1217 without booking`() {
+        val trusted = trustedReference(1217L, "10:00")
+        `when`(
+            toolReferences.resolveAppointment(
+                anyLong(), nullableText(), nullableLong(), nullableText(), nullableDate(), nullableTime(),
+            ),
+        ).thenReturn(listOf(trusted))
+        `when`(
+            actions.openAppointment(
+                anyDoctor(),
+                anyText(),
+                nullableLong(),
+                nullableLong(),
+                anyText(),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+            ),
+        ).thenReturn(mapOf("cardType" to "open_appointment", "appointmentId" to 1217L))
+
+        val result = tools.execute(
+            doctor = doctor,
+            toolName = "open_appointment",
+            args = mapOf("patientId" to 30L, "patientName" to "Franco Herselman"),
+            conversationId = "chat_schedule",
+            latestUserText = "Ha, aynan shunday.",
+        )
+
+        assertEquals(1217L, result["appointmentId"])
+        verify(slots, org.mockito.Mockito.never()).availableSlotsForDay(
+            anyDoctor(), anyDate(), nullableLong(), nullableLong(),
+        )
+    }
+
+    @Test
+    fun `two listed visits ask which one to open`() {
+        `when`(
+            toolReferences.resolveAppointment(
+                anyLong(), nullableText(), nullableLong(), nullableText(), nullableDate(), nullableTime(),
+            ),
+        ).thenReturn(listOf(trustedReference(1217L, "10:00"), trustedReference(1216L, "08:00")))
+
+        val result = tools.execute(
+            doctor = doctor,
+            toolName = "open_appointment",
+            args = mapOf("patientId" to 30L, "patientName" to "Franco Herselman"),
+            conversationId = "chat_schedule",
+            latestUserText = "Ha, aynan shunday.",
+        )
+
+        assertEquals("AWAITING_CLARIFICATION", result["status"])
+        assertTrue((result["spokenHint"] as String).contains("open"))
+        verify(actions, org.mockito.Mockito.never()).openAppointment(
+            anyDoctor(), anyText(), nullableLong(), nullableLong(), anyText(), org.mockito.ArgumentMatchers.anyBoolean(),
+        )
+    }
+
+    @Test
+    fun `documentation for the 10am visit does not query booking slots`() {
+        val trusted = trustedReference(1217L, "10:00")
+        `when`(
+            toolReferences.resolveAppointment(
+                anyLong(), nullableText(), nullableLong(), nullableText(), nullableDate(), nullableTime(),
+            ),
+        ).thenReturn(listOf(trusted))
+        `when`(
+            actions.appendDictation(
+                anyDoctor(),
+                anyText(),
+                nullableLong(),
+                anyStrings(),
+                org.mockito.ArgumentMatchers.anyBoolean(),
+            ),
+        ).thenReturn(mapOf("appointmentId" to 1217L, "saved" to true, "spokenHint" to "I added that to the consultation note."))
+
+        val text =
+            "Franko Xerselman bilan bo'ladigan 10:00 dagi qabulga quyidagi qaydlarni yozib bor: Franko Xerselman yuragida shikoyat bilan yonimga keldi."
+        val result = tools.execute(
+            doctor = doctor,
+            toolName = "append_consultation_draft",
+            args = emptyMap(),
+            conversationId = "chat_schedule",
+            latestUserText = text,
+        )
+
+        assertEquals(1217L, result["appointmentId"])
+        assertEquals(true, result["saved"])
+        verify(slots, org.mockito.Mockito.never()).availableSlotsForDay(
+            anyDoctor(), anyDate(), nullableLong(), nullableLong(),
+        )
+        verifyNoInteractions(bookingWorkflows)
+    }
 
     @Test
     fun `today schedule and free slots stay on the existing tools`() {

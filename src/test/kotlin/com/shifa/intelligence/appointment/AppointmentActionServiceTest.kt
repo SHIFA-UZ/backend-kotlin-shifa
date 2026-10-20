@@ -197,6 +197,80 @@ class AppointmentActionServiceTest {
     }
 
     @Test
+    fun `opening two visits asks which to open and never offers cancellation`() {
+        val today = visit(1217L, "2026-10-20T10:00:00Z")
+        val later = visit(1216L, "2026-10-23T08:00:00Z")
+        `when`(appointments.findByDoctorIdAndStartAtBetween(anyLong(), anyInstant(), anyInstant()))
+            .thenReturn(listOf(today, later))
+
+        val result = service.openAppointment(
+            doctor,
+            "Ha, aynan shunday.",
+            3L,
+            null,
+            "appointment",
+            false,
+        )
+
+        assertEquals("AWAITING_CLARIFICATION", result["status"])
+        assertEquals("OPEN_APPOINTMENT", result["operation"])
+        assertTrue((result["spokenHint"] as String).contains("open"))
+        assertFalse((result["spokenHint"] as String).lowercase().contains("cancel"))
+        verifyNoInteractions(cancellation)
+    }
+
+    @Test
+    fun `a spoken clock time selects that visit when opening`() {
+        val ten = visit(1217L, "2026-10-20T10:00:00Z")
+        val eight = visit(1216L, "2026-10-23T08:00:00Z")
+        `when`(appointments.findByDoctorIdAndStartAtBetween(anyLong(), anyInstant(), anyInstant()))
+            .thenReturn(listOf(ten, eight))
+        `when`(lifecycle.markNoShowIfDue(ten)).thenReturn(ten)
+        `when`(lifecycle.openPayloadFields(ten, java.time.ZoneId.of("UTC")))
+            .thenReturn(mapOf("patientName" to "Franco", "status" to "CONFIRMED", "route" to "/visit"))
+
+        val result = service.openAppointment(
+            doctor,
+            "Open the 10:00 appointment",
+            3L,
+            null,
+            "appointment",
+            false,
+        )
+
+        assertEquals(1217L, result["appointmentId"])
+        assertEquals("SUCCESS", result["status"])
+        verifyNoInteractions(cancellation)
+    }
+
+    @Test
+    fun `another doctors appointment cannot be opened`() {
+        val otherDoctor = DoctorProfile(
+            id = 9,
+            user = User(id = 2, passwordHash = "x"),
+            firstName = "Other",
+            lastName = "Doctor",
+            timeZone = "UTC",
+        )
+        val foreign = Appointment(
+            id = 999L,
+            doctor = otherDoctor,
+            patient = patient,
+            startAt = Instant.parse("2026-10-20T10:00:00Z"),
+            endAt = Instant.parse("2026-10-20T10:30:00Z"),
+            location = "Clinic",
+            status = Appointment.Status.CONFIRMED,
+        )
+        `when`(appointments.findById(999L)).thenReturn(Optional.of(foreign))
+
+        val result = service.openAppointment(doctor, "open it", 3L, 999L, "appointment", false)
+
+        assertEquals("FAILURE", result["status"])
+        assertEquals(null, result["appointment"])
+        verifyNoInteractions(lifecycle)
+    }
+
+    @Test
     fun `confirmation phrases do not include the original request`() {
         assertFalse(AppointmentActionService.isExplicitConfirmation("Cancel all my appointments next week"))
         assertTrue(AppointmentActionService.isExplicitConfirmation("yes"))

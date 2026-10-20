@@ -25,6 +25,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
 import java.util.NoSuchElementException
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import org.slf4j.LoggerFactory
 import org.springframework.web.multipart.MultipartFile
 import java.nio.file.Files
 
@@ -40,8 +41,9 @@ class DoctorAiController(
     private val visitSummaryService: PatientVisitAiSummaryService,
     private val objectMapper: ObjectMapper,
     private val subscriptionTierService: SubscriptionTierService,
-    private val transcriptionService: TranscriptionService
+    private val transcriptionService: TranscriptionService,
 ) {
+    private val log = LoggerFactory.getLogger(javaClass)
 
     @PostMapping(
         "/stream",
@@ -382,6 +384,13 @@ class DoctorAiController(
                     else -> raw.take(2)
                 }
             }
+            log.info(
+                "doctor_stt doctorId={} bytes={} transcriptChars={} language={}",
+                principal.profile.id,
+                file.size,
+                result.transcript.length,
+                detected,
+            )
             return ResponseEntity.ok(
                 buildMap {
                     put("text", result.transcript)
