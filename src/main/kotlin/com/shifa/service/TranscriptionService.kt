@@ -291,18 +291,23 @@ class TranscriptionService(
 
         return try {
             val cleaned = cleanupMedicalTerms(transcript, languageHint)
-            if (cleaned.isNotBlank() && cleaned != transcript) {
+            val accepted = TranscriptIntegrity.acceptCleanup(transcript, cleaned)
+            if (accepted != transcript) {
                 log.info(
-                    "STT cleanup applied: chars {} -> {}; rawPreview=[{}]; cleanedPreview=[{}]",
+                    "doctor_stt outcome=CLEANUP_APPLIED chars {} -> {}",
+                    transcript.length,
+                    accepted.length,
+                )
+            } else if (cleaned.isNotBlank() && cleaned != transcript) {
+                log.info(
+                    "doctor_stt outcome=CLEANUP_REJECTED_SHORT originalChars={} cleanedChars={}",
                     transcript.length,
                     cleaned.length,
-                    transcript.previewForLog(LOG_PREVIEW_CHARS),
-                    cleaned.previewForLog(LOG_PREVIEW_CHARS)
                 )
             } else {
                 log.debug("STT cleanup unchanged ({} chars)", transcript.length)
             }
-            outcome.copy(transcript = cleaned.ifBlank { transcript })
+            outcome.copy(transcript = accepted)
         } catch (e: Exception) {
             log.warn("STT cleanup skipped after error: {}", e.message)
             outcome
@@ -371,15 +376,8 @@ If nothing needs fixing, output the transcript byte-for-byte the same.
     private fun String.countWordsRough(): Int =
         trim().split(Regex("\\s+")).count { it.isNotEmpty() }
 
-    private fun String.previewForLog(maxChars: Int): String {
-        val t = trim()
-        if (t.length <= maxChars) return t
-        return t.take(maxChars) + "..."
-    }
-
     companion object {
         private const val MAX_TRANSCRIPTION_PROMPT_CHARS = 4000
-        private const val LOG_PREVIEW_CHARS = 280
         private const val CLEANUP_EXTRA_TOKENS = 320
         private const val CLEANUP_OUTPUT_CAP_TOKENS = 6000
     }

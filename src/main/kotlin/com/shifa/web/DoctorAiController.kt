@@ -353,7 +353,8 @@ class DoctorAiController(
     fun transcribe(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @RequestParam("file") file: MultipartFile,
-        @RequestParam(required = false) languageHint: String?
+        @RequestParam(required = false) languageHint: String?,
+        @RequestParam(required = false) recordingId: String?,
     ): ResponseEntity<Map<String, String>> {
         subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.SPEECH_TO_TEXT)
         if (file.isEmpty) {
@@ -385,7 +386,8 @@ class DoctorAiController(
                 }
             }
             log.info(
-                "doctor_stt doctorId={} bytes={} transcriptChars={} language={}",
+                "doctor_stt outcome=COMPLETE recordingId={} doctorId={} bytes={} transcriptChars={} language={}",
+                safeRecordingId(recordingId),
                 principal.profile.id,
                 file.size,
                 result.transcript.length,
@@ -401,4 +403,9 @@ class DoctorAiController(
             Files.deleteIfExists(temp)
         }
     }
+
+    private fun safeRecordingId(raw: String?): String? =
+        raw?.trim()?.takeIf { id ->
+            id.length in 8..64 && id.all { it.isLetterOrDigit() || it == '_' || it == '-' }
+        }
 }
