@@ -3,8 +3,12 @@
 
 app:
   rate-limit:
-    # Railway's edge appends the real client IP as the last X-Forwarded-For entry. Verified on dev before prod gets it.
-    trusted-proxy-hops: 1
+    # Verified 2026-10-28 (see ARCHITECTURE_ROADMAP.md, 0.7): Railway's CDN layer REPLACES X-Forwarded-For with
+    # "<client>, <cdn node>" and drops anything the client sent, so the first entry (hops 0) is the real client.
+    # Tested on the public HTTPS paths only. If another ingress is opened (private networking, TCP proxy) or the
+    # CDN starts appending instead of replacing, the first entry becomes spoofable again: repeat the test first.
+    # Same value as production on purpose. Re-run the forged-header check before changing it.
+    trusted-proxy-hops: 0
 
 # API docs stay available on dev for the app teams.
 springdoc:
@@ -15,5 +19,6 @@ springdoc:
 
 logging:
   level:
-    # Rate-limit diagnostics (full X-Forwarded-For chain on 429) while the trusted-hop count is being verified.
+    # Rate-limit diagnostics: the tail (256 chars) of X-Forwarded-For on this filter's own 429s, to notice a header
+    # format change. It cannot detect evasion that never produces a 429.
     com.shifa.security.RateLimitFilter: DEBUG
