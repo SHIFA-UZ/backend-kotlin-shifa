@@ -75,7 +75,6 @@ class SecurityConfig(
                 // Protected auth endpoints
                 it.requestMatchers("/api/auth/reset-password").authenticated()
 
-                it.requestMatchers("/api/test/**").permitAll() // Test endpoints for development
                 it.requestMatchers("/api/public/**").permitAll() // Public endpoints (doctor listings)
                 it.requestMatchers("/api/webhooks/daily").permitAll() // Daily.co webhook (signature verified)
                 it.requestMatchers("/api/webhooks/stripe").permitAll() // Stripe webhook (signature verified)
