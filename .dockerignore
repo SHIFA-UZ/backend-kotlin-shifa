@@ -11,7 +11,3 @@ images
 *.gz
 *.tmp
 docker-compose.yml
-railway.json
-railway.toml
-nixpacks.toml
-Procfile

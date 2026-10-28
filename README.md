@@ -236,23 +236,24 @@ Never modify an existing migration. In dev, Hibernate `ddl-auto: update` fills g
 
 ### Railway (Primary)
 
-The project includes `railway.toml` and `nixpacks.toml` for Railway deployment. Railway auto-detects the build and runs Nixpacks with JDK 21.
+Railway builds the repository with the `Dockerfile` (the Dockerfile is auto-detected). The deploy settings live in
+the Railway **service settings** of each environment, not in the repository (Railway stops reading
+`railway.toml` / `railway.json` on 2026-12-01; the files were removed in October 2026 once the settings were applied):
 
-```toml
-# railway.toml key settings
-[deploy]
-startCommand = "java -Xmx1536m -Xms512m -XX:+UseG1GC ... -jar build/libs/app.jar"
-healthcheckPath = "/actuator/health/liveness"
-healthcheckTimeout = 180
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 10
-```
+| Setting | Value |
+|---|---|
+| Start command | `java -Xmx1536m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:MaxMetaspaceSize=384m -jar build/libs/app.jar` |
+| Health check path | `/actuator/health/liveness` |
+| Health check timeout | 180 s (cold start + Flyway) |
+| Restart policy | on failure, max 10 retries |
 
-Health check timeout is 180 seconds to allow for cold start + Flyway migrations.
+Environments: `development` deploys `main` (`https://api-dev.shifa.uz`, `SPRING_PROFILES_ACTIVE=prod,dev`);
+`production` deploys the `production` branch (`https://api.shifa.uz`, `SPRING_PROFILES_ACTIVE=prod`), moved only by the
+"Release to production" GitHub workflow. See `docs/ARCHITECTURE_ROADMAP.md` (1.13) for how the settings were applied.
 
 ### Docker
 
-The Dockerfile runs the JRE stage with **`Xmx≈1024m`** heap (512m proved too tight for Hibernate + Flyway startup and led to unhealthy deploys—Tomcat never bound before health timeouts). Provision **≥ ~2 GiB RAM** on the Railway service or override `JAVA_TOOL_OPTIONS` only if you know the limit.
+The Dockerfile's own ENTRYPOINT (the image default, used when no start command is configured, e.g. Cloud Run) runs the JRE stage with **`Xmx≈1024m`** heap (512m proved too tight for Hibernate + Flyway startup and led to unhealthy deploys—Tomcat never bound before health timeouts). Provision **≥ ~2 GiB RAM** on the Railway service or override `JAVA_TOOL_OPTIONS` only if you know the limit.
 
 ```bash
 docker build -t shifa-api .

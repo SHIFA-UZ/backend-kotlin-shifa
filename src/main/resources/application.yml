@@ -1,5 +1,5 @@
 # Default/Development configuration — LOCAL ONLY
-# Used when no profile is set (.\gradlew bootRun). Railway uses profile=prod (railway.toml) and DATABASE_URL.
+# Used when no profile is set (.\gradlew bootRun). Railway sets SPRING_PROFILES_ACTIVE (prod / prod,dev) and DATABASE_URL.
 # On Railway, Application.kt reads DATABASE_URL and sets datasource URL/username/password; this file is not used for DB.
 #
 # Local Docker: docker-compose maps 5433:5432, so we use port 5433 to avoid clashing with native Postgres on 5432.
