@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException
 import org.springframework.web.server.ResponseStatusException
+import org.springframework.web.servlet.resource.NoResourceFoundException
 
 @ControllerAdvice
 class ErrorHandler(
@@ -95,6 +96,12 @@ class ErrorHandler(
                 "status" to 409
             ))
     }
+
+    /** Missing static file (photo, document, attachment) or unknown path: 404, not 500. */
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun handleNoResourceFound(e: NoResourceFoundException): ResponseEntity<Map<String, Any>> =
+        ResponseEntity.status(HttpStatus.NOT_FOUND)
+            .body(mapOf("error" to 404, "message" to "Not found", "status" to 404))
 
     /** Client closed SSE/HTTP before the response finished — not a server fault. */
     @ExceptionHandler(
