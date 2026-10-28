@@ -265,14 +265,6 @@ docker run -p 8080:8080 \
 
 The Dockerfile uses a multi-stage build: Gradle 8.5 + JDK 21 for build, Eclipse Temurin 21 JRE Alpine for runtime.
 
-### GCP Cloud Run (Alternative)
-
-```bash
-gcloud builds submit --config cloudbuild.yaml
-```
-
-Supports Cloud SQL via socket factory (`CLOUD_SQL_INSTANCE` env var).
-
 ## Static File Serving
 
 Uploaded files (profile photos, documents, certificates, chat attachments) are served from `STORAGE_ROOT` with 1-hour browser cache:
