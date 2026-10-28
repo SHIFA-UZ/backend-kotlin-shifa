@@ -1,0 +1,50 @@
+# Secret scanning only. Dependency review (actions/dependency-review-action) needs GitHub Advanced Security and a
+# Gradle dependency-submission flow on a private organisation repo; Dependabot (.github/dependabot.yml) covers updates.
+name: Security
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:   # one-off: scan the whole history (job "history")
+
+permissions:
+  contents: read
+
+jobs:
+  secrets:
+    name: Secret scan (gitleaks)
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # The gitleaks CLI image needs no licence key (the GitHub Action does for organisations).
+      # Scans the commits this event adds; the full history was scanned once, see docs/ARCHITECTURE_ROADMAP.md 1.12.
+      - name: Scan new commits
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          # A brand-new branch has an all-zero "before"; fall back to everything reachable from HEAD.
+          case "$BASE" in ""|0000000000000000000000000000000000000000) RANGE="$HEAD" ;; *) RANGE="$BASE..$HEAD" ;; esac
+          docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.29.1 \
+            git --redact --no-banner --exit-code 1 --log-opts="$RANGE" .
+
+  history:
+    name: Secret scan, full history (manual)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Scan every commit
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.29.1 \
+            git --redact --no-banner --exit-code 0 --report-format json --report-path gitleaks-history.json .
+          echo "findings: $(jq length gitleaks-history.json)" >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-history
+          path: gitleaks-history.json
