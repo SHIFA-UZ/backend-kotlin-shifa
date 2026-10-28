@@ -22,8 +22,25 @@ import org.slf4j.LoggerFactory
 @Component
 class RateLimitFilter(
     @Value("\${app.rate-limit.auth.requests-per-minute:10}") private val authLimitPerMin: Int,
-    @Value("\${app.rate-limit.general.requests-per-minute:200}") private val generalLimitPerMin: Int
+    @Value("\${app.rate-limit.general.requests-per-minute:200}") private val generalLimitPerMin: Int,
+    @Value("\${app.rate-limit.trusted-proxy-hops:0}") private val trustedProxyHops: Int,
 ) : OncePerRequestFilter(), Ordered {
+
+    companion object {
+        /**
+         * Rate-limit key for a request. With [trustedProxyHops] = 0 the first `X-Forwarded-For` entry is used
+         * (legacy; the client controls it). With n > 0 the n-th entry from the end is used: that is the one
+         * appended by the n-th trusted proxy in front of us (Railway's edge = 1), which the client cannot forge.
+         */
+        fun clientKey(forwardedFor: String?, remoteAddr: String?, trustedProxyHops: Int): String {
+            if (forwardedFor.isNullOrBlank()) return remoteAddr ?: "unknown"
+            // Positions are kept as sent (blank entries included), so a forged blank cannot shift the trusted slot.
+            val entries = forwardedFor.split(',').map { it.trim() }
+            if (trustedProxyHops <= 0) return entries.first() // legacy, byte-identical to the previous code
+            return entries.getOrNull(entries.size - trustedProxyHops)?.takeIf { it.isNotEmpty() }
+                ?: remoteAddr ?: "unknown"
+        }
+    }
 
     private val log = LoggerFactory.getLogger(RateLimitFilter::class.java)
 
@@ -32,13 +49,8 @@ class RateLimitFilter(
     private val authBuckets = ConcurrentHashMap<String, Bucket>()
     private val generalBuckets = ConcurrentHashMap<String, Bucket>()
 
-    private fun clientKey(request: HttpServletRequest): String {
-        val xff = request.getHeader("X-Forwarded-For")
-        return when {
-            !xff.isNullOrBlank() -> xff.split(",").firstOrNull()?.trim() ?: request.remoteAddr
-            else -> request.remoteAddr ?: "unknown"
-        }
-    }
+    private fun clientKey(request: HttpServletRequest): String =
+        clientKey(request.getHeader("X-Forwarded-For"), request.remoteAddr, trustedProxyHops)
 
     private fun isAuthPath(path: String?): Boolean {
         if (path.isNullOrBlank()) return false

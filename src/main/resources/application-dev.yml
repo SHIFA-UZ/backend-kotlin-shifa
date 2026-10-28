@@ -1,0 +1,14 @@
+# Railway development environment (https://api-dev.shifa.uz).
+# Activated on top of prod: SPRING_PROFILES_ACTIVE=prod,dev. Only differences from application-prod.yml belong here.
+
+app:
+  rate-limit:
+    # Railway's edge appends the real client IP as the last X-Forwarded-For entry. Verified on dev before prod gets it.
+    trusted-proxy-hops: 1
+
+# API docs stay available on dev for the app teams.
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true

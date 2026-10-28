@@ -87,6 +87,8 @@ app:
       requests-per-minute: 10
     general:
       requests-per-minute: 200
+    # X-Forwarded-For entries appended by proxies we trust (Railway edge = 1). 0 = first entry, which the client controls.
+    trusted-proxy-hops: 0
     ai:
       enabled: ${AI_RATE_LIMIT_ENABLED:true}
       patient-daily-requests: ${AI_RATE_LIMIT_PATIENT_DAILY:30}
