@@ -23,15 +23,12 @@ Thumbs.db
 # Node (if any frontend later)
 node_modules/
 
-# Secrets
+# Secrets (local overrides only; application-dev.yml is the tracked Railway development profile)
 application-local.yml
-application-dev.yml
 
 # Local upload storage (patient documents, photos, voice recordings).
 # Created at runtime under storageRoot; never commit these files.
 public-storage/images/
 
-# Markdown docs (except CLAUDE.md and README.md)
-*.md
-!CLAUDE.md
-!README.md
+# Knowledge graph cache
+graphify-out/
