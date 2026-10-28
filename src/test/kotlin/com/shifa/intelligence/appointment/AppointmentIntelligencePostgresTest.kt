@@ -28,7 +28,9 @@ class AppointmentIntelligencePostgresTest {
         assertEquals(0L, executor.count(5L, october.copy(patientId = 8L)))
         assertEquals(1L, executor.count(5L, october.copy(documentation = DocumentationFilter.NO_CONSULTATION_NOTE)))
         assertEquals(1L, executor.count(5L, october.copy(documentation = DocumentationFilter.HAS_CONSULTATION_NOTE)))
-        assertEquals(0L, executor.count(7L, october))
+        // Doctor 7 sees only its own visit (appointment 4), none of doctor 5's.
+        assertEquals(1L, executor.count(7L, october))
+        assertEquals(0L, executor.count(7L, october.copy(patientId = 8L)))
         val rows = executor.list(5L, october, descending = false, limit = 25)
         assertEquals(listOf(1L, 5L), rows.map { it.appointmentId })
     }
