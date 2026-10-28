@@ -17,6 +17,7 @@ class ChatAttachmentController(
     private val storage: PatientDocumentStorageService,
     private val appProperties: AppProperties,
     private val signer: com.shifa.security.FileUrlSigner,
+    private val uploadGuard: com.shifa.shared.UploadGuard,
 ) {
 
     /**
@@ -28,6 +29,8 @@ class ChatAttachmentController(
         @RequestParam("file") file: MultipartFile,
         @RequestParam(value = "thumbnail", required = false) thumbnail: MultipartFile?
     ): ResponseEntity<Map<String, String>> {
+        uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.CHAT_ATTACHMENT, file)
+        if (thumbnail != null && !thumbnail.isEmpty) uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.IMAGE, thumbnail)
         try {
             // Generate unique filename
             val originalFilename = file.originalFilename ?: "attachment"

@@ -19,7 +19,8 @@ import org.springframework.web.server.ResponseStatusException
 class TranscriptionFeedbackController(
     private val appProps: AppProperties,
     private val feedbackService: TranscriptionFeedbackService,
-    private val subscriptionTierService: SubscriptionTierService
+    private val subscriptionTierService: SubscriptionTierService,
+    private val uploadGuard: com.shifa.shared.UploadGuard,
 ) {
 
     /** Patient Shifa AI: optional QA uploads when [AppProperties.transcriptionFeedbackEnabled]. */
@@ -36,6 +37,7 @@ class TranscriptionFeedbackController(
         if (transcript.isBlank()) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "transcript required")
         }
+        if (file != null && !file.isEmpty) uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.AUDIO, file)
         val fid = feedbackService.save(
             source = TranscriptionFeedbackService.FeedbackSource.PATIENT_COPILOT,
             userId = principal.user.id,
@@ -62,6 +64,7 @@ class TranscriptionFeedbackController(
         if (transcript.isBlank()) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "transcript required")
         }
+        if (file != null && !file.isEmpty) uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.AUDIO, file)
         val fid = feedbackService.save(
             source = TranscriptionFeedbackService.FeedbackSource.DOCTOR_STT,
             userId = principal.profile.user.id,

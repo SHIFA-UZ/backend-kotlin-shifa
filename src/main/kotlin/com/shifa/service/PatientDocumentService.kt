@@ -180,6 +180,9 @@ class PatientDocumentService(
         return storage.getFileResource(filePath)
     }
 
+    private fun uploadKind(isChatAttachment: Boolean) =
+        if (isChatAttachment) com.shifa.shared.UploadPolicy.Kind.CHAT_ATTACHMENT else com.shifa.shared.UploadPolicy.Kind.DOCUMENT
+
     /** Upload a document, persist a row in patient_documents, and return DTO. */
     fun upload(
         patientId: Long,
@@ -195,7 +198,7 @@ class PatientDocumentService(
         val doctor = doctorProfiles.findById(uploadingDoctorId).orElseThrow()
         val baseNameForFile = title?.takeIf { it.isNotBlank() }
             ?: (file.originalFilename ?: "document")
-        val saved = storage.saveDocument(patientId, file, baseNameForFile)
+        val saved = storage.saveDocument(patientId, file, baseNameForFile, uploadKind(isChatAttachment))
         val resolvedCategory = PatientDocumentCategory.fromCodeOrNull(category)
         val isAppointmentNote = resolvedCategory == PatientDocumentCategory.APPOINTMENT_NOTE
         if (isAppointmentNote && appointment != null) {
@@ -244,7 +247,7 @@ class PatientDocumentService(
         val p = profiles.findById(patientId).orElseThrow { IllegalArgumentException("Patient not found: $patientId") }
         val baseNameForFile = title?.takeIf { it.isNotBlank() }
             ?: (file.originalFilename ?: "document")
-        val saved = storage.saveDocument(patientId, file, baseNameForFile)
+        val saved = storage.saveDocument(patientId, file, baseNameForFile, uploadKind(isChatAttachment))
         val resolvedCategory = PatientDocumentCategory.fromCodeOrNull(category)
         // Pre-appointment drafts stay private until linked to a booked appointment.
         val shareWithTeam = !isChatAttachment &&

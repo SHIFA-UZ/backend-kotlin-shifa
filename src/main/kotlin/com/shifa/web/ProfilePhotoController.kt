@@ -17,7 +17,8 @@ import java.util.Locale
 @RequestMapping("/api/profile/photo")
 class ProfilePhotoController(
     private val doctors: DoctorProfileRepository,
-    private val appProps: AppProperties
+    private val appProps: AppProperties,
+    private val uploadGuard: com.shifa.shared.UploadGuard,
 ) {
 
     data class UploadResp(val photoUrl: String)
@@ -42,6 +43,7 @@ class ProfilePhotoController(
     ): UploadResp {
 
         val doctor = principal.profile
+        uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.IMAGE, file)
 
         // Build `<name-slug>-<id>.<ext>`
         val fullName = "${doctor.firstName} ${doctor.lastName}".trim()

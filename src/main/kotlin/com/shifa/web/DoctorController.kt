@@ -46,6 +46,7 @@ class DoctorController(
     private val subscriptionTierService: com.shifa.service.SubscriptionTierService,
     private val adminClinicService: AdminClinicService,
     private val fileUrlSigner: com.shifa.security.FileUrlSigner,
+    private val uploadGuard: com.shifa.shared.UploadGuard,
 ) {
 
     // -------------------- helpers --------------------
@@ -431,6 +432,7 @@ class DoctorController(
     ): UploadResp {
 
         val d = currentDoctor(principal)
+        uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.IMAGE, file)
 
         val fullName = "${d.firstName} ${d.lastName}".trim()
         val slug = slugify(fullName)
@@ -462,6 +464,7 @@ class DoctorController(
     ): UploadResp {
 
         val d = currentDoctor(principal)
+        uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.DOCUMENT, file)
 
         val fullName = "${d.firstName} ${d.lastName}".trim()
         val slug = slugify(fullName)
