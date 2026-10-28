@@ -6,7 +6,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties
 class ScribeProperties {
 
     /** Temp directory for scribe recordings (downloads, uploads). */
-    var tempDir: String = "./public-storage/images/scribe-temp"
+    var tempDir: String = System.getProperty("java.io.tmpdir") + "/shifa-scribe-temp"
 
     /** How long to keep temp files before cleanup (minutes). */
     var tempRetentionMinutes: Int = 60

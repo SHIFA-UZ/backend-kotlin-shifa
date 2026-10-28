@@ -91,7 +91,7 @@ class SecurityConfig(
                 it.requestMatchers("/swagger-ui/**", "/swagger-ui.html", "/v3/api-docs/**").permitAll()
                 
                 // Allow public access to static resources (images, etc.)
-                it.requestMatchers("/doctors/**", "/patients/**", "/patientdocuments/**", "/certificates/**", "/photos/**", "/chat-attachments/**").permitAll()
+                it.requestMatchers("/doctors/**", "/patients/**", "/patientdocuments/**", "/certificates/**", "/chat-attachments/**").permitAll()
                 
                 // Chat attachment upload requires authentication
                 it.requestMatchers("/api/messages/upload-attachment").authenticated()

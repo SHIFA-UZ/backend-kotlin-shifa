@@ -17,7 +17,8 @@ import java.util.Locale
 @RequestMapping("/api/patients/me/photo")
 class PatientPhotoController(
     private val patientProfiles: PatientProfileRepository,
-    private val appProps: AppProperties
+    private val appProps: AppProperties,
+    private val signer: com.shifa.security.FileUrlSigner,
 ) {
 
     data class UploadResp(val photoUrl: String)
@@ -79,7 +80,7 @@ class PatientPhotoController(
 
         // Return absolute URL for client
         val absoluteUrl =
-            "${appProps.publicBaseUrl.removeSuffix("/")}/${profile.photoUrl}"
+            signer.sign("${appProps.publicBaseUrl.removeSuffix("/")}/${profile.photoUrl}")
 
         return UploadResp(photoUrl = absoluteUrl)
     }

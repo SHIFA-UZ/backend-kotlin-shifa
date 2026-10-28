@@ -23,9 +23,15 @@ class MessageService(
     private val doctorProfileRepo: DoctorProfileRepository,
     private val patientProfileRepo: PatientProfileRepository,
     private val fcmService: FcmService,
-    private val appProps: AppProperties
+    private val appProps: AppProperties,
+    private val fileUrlSigner: com.shifa.security.FileUrlSigner,
+    private val patientProfileMapper: PatientProfileMapper,
     ) {
     private val log = LoggerFactory.getLogger(MessageService::class.java)
+
+    private companion object {
+        val ATTACHMENT_PREFIX = setOf(com.shifa.security.FileUrlSigner.CHAT_ATTACHMENTS)
+    }
     
         @Transactional(readOnly = true)
         fun listConversations(doctorUserId: Long): List<ConversationDto> {
@@ -229,9 +235,9 @@ class MessageService(
             recipientPatient = recipientPatient,
             text = request.text,
             messageType = messageType,
-            attachmentUrl = request.attachmentUrl,
+            attachmentUrl = fileUrlSigner.canonical(request.attachmentUrl), // never store a signed URL
             attachmentName = request.attachmentName,
-            thumbnailUrl = request.thumbnailUrl,
+            thumbnailUrl = fileUrlSigner.canonical(request.thumbnailUrl),
             fileSize = request.fileSize,
             duration = request.duration,
             status = Message.MessageStatus.SENT,
@@ -448,9 +454,9 @@ class MessageService(
             recipientPatient = null,
             text = request.text,
             messageType = messageType,
-            attachmentUrl = request.attachmentUrl,
+            attachmentUrl = fileUrlSigner.canonical(request.attachmentUrl), // never store a signed URL
             attachmentName = request.attachmentName,
-            thumbnailUrl = request.thumbnailUrl,
+            thumbnailUrl = fileUrlSigner.canonical(request.thumbnailUrl),
             fileSize = request.fileSize,
             duration = request.duration,
             status = Message.MessageStatus.SENT,
@@ -590,7 +596,7 @@ class MessageService(
                 normalizePhotoUrl(profile?.avatarUrl)
             }
             conversation.patientParticipant != null -> {
-                normalizePhotoUrl(conversation.patientParticipant!!.photoUrl)
+                normalizePhotoUrl(conversation.patientParticipant!!.photoUrl, conversation.patientParticipant!!.id)
             }
             else -> null
         }
@@ -637,14 +643,17 @@ class MessageService(
         return conversationRepo.save(newConversation)
     }
 
-    private fun normalizePhotoUrl(photoUrl: String?): String? {
-        val trimmed = photoUrl?.trim()?.replace("\\", "/") ?: return null
+    /** Doctor avatars pass through; a patient's own photo is signed by the mapper's ownership check. */
+    private fun normalizePhotoUrl(photoUrl: String?, ownerProfileId: Long? = null): String? =
+        patientProfileMapper.normalizePhotoUrl(photoUrl, ownerProfileId)
+
+    /** Attachment URLs are stored canonical (no signature) and signed on every read, attachments prefix only. */
+    private fun signAttachmentUrl(url: String?): String? {
+        val trimmed = url?.trim()?.replace("\\", "/") ?: return null
         if (trimmed.isEmpty()) return null
-        val isAbs = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        if (isAbs) return trimmed
-        val base = appProps.publicBaseUrl.removeSuffix("/")
-        val path = trimmed.removePrefix("/")
-        return "$base/$path"
+        val absolute = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
+            else "${appProps.publicBaseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
+        return fileUrlSigner.sign(absolute, ATTACHMENT_PREFIX)
     }
 
     private fun sendPatientChatMessageNotification(
@@ -866,8 +875,8 @@ class MessageService(
 
         val content = MessageContentDto(
             text = message.text,
-            fileUrl = normalizePhotoUrl(message.attachmentUrl),
-            thumbnailUrl = normalizePhotoUrl(message.thumbnailUrl),
+            fileUrl = signAttachmentUrl(message.attachmentUrl),
+            thumbnailUrl = signAttachmentUrl(message.thumbnailUrl),
             fileName = message.attachmentName,
             fileSize = message.fileSize,
             duration = message.duration

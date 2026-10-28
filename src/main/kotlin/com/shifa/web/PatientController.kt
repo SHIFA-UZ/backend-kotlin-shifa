@@ -62,6 +62,7 @@ class PatientController(
     private val slotAvailabilityService: SlotAvailabilityService,
     private val paymentService: PaymentService,
     private val paymentProperties: PaymentProperties,
+    private val fileUrlSigner: com.shifa.security.FileUrlSigner,
 ) {
 
     // -------------------- Helper --------------------
@@ -230,7 +231,7 @@ class PatientController(
             birthDate = profile.birthDate?.toString(),
             gender = profile.gender,
             language = profile.language,
-            photoUrl = profileMapper.normalizePhotoUrl(profile.photoUrl),
+            photoUrl = profileMapper.normalizePhotoUrl(profile.photoUrl, profile.id),
             latitude = profile.latitude,
             longitude = profile.longitude,
             locationCountry = profile.locationCountry,
@@ -263,7 +264,7 @@ class PatientController(
         req.gender?.let { profile.gender = it.trim().takeIf { g -> g.isNotEmpty() } }
         req.address?.let { profile.address = it }
         req.language?.let { profile.language = it }
-        req.photoUrl?.let { profile.photoUrl = it }
+        req.photoUrl?.let { profile.photoUrl = fileUrlSigner.canonical(it) } // never store a signed URL
         req.latitude?.let { profile.latitude = it }
         req.longitude?.let { profile.longitude = it }
         req.locationCountry?.let { profile.locationCountry = it }
@@ -285,7 +286,7 @@ class PatientController(
             birthDate = saved.birthDate?.toString(),
             gender = saved.gender,
             language = saved.language,
-            photoUrl = profileMapper.normalizePhotoUrl(saved.photoUrl),
+            photoUrl = profileMapper.normalizePhotoUrl(saved.photoUrl, saved.id),
             latitude = saved.latitude,
             longitude = saved.longitude,
             locationCountry = saved.locationCountry,

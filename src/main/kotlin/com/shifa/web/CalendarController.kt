@@ -272,7 +272,7 @@ class CalendarController(
                         appointmentId = ap.id,
                         patientId = ap.patient?.id,
                         patientName = ap.patient?.fullName,
-                        patientPhotoUrl = profileMapper.normalizePhotoUrl(ap.patient?.photoUrl),
+                        patientPhotoUrl = profileMapper.normalizePhotoUrl(ap.patient?.photoUrl, ap.patient?.id),
                         location = ap.location,
                         reason = ap.reason,
                         status = ap.status.name,

@@ -19,6 +19,9 @@ class AppProperties {
 
     /** When true, clients may POST bad STT samples to QA endpoints (multipart). Default off. */
     var transcriptionFeedbackEnabled: Boolean = false
+
+    /** Refuse unsigned private file URLs (403). Off while we confirm every client uses the signed URLs the API returns. */
+    var fileUrlEnforce: Boolean = false
 }
 
 @Component

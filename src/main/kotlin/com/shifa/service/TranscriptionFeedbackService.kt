@@ -32,7 +32,8 @@ class TranscriptionFeedbackService(
         audioMimeType: String?,
         audioBytes: ByteArray?,
     ): String {
-        val root = Path.of(appProps.storageRoot).resolve("transcription-feedback").normalize()
+        // Next to, not inside, the publicly served storage root.
+        val root = Path.of(appProps.storageRoot).toAbsolutePath().normalize().resolveSibling("private").resolve("transcription-feedback")
         Files.createDirectories(root)
 
         val id = UUID.randomUUID().toString()
