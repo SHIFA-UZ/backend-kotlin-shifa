@@ -7,8 +7,9 @@ build/
 *.iml
 out/
 
-# Logs
+# Logs (including rolled archives the app writes next to the jar)
 *.log
+*.log.*
 
 # OS
 .DS_Store
@@ -28,7 +29,14 @@ application-local.yml
 
 # Local upload storage (patient documents, photos, voice recordings).
 # Created at runtime under storageRoot; never commit these files.
-public-storage/images/
+/public-storage/
+/images/
 
 # Knowledge graph cache
 graphify-out/
+
+# One-off SQL scripts belong in docs/sql/, never in the repo root
+/*.sql
+
+# Git worktrees used for parallel branches
+.worktrees/
