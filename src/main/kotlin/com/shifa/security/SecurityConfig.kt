@@ -87,6 +87,7 @@ class SecurityConfig(
                     "/api/payments/checkout/cancel"
                 ).permitAll() // Returned from Stripe / Click in WebView
                 it.requestMatchers("/actuator/health/**").permitAll() // Health check endpoint
+                it.requestMatchers(HttpMethod.GET, "/actuator/info").permitAll() // Deployed commit, read by the release workflow
                 it.requestMatchers("/error").permitAll()
 
                 // Swagger UI + OpenAPI docs
