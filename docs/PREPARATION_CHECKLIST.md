@@ -202,7 +202,7 @@ Do these **after** the first CI workflow has run on `main` (I will tell you), be
 6. Backend: in the `shifa-dev` project generate a service-account key and set it as `FIREBASE_SERVICE_ACCOUNT_JSON` in the development environment, replacing the shared one.
 7. Verify on development: doctor phone login with a test number, and a push to a debug build on Android and iOS.
 
-### 3.4 Create the development environment — **done 2026-10-28**
+### 3.4 Create the development environment — **done 2026-10-28** (and the production gate: `production` branch + trigger switched the same day)
 
 Environment `development` (id `c59cc5d3-393b-4946-a792-ed611d91be79`) created from production with deploys skipped; backend `DATABASE_URL` set to `${{Postgres.DATABASE_URL}}` **before** the first boot; new `JWT_SECRET`; dev Firebase service-account key; `APP_PUBLICBASEURL=https://api-dev.shifa.uz`; `CLICK_ENABLED=false`; `PAYMENT_ENABLED_PROVIDERS=NONE`; live Stripe keys, the SMS token and two stray variables removed; volumes added for Postgres (`/var/lib/postgresql/data`) and uploads (`/app/storage`). First deploy succeeded: Flyway applied all 117 migrations to the empty dev database; health 200 at `https://shifa-doc-backend-mvp-development.up.railway.app`. Custom domain `api-dev.shifa.uz` added and **verified 2026-10-28** (CNAME `api-dev` → `gl2b1tqq.up.railway.app` + TXT `_railway-verify.api-dev`; certificate valid to 2027-01-26; liveness 200, CORS preflight from `doctor.shifa.uz` 200). Profile is still `prod` until PR 1.5 adds `dev`. Original plan for reference:
 
