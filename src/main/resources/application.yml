@@ -200,7 +200,7 @@ ai:
 # Get your API key from https://dashboard.daily.co/
 # In production, set DAILY_API_KEY environment variable
 daily:
-  apiKey: ${DAILY_API_KEY:7e5614c8eb388445d63dec33b390e8cc9e396185517deff5f13be5ece7b5e714}    # Set in environment or .env file
+  apiKey: ${DAILY_API_KEY:}    # No default: set it in the environment (.env locally). The old committed key was rotated.
   apiUrl: https://api.daily.co/v1
 
 # AI Medical Scribe
