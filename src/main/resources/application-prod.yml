@@ -144,6 +144,8 @@ app:
   # For persistent storage, use Railway Volume mounted at /app/storage
   storageRoot: ${STORAGE_ROOT:/app/storage/images}
   transcription-feedback-enabled: ${TRANSCRIPTION_FEEDBACK_ENABLED:false}
+  # Never print OTP codes in a deployed environment.
+  log-otp-codes: false
 
 # OpenAI API configuration
 openai:

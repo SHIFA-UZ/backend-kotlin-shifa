@@ -68,11 +68,7 @@ fun main(args: Array<String>) {
             databaseUrl.startsWith("jdbc:") -> "JDBC format"
             databaseUrl.startsWith("postgresql://") -> "postgresql:// format"
             databaseUrl.startsWith("postgres://") -> "postgres:// format"
-            else -> {
-                // Show first few chars to help debug format issues
-                val preview = databaseUrl.take(50)
-                "Unknown format (starts with: ${preview.replace(Regex("[^a-zA-Z0-9:/@.-]"), "?")}...)"
-            }
+            else -> "Unknown format" // never print any part of the value: it may hold credentials
         }
         println("DATABASE_URL from environment: SET ($urlPreview)")
         
@@ -114,7 +110,6 @@ fun main(args: Array<String>) {
                             System.setProperty("spring.datasource.username", username)
                             System.setProperty("spring.datasource.password", password)
                             println("Converted Railway DATABASE_URL to JDBC format: jdbc:postgresql://$host:$port/$dbName")
-                            println("Username: $username")
                             databaseConfigured = true
                         } else {
                             println("ERROR: Could not find database name in DATABASE_URL (format: host:port/dbname expected)")
@@ -122,7 +117,6 @@ fun main(args: Array<String>) {
                         }
                     } else {
                         println("ERROR: Could not parse credentials from DATABASE_URL (format: user:pass@ expected)")
-                        println("DEBUG: credentials = ${credentials.take(20)}")
                     }
                 } else {
                     // Maybe it's in a different format - try parsing as host:port/dbname with separate env vars
@@ -142,7 +136,6 @@ fun main(args: Array<String>) {
                         databaseConfigured = true
                     } else {
                         println("ERROR: Could not parse DATABASE_URL and separate env vars not found")
-                        println("DEBUG: DATABASE_URL format = ${databaseUrl.take(50)}...")
                         println("DEBUG: Looking for PGHOST/PGPORT/PGDATABASE/PGUSER/PGPASSWORD or DB_* equivalents")
                     }
                 }
@@ -185,14 +178,12 @@ fun main(args: Array<String>) {
                     }
                     System.setProperty("spring.datasource.url", jdbcUrl)
                     println("WARNING: Using DATABASE_URL as-is (may fail if format is incorrect)")
-                    println("DEBUG: Attempting to use: ${jdbcUrl.take(50)}...")
                     databaseConfigured = true
                 } else {
                     println("ERROR: Cannot determine DATABASE_URL format")
                     println("DEBUG: DATABASE_URL length: ${databaseUrl.length}")
                     println("DEBUG: Contains '://': ${databaseUrl.contains("://")}")
                     println("DEBUG: Contains '/': ${databaseUrl.contains("/")}")
-                    println("DEBUG: First 100 chars (sanitized): ${databaseUrl.take(100).replace(Regex("[^a-zA-Z0-9:/@.-]"), "?")}")
                 }
             }
         }

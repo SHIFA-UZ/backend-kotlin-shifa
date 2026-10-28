@@ -89,6 +89,8 @@ app:
   frontendUrl: ${APP_FRONTENDURL:}
   storageRoot: ${STORAGE_ROOT:/app/storage/images}
   transcription-feedback-enabled: ${TRANSCRIPTION_FEEDBACK_ENABLED:false}
+  # Never print OTP codes in a deployed environment.
+  log-otp-codes: false
 
 openai:
   apiKey: ${OPENAI_API_KEY}

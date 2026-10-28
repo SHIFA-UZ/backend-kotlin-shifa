@@ -105,6 +105,8 @@ app:
   publicBaseUrl: http://localhost:8080  # Changed from 8090 - now served from Spring Boot
   storageRoot: ./public-storage/images
   transcription-feedback-enabled: ${TRANSCRIPTION_FEEDBACK_ENABLED:false}
+  # Local only: print OTP codes to the log when SMTP is not configured.
+  log-otp-codes: true
 
 # OpenAI configuration
 # In development, these can be set via environment variables
