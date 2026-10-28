@@ -100,6 +100,8 @@ class AppointmentIntelligencePostgresTest {
                 }
             }
             if (!connected || adminUrl == null) {
+                // Locally a missing database skips these tests; in CI the workflow provides one, so skipping would hide a failure.
+                if (System.getenv("CI") != null) error("CI: $skipReason")
                 ready = false
                 return
             }
@@ -111,6 +113,7 @@ class AppointmentIntelligencePostgresTest {
                     }
                 }
             } catch (ex: Exception) {
+                if (System.getenv("CI") != null) throw ex
                 skipReason = ex.message ?: skipReason
                 ready = false
                 return
