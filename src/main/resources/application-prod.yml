@@ -85,6 +85,13 @@ server:
     include-message: never
     include-stacktrace: never
 
+# API docs are served by the development environment only (https://api-dev.shifa.uz/v3/api-docs).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 # Actuator configuration for health checks
 management:
   endpoints:
