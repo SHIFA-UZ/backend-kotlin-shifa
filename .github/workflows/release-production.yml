@@ -1,0 +1,39 @@
+name: Release to production
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: Commit SHA or branch to release (must be on main and live on development)
+        default: main
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # The "production" GitHub environment carries the required-reviewer rule: the run waits for your approval.
+    environment: production
+    env:
+      DEV: https://api-dev.shifa.uz
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.ref }}
+      - name: Resolve SHA
+        run: echo "SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+      - name: SHA must be on main
+        run: git merge-base --is-ancestor "$SHA" origin/main
+      - name: Development must be healthy and running this SHA
+        run: |
+          curl -fsS "$DEV/actuator/health/readiness"
+          live="$(curl -fsS "$DEV/actuator/info" | jq -r .commit)"
+          echo "development runs $live"
+          test "$live" = "$SHA"
+      # Fast-forward only: git refuses anything else. Railway deploys the production branch from its GitHub
+      # webhook. Requires /actuator/info to expose "commit" (feat/actuator-info-commit) to be live on development.
+      - name: Fast-forward production branch
+        run: git push origin "$SHA:refs/heads/production"
+      - name: Summary
+        run: echo "Released $SHA to production (Railway deploys the production branch)." >> "$GITHUB_STEP_SUMMARY"
