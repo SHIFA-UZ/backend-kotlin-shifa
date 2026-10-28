@@ -19,6 +19,7 @@ class PatientPhotoController(
     private val patientProfiles: PatientProfileRepository,
     private val appProps: AppProperties,
     private val signer: com.shifa.security.FileUrlSigner,
+    private val uploadGuard: com.shifa.shared.UploadGuard,
 ) {
 
     data class UploadResp(val photoUrl: String)
@@ -51,6 +52,8 @@ class PatientPhotoController(
                 org.springframework.http.HttpStatus.NOT_FOUND,
                 "Patient profile not found"
             )
+
+        uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.IMAGE, file)
 
         // Build `<name-slug>-<id>.<ext>`
         val fullName = profile.fullName.ifBlank { "patient" }

@@ -16,6 +16,7 @@ import java.util.Locale
 class PatientDocumentStorageService(
     private val app: AppProperties,
     private val signer: com.shifa.security.FileUrlSigner,
+    private val uploadGuard: com.shifa.shared.UploadGuard,
 ) {
 
     data class SaveResult(
@@ -23,7 +24,13 @@ class PatientDocumentStorageService(
         val publicUrl: String
     )
 
-    fun saveDocument(patientId: Long, file: MultipartFile, preferredBaseName: String?): SaveResult {
+    fun saveDocument(
+        patientId: Long,
+        file: MultipartFile,
+        preferredBaseName: String?,
+        kind: com.shifa.shared.UploadPolicy.Kind = com.shifa.shared.UploadPolicy.Kind.DOCUMENT,
+    ): SaveResult {
+        uploadGuard.check(kind, file)
         val originalName = file.originalFilename ?: "document"
         val extension = resolveExtension(file)
         val safeBase = sanitizeBaseName(preferredBaseName ?: originalName)

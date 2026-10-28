@@ -53,6 +53,7 @@ class PatientCopilotControllerResolveBookingTest {
             appProps = AppProperties(),
             objectMapper = jacksonObjectMapper(),
             subscriptionTierService = mock(SubscriptionTierService::class.java),
+            uploadGuard = com.shifa.shared.UploadGuard(AppProperties()),
         )
     }
 

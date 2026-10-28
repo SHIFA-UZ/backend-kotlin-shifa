@@ -28,7 +28,8 @@ class ConsultationController(
     private val scribeRecordingService: ScribeRecordingService,
     private val appointmentRepository: AppointmentRepository,
     private val scribeProps: ScribeProperties,
-    private val subscriptionTierService: SubscriptionTierService
+    private val subscriptionTierService: SubscriptionTierService,
+    private val uploadGuard: com.shifa.shared.UploadGuard,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -51,6 +52,7 @@ class ConsultationController(
         if (file.isEmpty) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Audio file is required")
         }
+        uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.AUDIO, file)
         if (file.size > scribeProps.maxAudioSizeBytes) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,

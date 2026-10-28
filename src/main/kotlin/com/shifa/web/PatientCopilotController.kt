@@ -55,7 +55,8 @@ class PatientCopilotController(
     private val daySlotsService: PatientDaySlotsService,
     private val appProps: AppProperties,
     private val objectMapper: ObjectMapper,
-    private val subscriptionTierService: SubscriptionTierService
+    private val subscriptionTierService: SubscriptionTierService,
+    private val uploadGuard: com.shifa.shared.UploadGuard,
 ) {
 
     private fun currentPatientProfile(principal: PatientPrincipal): PatientProfile {
@@ -224,6 +225,7 @@ class PatientCopilotController(
         if (file.size > 25 * 1024 * 1024) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Audio file exceeds 25 MB limit")
         }
+        uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.AUDIO, file)
         val suffix = file.originalFilename?.let { "_" + it.replace(Regex("[^a-zA-Z0-9._-]"), "_") } ?: ".m4a"
         val temp = Files.createTempFile("copilot_stt_", suffix)
         try {

@@ -111,6 +111,8 @@ app:
   log-otp-codes: true
   # Private file URLs (patient documents, patient photos, chat attachments) carry exp+sig. Log-only until true.
   file-url-enforce: false
+  # Upload allow-list (see shared/UploadPolicy.kt). Log-only until true.
+  upload-policy-enforce: false
 
 # OpenAI configuration
 # In development, these can be set via environment variables

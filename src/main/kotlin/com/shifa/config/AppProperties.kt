@@ -22,6 +22,9 @@ class AppProperties {
 
     /** Refuse unsigned private file URLs (403). Off while we confirm every client uses the signed URLs the API returns. */
     var fileUrlEnforce: Boolean = false
+
+    /** Refuse uploads outside [com.shifa.shared.UploadPolicy] (400). Off while we log what the apps really send. */
+    var uploadPolicyEnforce: Boolean = false
 }
 
 @Component
