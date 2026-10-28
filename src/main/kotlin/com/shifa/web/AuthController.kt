@@ -409,12 +409,18 @@ class AuthController(
     data class CreatePatientForDoctorRequest(
         val phone: String? = null,
         val email: String? = null,
-        val emailOtp: String? = null
+        val emailOtp: String? = null,
+        /** Required when no email is given: SMS code sent via /send-sms-otp (REGISTRATION purpose). */
+        val smsOtp: String? = null,
     )
 
     /**
-     * Patient app: after doctor confirms and verifies email OTP, create PATIENT role + patient profile.
+     * Patient app: after doctor confirms and verifies an OTP, create PATIENT role + patient profile.
      * They use their doctor password to log in.
+     *
+     * Every path must prove control of the identifier: email requires [CreatePatientForDoctorRequest.emailOtp],
+     * phone-only requires [CreatePatientForDoctorRequest.smsOtp]. Without this, knowing a doctor's phone
+     * number was enough to obtain a PATIENT token for their account.
      */
     @PostMapping("/create-patient-for-doctor")
     fun createPatientForDoctor(@RequestBody @Valid req: CreatePatientForDoctorRequest): TokenResponse {
@@ -435,10 +441,42 @@ class AuthController(
         if (phoneTrimmed != null && phoneNorm == null) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
         }
-        val user = phoneTrimmed?.let { users.findByPhone(it).orElse(null) }
-            ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
-            ?: emailTrimmed?.let { users.findByEmail(it).orElse(null) }
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found")
+        if (emailTrimmed == null) {
+            // Phone-only request: the SMS code is the only proof of ownership.
+            if (req.smsOtp.isNullOrBlank()) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "SMS verification code required")
+            }
+            if (!smsOtpService.verify(requireNotNull(phoneNorm), req.smsOtp)) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired SMS verification code")
+            }
+        }
+        // The account is selected ONLY by the identifier that was just verified. Looking up by phone
+        // after verifying an email would let anyone pair a victim's phone with their own email + code.
+        val user = if (emailTrimmed != null) {
+            // Same normalisation as EmailOtpService.verify, so the account found is the one the code was issued for.
+            val emailCanonical = emailTrimmed.lowercase()
+            val byEmail = users.findByEmail(emailTrimmed).orElse(null)
+                ?: try {
+                    users.findByEmailIgnoreCase(emailTrimmed).orElse(null)
+                } catch (_: org.springframework.dao.IncorrectResultSizeDataAccessException) {
+                    null // case-variant duplicates exist: ambiguous, treat as not found rather than 500
+                }
+                ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found")
+            if (byEmail.email?.trim()?.lowercase() != emailCanonical) {
+                // SQL case-folding matched something Kotlin lowercase() does not consider the same address.
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found")
+            }
+            val storedPhoneNorm = byEmail.phone?.let { PhoneNormalizer.normalize(it) ?: it }
+            if (phoneNorm != null && storedPhoneNorm != null && storedPhoneNorm != phoneNorm && byEmail.phone != phoneTrimmed) {
+                // A phone was sent that belongs to a different account than the verified email.
+                throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found")
+            }
+            byEmail
+        } else {
+            users.findByPhone(requireNotNull(phoneTrimmed)).orElse(null)
+                ?: users.findByPhone(requireNotNull(phoneNorm)).orElse(null)
+                ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found")
+        }
         if (!user.enabled) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Account is disabled")
         }
