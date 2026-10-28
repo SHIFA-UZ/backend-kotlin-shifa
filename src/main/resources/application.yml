@@ -76,6 +76,13 @@ management:
   health:
     probes:
       enabled: true
+  info:
+    env:
+      enabled: true
+
+# /actuator/info: the deployed commit, set by Railway at runtime; "local" elsewhere. Used by the release workflow.
+info:
+  commit: ${RAILWAY_GIT_COMMIT_SHA:local}
 
 # Development configuration
 # WARNING: These values are for development only!
