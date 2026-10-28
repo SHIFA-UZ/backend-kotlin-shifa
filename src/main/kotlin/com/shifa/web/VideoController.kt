@@ -27,7 +27,7 @@ class VideoController(
         val user = principal.user
         val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
         
-        logger.info("Looking up patient profile for user ${user.id}, phone: ${user.phone}, email: ${user.email}")
+        logger.debug("Looking up patient profile for user ${user.id}")
         
         // Try to find by phone first (trim whitespace)
         user.phone?.trim()?.takeIf { it.isNotBlank() }?.let { phone ->
@@ -37,10 +37,11 @@ class VideoController(
                     logger.info("Found patient profile by phone: ${profile.get().id}")
                     return profile.get()
                 } else {
-                    logger.debug("No patient profile found by phone: $phone")
+                    logger.debug("No patient profile found by phone for user ${user.id}")
                 }
             } catch (e: Exception) {
-                logger.warn("Error looking up patient profile by phone $phone: ${e.message}", e)
+                logger.warn("Error looking up patient profile by phone for user ${user.id}: ${e.javaClass.simpleName}")
+                logger.debug("Lookup failure detail", e)
             }
         }
         
@@ -52,15 +53,16 @@ class VideoController(
                     logger.info("Found patient profile by email: ${profile.get().id}")
                     return profile.get()
                 } else {
-                    logger.debug("No patient profile found by email: $email")
+                    logger.debug("No patient profile found by email for user ${user.id}")
                 }
             } catch (e: Exception) {
-                logger.warn("Error looking up patient profile by email $email: ${e.message}", e)
+                logger.warn("Error looking up patient profile by email for user ${user.id}: ${e.javaClass.simpleName}")
+                logger.debug("Lookup failure detail", e)
             }
         }
         
         // If not found, throw exception with helpful message
-        logger.warn("Patient profile not found for user ${user.id} (phone: ${user.phone}, email: ${user.email})")
+        logger.warn("Patient profile not found for user ${user.id}")
         throw ResponseStatusException(
             org.springframework.http.HttpStatus.NOT_FOUND,
             "Patient profile not found for user ${user.id}. Please ensure your profile is complete with phone or email."
@@ -235,7 +237,7 @@ class VideoController(
                 throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "User name cannot be blank")
             }
 
-            logger.info("Generating token for userId: $userId, userName: $userName, isOwner: $isDoctor")
+            logger.info("Generating token for userId: $userId, isOwner: $isDoctor")
 
             // Generate token (doctor is owner)
             val token = try {

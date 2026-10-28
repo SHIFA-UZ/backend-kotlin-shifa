@@ -111,7 +111,8 @@ If the transcript is empty or only noise, return empty strings for all fields ex
         client.newCall(httpRequest).execute().use { response ->
             if (!response.isSuccessful) {
                 val body = response.body?.string() ?: ""
-                log.error("Medical summary API error: {} - {}", response.code, body)
+                log.error("Medical summary API error: {}", response.code)
+                log.debug("Medical summary API error body: {}", body)
                 throw RuntimeException("Medical summary failed: ${response.code}")
             }
 
@@ -140,7 +141,7 @@ If the transcript is empty or only noise, return empty strings for all fields ex
                     ?: content.take(2000).trim()
             )
         } catch (e: Exception) {
-            log.warn("Could not parse summary JSON, using raw content: {}", e.message)
+            log.warn("Could not parse summary JSON, using raw content ({})", e.javaClass.simpleName)
             ScribeSummaryResult(
                 subjective = null,
                 assessment = null,

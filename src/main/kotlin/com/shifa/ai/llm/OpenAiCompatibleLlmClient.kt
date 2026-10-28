@@ -172,7 +172,9 @@ class OpenAiCompatibleLlmClient(
             else -> LlmErrorKind.UNKNOWN
         }
         val snippet = body.replace(Regex("\\s+"), " ").take(180)
-        log.warn("llm_http provider={} status={} kind={} body={}", providerId, status, kind, snippet)
+        // Provider error bodies can echo prompt text; keep them out of INFO/WARN logs.
+        log.warn("llm_http provider={} status={} kind={}", providerId, status, kind)
+        log.debug("llm_http provider={} body={}", providerId, snippet)
         return LlmException(kind, providerId, status, "HTTP $status")
     }
 }
