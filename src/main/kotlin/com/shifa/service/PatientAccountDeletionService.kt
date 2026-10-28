@@ -102,7 +102,8 @@ class PatientAccountDeletionService(
     private fun deleteChatAttachmentIfAny(url: String?) {
         if (url.isNullOrBlank()) return
         // We only delete files stored in storageRoot/chat-attachments/<filename>
-        val filename = url.substringAfterLast('/').takeIf { it.isNotBlank() } ?: return
+        val filename = (runCatching { java.net.URI(url.trim()).path }.getOrNull() ?: url.substringBefore('#').substringBefore('?'))
+            .substringAfterLast('/').takeIf { it.isNotBlank() } ?: return
         val storageRoot = Paths.get(appProperties.storageRoot).toAbsolutePath().normalize()
         val path = storageRoot.resolve("chat-attachments").resolve(filename).normalize()
         // Safety: ensure we never delete outside chat-attachments

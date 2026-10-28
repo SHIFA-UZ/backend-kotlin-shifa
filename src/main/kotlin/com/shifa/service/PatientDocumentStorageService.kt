@@ -13,7 +13,10 @@ import java.nio.file.Paths
 import java.util.Locale
 
 @Service
-class PatientDocumentStorageService(private val app: AppProperties) {
+class PatientDocumentStorageService(
+    private val app: AppProperties,
+    private val signer: com.shifa.security.FileUrlSigner,
+) {
 
     data class SaveResult(
         val filePathRelative: String,
@@ -35,8 +38,7 @@ class PatientDocumentStorageService(private val app: AppProperties) {
         file.inputStream.use { input -> Files.copy(input, target) }
 
         val rel = "patientdocuments/$patientId/$fileName"
-        val url = "${app.publicBaseUrl.removeSuffix("/")}/$rel"
-        return SaveResult(filePathRelative = rel, publicUrl = url)
+        return SaveResult(filePathRelative = rel, publicUrl = publicUrlFor(rel))
     }
 
     fun saveBytes(
@@ -54,8 +56,7 @@ class PatientDocumentStorageService(private val app: AppProperties) {
         val target = dir.resolve(fileName)
         Files.write(target, bytes)
         val rel = "patientdocuments/$patientId/$fileName"
-        val url = "${app.publicBaseUrl.removeSuffix("/")}/$rel"
-        return SaveResult(filePathRelative = rel, publicUrl = url)
+        return SaveResult(filePathRelative = rel, publicUrl = publicUrlFor(rel))
     }
 
     // Backward-compatible alias.
@@ -63,10 +64,11 @@ class PatientDocumentStorageService(private val app: AppProperties) {
         return saveDocument(patientId, file, preferredBaseName)
     }
 
+    /** Absolute, signed URL (see [com.shifa.security.FileUrlSigner]); valid for one hour. */
     fun publicUrlFor(filePathRelative: String): String {
         val base = app.publicBaseUrl.removeSuffix("/")
         val rel = filePathRelative.removePrefix("/")
-        return "$base/$rel"
+        return signer.sign("$base/$rel")
     }
 
     /** Delete file on disk by relative path. Returns true if deleted or did not exist. */

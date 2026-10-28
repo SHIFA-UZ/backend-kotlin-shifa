@@ -45,6 +45,7 @@ class DoctorController(
     private val fcmService: FcmService,
     private val subscriptionTierService: com.shifa.service.SubscriptionTierService,
     private val adminClinicService: AdminClinicService,
+    private val fileUrlSigner: com.shifa.security.FileUrlSigner,
 ) {
 
     // -------------------- helpers --------------------
@@ -302,7 +303,7 @@ class DoctorController(
             body.clinic?.let { d.clinic = it }
         }
         body.profession?.let { d.profession = it }
-        body.avatarUrl?.let { d.avatarUrl = it }
+        body.avatarUrl?.let { d.avatarUrl = fileUrlSigner.canonical(it) } // never store a signed URL
         body.scheduleValidFrom?.let { d.scheduleValidFrom = java.time.LocalDate.parse(it) }
         body.scheduleValidUntil?.let { d.scheduleValidUntil = java.time.LocalDate.parse(it) }
         body.biography?.let { d.biography = it }

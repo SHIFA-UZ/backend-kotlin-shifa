@@ -46,10 +46,6 @@ class StaticResourceConfig(
         registry.addResourceHandler("/chat-attachments/**")
             .addResourceLocations("file:$basePath/chat-attachments/")
             .setCachePeriod(3600)
-        
-        // Legacy: Serve /photos/** for backward compatibility
-        registry.addResourceHandler("/photos/**")
-            .addResourceLocations("file:$basePath/")
-            .setCachePeriod(3600)
+
     }
 }

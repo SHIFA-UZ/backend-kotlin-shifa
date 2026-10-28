@@ -15,7 +15,8 @@ import java.util.UUID
 @RequestMapping("/api/messages")
 class ChatAttachmentController(
     private val storage: PatientDocumentStorageService,
-    private val appProperties: AppProperties
+    private val appProperties: AppProperties,
+    private val signer: com.shifa.security.FileUrlSigner,
 ) {
 
     /**
@@ -47,11 +48,11 @@ class ChatAttachmentController(
                 val thumbnailFilename = "thumb_$uniqueFilename"
                 val thumbnailPath = chatAttachmentsDir.resolve(thumbnailFilename)
                 thumbnail.transferTo(thumbnailPath.toFile())
-                thumbnailUrl = "${appProperties.publicBaseUrl.removeSuffix("/")}/chat-attachments/$thumbnailFilename"
+                thumbnailUrl = signer.sign("${appProperties.publicBaseUrl.removeSuffix("/")}/chat-attachments/$thumbnailFilename")
             }
             
             // Build public URL
-            val publicUrl = "${appProperties.publicBaseUrl.removeSuffix("/")}/chat-attachments/$uniqueFilename"
+            val publicUrl = signer.sign("${appProperties.publicBaseUrl.removeSuffix("/")}/chat-attachments/$uniqueFilename")
             
             return ResponseEntity.ok(mapOf<String, String>(
                 "url" to publicUrl,

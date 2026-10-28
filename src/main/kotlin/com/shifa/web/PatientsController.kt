@@ -55,6 +55,8 @@ class PatientsController(
     private val devSmsService: DevSmsService,
     private val prophylaxisSettingsRepo: PatientProphylaxisSettingRepository,
     private val remoteCareTaskRepo: RemoteCareTaskRepository,
+    private val documentStorage: com.shifa.service.PatientDocumentStorageService,
+    private val fileUrlSigner: com.shifa.security.FileUrlSigner,
 ) {
     companion object {
         private val logger = LoggerFactory.getLogger(PatientsController::class.java)
@@ -256,6 +258,7 @@ class PatientsController(
             PatientAssignmentDto(
                 id = p.id,
                 name = p.fullName,
+                // Global directory (Q10): no signature here, a doctor may not be allowed to view every patient.
                 photoUrl = profileMapper.normalizePhotoUrl(p.photoUrl)
             )
         }
@@ -338,7 +341,7 @@ class PatientsController(
             address = req.address?.trim(),
             birthDate = req.birthDate?.let { LocalDate.parse(it) },
             language = req.language?.trim(),
-            photoUrl = req.photoUrl?.trim(),
+            photoUrl = fileUrlSigner.canonical(req.photoUrl?.trim()),
             chronicDisease = req.chronicDisease?.trim(),
             gender = req.gender?.trim(),
             bloodGroup = req.bloodGroup?.trim(),
@@ -396,7 +399,7 @@ class PatientsController(
         req.address?.let { patient.address = it.trim() }
         req.birthDate?.let { patient.birthDate = LocalDate.parse(it) }
         req.language?.let { patient.language = it.trim() }
-        req.photoUrl?.let { patient.photoUrl = it.trim() }
+        req.photoUrl?.let { patient.photoUrl = fileUrlSigner.canonical(it.trim()) }
         req.chronicDisease?.let { patient.chronicDisease = it.trim().takeIf { it.isNotEmpty() } }
         req.gender?.let { patient.gender = it.trim().takeIf { it.isNotEmpty() } }
         req.bloodGroup?.let { patient.bloodGroup = it.trim().takeIf { it.isNotEmpty() } }
@@ -569,7 +572,7 @@ class PatientsController(
             address = p.address,
             birthDate = p.birthDate?.toString(),
             language = p.language,
-            photoUrl = try { profileMapper.normalizePhotoUrl(p.photoUrl) } catch (_: Exception) { null },
+            photoUrl = try { profileMapper.normalizePhotoUrl(p.photoUrl, p.id) } catch (_: Exception) { null },
             chronicDisease = p.chronicDisease,
             hasAccount = false,
             username = null,
@@ -642,7 +645,7 @@ class PatientsController(
             address = legacyAddress,
             birthDate = p.birthDate?.toString(),
             language = p.language,
-            photoUrl = profileMapper.normalizePhotoUrl(p.photoUrl),
+            photoUrl = profileMapper.normalizePhotoUrl(p.photoUrl, p.id),
             chronicDisease = p.chronicDisease,
             hasAccount = hasAccount,
             username = username,
@@ -705,7 +708,7 @@ class PatientsController(
                 d.uploadedByPatientProfile != null -> d.uploadedByPatientProfile!!.fullName.trim().ifBlank { "Patient" }
                 else -> "Unknown"
             }
-            val url = if (canView && d.filePath.isNotBlank()) profileMapper.normalizePhotoUrl(d.filePath) else null
+            val url = if (canView && d.filePath.isNotBlank()) documentStorage.publicUrlFor(d.filePath) else null
             DocumentDto(
                 id = d.id,
                 title = d.title,

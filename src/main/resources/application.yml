@@ -107,6 +107,8 @@ app:
   transcription-feedback-enabled: ${TRANSCRIPTION_FEEDBACK_ENABLED:false}
   # Local only: print OTP codes to the log when SMTP is not configured.
   log-otp-codes: true
+  # Private file URLs (patient documents, patient photos, chat attachments) carry exp+sig. Log-only until true.
+  file-url-enforce: false
 
 # OpenAI configuration
 # In development, these can be set via environment variables
@@ -207,7 +209,8 @@ daily:
 
 # AI Medical Scribe
 scribe:
-  temp-dir: ${STORAGE_ROOT:./public-storage/images}/scribe-temp
+  # Temporary audio must not live under the publicly served storage root.
+  temp-dir: ${java.io.tmpdir}/shifa-scribe-temp
   temp-retention-minutes: 60
   max-audio-size-bytes: 26214400  # 25 MB (Whisper limit)
   daily-webhook-secret: ${DAILY_WEBHOOK_SECRET:}
