@@ -633,7 +633,7 @@ class DoctorMorningToolDispatchTest {
         val patient = com.shifa.domain.PatientProfile(id = 59L, fullName = "Botir Muzrabov")
         `when`(patients.findById(59L)).thenReturn(java.util.Optional.of(patient))
         val zone = java.time.ZoneId.of("Asia/Tashkent")
-        val today = LocalDate.now(zone)
+        val today = LocalDate.now(fixedClock.withZone(zone)) // the service uses fixedClock; the wall clock made this flaky
         fun visit(id: Long, daysAhead: Long, status: com.shifa.domain.Appointment.Status = com.shifa.domain.Appointment.Status.CONFIRMED) =
             com.shifa.domain.Appointment(
                 id = id,
