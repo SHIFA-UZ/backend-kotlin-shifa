@@ -6,8 +6,8 @@
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/shifa
-    username: ${DB_USERNAME:${PGUSER:shifa}}
-    password: ${DB_PASSWORD:${PGPASSWORD:shifa}}
+    username: ${DB_USERNAME:${PGUSER:}}
+    password: ${DB_PASSWORD:${PGPASSWORD:}}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5

@@ -8,8 +8,8 @@ spring:
     # JDBC and sets system properties (spring.datasource.url/username/password), which override these values.
     # So on Railway these entries are never used. They are fallbacks only if DATABASE_URL is missing (e.g. local prod test).
     url: jdbc:postgresql://localhost:5432/shifa
-    username: ${DB_USERNAME:${PGUSER:shifa}}
-    password: ${DB_PASSWORD:${PGPASSWORD:shifa}}
+    username: ${DB_USERNAME:${PGUSER:}}
+    password: ${DB_PASSWORD:${PGPASSWORD:}}
     
     # Connection pooling for better performance
     hikari:
