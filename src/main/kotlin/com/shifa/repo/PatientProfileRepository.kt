@@ -84,7 +84,10 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
         "LOWER(p.email) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
         "LOWER(p.phone) LIKE LOWER(CONCAT('%', :query, '%'))"
     )
-    fun searchByQuery(@org.springframework.data.repository.query.Param("query") query: String): List<PatientProfile>
+    fun searchByQuery(
+        @org.springframework.data.repository.query.Param("query") query: String,
+        pageable: org.springframework.data.domain.Pageable,
+    ): List<PatientProfile>
 
     /** Admin user search: user IDs of patients whose fullName contains q (JPQL). Only where user is set. */
     @org.springframework.data.jpa.repository.Query(

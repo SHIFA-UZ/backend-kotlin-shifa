@@ -85,6 +85,13 @@ server:
     include-message: never
     include-stacktrace: never
 
+# API docs are served by the development environment only (https://api-dev.shifa.uz/v3/api-docs).
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 # Actuator configuration for health checks
 management:
   endpoints:
@@ -137,6 +144,8 @@ app:
   # For persistent storage, use Railway Volume mounted at /app/storage
   storageRoot: ${STORAGE_ROOT:/app/storage/images}
   transcription-feedback-enabled: ${TRANSCRIPTION_FEEDBACK_ENABLED:false}
+  # Never print OTP codes in a deployed environment.
+  log-otp-codes: false
 
 # OpenAI API configuration
 openai:

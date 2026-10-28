@@ -56,7 +56,7 @@ class ClickShopCallbackService(
             signTime = request.signTime!!
         )
 
-        if (!expectedSign.equals(request.signString, ignoreCase = true)) {
+        if (!signMatches(expectedSign, request.signString)) {
             log.warn(
                 "Click prepare SIGN_CHECK_FAILED merchantTransId={} clickTransId={}",
                 request.merchantTransId,
@@ -163,7 +163,7 @@ class ClickShopCallbackService(
             signTime = request.signTime!!
         )
 
-        if (!expectedSign.equals(request.signString, ignoreCase = true)) {
+        if (!signMatches(expectedSign, request.signString)) {
             log.warn(
                 "Click complete SIGN_CHECK_FAILED merchantTransId={} clickTransId={}",
                 request.merchantTransId,
@@ -285,6 +285,22 @@ class ClickShopCallbackService(
             req.action != 1 -> ClickResponseCodes.ACTION_NOT_FOUND to "Action not found"
             else -> null
         }
+    }
+
+    /**
+     * Constant-time comparison of the MD5 sign strings (case-insensitive hex). A blank merchant secret never
+     * matches: with an empty key every forged signature would otherwise verify.
+     */
+    private fun signMatches(expected: String, actual: String?): Boolean {
+        if (clickProperties.secretKey.isBlank()) {
+            log.error("Click callback rejected: CLICK_SECRET_KEY is empty, signatures cannot be verified")
+            return false
+        }
+        if (actual.isNullOrBlank()) return false
+        return java.security.MessageDigest.isEqual(
+            expected.lowercase().toByteArray(Charsets.UTF_8),
+            actual.trim().lowercase().toByteArray(Charsets.UTF_8),
+        )
     }
 
     private fun rejectPrepare(request: ClickPrepareRequest, code: Int, note: String): ClickPrepareResponse =

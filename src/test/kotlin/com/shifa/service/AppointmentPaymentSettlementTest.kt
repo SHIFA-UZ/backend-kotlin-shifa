@@ -7,6 +7,7 @@ import com.shifa.domain.User
 import com.shifa.payment.domain.Payment
 import com.shifa.payment.domain.PaymentGatewayCode
 import com.shifa.payment.domain.PaymentKind
+import com.shifa.payment.domain.OpenCheckoutPolicy
 import com.shifa.payment.domain.PaymentStatus
 import com.shifa.payment.repo.PaymentRepository
 import com.shifa.repo.AppointmentRepository
@@ -94,7 +95,7 @@ class AppointmentPaymentSettlementTest {
         `when`(appointments.findExpiredPaymentHolds(any(Instant::class.java) ?: Instant.EPOCH)).thenReturn(listOf(apt))
         `when`(appointments.findByIdForUpdate(7L)).thenReturn(Optional.of(apt))
         `when`(appointments.save(any(Appointment::class.java) ?: apt)).thenAnswer { it.arguments[0] }
-        `when`(payments.findByAppointment_Id(7L)).thenReturn(payment)
+        `when`(payments.findByAppointment_IdAndStatusInOrderByCreatedAtDesc(7L, OpenCheckoutPolicy.OPEN_STATUSES)).thenReturn(listOf(payment))
         `when`(payments.save(any(Payment::class.java) ?: payment)).thenAnswer { it.arguments[0] }
 
         val released = settlement.expireDueHolds(Instant.parse("2026-07-31T10:16:00Z"))

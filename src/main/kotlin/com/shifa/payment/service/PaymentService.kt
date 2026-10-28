@@ -13,6 +13,7 @@ import com.shifa.repo.DoctorServiceRepository
 import com.shifa.service.AppointmentPaymentSettlement
 import com.shifa.service.BookingPaymentPolicy
 import com.shifa.service.DoctorServicePricing
+import com.shifa.payment.domain.OpenCheckoutPolicy
 import com.shifa.payment.domain.Payment
 import com.shifa.payment.domain.PaymentGatewayCode
 import com.shifa.payment.domain.PaymentKind
@@ -92,6 +93,9 @@ class PaymentService(
     ): ConsultationCheckoutResult {
         val patient = patientProfiles.findByUserId(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Patient profile not found") }
+        // Serialise checkouts per appointment: a double tap or two devices then see one open checkout, not two.
+        appointmentRepository.findByIdForUpdate(appointmentId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found") }
         val appointment = appointmentRepository.findByIdWithDoctorAndPatient(appointmentId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found") }
 
@@ -110,7 +114,7 @@ class PaymentService(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "This appointment does not require online payment")
         }
         if (appointment.paymentStatus == Appointment.PaymentStatus.PAID) {
-            val existing = paymentRepository.findByAppointment_Id(appointment.id)
+            val existing = paymentRepository.findFirstByAppointment_IdAndStatusOrderByCreatedAtDesc(appointment.id, PaymentStatus.PAID)
             return ConsultationCheckoutResult(
                 paymentId = existing?.id ?: 0,
                 externalRef = existing?.externalRef ?: "already_paid",
@@ -118,6 +122,33 @@ class PaymentService(
                 status = PaymentStatus.PAID.name,
                 gateway = existing?.gateway?.name ?: PaymentGatewayCode.STRIPE.name
             )
+        }
+
+        // Idempotency: a second call (double tap, retry) hands back the open checkout instead of opening another.
+        val openCheckouts = paymentRepository.findByAppointment_IdAndStatusInOrderByCreatedAtDesc(
+            appointment.id, OpenCheckoutPolicy.OPEN_STATUSES
+        )
+        val now = Instant.now()
+        openCheckouts.firstOrNull { OpenCheckoutPolicy.reusable(it, preferredGateway, now, paymentProperties.holdMinutes) }
+            ?.let { existing ->
+                log.info("Reusing open checkout {} for appointment {}", existing.externalRef, appointment.id)
+                return ConsultationCheckoutResult(
+                    paymentId = existing.id,
+                    externalRef = existing.externalRef,
+                    checkoutUrl = existing.gatewayCheckoutUrl ?: "",
+                    status = existing.status.name,
+                    gateway = existing.gateway.name
+                )
+            }
+        // Stale or other-gateway checkouts must close first: V118 allows one open row per appointment.
+        if (openCheckouts.isNotEmpty()) {
+            openCheckouts.forEach { stale ->
+                stale.status = PaymentStatus.CANCELLED
+                stale.failureReason = "Superseded by a new checkout"
+                stale.updatedAt = now
+            }
+            // Hibernate runs INSERTs before UPDATEs at flush time; push the cancellations down first.
+            paymentRepository.saveAllAndFlush(openCheckouts)
         }
 
         val amountMinor = appointment.paymentAmountMinor
@@ -611,12 +642,14 @@ class PaymentService(
     /** Releases the slot locally. The provider session is left to expire on its own. */
     @Transactional
     fun cancelOpenConsultation(appointmentId: Long) {
-        val payment = paymentRepository.findByAppointment_Id(appointmentId) ?: return
-        if (payment.status == PaymentStatus.PAID || payment.status == PaymentStatus.REFUNDED) return
-        payment.status = PaymentStatus.CANCELLED
-        payment.failureReason = "Cancelled by patient"
-        payment.updatedAt = Instant.now()
-        paymentRepository.save(payment)
+        val open = paymentRepository.findByAppointment_IdAndStatusInOrderByCreatedAtDesc(appointmentId, OpenCheckoutPolicy.OPEN_STATUSES)
+        val now = Instant.now()
+        open.forEach { payment ->
+            payment.status = PaymentStatus.CANCELLED
+            payment.failureReason = "Cancelled by patient"
+            payment.updatedAt = now
+            paymentRepository.save(payment)
+        }
         // shortcut: provider session is not revoked remotely, upgrade when refunds or session cancel is required
     }
 

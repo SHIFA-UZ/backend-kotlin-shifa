@@ -60,7 +60,8 @@ interface UserRepository : JpaRepository<User, Long>, UserRepositoryCustom {
     fun searchByRoleAndQuery(
         excludeUserId: Long,
         role: Role,
-        query: String
+        query: String,
+        pageable: org.springframework.data.domain.Pageable,
     ): List<User>
 
     /** Admin user search: user IDs matching phone, email or username (JPQL, no native). Optional role/enabled. */

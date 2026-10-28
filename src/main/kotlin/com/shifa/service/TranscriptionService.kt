@@ -224,7 +224,8 @@ class TranscriptionService(
         httpClientTranscribe.newCall(request).execute().use { response ->
             if (!response.isSuccessful) {
                 val body = response.body?.string() ?: ""
-                log.error("OpenAI transcription API error: {} - {}", response.code, body)
+                log.error("OpenAI transcription API error: {}", response.code)
+                log.debug("OpenAI transcription API error body: {}", body)
                 val retry = buildRetryWithoutLanguage()
                 if (retry != null && shouldRetryWithoutLanguage(response.code, body)) {
                     return executeTranscription(retry, normalizedLanguageHint, purpose) { null }
@@ -360,7 +361,8 @@ If nothing needs fixing, output the transcript byte-for-byte the same.
         httpCleanup.newCall(httpRequest).execute().use { response ->
             if (!response.isSuccessful) {
                 val err = response.body?.string() ?: ""
-                log.warn("Medical cleanup API error {}: {}", response.code, err.take(512))
+                log.warn("Medical cleanup API error {}", response.code)
+                log.debug("Medical cleanup API error body: {}", err.take(512))
                 throw RuntimeException("cleanup ${response.code}")
             }
             val body = response.body?.string() ?: "{}"

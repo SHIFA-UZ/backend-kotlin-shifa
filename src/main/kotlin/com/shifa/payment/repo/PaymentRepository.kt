@@ -10,7 +10,9 @@ import org.springframework.data.repository.query.Param
 
 interface PaymentRepository : JpaRepository<Payment, Long> {
     fun findByExternalRef(externalRef: String): Payment?
-    fun findByAppointment_Id(appointmentId: Long): Payment?
+    /** Newest first. Several open rows can exist for one appointment on data created before V119. */
+    fun findByAppointment_IdAndStatusInOrderByCreatedAtDesc(appointmentId: Long, statuses: Collection<PaymentStatus>): List<Payment>
+    fun findFirstByAppointment_IdAndStatusOrderByCreatedAtDesc(appointmentId: Long, status: PaymentStatus): Payment?
     fun findByGatewayPaymentId(gatewayPaymentId: String): Payment?
     fun findByKindAndStatus(kind: PaymentKind, status: PaymentStatus): List<Payment>
 

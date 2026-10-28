@@ -12,7 +12,9 @@ class EmailSenderService(
     private val mailSender: JavaMailSender,
     @Value("\${spring.mail.from:}") private val fromEmail: String,
     @Value("\${spring.mail.from-name:Shifa Health}") private val fromName: String,
-    @Value("\${spring.mail.username:}") private val smtpUsername: String
+    @Value("\${spring.mail.username:}") private val smtpUsername: String,
+    /** Explicit opt-in for printing codes when SMTP is unconfigured. True only in the local config file. */
+    @Value("\${app.log-otp-codes:false}") private val logOtpCodes: Boolean,
 ) {
     private val log = LoggerFactory.getLogger(EmailSenderService::class.java)
 
@@ -27,8 +29,13 @@ class EmailSenderService(
 
     fun sendOtpEmail(toEmail: String, code: String, purpose: String) {
         if (!isConfigured()) {
-            log.warn("SMTP not configured — OTP for {} [{}]: {} (set MAIL_USERNAME/MAIL_PASSWORD for real delivery)",
-                toEmail.take(3) + "***", purpose, code)
+            if (logOtpCodes) {
+                log.warn("SMTP not configured — OTP for {} [{}]: {} (set MAIL_USERNAME/MAIL_PASSWORD for real delivery)",
+                    toEmail.take(3) + "***", purpose, code)
+            } else {
+                log.warn("SMTP not configured — OTP for {} [{}] not sent; codes are only logged with app.log-otp-codes=true",
+                    toEmail.take(3) + "***", purpose)
+            }
             return
         }
         val sender = resolvedFrom()
@@ -52,7 +59,7 @@ class EmailSenderService(
             mailSender.send(message)
             log.info("OTP email sent successfully to {} [{}]", toEmail.take(3) + "***", purpose)
         } catch (e: Exception) {
-            log.error("Failed to send OTP email to {} from {}: {} - {}", toEmail.take(3) + "***", sender, e.javaClass.simpleName, e.message)
+            log.error("Failed to send OTP email to {}: {}", toEmail.take(3) + "***", e.javaClass.simpleName)
             throw RuntimeException("Failed to send verification email. Please try again later.")
         }
     }
@@ -102,13 +109,11 @@ class EmailSenderService(
         inviterName: String,
     ) {
         if (!isConfigured()) {
-            log.warn(
-                "SMTP not configured — clinic invite for {} [{}] code={} clinic={}",
-                toEmail.take(3) + "***",
-                clinicName,
-                code,
-                clinicName
-            )
+            if (logOtpCodes) {
+                log.warn("SMTP not configured — clinic invite for {} code={} clinic={}", toEmail.take(3) + "***", code, clinicName)
+            } else {
+                log.warn("SMTP not configured — clinic invite for {} not sent; codes are only logged with app.log-otp-codes=true", toEmail.take(3) + "***")
+            }
             return
         }
         val sender = resolvedFrom()
@@ -148,11 +153,9 @@ class EmailSenderService(
             log.info("Clinic invitation email sent to {} [{}]", toEmail.take(3) + "***", clinicName)
         } catch (e: Exception) {
             log.error(
-                "Failed to send clinic invitation to {} from {}: {} - {}",
+                "Failed to send clinic invitation to {}: {}",
                 toEmail.take(3) + "***",
-                sender,
-                e.javaClass.simpleName,
-                e.message
+                e.javaClass.simpleName
             )
             throw RuntimeException("Failed to send invitation email. Please try again later.")
         }

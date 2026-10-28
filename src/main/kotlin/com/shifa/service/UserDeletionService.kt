@@ -58,7 +58,7 @@ class UserDeletionService(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot delete admin users. Deactivate instead.")
         }
 
-        log.info("USER_DELETION: Starting full deletion for userId={}, role={}, phone={}", userId, user.role, user.phone)
+        log.info("USER_DELETION: Starting full deletion for userId={}, role={}", userId, user.role)
 
         // 1. Sessions and activity
         val sessions = userSessionRepository.findByUserIdOrderByCreatedAtDesc(userId)
@@ -124,6 +124,6 @@ class UserDeletionService(
         userRoleRepository.findByUserId(userId).let { userRoleRepository.deleteAll(it) }
         userRepository.delete(user)
 
-        log.info("USER_DELETION: Completed for userId={}, phone={}. User and all related data removed.", userId, user.phone)
+        log.info("USER_DELETION: Completed for userId={}. User and all related data removed.", userId)
     }
 }

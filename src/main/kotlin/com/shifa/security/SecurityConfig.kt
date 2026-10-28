@@ -75,6 +75,8 @@ class SecurityConfig(
                 // Protected auth endpoints
                 it.requestMatchers("/api/auth/reset-password").authenticated()
 
+                // Submitting a review needs a patient token; without this rule the handler 500s on a null principal.
+                it.requestMatchers(HttpMethod.POST, "/api/public/doctors/*/reviews").authenticated()
                 it.requestMatchers("/api/public/**").permitAll() // Public endpoints (doctor listings)
                 it.requestMatchers("/api/webhooks/daily").permitAll() // Daily.co webhook (signature verified)
                 it.requestMatchers("/api/webhooks/stripe").permitAll() // Stripe webhook (signature verified)

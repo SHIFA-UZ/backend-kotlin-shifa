@@ -29,7 +29,9 @@ class MessageService(
     ) {
     private val log = LoggerFactory.getLogger(MessageService::class.java)
 
-    private companion object {
+    companion object {
+        /** Max rows per side (doctors, patients) returned by the chat contact search. */
+        const val SEARCH_RESULT_LIMIT = 50
         val ATTACHMENT_PREFIX = setOf(com.shifa.security.FileUrlSigner.CHAT_ATTACHMENTS)
     }
     
@@ -295,7 +297,9 @@ class MessageService(
         val results = mutableListOf<UserSearchResultDto>()
 
         // Search doctors - use database query instead of loading all
-        val doctorUsers = userRepo.searchByRoleAndQuery(doctorUserId, Role.DOCTOR, query)
+        // Bounded: a contact search is a short list, never the whole directory.
+        val limit = org.springframework.data.domain.PageRequest.of(0, SEARCH_RESULT_LIMIT, org.springframework.data.domain.Sort.by("id"))
+        val doctorUsers = userRepo.searchByRoleAndQuery(doctorUserId, Role.DOCTOR, query, limit)
         
         doctorUsers.forEach { user ->
             val profile = doctorProfileRepo.findByUserId(user.id).orElse(null)
@@ -315,7 +319,7 @@ class MessageService(
         }
 
         // Search patients - use database query instead of loading all
-        val patients = patientProfileRepo.searchByQuery(query)
+        val patients = patientProfileRepo.searchByQuery(query, limit)
 
         patients.forEach { patient ->
             results.add(
