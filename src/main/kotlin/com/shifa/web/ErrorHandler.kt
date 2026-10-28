@@ -7,6 +7,7 @@ import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.AccessDeniedException
+import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
@@ -36,6 +37,14 @@ class ErrorHandler(
                 "errors" to errors
             )
         )
+    }
+
+    /** Malformed or missing JSON body: 400, not 500. The parser message can echo the payload, so it stays out of the response. */
+    @ExceptionHandler(HttpMessageNotReadableException::class)
+    fun handleUnreadableBody(e: HttpMessageNotReadableException): ResponseEntity<Map<String, Any>> {
+        log.debug("Unreadable request body: {}", e.javaClass.simpleName)
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(mapOf("error" to 400, "message" to "Malformed request body", "status" to 400))
     }
 
     // SECURITY (NEW): Return JSON 403 for forbidden (e.g. wrong role); avoid leaking stack/details
