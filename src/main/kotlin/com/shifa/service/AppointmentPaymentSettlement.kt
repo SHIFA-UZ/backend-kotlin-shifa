@@ -1,6 +1,7 @@
 package com.shifa.service
 
 import com.shifa.domain.Appointment
+import com.shifa.payment.domain.OpenCheckoutPolicy
 import com.shifa.payment.domain.PaymentStatus
 import com.shifa.payment.repo.PaymentRepository
 import com.shifa.repo.AppointmentRepository
@@ -75,16 +76,13 @@ class AppointmentPaymentSettlement(
             val exp = apt.holdExpiresAt ?: continue
             if (!exp.isBefore(now)) continue
             onGatewayFailed(apt.id, expired = true)
-            val payment = payments.findByAppointment_Id(apt.id)
-            if (payment != null &&
-                payment.status != PaymentStatus.PAID &&
-                payment.status != PaymentStatus.REFUNDED
-            ) {
-                payment.status = PaymentStatus.CANCELLED
-                payment.failureReason = "Payment hold expired"
-                payment.updatedAt = now
-                payments.save(payment)
-            }
+            payments.findByAppointment_IdAndStatusInOrderByCreatedAtDesc(apt.id, OpenCheckoutPolicy.OPEN_STATUSES)
+                .forEach { payment ->
+                    payment.status = PaymentStatus.CANCELLED
+                    payment.failureReason = "Payment hold expired"
+                    payment.updatedAt = now
+                    payments.save(payment)
+                }
             released++
         }
         if (released > 0) log.info("Released {} expired payment holds", released)
