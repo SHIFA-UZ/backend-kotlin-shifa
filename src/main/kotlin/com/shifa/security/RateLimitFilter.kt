@@ -94,6 +94,13 @@ class RateLimitFilter(
 
         if (!bucket.tryConsume(1)) {
             log.warn("Rate limit exceeded for key={} path={} authPath={}", key, path, auth)
+            if (log.isDebugEnabled) {
+                // DEBUG only (enabled in application-dev.yml): the right-hand end of the X-Forwarded-For chain
+                // shows which position trusted-proxy-hops must point at. Bounded and stripped of control characters.
+                val raw = request.getHeader("X-Forwarded-For").orEmpty()
+                val tail = raw.takeLast(256).map { if (it.isISOControl()) '?' else it }.joinToString("")
+                log.debug("forwardedFor={}{}", if (raw.length > 256) "[truncated]" else "", tail)
+            }
             response.status = HttpStatus.TOO_MANY_REQUESTS.value()
             response.contentType = "application/json"
             response.characterEncoding = "UTF-8"

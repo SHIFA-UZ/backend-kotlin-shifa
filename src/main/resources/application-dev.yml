@@ -12,3 +12,8 @@ springdoc:
     enabled: true
   swagger-ui:
     enabled: true
+
+logging:
+  level:
+    # Rate-limit diagnostics (full X-Forwarded-For chain on 429) while the trusted-hop count is being verified.
+    com.shifa.security.RateLimitFilter: DEBUG
