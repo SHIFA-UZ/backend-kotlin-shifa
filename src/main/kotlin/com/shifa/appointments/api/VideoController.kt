@@ -18,56 +18,12 @@ import org.springframework.web.server.ResponseStatusException
 class VideoController(
     private val dailyVideoService: DailyVideoService,
     private val appointmentRepository: AppointmentRepository,
-    private val patientProfileRepository: com.shifa.patients.infrastructure.PatientProfileRepository,
-    private val subscriptionTierService: SubscriptionTierService
+    private val subscriptionTierService: SubscriptionTierService,
+    private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
     private val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
     
-    private fun currentPatientProfile(principal: PatientPrincipal): com.shifa.patients.domain.PatientProfile {
-        val user = principal.user
-        val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
-        
-        logger.debug("Looking up patient profile for user ${user.id}")
-        
-        // Try to find by phone first (trim whitespace)
-        user.phone?.trim()?.takeIf { it.isNotBlank() }?.let { phone ->
-            try {
-                val profile = patientProfileRepository.findByPhone(phone)
-                if (profile.isPresent) {
-                    logger.info("Found patient profile by phone: ${profile.get().id}")
-                    return profile.get()
-                } else {
-                    logger.debug("No patient profile found by phone for user ${user.id}")
-                }
-            } catch (e: Exception) {
-                logger.warn("Error looking up patient profile by phone for user ${user.id}: ${e.javaClass.simpleName}")
-                logger.debug("Lookup failure detail", e)
-            }
-        }
-        
-        // Try to find by email (trim and lowercase for consistency)
-        user.email?.trim()?.lowercase()?.takeIf { it.isNotBlank() }?.let { email ->
-            try {
-                val profile = patientProfileRepository.findByEmail(email)
-                if (profile.isPresent) {
-                    logger.info("Found patient profile by email: ${profile.get().id}")
-                    return profile.get()
-                } else {
-                    logger.debug("No patient profile found by email for user ${user.id}")
-                }
-            } catch (e: Exception) {
-                logger.warn("Error looking up patient profile by email for user ${user.id}: ${e.javaClass.simpleName}")
-                logger.debug("Lookup failure detail", e)
-            }
-        }
-        
-        // If not found, throw exception with helpful message
-        logger.warn("Patient profile not found for user ${user.id}")
-        throw ResponseStatusException(
-            org.springframework.http.HttpStatus.NOT_FOUND,
-            "Patient profile not found for user ${user.id}. Please ensure your profile is complete with phone or email."
-        )
-    }
+    private fun currentPatientProfile(principal: PatientPrincipal): com.shifa.patients.domain.PatientProfile = currentPatient.resolve(principal)
 
     data class VideoTokenRequest(
         val appointmentId: Long,

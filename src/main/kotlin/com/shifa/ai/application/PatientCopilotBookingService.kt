@@ -193,10 +193,5 @@ class PatientCopilotBookingService(
         )
     }
 
-    private fun normalizeAvatarUrl(avatarUrl: String?, baseUrl: String): String? {
-        val trimmed = avatarUrl?.trim() ?: return null
-        val isAbs = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        return if (isAbs) trimmed
-        else "${baseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
-    }
+    private fun normalizeAvatarUrl(avatarUrl: String?, baseUrl: String): String? = com.shifa.shared.PublicUrls.absolute(baseUrl, avatarUrl)
 }

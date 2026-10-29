@@ -2,7 +2,6 @@
 // src/main/kotlin/com/shifa/documents/application/PatientDocumentStorageService.kt
 package com.shifa.documents.application
 
-import com.shifa.shared.config.AppProperties
 import com.shifa.shared.storage.FileStorage
 import com.shifa.shared.storage.StorageKeys
 import org.springframework.core.io.Resource
@@ -13,10 +12,10 @@ import java.util.Locale
 
 @Service
 class PatientDocumentStorageService(
-    private val app: AppProperties,
     private val signer: com.shifa.shared.security.FileUrlSigner,
     private val uploadGuard: com.shifa.shared.UploadGuard,
     private val storage: FileStorage,
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
 
     data class SaveResult(
@@ -61,9 +60,7 @@ class PatientDocumentStorageService(
 
     /** Absolute, signed URL (see [com.shifa.shared.security.FileUrlSigner]); valid for one hour. */
     fun publicUrlFor(filePathRelative: String): String {
-        val base = app.publicBaseUrl.removeSuffix("/")
-        val rel = filePathRelative.removePrefix("/")
-        return signer.sign("$base/$rel")
+        return signer.sign(publicUrls.absolute(filePathRelative)!!)
     }
 
     /** Delete the stored file by relative path. Returns true if deleted or did not exist. */

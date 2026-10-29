@@ -76,6 +76,13 @@ interface PatientProfileRepository : JpaRepository<PatientProfile, Long> {
         "SELECT p FROM PatientProfile p WHERE p.user.id = :userId"
     )
     fun findByUserId(@org.springframework.data.repository.query.Param("userId") userId: Long): Optional<PatientProfile>
+
+    /** Newest profile linked to the user; unlike [findByUserId] it does not fail when a user has several. */
+    @org.springframework.data.jpa.repository.Query(
+        value = "SELECT * FROM patient_profiles WHERE user_id = :userId ORDER BY id DESC LIMIT 1",
+        nativeQuery = true
+    )
+    fun findNewestByUserId(@org.springframework.data.repository.query.Param("userId") userId: Long): Optional<PatientProfile>
     
     // Search patients by query string (name, email, or phone) - filters at database level
     @org.springframework.data.jpa.repository.Query(

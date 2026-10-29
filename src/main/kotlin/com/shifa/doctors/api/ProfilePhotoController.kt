@@ -1,7 +1,6 @@
 // src/main/kotlin/com/shifa/doctors/api/ProfilePhotoController.kt
 package com.shifa.doctors.api
 
-import com.shifa.shared.config.AppProperties
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.shared.security.DoctorPrincipal
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -14,9 +13,9 @@ import java.util.Locale
 @RequestMapping("/api/profile/photo")
 class ProfilePhotoController(
     private val doctors: DoctorProfileRepository,
-    private val appProps: AppProperties,
     private val uploadGuard: com.shifa.shared.UploadGuard,
     private val storage: com.shifa.shared.storage.FileStorage,
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
 
     data class UploadResp(val photoUrl: String)
@@ -59,7 +58,7 @@ class ProfilePhotoController(
 
         // Return absolute URL for client
         val absoluteUrl =
-            "${appProps.publicBaseUrl.removeSuffix("/")}/${doctor.avatarUrl}"
+            publicUrls.absolute(doctor.avatarUrl)!!
 
         return UploadResp(photoUrl = absoluteUrl)
     }

@@ -4,7 +4,6 @@ package com.shifa.appointments.api
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorReviewRepository
 import com.shifa.documents.infrastructure.PatientDocumentRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.appointments.domain.BookingPaymentPolicy
 import com.shifa.shared.security.PatientPrincipal
 import com.shifa.ai.application.PatientVisitAiSummaryService
@@ -21,11 +20,11 @@ import java.time.Instant
 @RequestMapping("/api/patients/me/appointments")
 class PatientAppointmentController(
     private val appts: AppointmentRepository,
-    private val patientProfiles: PatientProfileRepository,
     private val profileMapper: PatientProfileMapper,
     private val reviewRepository: DoctorReviewRepository,
     private val visitSummaryService: PatientVisitAiSummaryService,
     private val documents: PatientDocumentRepository,
+    private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -259,12 +258,5 @@ class PatientAppointmentController(
         )
     }
 
-    private fun currentPatientProfile(principal: PatientPrincipal): com.shifa.patients.domain.PatientProfile {
-        val user = principal.user
-        val byPhone = user.phone?.let { patientProfiles.findByPhone(it).orElse(null) }
-        if (byPhone != null) return byPhone
-        val byEmail = user.email?.let { patientProfiles.findByEmail(it).orElse(null) }
-        if (byEmail != null) return byEmail
-        throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient profile not found for user ${user.id}")
-    }
+    private fun currentPatientProfile(principal: PatientPrincipal): com.shifa.patients.domain.PatientProfile = currentPatient.resolve(principal)
 }

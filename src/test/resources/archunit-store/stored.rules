@@ -1,0 +1,17 @@
+#
+#Thu Oct 29 11:03:59 CET 2026
+api\ classes\ do\ not\ depend\ on\ infrastructure\ classes=3c2d328d-89ca-46eb-a51a-f59ae16716b8
+domain\ classes\ depend\ on\ no\ api,\ application,\ infrastructure\ or\ Spring\ web\ class=41fe02ba-c6cc-4aa0-8ef2-584fea1da465
+only\ the\ admin\ feature\ depends\ on\ admin\ infrastructure\ classes=ff4e1023-a466-4874-b7b8-1a399109ba52
+only\ the\ ai\ feature\ depends\ on\ ai\ infrastructure\ classes=2ad1edbb-de8e-4fa8-9452-1f22577a9610
+only\ the\ appointments\ feature\ depends\ on\ appointments\ infrastructure\ classes=c464575f-18a8-46ce-b1be-080fa13914ea
+only\ the\ auth\ feature\ depends\ on\ auth\ infrastructure\ classes=69863f1b-cc85-4b1c-a725-b6a148da46dc
+only\ the\ chat\ feature\ depends\ on\ chat\ infrastructure\ classes=90704fb2-549a-4986-ace7-742042916c57
+only\ the\ clinics\ feature\ depends\ on\ clinics\ infrastructure\ classes=1a913fd9-efb1-4f3b-8e32-eccd1a06e4ae
+only\ the\ doctors\ feature\ depends\ on\ doctors\ infrastructure\ classes=9ae6e33e-0294-4aeb-acc1-9e80f6ac3f8a
+only\ the\ documents\ feature\ depends\ on\ documents\ infrastructure\ classes=3bf2aa0e-f763-4625-b155-df03be9fc7cc
+only\ the\ notifications\ feature\ depends\ on\ notifications\ infrastructure\ classes=ce015aa5-17ad-49a7-b0a8-f83aa2fed467
+only\ the\ patients\ feature\ depends\ on\ patients\ infrastructure\ classes=3723b550-b6d8-4023-b79f-0bd24bc8c3f1
+only\ the\ payments\ feature\ depends\ on\ payments\ infrastructure\ classes=6c568bb6-0227-4e28-83a8-531e1a7d86aa
+only\ the\ tasks\ feature\ depends\ on\ tasks\ infrastructure\ classes=9d547656-f52e-48ca-a436-d298a6870e15
+shared\ classes\ do\ not\ depend\ on\ feature\ classes=3e13f288-dfc9-4e92-8747-e27afeb2ebbd

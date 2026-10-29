@@ -54,6 +54,8 @@ dependencies {
 
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // Feature-border rules with frozen baselines (src/test/kotlin/com/shifa/ArchitectureTest.kt)
+    testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
     // Fake OpenAI-compatible endpoints for LLM client tests (same vendor as the runtime OkHttp client).
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
 	

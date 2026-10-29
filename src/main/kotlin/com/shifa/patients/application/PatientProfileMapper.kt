@@ -2,15 +2,14 @@
 // src/main/kotlin/com/shifa/patients/application/PatientProfileMapper.kt
 package com.shifa.patients.application
 
-import com.shifa.shared.config.AppProperties
 import com.shifa.patients.domain.PatientProfile
 import com.shifa.patients.api.PatientProfileDto
 import org.springframework.stereotype.Component
 
 @Component
 class PatientProfileMapper(
-    private val appProperties: AppProperties,
     private val signer: com.shifa.shared.security.FileUrlSigner,
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
     /**
      * Returns an absolute URL: if DB has a relative path, prepend app.publicBaseUrl.
@@ -21,11 +20,7 @@ class PatientProfileMapper(
      * or document. Anything else (doctor avatars, external URLs, legacy names) passes through unsigned.
      */
     fun normalizePhotoUrl(photoUrl: String?, ownerProfileId: Long? = null): String? {
-        val trimmed = photoUrl?.trim()?.replace("\\", "/")
-        if (trimmed.isNullOrEmpty()) return null
-
-        val isAbsolute = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        val absolute = if (isAbsolute) trimmed else "${appProperties.publicBaseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
+        val absolute = publicUrls.absolute(photoUrl) ?: return null
         if (ownerProfileId == null || !isOwnPhoto(absolute, ownerProfileId)) return absolute
         return signer.sign(absolute, PHOTO_PREFIX)
     }

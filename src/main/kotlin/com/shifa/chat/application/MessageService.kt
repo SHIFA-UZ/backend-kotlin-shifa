@@ -3,7 +3,6 @@ package com.shifa.chat.application
 import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.patients.application.PatientProfileMapper
 
-import com.shifa.shared.config.AppProperties
 import com.shifa.chat.domain.Conversation
 import com.shifa.chat.domain.Message
 import com.shifa.notifications.domain.Notification
@@ -42,9 +41,9 @@ class MessageService(
     private val doctorProfileRepo: DoctorProfileRepository,
     private val patientProfileRepo: PatientProfileRepository,
     private val fcmService: FcmService,
-    private val appProps: AppProperties,
     private val fileUrlSigner: com.shifa.shared.security.FileUrlSigner,
     private val patientProfileMapper: PatientProfileMapper,
+    private val publicUrls: com.shifa.shared.PublicUrls,
     ) {
     private val log = LoggerFactory.getLogger(MessageService::class.java)
 
@@ -672,10 +671,7 @@ class MessageService(
 
     /** Attachment URLs are stored canonical (no signature) and signed on every read, attachments prefix only. */
     private fun signAttachmentUrl(url: String?): String? {
-        val trimmed = url?.trim()?.replace("\\", "/") ?: return null
-        if (trimmed.isEmpty()) return null
-        val absolute = if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) trimmed
-            else "${appProps.publicBaseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
+        val absolute = publicUrls.absolute(url) ?: return null
         return fileUrlSigner.sign(absolute, ATTACHMENT_PREFIX)
     }
 

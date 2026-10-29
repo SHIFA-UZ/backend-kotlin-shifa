@@ -2,7 +2,6 @@
 package com.shifa.doctors.api
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.shifa.shared.config.AppProperties
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorService
 import com.shifa.appointments.infrastructure.DateSpecificScheduleRuleRepository
@@ -30,8 +29,8 @@ class PublicDoctorController(
     private val weeklyScheduleRules: WeeklyScheduleRuleRepository,
     private val dateSpecificScheduleRules: DateSpecificScheduleRuleRepository,
     private val daySlotsService: PatientDaySlotsService,
-    private val appProps: AppProperties,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
     data class DoctorListResponse(
         val totalCount: Long,
@@ -126,12 +125,7 @@ class PublicDoctorController(
         val clinicMinPriceMinor: Long? = null
     )
 
-    private fun normalizeAvatarUrl(avatarUrl: String?): String? {
-        val trimmed = avatarUrl?.trim() ?: return null
-        val isAbs = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        return if (isAbs) trimmed
-        else "${appProps.publicBaseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
-    }
+    private fun normalizeAvatarUrl(avatarUrl: String?): String? = publicUrls.absolute(avatarUrl)
 
     private fun parseJsonList(jsonString: String?): List<String>? {
         if (jsonString.isNullOrBlank()) return null
@@ -142,13 +136,7 @@ class PublicDoctorController(
         }
     }
 
-    private fun normalizeCertificateUrl(certUrl: String?): String? {
-        if (certUrl.isNullOrBlank()) return null
-        val trimmed = certUrl.trim()
-        val isAbs = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        return if (isAbs) trimmed
-        else "${appProps.publicBaseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
-    }
+    private fun normalizeCertificateUrl(certUrl: String?): String? = publicUrls.absolute(certUrl)
 
     /**
      * Calculate distance between two coordinates using Haversine formula

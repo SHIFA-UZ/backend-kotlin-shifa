@@ -1,6 +1,5 @@
 package com.shifa.chat.api
 
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.PatientPrincipal
 import com.shifa.chat.application.MessageService
 import jakarta.validation.Valid
@@ -12,27 +11,12 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/patients/me/messages")
 class PatientMessageController(
     private val messageService: MessageService,
-    private val patientProfiles: PatientProfileRepository
+    private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
 
-    private fun currentPatientProfileId(principal: PatientPrincipal): Long {
-        val user = principal.user
-        val profile = user.phone?.let { patientProfiles.findByPhone(it) }
-            ?.orElseGet {
-                user.email?.let { patientProfiles.findByEmail(it) }
-                    ?.orElse(null)
-            }
-            ?: throw org.springframework.web.server.ResponseStatusException(
-                org.springframework.http.HttpStatus.NOT_FOUND,
-                "Patient profile not found for user ${user.id}"
-            )
-
-        return profile.id
-            ?: throw org.springframework.web.server.ResponseStatusException(
-                org.springframework.http.HttpStatus.NOT_FOUND,
-                "Patient profile ID not found"
-            )
-    }
+    private fun currentPatientProfileId(principal: PatientPrincipal): Long =
+        currentPatient.resolve(principal).id
+            ?: throw org.springframework.web.server.ResponseStatusException(org.springframework.http.HttpStatus.NOT_FOUND, "Patient profile ID not found")
 
     @GetMapping("/conversations")
     fun listConversations(

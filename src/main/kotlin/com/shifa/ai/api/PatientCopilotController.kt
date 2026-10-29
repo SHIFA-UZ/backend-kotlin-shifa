@@ -6,13 +6,11 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.ai.domain.OutputLanguage
 import com.shifa.ai.domain.SpecialtyTaxonomy
 import com.shifa.ai.domain.SymptomMatcher
-import com.shifa.shared.config.AppProperties
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.patients.domain.PatientProfile
 import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.DoctorReviewRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.PatientPrincipal
 import com.shifa.ai.infrastructure.OpenAiResponsesService
 import com.shifa.ai.application.PatientCopilotBookingService
@@ -45,17 +43,17 @@ import java.util.Locale
 class PatientCopilotController(
     private val aiService: OpenAiResponsesService,
     private val transcriptionService: TranscriptionService,
-    private val patientProfiles: PatientProfileRepository,
     private val doctorProfiles: DoctorProfileRepository,
     private val reviewRepository: DoctorReviewRepository,
     private val copilotBookingService: PatientCopilotBookingService,
     private val copilotContextService: PatientCopilotContextService,
     private val daySlotsService: PatientDaySlotsService,
-    private val appProps: AppProperties,
     private val objectMapper: ObjectMapper,
     private val subscriptionTierService: SubscriptionTierService,
     private val uploadGuard: com.shifa.shared.UploadGuard,
     @org.springframework.beans.factory.annotation.Qualifier("sseTaskExecutor") private val sseExecutor: Executor,
+    private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
     private companion object {
         /** A stream that is still open after five minutes is stuck; close it instead of holding the thread forever. */
@@ -71,18 +69,7 @@ class PatientCopilotController(
     }
 
 
-    private fun currentPatientProfile(principal: PatientPrincipal): PatientProfile {
-        val user = principal.user
-        return patientProfiles.findByUserId(user.id)
-            .orElseGet {
-                user.phone?.let { patientProfiles.findByPhone(it) }?.orElse(null)
-                    ?: user.email?.let { patientProfiles.findByEmail(it) }?.orElse(null)
-            }
-            ?: throw ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Patient profile not found for user ${user.id}"
-            )
-    }
+    private fun currentPatientProfile(principal: PatientPrincipal): PatientProfile = currentPatient.resolve(principal)
 
     /** Patient-side Shifa AI requires PREMIUM tier on the patient account. */
     private fun requireCopilotAccess(principal: PatientPrincipal) {
@@ -92,12 +79,7 @@ class PatientCopilotController(
         )
     }
 
-    private fun normalizeAvatarUrl(avatarUrl: String?): String? {
-        val trimmed = avatarUrl?.trim() ?: return null
-        val isAbs = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        return if (isAbs) trimmed
-        else "${appProps.publicBaseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
-    }
+    private fun normalizeAvatarUrl(avatarUrl: String?): String? = publicUrls.absolute(avatarUrl)
 
     private fun parseJsonList(jsonString: String?): List<String>? {
         if (jsonString.isNullOrBlank()) return null
@@ -108,13 +90,7 @@ class PatientCopilotController(
         }
     }
 
-    private fun normalizeCertificateUrl(certUrl: String?): String? {
-        if (certUrl.isNullOrBlank()) return null
-        val trimmed = certUrl.trim()
-        val isAbs = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        return if (isAbs) trimmed
-        else "${appProps.publicBaseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
-    }
+    private fun normalizeCertificateUrl(certUrl: String?): String? = publicUrls.absolute(certUrl)
 
     private fun toDoctorDto(doc: DoctorProfile, distanceKm: Double? = null): Map<String, Any?> {
         val id = doc.id!!

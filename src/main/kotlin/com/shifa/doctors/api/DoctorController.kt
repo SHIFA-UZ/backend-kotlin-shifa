@@ -1,7 +1,6 @@
 package com.shifa.doctors.api
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.shifa.shared.config.AppProperties
 import com.shifa.payments.domain.DoctorBilling
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorSettings
@@ -36,7 +35,6 @@ class DoctorController(
     private val doctors: DoctorProfileRepository,
     private val billingRepo: DoctorBillingRepository,
     private val settingsRepo: DoctorSettingsRepository,
-    private val appProps: AppProperties,
     private val scheduleValidityService: ScheduleValidityService,
     private val notifications: NotificationRepository,
     private val fcmService: FcmService,
@@ -45,6 +43,7 @@ class DoctorController(
     private val fileUrlSigner: com.shifa.shared.security.FileUrlSigner,
     private val uploadGuard: com.shifa.shared.UploadGuard,
     private val storage: com.shifa.shared.storage.FileStorage,
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
 
     // -------------------- helpers --------------------
@@ -53,12 +52,7 @@ class DoctorController(
         principal.profile
 
     /** Build absolute URL from avatarUrl using app.publicBaseUrl */
-    private fun normalizeAvatar(avatarUrl: String?): String? {
-        val trimmed = avatarUrl?.trim() ?: return null
-        val isAbs = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        return if (isAbs) trimmed
-        else "${appProps.publicBaseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
-    }
+    private fun normalizeAvatar(avatarUrl: String?): String? = publicUrls.absolute(avatarUrl)
 
     /** Effective schedule validity for API: profile columns or min/max from periods (after migration). */
     private fun effectiveScheduleFrom(d: DoctorProfile): String? =

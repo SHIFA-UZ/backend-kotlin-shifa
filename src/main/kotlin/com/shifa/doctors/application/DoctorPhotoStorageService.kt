@@ -1,7 +1,6 @@
 
 package com.shifa.doctors.application
 
-import com.shifa.shared.config.AppProperties
 import com.shifa.shared.storage.FileStorage
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
@@ -9,8 +8,8 @@ import java.util.*
 
 @Service
 class DoctorPhotoStorageService(
-    private val appProperties: AppProperties,
     private val storage: FileStorage,
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
     /**
      * Saves the uploaded photo to {storageRoot}/doctors/{slugOrId}.{ext}
@@ -22,7 +21,7 @@ class DoctorPhotoStorageService(
 
         file.inputStream.use { storage.put("doctors/$fileName", it, file.size, file.contentType) }
 
-        return "${appProperties.publicBaseUrl}/doctors/$fileName"
+        return publicUrls.absolute("doctors/$fileName")!!
     }
 
     private fun guessExtension(original: String?): String {
