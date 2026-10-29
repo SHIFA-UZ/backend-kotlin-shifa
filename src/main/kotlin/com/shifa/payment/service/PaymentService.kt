@@ -85,12 +85,12 @@ class PaymentService(
         val currency: String,
     )
 
+    /** [returnPlatform] is "app" when the patient app started the checkout: the return pages then redirect into the app. */
     @Transactional
     fun createConsultationCheckout(
         userId: Long,
         appointmentId: Long,
         preferredGateway: PaymentGatewayCode?,
-        /** "app" when the patient app started the checkout: the return pages then redirect into the app (ask 12). */
         returnPlatform: String? = null,
     ): ConsultationCheckoutResult {
         val patient = patientProfiles.findByUserId(userId)

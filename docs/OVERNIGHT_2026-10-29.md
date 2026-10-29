@@ -57,6 +57,11 @@ listed in the commit messages (paths, schemas and fields added; nothing removed)
 - OTP attempt counters on the SMS and email codes themselves are read-modify-write (pre-existing); the deletion
   challenge counter is now an atomic SQL increment. Under heavy concurrent guessing the code counters could
   admit a few extra attempts; the challenge counter cannot. Worth an atomic update there too (Phase 5 `auth/`).
+- **detekt baseline entries are keyed by function signature.** The final `./gradlew build` check found the branch
+  red: adding `returnPlatform` to the two checkout functions in `PaymentService` changed their signatures, so their
+  four baseline entries (LongMethod, ThrowsCount) stopped matching. Fixed by regenerating the baseline
+  (`./gradlew detektBaseline`, four lines changed). Rule for later steps: when a baselined function's signature
+  changes, regenerate the baseline in the same commit, and run `build`, not only `test`, before pushing.
 - The dev seed accounts (`seed.doctor1..3@shifa.dev`, `seed.patient1..3@shifa.dev`, `seed.staff@shifa.dev`,
   password `Dev12345!`) appear on development after the next deploy. They are not in production.
 
