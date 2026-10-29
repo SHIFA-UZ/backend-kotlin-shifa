@@ -35,9 +35,6 @@ import com.shifa.auth.infrastructure.FirebaseAuthService
 import com.shifa.clinics.domain.Clinic
 import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.clinics.domain.InvitationKey
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.clinics.infrastructure.InvitationKeyRepository
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.JwtService
@@ -62,7 +59,7 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/api/auth")
 class AuthController(
     private val users: com.shifa.auth.application.Users,
-    private val invites: InvitationKeyRepository,
+    private val invites: com.shifa.clinics.application.InvitationKeys,
     private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val patients: com.shifa.patients.application.PatientProfiles,
     private val userSessions: com.shifa.auth.application.UserSessions,
@@ -74,8 +71,8 @@ class AuthController(
     private val firebaseAuthService: com.shifa.auth.infrastructure.FirebaseAuthService,
     private val emailOtpService: com.shifa.auth.application.EmailOtpService,
     private val smsOtpService: com.shifa.auth.application.SmsOtpService,
-    private val clinicMemberships: ClinicMembershipRepository,
-    private val clinics: ClinicRepository,
+    private val clinicMemberships: com.shifa.clinics.application.ClinicMemberships,
+    private val clinics: com.shifa.clinics.application.Clinics,
 ) {
     private val log = LoggerFactory.getLogger(AuthController::class.java)
     // ---------- VerifyKey ----------

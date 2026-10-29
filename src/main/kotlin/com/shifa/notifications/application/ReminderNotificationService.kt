@@ -2,10 +2,6 @@ package com.shifa.notifications.application
 
 import com.shifa.appointments.domain.Appointment
 import com.shifa.clinics.application.InstallmentService
-import com.shifa.clinics.infrastructure.InstallmentItemRepository
-import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
-import com.shifa.clinics.infrastructure.TreatmentPlanPaymentRepository
-import com.shifa.clinics.infrastructure.TreatmentPlanRepository
 import com.shifa.notifications.domain.Notification
 import com.shifa.notifications.infrastructure.DevSmsService
 import com.shifa.notifications.infrastructure.FcmService
@@ -34,11 +30,9 @@ class ReminderNotificationService(
     private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
     private val fcmService: FcmService,
-    private val treatmentPlans: TreatmentPlanRepository,
-    private val treatmentPlanLines: TreatmentPlanLineRepository,
-    private val treatmentPlanPayments: TreatmentPlanPaymentRepository,
+    private val treatmentPlans: com.shifa.clinics.application.TreatmentPlans,
     private val prophylaxisSettings: com.shifa.patients.application.PatientProphylaxisSettings,
-    private val installmentItems: InstallmentItemRepository,
+    private val installmentItems: com.shifa.clinics.application.InstallmentItems,
     private val installmentService: InstallmentService,
     private val devSmsService: DevSmsService,
     private val doctorSmsBillingService: DoctorSmsBillingService,

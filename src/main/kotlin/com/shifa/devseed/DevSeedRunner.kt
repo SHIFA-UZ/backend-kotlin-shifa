@@ -10,8 +10,6 @@ import com.shifa.auth.domain.User
 import com.shifa.auth.domain.UserRole
 import com.shifa.clinics.domain.Clinic
 import com.shifa.clinics.domain.ClinicMembership
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.doctors.domain.DoctorLocation
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorService
@@ -63,8 +61,8 @@ class DevSeedRunner(
     private val rules: com.shifa.appointments.application.WeeklyScheduleRules,
     private val services: com.shifa.doctors.application.DoctorServices,
     private val prices: com.shifa.doctors.application.DoctorServicePrices,
-    private val clinics: ClinicRepository,
-    private val memberships: ClinicMembershipRepository,
+    private val clinics: com.shifa.clinics.application.Clinics,
+    private val memberships: com.shifa.clinics.application.ClinicMemberships,
     private val patients: com.shifa.patients.application.PatientProfiles,
     private val appointments: com.shifa.appointments.application.Appointments,
     private val documents: com.shifa.documents.application.PatientDocumentService,

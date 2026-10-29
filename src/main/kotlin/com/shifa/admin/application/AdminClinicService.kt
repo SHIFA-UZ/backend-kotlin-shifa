@@ -3,8 +3,6 @@ package com.shifa.admin.application
 import com.shifa.auth.domain.Role
 import com.shifa.clinics.domain.Clinic
 import com.shifa.clinics.domain.ClinicMembership
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.doctors.domain.DoctorProfile
 import java.time.OffsetDateTime
 import org.springframework.data.domain.Page
@@ -16,9 +14,9 @@ import org.springframework.web.server.ResponseStatusException
 
 @Service
 class AdminClinicService(
-    private val clinics: ClinicRepository,
+    private val clinics: com.shifa.clinics.application.Clinics,
     private val doctors: com.shifa.doctors.application.DoctorProfiles,
-    private val memberships: ClinicMembershipRepository,
+    private val memberships: com.shifa.clinics.application.ClinicMemberships,
 ) {
 
     data class ClinicRow(

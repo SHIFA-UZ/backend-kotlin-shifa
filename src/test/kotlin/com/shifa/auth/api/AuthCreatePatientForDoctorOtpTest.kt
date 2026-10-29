@@ -12,13 +12,13 @@ import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
 import com.shifa.auth.domain.UserRole
 import com.shifa.auth.domain.UserSession
-import com.shifa.patients.domain.PatientProfile
 import com.shifa.auth.infrastructure.FirebaseAuthService
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.clinics.infrastructure.InvitationKeyRepository
+import com.shifa.clinics.application.ClinicMemberships
+import com.shifa.clinics.application.Clinics
+import com.shifa.clinics.application.InvitationKeys
 import com.shifa.doctors.application.DoctorProfiles
 import com.shifa.patients.application.PatientProfiles
+import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.JwtService
 import com.shifa.shared.security.PrincipalResolverService
 import java.time.Instant
@@ -71,7 +71,7 @@ class AuthCreatePatientForDoctorOtpTest {
     lateinit var mockMvc: MockMvc
 
     @MockBean lateinit var users: Users
-    @MockBean lateinit var invites: InvitationKeyRepository
+    @MockBean lateinit var invites: InvitationKeys
     @MockBean lateinit var doctors: DoctorProfiles
     @MockBean lateinit var patients: PatientProfiles
     @MockBean lateinit var userSessions: UserSessions
@@ -83,8 +83,8 @@ class AuthCreatePatientForDoctorOtpTest {
     @MockBean lateinit var firebaseAuthService: FirebaseAuthService
     @MockBean lateinit var emailOtpService: EmailOtpService
     @MockBean lateinit var smsOtpService: SmsOtpService
-    @MockBean lateinit var clinicMemberships: ClinicMembershipRepository
-    @MockBean lateinit var clinics: ClinicRepository
+    @MockBean lateinit var clinicMemberships: ClinicMemberships
+    @MockBean lateinit var clinics: Clinics
     @MockBean lateinit var principalResolverService: PrincipalResolverService
 
     private val doctorPhone = "+998901234567"

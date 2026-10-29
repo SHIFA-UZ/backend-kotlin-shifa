@@ -1,17 +1,16 @@
 package com.shifa.clinics.api
 
 import com.shifa.auth.application.Emails
+import com.shifa.clinics.api.dto.CreateInvitationRequest
+import com.shifa.clinics.api.dto.CreateInvitationResponse
+import com.shifa.clinics.api.dto.InvitationListItemDto
 import com.shifa.clinics.application.ClinicAccessService
 import com.shifa.clinics.application.InvitationKeyService
 import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.clinics.domain.InvitationKey
-import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.clinics.infrastructure.InvitationKeyRepository
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
 import jakarta.validation.Valid
-import jakarta.validation.constraints.Email
-import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -23,38 +22,15 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 
+
 @RestController
 class ClinicInvitationController(
-    private val clinics: ClinicRepository,
+    private val clinics: com.shifa.clinics.application.Clinics,
     private val clinicAccess: ClinicAccessService,
-    private val invitationKeys: InvitationKeyRepository,
+    private val invitationKeys: com.shifa.clinics.application.InvitationKeys,
     private val invitationKeyService: InvitationKeyService,
     private val emailSender: Emails,
 ) {
-
-    data class CreateInvitationRequest(
-        @field:NotBlank @field:Email val email: String,
-        /** Currently only RECEPTIONIST. */
-        @field:NotBlank val role: String,
-        val expiresInDays: Int? = 14,
-    )
-
-    data class CreateInvitationResponse(
-        val id: Long,
-        val keyCode: String,
-        val emailSentTo: String,
-        val clinicId: Long,
-        val expiresAt: String?,
-    )
-
-    data class InvitationListItemDto(
-        val id: Long,
-        val emailSentTo: String?,
-        val consumed: Boolean,
-        val expiresAt: String?,
-        /** True when usable for registration (not expired, not revoked/consumed). */
-        val pending: Boolean,
-    )
 
     @PostMapping("/api/clinics/{clinicId}/invitations")
     fun createInvitation(

@@ -7,7 +7,6 @@ import com.shifa.auth.infrastructure.UserActivityLogRepository
 import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.auth.infrastructure.UserRoleRepository
 import com.shifa.auth.infrastructure.UserSessionRepository
-import com.shifa.clinics.infrastructure.InvitationKeyRepository
 import java.util.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -25,7 +24,7 @@ class UserDeletionService(
     private val userRoleRepository: UserRoleRepository,
     private val userSessionRepository: UserSessionRepository,
     private val userActivityLogRepository: UserActivityLogRepository,
-    private val invitationKeyRepository: InvitationKeyRepository,
+    private val invitationKeyRepository: com.shifa.clinics.application.InvitationKeys,
     private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
     private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
     private val appointmentRepository: com.shifa.appointments.application.Appointments,

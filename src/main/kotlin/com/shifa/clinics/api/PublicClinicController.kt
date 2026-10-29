@@ -1,22 +1,18 @@
 package com.shifa.clinics.api
 
-import com.shifa.clinics.infrastructure.ClinicRepository
+import com.shifa.clinics.api.dto.PublicClinicDto
 import org.springframework.data.domain.Sort
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
+
 @RestController
 @RequestMapping("/api/public/clinics")
 class PublicClinicController(
-    private val clinics: ClinicRepository,
+    private val clinics: com.shifa.clinics.application.Clinics,
 ) {
-
-    data class PublicClinicDto(
-        val id: Long,
-        val name: String,
-    )
 
     /**
      * List clinics for onboarding dropdowns (registration, etc.).

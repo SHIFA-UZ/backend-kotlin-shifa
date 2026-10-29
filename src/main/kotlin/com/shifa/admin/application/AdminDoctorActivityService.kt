@@ -8,7 +8,6 @@ import com.shifa.ai.infrastructure.AiUsageCounterRepository
 import com.shifa.appointments.domain.Appointment
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
-import com.shifa.clinics.infrastructure.TreatmentPlanRepository
 import com.shifa.doctors.application.EarlyPartnerContractService
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.notifications.application.DoctorSmsBillingService
@@ -36,7 +35,7 @@ class AdminDoctorActivityService(
     private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
     private val patientDocumentRepository: com.shifa.documents.application.PatientDocumentService,
-    private val treatmentPlanRepository: TreatmentPlanRepository,
+    private val treatmentPlanRepository: com.shifa.clinics.application.TreatmentPlans,
     private val remoteCareTaskRepository: com.shifa.tasks.application.RemoteCareTasks,
     private val consultationNoteRepository: com.shifa.appointments.application.ConsultationNotes,
     private val patientFormRepository: com.shifa.patients.application.PatientForms,

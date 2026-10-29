@@ -6,8 +6,6 @@ import com.shifa.clinics.application.InstallmentService
 import com.shifa.clinics.application.TreatmentPlanFinanceService
 import com.shifa.clinics.domain.InstallmentItem
 import com.shifa.clinics.domain.TreatmentPlanPayment
-import com.shifa.clinics.infrastructure.InstallmentItemRepository
-import com.shifa.clinics.infrastructure.TreatmentPlanRepository
 import com.shifa.doctors.application.DoctorServicePricing
 import com.shifa.notifications.domain.Notification
 import com.shifa.payments.domain.OpenCheckoutPolicy
@@ -39,8 +37,8 @@ class PaymentService(
     private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val doctorBillingRepository: DoctorBillingRepository,
     private val patientProfiles: com.shifa.patients.application.PatientProfiles,
-    private val treatmentPlans: TreatmentPlanRepository,
-    private val installmentItems: InstallmentItemRepository,
+    private val treatmentPlans: com.shifa.clinics.application.TreatmentPlans,
+    private val installmentItems: com.shifa.clinics.application.InstallmentItems,
     private val financeService: TreatmentPlanFinanceService,
     private val installmentService: InstallmentService,
     private val notificationService: com.shifa.notifications.application.NotificationService,

@@ -25,8 +25,6 @@ import com.shifa.appointments.domain.Appointment
 import com.shifa.clinics.application.ClinicAccessService
 import com.shifa.clinics.application.TreatmentPlanFulfillmentService
 import com.shifa.clinics.application.VisitChargeService
-import com.shifa.clinics.infrastructure.TreatmentPlanAppointmentLinkRepository
-import com.shifa.clinics.infrastructure.TreatmentPlanLineFulfillmentRepository
 import com.shifa.notifications.application.PatientPaymentPushI18n
 import com.shifa.notifications.domain.Notification
 import java.time.Instant
@@ -49,8 +47,8 @@ class AppointmentController(
     private val clinicAccess: ClinicAccessService,
     private val visitChargeService: VisitChargeService,
     private val fulfillmentService: TreatmentPlanFulfillmentService,
-    private val planLinks: TreatmentPlanAppointmentLinkRepository,
-    private val lineFulfillments: TreatmentPlanLineFulfillmentRepository,
+    private val planLinks: com.shifa.clinics.application.TreatmentPlanAppointmentLinks,
+    private val lineFulfillments: com.shifa.clinics.application.TreatmentPlanLineFulfillments,
     private val slotAvailabilityService: SlotAvailabilityService,
     private val appointmentCancellationService: AppointmentCancellationService,
     private val appointmentVisitLifecycleService: AppointmentVisitLifecycleService,

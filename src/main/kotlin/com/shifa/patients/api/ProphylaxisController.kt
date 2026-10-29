@@ -1,7 +1,6 @@
 package com.shifa.patients.api
 
 import com.shifa.clinics.application.ClinicAccessService
-import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.patients.api.dto.SettingDto
 import com.shifa.patients.api.dto.UpsertSettingRequest
 import com.shifa.patients.domain.PatientProphylaxisSetting
@@ -17,7 +16,7 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/api/prophylaxis")
 class ProphylaxisController(
     private val clinicAccess: ClinicAccessService,
-    private val clinics: ClinicRepository,
+    private val clinics: com.shifa.clinics.application.Clinics,
     private val patients: com.shifa.patients.application.PatientProfiles,
     private val settingsRepo: com.shifa.patients.application.PatientProphylaxisSettings,
 ) {
