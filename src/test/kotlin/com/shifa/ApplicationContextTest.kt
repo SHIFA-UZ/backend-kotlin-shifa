@@ -20,6 +20,7 @@ import java.sql.DriverManager
         "spring.jpa.hibernate.ddl-auto=validate",
         "spring.jpa.open-in-view=false",
         "logging.file.name=build/shifa-backend-test.log",
+        "app.dev-seed=true", // the seed must apply to a fresh schema
     ],
 )
 class ApplicationContextTest {
