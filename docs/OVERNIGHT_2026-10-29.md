@@ -24,7 +24,7 @@ Final state: 398 tests, 0 failures; detekt clean against its baseline; line cove
 | Quality gates | 1.11 | detekt 1.23.8 + baseline (480 legacy findings), JaCoCo floor 27 %, both in `./gradlew check` (CI). | SHIP |
 | Platform 2 | 2.2 (part), 2.6, cache | Firebase temp-file write removed from `main()`; session cache 30 s; 60 s caches for professions and public clinics. | FIX FIRST → fixed |
 | Payments | 4 (12) | Return pages link/redirect to `shifa://payment/return?paymentId=&ref=&status=` only when the checkout request carried `platform: "app"`. | FIX FIRST → fixed |
-| Deletion | 4 (8) | Phone-only patients confirm deletion with an SMS code; no status flip before confirmation; `channels`/`maskedEmail` in the request response. | see report note |
+| Deletion | 4 (8) | Phone-only patients confirm deletion with an SMS code; no status flip before confirmation; `channels`/`maskedEmail` in the request response. Codex found that failed-attempt counters rolled back with the request: OTP `verify` methods and the challenge counter now commit in their own transaction (also fixes the pre-existing email path). | FIX FIRST → fixed |
 
 Every API change is additive. `docs/api/openapi.json` was regenerated after each one; the diff per step is
 listed in the commit messages (paths, schemas and fields added; nothing removed).
