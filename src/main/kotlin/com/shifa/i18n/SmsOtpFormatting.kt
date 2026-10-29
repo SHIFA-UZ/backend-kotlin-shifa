@@ -11,6 +11,12 @@ object SmsOtpFormatting {
             "Hurmat bilan,\n" +
             "SHIFA UZ"
 
+    /** Account-deletion OTP — submit to DevSMS for approval if not yet approved (patient-app ask 8). */
+    fun accountDeletionOtpBody(code: String): String =
+        "Shifa Bemor hisobni o'chirishni tasdiqlash kodi: $code\n" +
+            "Hurmat bilan,\n" +
+            "SHIFA UZ"
+
     /** Forgot-password OTP — submit to DevSMS for approval if not yet approved. */
     fun forgotPasswordOtpBody(code: String): String =
         "Shifa Bemor parolni tiklash uchun tasdiqlash kodi: $code\n" +

@@ -1543,6 +1543,8 @@ class AuthController(
     private fun smsPurposeToEmailPurpose(smsPurpose: String): String = when (smsPurpose) {
         com.shifa.domain.SmsVerificationCode.PURPOSE_FORGOT_PASSWORD ->
             com.shifa.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD
+        com.shifa.domain.SmsVerificationCode.PURPOSE_ACCOUNT_DELETION ->
+            com.shifa.domain.EmailVerificationCode.PURPOSE_ACCOUNT_DELETION
         else -> com.shifa.domain.EmailVerificationCode.PURPOSE_REGISTRATION
     }
 

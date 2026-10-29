@@ -2314,6 +2314,12 @@
               "string",
               "null"
             ]
+          },
+          "smsOtp": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -3205,9 +3211,21 @@
           "challengeId": {
             "type": "string"
           },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "expiresInSeconds": {
             "format": "int32",
             "type": "integer"
+          },
+          "maskedEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "maskedPhone": {
             "type": [
@@ -3218,6 +3236,7 @@
         },
         "required": [
           "challengeId",
+          "channels",
           "expiresInSeconds"
         ],
         "type": "object"

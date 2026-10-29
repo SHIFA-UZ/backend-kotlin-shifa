@@ -8,6 +8,8 @@ import com.shifa.repo.UserRepository
 import com.shifa.security.PatientPrincipal
 import com.shifa.service.EmailOtpService
 import com.shifa.service.PatientAccountDeletionService
+import com.shifa.service.SmsOtpService
+import com.shifa.util.PhoneNormalizer
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import org.springframework.http.HttpStatus
@@ -26,17 +28,23 @@ class PatientAccountDeletionController(
     private val challenges: AccountDeleteChallengeRepository,
     private val emailOtpService: EmailOtpService,
     private val deletionService: PatientAccountDeletionService,
+    private val smsOtpService: SmsOtpService,
 ) {
     data class DeleteAccountRequestResponse(
         val challengeId: String,
         val maskedPhone: String? = null,
-        val expiresInSeconds: Int = 300
+        val expiresInSeconds: Int = 300,
+        /** Which verification channels this account can use: "EMAIL" and/or "SMS" (patient-app ask 8). */
+        val channels: List<String> = emptyList(),
+        val maskedEmail: String? = null,
     )
 
     data class ConfirmDeleteAccountRequest(
         @field:NotBlank val challengeId: String,
         val email: String? = null,
         val emailOtp: String? = null,
+        /** SMS code sent to the account's phone with purpose ACCOUNT_DELETION (phone-only patients, ask 8). */
+        val smsOtp: String? = null,
     )
 
     @PostMapping("/request")
@@ -66,15 +74,17 @@ class PatientAccountDeletionController(
             )
         )
 
-        user.accountStatus = User.AccountStatus.PENDING_DELETION
-        user.deletionRequestedAt = now
-        users.save(user)
-
-        val masked = user.phone?.let { maskPhone(it) }
+        // The account status changes only once the code is confirmed (ask 8); requesting is reversible.
+        val channels = listOfNotNull(
+            user.email?.takeIf { it.isNotBlank() }?.let { "EMAIL" },
+            user.phone?.let { PhoneNormalizer.normalize(it) }?.takeIf { PhoneNormalizer.isUzbekMobile(it) }?.let { "SMS" },
+        )
         return DeleteAccountRequestResponse(
             challengeId = c.challengeId.toString(),
-            maskedPhone = masked,
-            expiresInSeconds = 300
+            maskedPhone = user.phone?.let { maskPhone(it) },
+            expiresInSeconds = 300,
+            channels = channels,
+            maskedEmail = user.email?.let { maskEmail(it) },
         )
     }
 
@@ -108,8 +118,15 @@ class PatientAccountDeletionController(
             throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Too many attempts")
         }
 
-        // Verify identity: email OTP only.
-        if (!body.email.isNullOrBlank() && !body.emailOtp.isNullOrBlank()) {
+        // Verify identity with the account's own phone (SMS code) or email (email code).
+        if (!body.smsOtp.isNullOrBlank()) {
+            val phone = user.phone?.let { PhoneNormalizer.normalize(it) }
+            if (phone == null || !smsOtpService.verify(phone, body.smsOtp.trim(), com.shifa.domain.SmsVerificationCode.PURPOSE_ACCOUNT_DELETION)) {
+                challenge.attemptCount += 1
+                challenges.save(challenge)
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired verification code")
+            }
+        } else if (!body.email.isNullOrBlank() && !body.emailOtp.isNullOrBlank()) {
             val emailNorm = body.email.trim().lowercase()
             if (!emailOtpService.verify(emailNorm, body.emailOtp.trim(),
                     com.shifa.domain.EmailVerificationCode.PURPOSE_ACCOUNT_DELETION)) {
@@ -131,10 +148,19 @@ class PatientAccountDeletionController(
         challenge.used = true
         challenge.usedAt = now
         challenges.save(challenge)
+        user.accountStatus = User.AccountStatus.PENDING_DELETION
+        user.deletionRequestedAt = now
+        users.save(user)
 
         deletionService.deletePatientAccount(userId)
 
         return mapOf("success" to true, "message" to "Account deleted")
+    }
+
+    private fun maskEmail(email: String): String {
+        val at = email.indexOf('@')
+        if (at <= 1) return "***"
+        return email.take(1) + "***" + email.substring(at)
     }
 
     private fun maskPhone(phone: String): String {
