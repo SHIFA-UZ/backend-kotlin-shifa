@@ -32,7 +32,8 @@ class PatientAccountDeletionSmsTest {
     private val emailOtp = mock(EmailOtpService::class.java)
     private val smsOtp = mock(SmsOtpService::class.java)
     private val deletion = mock(PatientAccountDeletionService::class.java)
-    private val controller = PatientAccountDeletionController(users, patients, challenges, emailOtp, deletion, smsOtp)
+    private val attempts = mock(com.shifa.service.AccountDeleteChallengeAttempts::class.java)
+    private val controller = PatientAccountDeletionController(users, patients, challenges, emailOtp, deletion, smsOtp, attempts)
 
     private val user = User(id = 7L, email = null, phone = "+998901234567", passwordHash = "x", role = Role.PATIENT)
     private val principal = PatientPrincipal(user, listOf(org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_PATIENT")))
@@ -67,6 +68,7 @@ class PatientAccountDeletionSmsTest {
             controller.confirmDeletion(principal, PatientAccountDeletionController.ConfirmDeleteAccountRequest(challengeId.toString(), smsOtp = "000000"))
         }
         assertEquals(400, e.statusCode.value())
+        verify(attempts).recordFailure(challengeId) // counted outside the rolled-back transaction
         verify(deletion).deletePatientAccount(7L) // still exactly once
         verify(emailOtp, never()).verify(anyString(), anyString(), anyString())
     }

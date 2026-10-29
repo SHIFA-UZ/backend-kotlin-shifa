@@ -57,7 +57,7 @@ class EmailOtpService(
      * Verify a code. Returns true if valid (correct code, not expired, under max attempts).
      * On success, marks the code as verified. On failure, increments attempt counter.
      */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     fun verify(email: String, code: String): Boolean {
         val normalized = email.trim().lowercase()
         val entry = repo.findTopByEmailAndPurposeAndVerifiedFalseOrderByCreatedAtDesc(
@@ -69,7 +69,7 @@ class EmailOtpService(
     /**
      * Verify a code for a specific purpose. Preferred over [verify] for clarity.
      */
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     fun verify(email: String, code: String, purpose: String): Boolean {
         val normalized = email.trim().lowercase()
         val entry = repo.findTopByEmailAndPurposeAndVerifiedFalseOrderByCreatedAtDesc(normalized, purpose)

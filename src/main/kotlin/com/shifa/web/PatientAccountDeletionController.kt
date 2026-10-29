@@ -29,6 +29,7 @@ class PatientAccountDeletionController(
     private val emailOtpService: EmailOtpService,
     private val deletionService: PatientAccountDeletionService,
     private val smsOtpService: SmsOtpService,
+    private val challengeAttempts: com.shifa.service.AccountDeleteChallengeAttempts,
 ) {
     data class DeleteAccountRequestResponse(
         val challengeId: String,
@@ -122,22 +123,19 @@ class PatientAccountDeletionController(
         if (!body.smsOtp.isNullOrBlank()) {
             val phone = user.phone?.let { PhoneNormalizer.normalize(it) }
             if (phone == null || !smsOtpService.verify(phone, body.smsOtp.trim(), com.shifa.domain.SmsVerificationCode.PURPOSE_ACCOUNT_DELETION)) {
-                challenge.attemptCount += 1
-                challenges.save(challenge)
+                challengeAttempts.recordFailure(challengeUuid) // own transaction: survives the rollback below
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired verification code")
             }
         } else if (!body.email.isNullOrBlank() && !body.emailOtp.isNullOrBlank()) {
             val emailNorm = body.email.trim().lowercase()
             if (!emailOtpService.verify(emailNorm, body.emailOtp.trim(),
                     com.shifa.domain.EmailVerificationCode.PURPOSE_ACCOUNT_DELETION)) {
-                challenge.attemptCount += 1
-                challenges.save(challenge)
+                challengeAttempts.recordFailure(challengeUuid) // own transaction: survives the rollback below
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired verification code")
             }
             val userEmail = user.email?.trim()?.lowercase()
             if (userEmail == null || userEmail != emailNorm) {
-                challenge.attemptCount += 1
-                challenges.save(challenge)
+                challengeAttempts.recordFailure(challengeUuid) // own transaction: survives the rollback below
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email does not match account")
             }
         } else {

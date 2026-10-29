@@ -83,7 +83,7 @@ class SmsOtpService(
         const val MAX_SMS_SENDS_PER_HOUR = 3
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     fun verify(phone: String, code: String): Boolean {
         val normalized = PhoneNormalizer.normalize(phone) ?: return false
         val entry = repo.findTopByPhoneAndPurposeAndVerifiedFalseOrderByCreatedAtDesc(
@@ -93,7 +93,8 @@ class SmsOtpService(
         return verifyEntry(entry, code)
     }
 
-    @Transactional
+    /** REQUIRES_NEW: a failed attempt is counted even when the caller's transaction rolls back on the error it throws. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     fun verify(phone: String, code: String, purpose: String): Boolean {
         val normalized = PhoneNormalizer.normalize(phone) ?: return false
         val entry = repo.findTopByPhoneAndPurposeAndVerifiedFalseOrderByCreatedAtDesc(normalized, purpose)
