@@ -3039,6 +3039,13 @@
               "null"
             ]
           },
+          "appointmentId": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "category": {
             "type": "string"
           },
@@ -9052,6 +9059,13 @@
           "afternoonTime": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "appointmentId": {
+            "format": "int64",
+            "type": [
+              "integer",
               "null"
             ]
           },
@@ -20522,6 +20536,46 @@
                     "$ref": "#/components/schemas/CheckInDto"
                   },
                   "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "remote-care-task-controller"
+        ]
+      }
+    },
+    "/api/tasks/my-tasks/{taskId}/check-ins/{checkInId}": {
+      "delete": {
+        "operationId": "undoMyCheckIn",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "checkInId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckInDto"
                 }
               }
             },

@@ -19,6 +19,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -34,8 +35,13 @@ class RemoteCareTaskController(
     private val doctorRepo: DoctorProfileRepository,
     private val notificationRepo: NotificationRepository,
     private val fcmService: FcmService,
-    private val subscriptionTierService: SubscriptionTierService
+    private val subscriptionTierService: SubscriptionTierService,
+    private val appointmentRepo: com.shifa.repo.AppointmentRepository,
 ) {
+    private companion object {
+        val CHECK_IN_UNDO_WINDOW: Duration = Duration.ofHours(24)
+    }
+
 
     /** Doctor-side remote-care tasks require PREMIUM. */
     private fun requireDoctorTaskAccess(principal: DoctorPrincipal) {
@@ -67,7 +73,9 @@ class RemoteCareTaskController(
         val inputType: String,
         val inputLabel: String?,
         val notesRequired: Boolean,
-        val notesLabel: String?
+        val notesLabel: String?,
+        /** The visit this task belongs to; must be an appointment of this doctor with this patient. */
+        val appointmentId: Long? = null,
     )
 
     data class TaskDto(
@@ -98,6 +106,7 @@ class RemoteCareTaskController(
         /** The doctor who assigned the task (patient-app ask 14). */
         val doctorId: Long? = null,
         val doctorName: String? = null,
+        val appointmentId: Long? = null,
     )
 
     data class TaskProgressDto(
@@ -146,6 +155,14 @@ class RemoteCareTaskController(
         val doctor = principal.profile
         val patient = patientRepo.findById(req.patientId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found") }
+        val appointmentId = req.appointmentId?.let { id ->
+            val appointment = appointmentRepo.findById(id)
+                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found") }
+            if (appointment.doctor.id != doctor.id || appointment.patient.id != patient.id) {
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment does not belong to this doctor and patient")
+            }
+            id
+        }
 
         // Custom-times mode: doctor supplied explicit slot times. Validate
         // and normalize to a sorted, de-duplicated, comma-separated string.
@@ -185,7 +202,8 @@ class RemoteCareTaskController(
             inputType = RemoteCareTask.InputType.valueOf(req.inputType.uppercase()),
             inputLabel = req.inputLabel,
             notesRequired = req.notesRequired,
-            notesLabel = req.notesLabel
+            notesLabel = req.notesLabel,
+            appointmentId = appointmentId,
         )
 
         val saved = taskRepo.save(task)
@@ -476,6 +494,41 @@ class RemoteCareTaskController(
         return toCheckInDto(saved)
     }
 
+    /**
+     * Undo a check-in within 24 hours of completing it (patient-app ask 14): the scheduled row goes back to
+     * PENDING with its values cleared, so the entry can be redone. Later than that it is history: 409.
+     */
+    @DeleteMapping("/my-tasks/{taskId}/check-ins/{checkInId}")
+    fun undoMyCheckIn(
+        @AuthenticationPrincipal principal: PatientPrincipal,
+        @PathVariable taskId: Long,
+        @PathVariable checkInId: Long,
+    ): CheckInDto {
+        val patient = currentPatientProfile(principal)
+        val task = taskRepo.findById(taskId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Task not found") }
+        if (task.patient.id != patient.id) throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        val checkIn = checkInRepo.findById(checkInId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Check-in not found") }
+        if (checkIn.task.id != task.id) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Check-in does not belong to this task")
+        if (checkIn.status != TaskCheckIn.Status.COMPLETED) throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Check-in is not completed")
+        val completedAt = checkIn.completedAt
+        if (completedAt == null || completedAt.isBefore(Instant.now().minus(CHECK_IN_UNDO_WINDOW))) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Check-in can only be undone within 24 hours")
+        }
+        checkIn.status = TaskCheckIn.Status.PENDING
+        checkIn.numericValue = null
+        checkIn.textValue = null
+        checkIn.booleanValue = null
+        checkIn.notes = null
+        checkIn.completedAt = null
+        if (task.status == RemoteCareTask.Status.COMPLETED) {
+            task.status = RemoteCareTask.Status.ACTIVE // the task is no longer fully done
+            taskRepo.save(task)
+        }
+        return toCheckInDto(checkInRepo.save(checkIn))
+    }
+
     @GetMapping("/my-tasks/{taskId}/check-ins")
     fun getMyCheckIns(
         @AuthenticationPrincipal principal: PatientPrincipal,
@@ -686,6 +739,7 @@ class RemoteCareTaskController(
             progress = progress,
             doctorId = task.doctor.id,
             doctorName = "${task.doctor.firstName} ${task.doctor.lastName}".trim().ifEmpty { null },
+            appointmentId = task.appointmentId,
         )
     }
 
