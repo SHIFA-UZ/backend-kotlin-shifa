@@ -3,6 +3,7 @@ package com.shifa.appointments.application
 import com.shifa.appointments.domain.WeeklyScheduleRule
 import com.shifa.appointments.infrastructure.WeeklyScheduleRuleRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * The feature's door to WeeklyScheduleRule records for its controllers and for other features (roadmap Phase 5 step 4):
@@ -20,4 +21,6 @@ class WeeklyScheduleRules(private val repo: WeeklyScheduleRuleRepository) {
     fun deleteAll() = repo.deleteAll()
     fun flush() = repo.flush()
     fun save(entity: WeeklyScheduleRule): WeeklyScheduleRule = repo.save(entity)
+    @Transactional(readOnly = true)
+    fun findDoctorIdsWithRules(doctorIds: Collection<Long>): List<Long> = repo.findDoctorIdsWithRules(doctorIds)
 }

@@ -9,6 +9,7 @@ import com.shifa.chat.api.SendMessageRequest
 import com.shifa.chat.api.UserSearchResultDto
 import com.shifa.chat.domain.Conversation
 import com.shifa.chat.domain.Message
+import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.chat.infrastructure.ConversationRepository
 import com.shifa.chat.infrastructure.MessageRepository
 import com.shifa.notifications.domain.Notification
@@ -44,9 +45,16 @@ class MessageService(
         @Transactional(readOnly = true)
         fun listConversations(doctorUserId: Long): List<ConversationDto> {
             val conversations = conversationRepo.findByDoctorUserIdOrderByLastMessageDesc(doctorUserId)
+            // Three queries for the whole list instead of three per conversation (roadmap P5).
+            val conversationIds = conversations.mapNotNull { it.id }
+            val lastMessages = lastMessagesByConversation(conversationIds)
+            val unreadCounts = unreadCountsByConversation(messageRepo.countUnreadPerConversationForUser(conversationIds, doctorUserId))
+            val profiles = doctorProfilesByUserId(
+                conversations.filter { it.doctorParticipant != null }.map { otherDoctorUserId(it, doctorUserId) },
+            )
             return conversations.map { conv ->
-            val participantName = getParticipantName(conv, doctorUserId)
-            val participantPhotoUrl = getParticipantPhotoUrl(conv, doctorUserId)
+            val participantName = getParticipantName(conv, doctorUserId, profiles)
+            val participantPhotoUrl = getParticipantPhotoUrl(conv, doctorUserId, profiles)
             val isDoctor = conv.doctorParticipant != null
             val participantId = if (isDoctor) {
                 // If current doctor is the owner, participant is doctorParticipant
@@ -60,9 +68,8 @@ class MessageService(
                 conv.patientParticipant!!.id!!
             }
 
-            val messages = messageRepo.findByConversationIdOrderByCreatedAtAsc(conv.id!!)
-            val lastMessage = messages.lastOrNull()
-            val unreadCount = messages.count { !it.isRead && it.senderUser!!.id != doctorUserId }
+            val lastMessage = lastMessages[conv.id]
+            val unreadCount = unreadCounts[conv.id] ?: 0
 
             ConversationDto(
                 id = conv.id!!,
@@ -290,13 +297,7 @@ class MessageService(
             throw IllegalArgumentException("Access denied")
         }
 
-        val messages = messageRepo.findByConversationIdOrderByCreatedAtAsc(conversationId)
-        messages.forEach { msg ->
-            if (msg.senderUser!!.id != doctorUserId && !msg.isRead) {
-                msg.isRead = true
-                messageRepo.save(msg)
-            }
-        }
+        messageRepo.markReadForUser(conversationId, doctorUserId)
     }
 
     @Transactional(readOnly = true)
@@ -354,14 +355,18 @@ class MessageService(
     @Transactional(readOnly = true)
     fun listConversationsForPatient(patientProfileId: Long, patientUserId: Long): List<ConversationDto> {
         val conversations = conversationRepo.findByPatientParticipantIdOrderByLastMessageDesc(patientProfileId)
+        // Three queries for the whole list instead of three per conversation (roadmap P5).
+        val conversationIds = conversations.mapNotNull { it.id }
+        val lastMessages = lastMessagesByConversation(conversationIds)
+        val unreadCounts = unreadCountsByConversation(messageRepo.countUnreadPerConversationForPatient(conversationIds, patientProfileId))
+        val profiles = doctorProfilesByUserId(conversations.map { it.doctorUser!!.id })
         return conversations.map { conv ->
             val doctorUserId = conv.doctorUser!!.id
-            val participantName = getDoctorNameForPatient(conv)
-            val participantPhotoUrl = getDoctorPhotoForPatient(conv)
+            val participantName = getDoctorNameForPatient(conv, profiles)
+            val participantPhotoUrl = getDoctorPhotoForPatient(conv, profiles)
 
-            val messages = messageRepo.findByConversationIdOrderByCreatedAtAsc(conv.id!!)
-            val lastMessage = messages.lastOrNull()
-            val unreadCount = messages.count { !it.isRead && it.recipientPatient?.id == patientProfileId }
+            val lastMessage = lastMessages[conv.id]
+            val unreadCount = unreadCounts[conv.id] ?: 0
 
             ConversationDto(
                 id = conv.id!!,
@@ -506,13 +511,7 @@ class MessageService(
             throw IllegalArgumentException("Access denied")
         }
 
-        val messages = messageRepo.findByConversationIdOrderByCreatedAtAsc(conversationId)
-        messages.forEach { msg ->
-            if (msg.recipientPatient?.id == patientProfileId && !msg.isRead) {
-                msg.isRead = true
-                messageRepo.save(msg)
-            }
-        }
+        messageRepo.markReadForPatient(conversationId, patientProfileId)
     }
 
     @Transactional(readOnly = true)
@@ -576,16 +575,15 @@ class MessageService(
         return conversationRepo.save(newConversation)
     }
 
-    private fun getParticipantName(conversation: Conversation, currentDoctorId: Long): String {
+    private fun getParticipantName(
+        conversation: Conversation,
+        currentDoctorId: Long,
+        profiles: Map<Long, DoctorProfile> = otherDoctorProfile(conversation, currentDoctorId),
+    ): String {
         return when {
             conversation.doctorParticipant != null -> {
                 // For doctor-to-doctor: show the OTHER doctor (not the current one)
-                val otherDoctorId = if (conversation.doctorUser!!.id == currentDoctorId) {
-                    conversation.doctorParticipant!!.id
-                } else {
-                    conversation.doctorUser!!.id
-                }
-                val profile = doctorProfileRepo.findByUserId(otherDoctorId).orElse(null)
+                val profile = profiles[otherDoctorUserId(conversation, currentDoctorId)]
                 if (profile != null) {
                     "${profile.lastName} ${profile.firstName}".trim()
                 } else {
@@ -599,16 +597,15 @@ class MessageService(
         }
     }
 
-    private fun getParticipantPhotoUrl(conversation: Conversation, currentDoctorId: Long): String? {
+    private fun getParticipantPhotoUrl(
+        conversation: Conversation,
+        currentDoctorId: Long,
+        profiles: Map<Long, DoctorProfile> = otherDoctorProfile(conversation, currentDoctorId),
+    ): String? {
         return when {
             conversation.doctorParticipant != null -> {
                 // For doctor-to-doctor: show the OTHER doctor (not the current one)
-                val otherDoctorId = if (conversation.doctorUser!!.id == currentDoctorId) {
-                    conversation.doctorParticipant!!.id
-                } else {
-                    conversation.doctorUser!!.id
-                }
-                val profile = doctorProfileRepo.findByUserId(otherDoctorId).orElse(null)
+                val profile = profiles[otherDoctorUserId(conversation, currentDoctorId)]
                 normalizePhotoUrl(profile?.avatarUrl)
             }
             conversation.patientParticipant != null -> {
@@ -618,9 +615,11 @@ class MessageService(
         }
     }
 
-    private fun getDoctorNameForPatient(conversation: Conversation): String {
-        val doctorUserId = conversation.doctorUser!!.id
-        val profile = doctorProfileRepo.findByUserId(doctorUserId).orElse(null)
+    private fun getDoctorNameForPatient(
+        conversation: Conversation,
+        profiles: Map<Long, DoctorProfile> = doctorProfilesByUserId(listOf(conversation.doctorUser!!.id)),
+    ): String {
+        val profile = profiles[conversation.doctorUser!!.id]
         return if (profile != null) {
             "${profile.lastName} ${profile.firstName}".trim()
         } else {
@@ -628,11 +627,39 @@ class MessageService(
         }
     }
 
-    private fun getDoctorPhotoForPatient(conversation: Conversation): String? {
-        val doctorUserId = conversation.doctorUser!!.id
-        val profile = doctorProfileRepo.findByUserId(doctorUserId).orElse(null)
+    private fun getDoctorPhotoForPatient(
+        conversation: Conversation,
+        profiles: Map<Long, DoctorProfile> = doctorProfilesByUserId(listOf(conversation.doctorUser!!.id)),
+    ): String? {
+        val profile = profiles[conversation.doctorUser!!.id]
         return normalizePhotoUrl(profile?.avatarUrl)
     }
+
+    private fun otherDoctorProfile(conversation: Conversation, currentDoctorId: Long): Map<Long, DoctorProfile> =
+        doctorProfilesByUserId(listOfNotNull(conversation.doctorParticipant?.let { otherDoctorUserId(conversation, currentDoctorId) }))
+
+    /** The doctor on the other side of a doctor-to-doctor conversation, seen from [currentDoctorUserId]. */
+    private fun otherDoctorUserId(conversation: Conversation, currentDoctorUserId: Long): Long =
+        if (conversation.doctorUser!!.id == currentDoctorUserId) conversation.doctorParticipant!!.id else conversation.doctorUser!!.id
+
+    private fun doctorProfilesByUserId(userIds: Collection<Long>): Map<Long, DoctorProfile> =
+        if (userIds.isEmpty()) emptyMap() else doctorProfileRepo.findByUserIdInWithPracticeClinic(userIds.toSet()).associateBy { it.user.id }
+
+    /** Newest message per conversation. Equal timestamps were undefined before (last row of an unordered tie); now the later id wins. */
+    private fun lastMessagesByConversation(conversationIds: Collection<Long>): Map<Long, Message> {
+        if (conversationIds.isEmpty()) return emptyMap()
+        val result = HashMap<Long, Message>()
+        for (row in messageRepo.findLastMessagePerConversation(conversationIds)) {
+            val conversationId = row[0] as Long
+            val message = row[1] as Message
+            val current = result[conversationId]
+            if (current == null || (message.id ?: 0L) > (current.id ?: 0L)) result[conversationId] = message
+        }
+        return result
+    }
+
+    private fun unreadCountsByConversation(rows: List<Array<Any>>): Map<Long, Int> =
+        rows.associate { (it[0] as Long) to (it[1] as Long).toInt() }
 
     private fun findOrCreateConversationForPatient(
         doctorUserId: Long,

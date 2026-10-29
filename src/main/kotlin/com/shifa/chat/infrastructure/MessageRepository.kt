@@ -42,4 +42,46 @@ interface MessageRepository : JpaRepository<Message, Long> {
     fun deleteByConversationIdIn(@Param("conversationIds") conversationIds: List<Long>): Int
 
     // Note: markConversationAsRead is handled in service layer with @Transactional
+
+    /** The newest message of each conversation in [conversationIds] as (conversation id, message); ties on createdAt return both rows. */
+    @Query(
+        """
+        SELECT m.conversation.id, m FROM Message m
+        WHERE m.conversation.id IN :conversationIds
+        AND m.createdAt = (SELECT MAX(m2.createdAt) FROM Message m2 WHERE m2.conversation = m.conversation)
+        """
+    )
+    fun findLastMessagePerConversation(@Param("conversationIds") conversationIds: Collection<Long>): List<Array<Any>>
+
+    /** Unread messages not sent by [userId], as (conversation id, count), for the conversations that have any. */
+    @Query(
+        """
+        SELECT m.conversation.id, COUNT(m) FROM Message m
+        WHERE m.conversation.id IN :conversationIds
+        AND m.isRead = false
+        AND m.senderUser.id <> :userId
+        GROUP BY m.conversation.id
+        """
+    )
+    fun countUnreadPerConversationForUser(@Param("conversationIds") conversationIds: Collection<Long>, @Param("userId") userId: Long): List<Array<Any>>
+
+    /** Unread messages addressed to [patientId], as (conversation id, count), for the conversations that have any. */
+    @Query(
+        """
+        SELECT m.conversation.id, COUNT(m) FROM Message m
+        WHERE m.conversation.id IN :conversationIds
+        AND m.isRead = false
+        AND m.recipientPatient.id = :patientId
+        GROUP BY m.conversation.id
+        """
+    )
+    fun countUnreadPerConversationForPatient(@Param("conversationIds") conversationIds: Collection<Long>, @Param("patientId") patientId: Long): List<Array<Any>>
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE Message m SET m.isRead = true WHERE m.conversation.id = :conversationId AND m.isRead = false AND m.senderUser.id <> :userId")
+    fun markReadForUser(@Param("conversationId") conversationId: Long, @Param("userId") userId: Long): Int
+
+    @org.springframework.data.jpa.repository.Modifying
+    @Query("UPDATE Message m SET m.isRead = true WHERE m.conversation.id = :conversationId AND m.isRead = false AND m.recipientPatient.id = :patientId")
+    fun markReadForPatient(@Param("conversationId") conversationId: Long, @Param("patientId") patientId: Long): Int
 }

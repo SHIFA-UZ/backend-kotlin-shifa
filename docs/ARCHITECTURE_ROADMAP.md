@@ -484,6 +484,20 @@ generation and RAG indexing, OTP sending, speech, `ClinicFinanceAuditService.log
 booking). Pre-existing read-only methods that reach a write through another service (`MessageService.listConversations`
 → `findOrCreateConversation`, `DoctorMorningToolService.listFreeSlots` → `ScheduleValidityService`) are untouched and
 belong to the P5 rewrites.
+**Phase 6, P5 (branch `refactor/phase6`):** the three read paths with per-row queries now load their data with one query
+per concern and keep the same JSON. `GET /api/public/doctors` and `/api/public/doctors/{id}`: `PublicDoctorCatalog.listing`
+loads active services (with group), prices (with location), locations, schedule presence and review aggregates for the
+whole candidate set (six queries instead of roughly ten per doctor), and the controller's filters, sorts and DTO mapping
+read from it unchanged. `MessageService.listConversations`/`listConversationsForPatient`: newest message per conversation
+(correlated `MAX(createdAt)`; on equal timestamps, which were undefined before, the later id wins), grouped unread counts
+and one doctor-profile batch (three queries instead of three per conversation); `markAsRead`/`markAsReadForPatient` are
+`@Modifying` updates with the former row predicates. `NotificationFeed.list` batches the document-access requests and
+appointments it shows, `unreadCount` is a count query, `markAllRead` a bulk update with one timestamp. Proof: the old and
+the new jar were run against the same local database (seeded, plus reviews and chat messages) and 46 responses (doctor
+list with 24 parameter combinations, doctor details and locations, both conversation lists and details, notification lists
+and counts) were byte-identical; the mark-read paths were checked row by row. The reminder jobs are left as they are:
+they run off request threads once a minute over a day's rows with indexed existence checks, so their cost does not reach
+users, and a rewrite without tests would be risk for no measurable gain at production's size (10.1).
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),

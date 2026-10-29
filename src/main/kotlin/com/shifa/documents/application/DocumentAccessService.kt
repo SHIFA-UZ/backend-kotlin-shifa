@@ -258,6 +258,10 @@ class DocumentAccessService(
     fun grantExists(documentId: Long, doctorId: Long): Boolean = grantRepo.existsByDocument_IdAndDoctor_Id(documentId, doctorId)
     @Transactional(readOnly = true)
     fun requestWithDetails(requestId: Long): DocumentAccessRequest? = requestRepo.findWithDetailsById(requestId)
+    /** Several requests with their document, patient and requesting doctor, by id (roadmap P5: the notification feed). */
+    @Transactional(readOnly = true)
+    fun requestsWithDetails(requestIds: Collection<Long>): Map<Long, DocumentAccessRequest> =
+        if (requestIds.isEmpty()) emptyMap() else requestRepo.findWithDetailsByIdIn(requestIds.toSet()).associateBy { it.id }
     @Transactional
     fun deleteAccessDataForDoctor(doctorId: Long) {
         requestRepo.deleteAll(requestRepo.findByRequestingDoctor_Id(doctorId))

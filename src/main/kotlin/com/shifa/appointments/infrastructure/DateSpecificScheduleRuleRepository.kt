@@ -56,4 +56,8 @@ interface DateSpecificScheduleRuleRepository : JpaRepository<DateSpecificSchedul
         rangeStartDate: LocalDate,
         rangeEndDate: LocalDate
     ): List<DateSpecificScheduleRule>
+
+    /** The doctors among [doctorIds] that have at least one rule (public listing: "has a schedule"). */
+    @org.springframework.data.jpa.repository.Query("SELECT DISTINCT r.doctor.id FROM DateSpecificScheduleRule r WHERE r.doctor.id IN :doctorIds")
+    fun findDoctorIdsWithRules(@org.springframework.data.repository.query.Param("doctorIds") doctorIds: Collection<Long>): List<Long>
 }
