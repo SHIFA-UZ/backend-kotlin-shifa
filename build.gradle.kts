@@ -60,6 +60,8 @@ dependencies {
 
     // If you plan to use caching/rate limiting libraries later:
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")  // Cache
+    implementation("net.javacrumbs.shedlock:shedlock-spring:6.6.0")  // One instance runs a scheduled job
+    implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.6.0")
     // SECURITY (NEW): Rate limiting - Bucket4j for DDoS/abuse protection
     implementation("com.bucket4j:bucket4j_jdk17-core:8.16.1")
 

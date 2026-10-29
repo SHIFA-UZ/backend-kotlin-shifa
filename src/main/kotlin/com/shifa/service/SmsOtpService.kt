@@ -5,6 +5,7 @@ import com.shifa.i18n.SmsOtpFormatting
 import com.shifa.repo.SmsVerificationCodeRepository
 import com.shifa.util.PhoneNormalizer
 import org.slf4j.LoggerFactory
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -114,6 +115,7 @@ class SmsOtpService(
     }
 
     @Scheduled(fixedRate = 3600000)
+    @SchedulerLock(name = "sms-otp-cleanup", lockAtLeastFor = "PT20S")
     @Transactional
     fun cleanupExpired() {
         repo.deleteExpired(OffsetDateTime.now())

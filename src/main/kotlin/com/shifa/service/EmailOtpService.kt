@@ -3,6 +3,7 @@ package com.shifa.service
 import com.shifa.domain.EmailVerificationCode
 import com.shifa.repo.EmailVerificationCodeRepository
 import org.slf4j.LoggerFactory
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -112,6 +113,7 @@ class EmailOtpService(
     }
 
     @Scheduled(fixedRate = 3600000) // every hour
+    @SchedulerLock(name = "email-otp-cleanup", lockAtLeastFor = "PT20S")
     @Transactional
     fun cleanupExpired() {
         repo.deleteExpired(OffsetDateTime.now())

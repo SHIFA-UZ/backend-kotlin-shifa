@@ -11,7 +11,8 @@ import org.springframework.stereotype.Component
 import org.springframework.web.cors.CorsUtils
 import org.springframework.web.filter.OncePerRequestFilter
 import java.time.Duration
-import java.util.concurrent.ConcurrentHashMap
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 import org.slf4j.LoggerFactory
 
 /**
@@ -46,8 +47,8 @@ class RateLimitFilter(
 
     override fun getOrder(): Int = -100 // Run before JWT/auth in security chain
 
-    private val authBuckets = ConcurrentHashMap<String, Bucket>()
-    private val generalBuckets = ConcurrentHashMap<String, Bucket>()
+    private val authBuckets = idleEvictingBuckets()
+    private val generalBuckets = idleEvictingBuckets()
 
     private fun clientKey(request: HttpServletRequest): String =
         clientKey(request.getHeader("X-Forwarded-For"), request.remoteAddr, trustedProxyHops)
@@ -56,6 +57,10 @@ class RateLimitFilter(
         if (path.isNullOrBlank()) return false
         return path.startsWith("/api/auth/")
     }
+
+    /** Buckets of clients idle for an hour are dropped, so the map cannot grow without bound (roadmap 2.6). */
+    private fun idleEvictingBuckets(): Cache<String, Bucket> =
+        Caffeine.newBuilder().expireAfterAccess(Duration.ofHours(1)).maximumSize(100_000).build()
 
     private fun createBucket(requestsPerMin: Int): Bucket {
         val n = requestsPerMin.toLong()
@@ -67,7 +72,7 @@ class RateLimitFilter(
     private fun bucketFor(key: String, auth: Boolean): Bucket {
         val map = if (auth) authBuckets else generalBuckets
         val limit = if (auth) authLimitPerMin else generalLimitPerMin
-        return map.getOrPut(key) { createBucket(limit) }
+        return map.get(key) { createBucket(limit) }
     }
 
     override fun shouldNotFilter(request: HttpServletRequest): Boolean =

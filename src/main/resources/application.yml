@@ -22,6 +22,8 @@ spring:
     properties:
       hibernate:
         format_sql: true
+        # Loads lazy to-one/to-many relations of a result list in batches of 50 instead of one query each (P4).
+        default_batch_fetch_size: 50
     open-in-view: false  # same as prod, so lazy-loading mistakes show up locally
 
   flyway:
@@ -60,12 +62,18 @@ logging:
     org.springframework.security: DEBUG
     com.shifa.security.JwtAuthFilter: DEBUG
     com.shifa: DEBUG
-  file:
-    name: shifa-backend.log
+  pattern:
+    # Request id (X-Request-Id response header, shared/RequestIdFilter) next to the level on every line.
+    level: "%5p [rid=%X{requestId:-}]"
 
 server:
   # Use PORT on Railway (or SERVER_PORT), default 8080 for local
   port: ${PORT:${SERVER_PORT:8080}}
+  # Let in-flight requests finish during a deploy (up to the phase timeout below) instead of cutting them
+  # at once; long SSE streams can still be cut after that window (roadmap 2.4).
+  shutdown: graceful
+
+spring.lifecycle.timeout-per-shutdown-phase: 30s
 
 # OpenAPI: sorted output so docs/api/openapi.json (the committed contract, see ApplicationContextTest) diffs cleanly.
 springdoc:

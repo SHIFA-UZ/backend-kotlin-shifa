@@ -1,6 +1,7 @@
 package com.shifa.service
 
 import org.slf4j.LoggerFactory
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 
@@ -16,6 +17,7 @@ class ReminderNotificationScheduler(
      * cannot pile up back-to-back and saturate CPU.
      */
     @Scheduled(fixedDelay = 60_000)
+    @SchedulerLock(name = "reminder-notifications", lockAtLeastFor = "PT20S")
     fun runReminders() {
         val runStart = System.nanoTime()
         runStep("task reminders") { reminderNotificationService.sendTaskReminders() }

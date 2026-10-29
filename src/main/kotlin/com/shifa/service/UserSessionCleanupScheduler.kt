@@ -2,6 +2,7 @@ package com.shifa.service
 
 import com.shifa.repo.UserSessionRepository
 import org.slf4j.LoggerFactory
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
@@ -18,6 +19,7 @@ class UserSessionCleanupScheduler(
     private val log = LoggerFactory.getLogger(javaClass)
 
     @Scheduled(fixedRate = 3_600_000)
+    @SchedulerLock(name = "user-session-cleanup", lockAtLeastFor = "PT20S")
     @Transactional
     fun cleanupExpiredSessions() {
         val now = OffsetDateTime.now()

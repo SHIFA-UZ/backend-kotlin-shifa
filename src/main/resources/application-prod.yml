@@ -13,8 +13,9 @@ spring:
     
     # Connection pooling for better performance
     hikari:
-      maximum-pool-size: 20
-      minimum-idle: 5
+      # Two instances overlap during a deploy and must fit Railway Postgres together (roadmap 2.8).
+      maximum-pool-size: 15
+      minimum-idle: 2
       connection-timeout: 30000
       idle-timeout: 600000
       max-lifetime: 1800000
@@ -69,17 +70,14 @@ logging:
     org.springframework.security: WARN  # Less verbose in production
     org.hibernate: WARN
     org.apache.tomcat: WARN  # Reduce Tomcat logging
-  file:
-    name: ${LOG_FILE_PATH:./logs/shifa-backend.log}
-    max-size: 10MB
-    max-history: 10  # Reduced from 30 to save memory
+  # stdout only: Railway captures it; a file inside the container is lost on redeploy and costs disk.
 
 server:
   # Railway uses PORT environment variable, fallback to SERVER_PORT or 8080
   port: ${PORT:${SERVER_PORT:8080}}
   tomcat:
     threads:
-      max: 300
+      max: 100  # I/O-bound on a 15-connection pool; 1 MB stack per thread (roadmap 2.8)
   # Production security headers
   error:
     include-message: never
