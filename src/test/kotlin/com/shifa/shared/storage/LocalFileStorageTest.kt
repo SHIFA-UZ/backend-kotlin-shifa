@@ -45,6 +45,24 @@ class LocalFileStorageTest {
     }
 }
 
+class LocalFileStorageMissingRootTest {
+    @TempDir
+    lateinit var parent: Path
+
+    @Test
+    fun `a root that disappeared makes keys absent and writes recreate it`() {
+        val root = parent.resolve("images")
+        val s = LocalFileStorage(root)
+        java.nio.file.Files.delete(root)
+        assertNull(s.open("doctors/a.jpg"))
+        assertNull(s.head("doctors/a.jpg"))
+        assertTrue(s.delete("doctors/a.jpg"))
+        assertEquals(emptyList<StoredObject>(), s.list("").toList())
+        s.put("doctors/a.jpg", "x".byteInputStream(), 1, null)
+        assertEquals(StoredObject("doctors/a.jpg", 1), s.head("doctors/a.jpg"))
+    }
+}
+
 class LocalFileStorageSymlinkTest {
     @TempDir
     lateinit var root: Path

@@ -14,6 +14,16 @@ interface FileStorage {
     /** Stores [content] under [key], replacing an existing object. */
     fun put(key: String, content: InputStream, size: Long, contentType: String?)
 
+    /**
+     * Stores [content] only if nothing is under [key] yet; false when something was. Atomic on the bucket
+     * (conditional write); the directory implementation checks then writes, which is enough for its local uses.
+     */
+    fun putIfAbsent(key: String, content: InputStream, size: Long, contentType: String?): Boolean {
+        if (head(key) != null) return false
+        put(key, content, size, contentType)
+        return true
+    }
+
     /** The stored object, or null when there is none. For a bucket the resource can be read once. */
     fun open(key: String): Resource?
 

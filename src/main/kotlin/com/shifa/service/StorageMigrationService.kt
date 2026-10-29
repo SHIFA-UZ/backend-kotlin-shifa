@@ -94,15 +94,13 @@ class StorageMigrationService(app: AppProperties, private val s3: ObjectProvider
         return try {
             val existing = target.head(key)
             when {
-                existing == null -> {
-                    if (!dryRun) copy(source, target, obj.key, key, obj.size)
+                existing == null && (dryRun || copy(source, target, obj.key, key, obj.size)) ->
                     scanned.copy(copied = scanned.copied + 1, bytes = scanned.bytes + obj.size)
-                }
-                existing.size == obj.size -> scanned.copy(skipped = scanned.skipped + 1)
+                existing != null && existing.size == obj.size -> scanned.copy(skipped = scanned.skipped + 1)
                 else -> {
                     log.warn(
-                        "Storage migration: {} differs in the bucket ({} vs {} bytes); bucket copy kept",
-                        key.substringBeforeLast('/', ""), existing.size, obj.size,
+                        "Storage migration: {} already differs in the bucket ({} vs {} bytes); bucket copy kept",
+                        key.substringBeforeLast('/', ""), existing?.size ?: "concurrent upload", obj.size,
                     )
                     scanned.copy(conflicts = scanned.conflicts + 1)
                 }
@@ -113,17 +111,21 @@ class StorageMigrationService(app: AppProperties, private val s3: ObjectProvider
         }
     }
 
-    private fun copy(source: FileStorage, target: FileStorage, sourceKey: String, targetKey: String, size: Long) {
+    /** False when the bucket got the key from someone else first (conditional write refused). */
+    private fun copy(source: FileStorage, target: FileStorage, sourceKey: String, targetKey: String, size: Long): Boolean {
         val resource = checkNotNull(source.open(sourceKey)) { "vanished before copy" }
         val contentType = MediaTypeFactory.getMediaType(targetKey.substringAfterLast('/')).map { it.toString() }.orElse(null)
-        resource.inputStream.use { target.put(targetKey, it, size, contentType) }
+        val written = resource.inputStream.use { target.putIfAbsent(targetKey, it, size, contentType) }
+        if (!written) return false
         if (source.head(sourceKey) == null) {
-            // Deleted on the volume while we were copying (FallbackFileStorage deletes both sides): do not resurrect it.
+            // Deleted on the volume while we were copying (FallbackFileStorage deletes the volume copy first): do not
+            // resurrect it. ponytail: a replacement uploaded in this same instant would be lost too; the job runs once.
             target.delete(targetKey)
             error("deleted during copy; bucket copy removed again")
         }
         val stored = checkNotNull(target.head(targetKey)) { "not found after upload" }
         check(stored.size == size) { "size mismatch after upload: ${stored.size} != $size" }
+        return true
     }
 
     @PreDestroy

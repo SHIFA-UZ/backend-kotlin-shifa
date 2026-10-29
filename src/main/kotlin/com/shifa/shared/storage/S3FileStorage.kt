@@ -11,20 +11,34 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException
 import software.amazon.awssdk.services.s3.model.PutObjectRequest
+import software.amazon.awssdk.services.s3.model.S3Exception
 import java.io.InputStream
 
 /** Objects in one S3-compatible bucket (Railway Buckets run on Tigris; the API is plain S3). */
 class S3FileStorage(private val client: S3Client, private val bucket: String) : FileStorage {
 
+    private companion object {
+        const val HTTP_PRECONDITION_FAILED = 412
+    }
+
     override fun put(key: String, content: InputStream, size: Long, contentType: String?) {
-        val request = PutObjectRequest.builder()
+        client.putObject(putRequest(key, size, contentType).build(), RequestBody.fromInputStream(content, size))
+    }
+
+    /** `If-None-Match: *`: the store refuses with 412 when the key exists, so two writers cannot race. */
+    override fun putIfAbsent(key: String, content: InputStream, size: Long, contentType: String?): Boolean = try {
+        client.putObject(putRequest(key, size, contentType).ifNoneMatch("*").build(), RequestBody.fromInputStream(content, size))
+        true
+    } catch (e: S3Exception) {
+        if (e.statusCode() == HTTP_PRECONDITION_FAILED) false else throw e
+    }
+
+    private fun putRequest(key: String, size: Long, contentType: String?): PutObjectRequest.Builder =
+        PutObjectRequest.builder()
             .bucket(bucket)
             .key(StorageKeys.require(key))
             .contentLength(size)
             .apply { if (!contentType.isNullOrBlank()) contentType(contentType) }
-            .build()
-        client.putObject(request, RequestBody.fromInputStream(content, size))
-    }
 
     /** HEAD now, GET only when a reader asks for the stream: a caller that gives up early holds no connection. */
     override fun open(key: String): Resource? = headResponse(key)?.let { S3ObjectResource(client, bucket, key, it) }

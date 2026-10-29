@@ -14,13 +14,16 @@ import kotlin.streams.asSequence
 class LocalFileStorage(root: Path) : FileStorage {
     private val root: Path = Files.createDirectories(root.toAbsolutePath().normalize()).toRealPath()
 
-    /** Lexically inside the root, and, once something exists there, also physically (no symlink pointing outside). */
+    /**
+     * Lexically inside the root, and, once something exists there, also physically (no symlink pointing outside).
+     * A root that disappeared at runtime (an unmounted volume) makes every key simply absent.
+     */
     private fun path(key: String): Path {
         val resolved = root.resolve(StorageKeys.require(key)).normalize()
         require(resolved.startsWith(root)) { "Invalid storage key" }
         var existing = resolved
-        while (!Files.exists(existing)) existing = existing.parent
-        require(existing.toRealPath().startsWith(root)) { "Invalid storage key" }
+        while (existing != root && !Files.exists(existing)) existing = existing.parent
+        if (Files.exists(existing)) require(existing.toRealPath().startsWith(root)) { "Invalid storage key" }
         return resolved
     }
 
@@ -39,14 +42,12 @@ class LocalFileStorage(root: Path) : FileStorage {
     override fun list(prefix: String): Sequence<StoredObject> {
         val start = if (prefix.isEmpty()) root else path(prefix.removeSuffix("/"))
         if (!Files.isDirectory(start)) return emptySequence()
-        return sequence {
-            Files.walk(start).use { walk ->
-                yieldAll(
-                    walk.asSequence()
-                        .filter { it.isRegularFile() }
-                        .map { StoredObject(root.relativize(it).toString().replace('\\', '/'), it.fileSize()) },
-                )
-            }
-        }
+        // Materialised so the directory stream is always closed; a few thousand entries at most.
+        return Files.walk(start).use { walk ->
+            walk.asSequence()
+                .filter { it.isRegularFile() }
+                .map { StoredObject(root.relativize(it).toString().replace('\\', '/'), it.fileSize()) }
+                .toList()
+        }.asSequence()
     }
 }
