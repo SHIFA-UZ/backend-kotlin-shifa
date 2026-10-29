@@ -376,6 +376,19 @@ class PatientController(
         val savedNotif = notifications.save(notif)
         fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
 
+        // The patient gets the cancellation in their own list and as a push too (patient-app ask 7).
+        val patientNotif = notifications.save(
+            Notification(
+                patient = profile,
+                doctor = null,
+                title = "Appointment cancelled",
+                message = "Your appointment with Dr. ${doctor.firstName} ${doctor.lastName} was cancelled.".replace("  ", " "),
+                type = Notification.Type.APPOINTMENT_CANCELLED,
+                appointmentId = appointment.id,
+            ),
+        )
+        fcmService.sendPatientNotificationAfterCommit(profile.fcmToken, patientNotif)
+
         return mapOf("message" to "Appointment cancelled successfully")
     }
 

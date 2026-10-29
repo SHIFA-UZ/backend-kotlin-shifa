@@ -279,6 +279,32 @@ class FcmService(
         }
     }
 
+    /** Patient counterpart of [sendDoctorNotificationAfterCommit]: the push leaves only once the write is committed. */
+    fun sendPatientNotificationAfterCommit(
+        fcmToken: String?,
+        notification: Notification,
+        extraData: Map<String, String> = emptyMap()
+    ) {
+        val deliver = {
+            try {
+                sendPatientNotification(fcmToken, notification, extraData)
+            } catch (e: Exception) {
+                log.warn("FCM after-commit send failed: {}", e.message)
+            }
+        }
+        if (org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+                object : org.springframework.transaction.support.TransactionSynchronization {
+                    override fun afterCommit() {
+                        deliver()
+                    }
+                }
+            )
+        } else {
+            deliver()
+        }
+    }
+
     companion object {
         const val DOCTOR_ANDROID_CHANNEL_ID = "shifa_doctor_channel"
 

@@ -109,7 +109,14 @@ class PatientDocumentService(
             canView = true,
             creatorLabel = creatorLabel,
             category = d.category,
-            isSharedWithTeam = d.isSharedWithTeam
+            isSharedWithTeam = d.isSharedWithTeam,
+            uploadedByPatient = d.uploadedByPatientProfile != null,
+            creatorType = when {
+                d.uploadedByDoctor != null -> "DOCTOR"
+                d.uploadedByPatientProfile != null -> "PATIENT"
+                else -> "UNKNOWN"
+            },
+            appointmentId = d.appointment?.id,
         )
     }
 
@@ -127,7 +134,14 @@ class PatientDocumentService(
             canView = canView,
             creatorLabel = creatorLabel,
             category = d.category,
-            isSharedWithTeam = d.isSharedWithTeam
+            isSharedWithTeam = d.isSharedWithTeam,
+            uploadedByPatient = d.uploadedByPatientProfile != null,
+            creatorType = when {
+                d.uploadedByDoctor != null -> "DOCTOR"
+                d.uploadedByPatientProfile != null -> "PATIENT"
+                else -> "UNKNOWN"
+            },
+            appointmentId = d.appointment?.id,
         )
     }
 

@@ -94,7 +94,10 @@ class RemoteCareTaskController(
         val notesRequired: Boolean,
         val notesLabel: String?,
         val createdAt: String,
-        val progress: TaskProgressDto?
+        val progress: TaskProgressDto?,
+        /** The doctor who assigned the task (patient-app ask 14). */
+        val doctorId: Long? = null,
+        val doctorName: String? = null,
     )
 
     data class TaskProgressDto(
@@ -680,7 +683,9 @@ class RemoteCareTaskController(
             notesRequired = task.notesRequired,
             notesLabel = task.notesLabel,
             createdAt = task.createdAt.toString(),
-            progress = progress
+            progress = progress,
+            doctorId = task.doctor.id,
+            doctorName = "${task.doctor.firstName} ${task.doctor.lastName}".trim().ifEmpty { null },
         )
     }
 

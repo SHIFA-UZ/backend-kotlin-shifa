@@ -5388,6 +5388,10 @@
       },
       "PatientDocumentDto": {
         "properties": {
+          "appointmentId": {
+            "format": "int64",
+            "type": "integer"
+          },
           "canView": {
             "type": "boolean"
           },
@@ -5395,6 +5399,9 @@
             "type": "string"
           },
           "creatorLabel": {
+            "type": "string"
+          },
+          "creatorType": {
             "type": "string"
           },
           "date": {
@@ -5411,6 +5418,9 @@
           "title": {
             "type": "string"
           },
+          "uploadedByPatient": {
+            "type": "boolean"
+          },
           "url": {
             "type": "string"
           }
@@ -5418,10 +5428,12 @@
         "required": [
           "canView",
           "creatorLabel",
+          "creatorType",
           "date",
           "id",
           "isSharedWithTeam",
-          "title"
+          "title",
+          "uploadedByPatient"
         ],
         "type": "object"
       },
@@ -6122,6 +6134,9 @@
             "type": "string"
           },
           "currency": {
+            "type": "string"
+          },
+          "failureReason": {
             "type": "string"
           },
           "gateway": {
@@ -7225,6 +7240,13 @@
             "type": "array"
           },
           "description": {
+            "type": "string"
+          },
+          "doctorId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "doctorName": {
             "type": "string"
           },
           "durationDays": {
@@ -17455,7 +17477,6 @@
             "name": "radiusKm",
             "required": false,
             "schema": {
-              "default": 50.0,
               "format": "double",
               "type": "number"
             }

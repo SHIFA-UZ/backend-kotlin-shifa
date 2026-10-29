@@ -184,7 +184,7 @@ class PublicDoctorController(
         @RequestParam(required = false) verifiedOnly: Boolean?,
         @RequestParam(required = false) latitude: Double?,
         @RequestParam(required = false) longitude: Double?,
-        @RequestParam(required = false, defaultValue = "50") radiusKm: Double?,
+        @RequestParam(required = false) radiusKm: Double?,
         @RequestParam(required = false) sortBy: String?,
         @RequestParam(required = false, defaultValue = "false") includeNextAvailable: Boolean?,
         @RequestParam(required = false, defaultValue = "1") page: Int?,
@@ -232,8 +232,14 @@ class PublicDoctorController(
 
         var filtered = enriched
 
-        if (latitude != null && longitude != null && radiusKm != null) {
-            filtered = filtered.filter { (_, dist, _) -> dist == null || dist <= radiusKm }
+        if (latitude != null && longitude != null) {
+            filtered = if (radiusKm != null) {
+                // Explicit radius (the KMP app sends it): doctors without coordinates cannot be inside it.
+                filtered.filter { (_, dist, _) -> dist != null && dist <= radiusKm }
+            } else {
+                // No radius sent: today's result set, 50 km with unlocated doctors kept.
+                filtered.filter { (_, dist, _) -> dist == null || dist <= DEFAULT_RADIUS_KM }
+            }
         }
 
         if (minRating != null) {
@@ -443,6 +449,7 @@ class PublicDoctorController(
     }
 
     companion object {
+        const val DEFAULT_RADIUS_KM = 50.0 // applied only when the client sends no radiusKm
         private const val DEFAULT_PAGE_SIZE = 20
         private const val MAX_PAGE_SIZE = 50
         private const val LIST_AVAILABILITY_LOOKAHEAD_DAYS = 21

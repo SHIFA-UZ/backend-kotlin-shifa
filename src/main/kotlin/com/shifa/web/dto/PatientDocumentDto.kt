@@ -24,5 +24,11 @@ data class PatientDocumentDto(
      * (no access request required). Mirrors the backend persisted flag and
      * the canonical visibility rule.
      */
-    val isSharedWithTeam: Boolean = false
+    val isSharedWithTeam: Boolean = false,
+    /** True when the patient uploaded this document themselves (patient-app ask 5). */
+    val uploadedByPatient: Boolean = false,
+    /** "PATIENT", "DOCTOR" or "UNKNOWN": machine-readable form of [creatorLabel]. */
+    val creatorType: String = "UNKNOWN",
+    /** The visit this document belongs to, when it was attached to one (patient-app ask 15). */
+    val appointmentId: Long? = null,
 )

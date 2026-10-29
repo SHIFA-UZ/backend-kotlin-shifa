@@ -36,7 +36,9 @@ class PaymentController(
         val gateway: String,
         val amountMinor: Long,
         val currency: String,
-        val checkoutUrl: String?
+        val checkoutUrl: String?,
+        /** Why the payment failed, was cancelled or expired; null while open or paid (patient-app ask 12). */
+        val failureReason: String? = null,
     )
 
     @GetMapping("/checkout/success", produces = [MediaType.TEXT_HTML_VALUE])
@@ -123,7 +125,8 @@ class PaymentController(
             gateway = payment.gateway.name,
             amountMinor = payment.amountMinor,
             currency = payment.currency,
-            checkoutUrl = payment.gatewayCheckoutUrl
+            checkoutUrl = payment.gatewayCheckoutUrl,
+            failureReason = payment.failureReason,
         )
     }
 }
