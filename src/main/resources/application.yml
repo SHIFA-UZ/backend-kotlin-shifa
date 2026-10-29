@@ -131,6 +131,8 @@ app:
   # For exception messages in local 500 bodies, copy application-local.example.yml to application-local.yml.
   expose-error-details: false
   enforce-https: false
+  # Deterministic test data at startup (devseed/DevSeedRunner). Only application-dev.yml and local overrides turn it on.
+  dev-seed: false
 
 # OpenAI configuration
 # In development, these can be set via environment variables
