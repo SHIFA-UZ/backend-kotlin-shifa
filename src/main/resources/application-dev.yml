@@ -10,6 +10,9 @@ app:
     # Same value as production on purpose. Re-run the forged-header check before changing it.
     trusted-proxy-hops: 0
 
+  # Test accounts for the app teams: see devseed/DevSeedRunner (seed.doctor1@shifa.dev etc., password Dev12345!).
+  dev-seed: true
+
 # API docs stay available on dev for the app teams.
 springdoc:
   api-docs:

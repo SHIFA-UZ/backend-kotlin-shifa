@@ -4,3 +4,5 @@
 app:
   # Exception messages in 500 bodies while developing. Never set this in a deployed profile.
   expose-error-details: true
+  # Same test data as the development environment (seed.doctor1@shifa.dev / Dev12345!).
+  dev-seed: true
