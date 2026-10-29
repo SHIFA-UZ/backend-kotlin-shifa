@@ -28,11 +28,13 @@ class PatientFormService(
     private val dentalChartKeyValidator: DentalChartKeyValidator,
 ) {
 
+    @Transactional(readOnly = true)
     fun list(patientId: Long): List<PatientFormDto> {
         val found = forms.findByPatientIdOrderByDateDesc(patientId)
         return found.map { toDto(it) }
     }
 
+    @Transactional(readOnly = true)
     fun getById(formId: Long): PatientFormDto {
         val form = forms.findById(formId)
             .orElseThrow { IllegalArgumentException("Form not found: $formId") }

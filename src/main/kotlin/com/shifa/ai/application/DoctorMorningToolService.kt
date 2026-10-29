@@ -62,7 +62,7 @@ class DoctorMorningToolService(
     private val json = jacksonObjectMapper()
 
     /** Tools whose payloads should become UI cards on the client. */
-    fun isCardTool(toolName: String): Boolean = toolName in CARD_TOOLS
+    internal fun isCardTool(toolName: String): Boolean = toolName in CARD_TOOLS
 
     @Transactional
     fun execute(
@@ -897,6 +897,7 @@ class DoctorMorningToolService(
         )
     }
 
+    @Transactional(readOnly = true)
     fun getClinicPatterns(doctor: DoctorProfile): Map<String, Any?> {
         val patterns = clinicVisitPatternRepository.findByDoctorIdOrderByOccurrenceCountDesc(doctor.id).take(8)
         return mapOf(

@@ -42,18 +42,22 @@ class AuditService(
         auditLogRepository.save(log)
     }
     
+    @Transactional(readOnly = true)
     fun getAdminActivity(adminUserId: Long, pageable: Pageable): Page<AuditLog> {
         return auditLogRepository.findByAdminUserIdOrderByCreatedAtDesc(adminUserId, pageable)
     }
     
+    @Transactional(readOnly = true)
     fun getEntityActivity(entityType: String, entityId: Long, pageable: Pageable): Page<AuditLog> {
         return auditLogRepository.findByEntity(entityType, entityId, pageable)
     }
     
+    @Transactional(readOnly = true)
     fun getActivityByType(actionType: String, since: OffsetDateTime, pageable: Pageable): Page<AuditLog> {
         return auditLogRepository.findByActionTypeSince(actionType, since, pageable)
     }
     
+    @Transactional(readOnly = true)
     fun getActivityBetween(start: OffsetDateTime, end: OffsetDateTime, pageable: Pageable): Page<AuditLog> {
         return auditLogRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end, pageable)
     }

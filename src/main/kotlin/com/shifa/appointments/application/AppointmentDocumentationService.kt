@@ -42,6 +42,7 @@ class AppointmentDocumentationService(
         val hasScribeNote: Boolean,
     )
 
+    @Transactional(readOnly = true)
     fun statusFor(appointmentId: Long): ScribeStatus {
         val notes = consultationNoteRepository.findByAppointmentIdOrderByCreatedAtAsc(appointmentId)
         val hasScribeNote = notes.any { it.source == AppointmentDocumentationComposer.SOURCE_AI }

@@ -110,7 +110,7 @@ class EmailOtpService(
         return code
     }
 
-    fun clear(email: String) {
+    internal fun clear(email: String) {
         // No-op for DB-backed; codes expire naturally or get verified
     }
 

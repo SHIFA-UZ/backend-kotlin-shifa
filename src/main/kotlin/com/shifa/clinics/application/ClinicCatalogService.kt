@@ -18,9 +18,11 @@ class ClinicCatalogService(
     private val doctorServices: com.shifa.doctors.application.DoctorServices,
     private val prices: com.shifa.doctors.application.DoctorServicePrices,
 ) {
+    @Transactional(readOnly = true)
     fun resolvePracticeDoctorIds(clinicId: Long): Set<Long> =
         doctors.findAllByPracticeClinic_Id(clinicId).mapNotNull { it.id }.toSet()
 
+    @Transactional(readOnly = true)
     fun validateAssignment(
         clinicId: Long,
         appliesToAllDoctors: Boolean,
@@ -63,6 +65,7 @@ class ClinicCatalogService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun explicitAssignmentIds(catalogItemId: Long): List<Long> =
         catalogDoctorLinks.findByCatalogItem_Id(catalogItemId).mapNotNull { it.doctor.id }
 

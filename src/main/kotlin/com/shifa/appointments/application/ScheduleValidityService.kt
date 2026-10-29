@@ -5,6 +5,7 @@ import com.shifa.appointments.infrastructure.ScheduleValidityPeriodRepository
 import com.shifa.doctors.domain.DoctorProfile
 import java.time.LocalDate
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * Centralizes logic for multiple schedule validity periods per doctor.
@@ -21,6 +22,7 @@ class ScheduleValidityService(
      * If the new table is empty but the doctor has legacy scheduleValidFrom/Until, migrates them
      * into one row and returns it.
      */
+    @Transactional
     fun getPeriods(doctor: DoctorProfile): List<ScheduleValidityPeriod> {
         migrateLegacyIfNeeded(doctor)
         return periodRepo.findByDoctorIdOrderByValidFromAsc(doctor.id)
@@ -29,6 +31,7 @@ class ScheduleValidityService(
     /**
      * Returns true if the given date falls within any validity period for the doctor.
      */
+    @Transactional
     fun isDateWithinAnyPeriod(doctor: DoctorProfile, date: LocalDate): Boolean {
         return getPeriods(doctor).any { it.contains(date) }
     }
@@ -37,6 +40,7 @@ class ScheduleValidityService(
      * If the doctor has no rows in schedule_validity_periods but has legacy scheduleValidFrom/Until,
      * insert one period and clear the legacy columns.
      */
+    @Transactional
     fun migrateLegacyIfNeeded(doctor: DoctorProfile) {
         if (periodRepo.findByDoctorIdOrderByValidFromAsc(doctor.id).isNotEmpty()) return
         val from = doctor.scheduleValidFrom

@@ -72,6 +72,7 @@ class UserManagementService(
      * When search is not blank, searches phone, email, username, and name (doctor/patient/admin profile).
      * Uses JPQL only (no native SQL) so search is reliable across databases.
      */
+    @Transactional(readOnly = true)
     fun listUsers(
         role: Role? = null,
         enabled: Boolean? = null,
@@ -99,6 +100,7 @@ class UserManagementService(
     }
 
     /** Aggregate metrics for the admin User Management dashboard. */
+    @Transactional(readOnly = true)
     fun getUserManagementStats(): Map<String, Any> {
         val totalUsers = userRepository.count()
         val totalDoctors = userRepository.countByRole(Role.DOCTOR)
@@ -143,6 +145,7 @@ class UserManagementService(
         )
     }
 
+    @Transactional(readOnly = true)
     fun isDeviceRegistered(user: User): Boolean {
         return when (user.role) {
             Role.PATIENT -> patientProfileRepository.findByUserId(user.id)
@@ -155,6 +158,7 @@ class UserManagementService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun hasProfile(user: User): Boolean {
         return when (user.role) {
             Role.PATIENT -> patientProfileRepository.findByUserId(user.id).isPresent
@@ -229,6 +233,7 @@ class UserManagementService(
     /**
      * Get user by ID
      */
+    @Transactional(readOnly = true)
     fun getUserById(userId: Long): User {
         return userRepository.findById(userId)
             .orElseThrow { NoSuchElementException("User not found: $userId") }
@@ -310,6 +315,7 @@ class UserManagementService(
     /**
      * Get user's active sessions
      */
+    @Transactional(readOnly = true)
     fun getActiveSessions(userId: Long): List<com.shifa.auth.domain.UserSession> {
         return userSessionRepository.findActiveSessionsByUserId(userId, OffsetDateTime.now())
     }
@@ -317,6 +323,7 @@ class UserManagementService(
     /**
      * Get user's session history
      */
+    @Transactional(readOnly = true)
     fun getSessionHistory(userId: Long): List<com.shifa.auth.domain.UserSession> {
         return userSessionRepository.findByUserIdOrderByCreatedAtDesc(userId)
     }
@@ -334,6 +341,7 @@ class UserManagementService(
     /**
      * Get user profile info (doctor or patient)
      */
+    @Transactional(readOnly = true)
     fun getUserProfileInfo(userId: Long): Map<String, Any> {
         val user = getUserById(userId)
         val info = mutableMapOf<String, Any>(

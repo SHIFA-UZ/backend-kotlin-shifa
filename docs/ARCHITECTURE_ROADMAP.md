@@ -469,6 +469,21 @@ that called `appointments.findById(...)` still does, through a same-named door; 
 land. The step-5 items (auth split, P5 rewrites for doctor search and the conversation list, the `EXCLUDE` constraint,
 item 14, the AI split, `admin_audit_log`, items 1/2/5/6/12/13/15) are separate PRs as the recipe says.
 
+**Phase 6, P3 (branch `refactor/phase6-transactions`):** `ArchitectureTest.applicationServicesAreTransactional` (frozen)
+requires every `@Service` in an `application` package that uses infrastructure classes to be `@Transactional` on the class
+or on each public method. 93 read methods got `@Transactional(readOnly = true)`, 11 write methods `@Transactional` (among
+them `ScheduleValidityService`, whose reads migrate legacy validity periods on first use, and `PatientDaySlotsService`,
+which calls it and therefore must not be read-only), and 30 pure helpers (`lineTotal`, `isVideo`, `toDto`,
+`validatePercent`, ...) became `internal`: they need no transaction and the rule does not count them (Kotlin mangles the
+JVM name). Spring sets the JDBC connection read-only for `readOnly = true`, so Postgres rejects a write reached from such
+a method; the plan was checked for writes reachable through private helpers and through other application services.
+The frozen list keeps 358 entries on purpose: the 49 Phase 5 doors (repository mirrors, transactional through Spring
+Data, gone with step 3 proper) and the methods that call external gateways or manage their own transactions (AI
+generation and RAG indexing, OTP sending, speech, `ClinicFinanceAuditService.log` with its REQUIRES_NEW template,
+`IntelligenceBookingWorkflowService.confirm`/`confirmReschedule`, which record the FAILED outcome after a rolled-back
+booking). Pre-existing read-only methods that reach a write through another service (`MessageService.listConversations`
+→ `findOrCreateConversation`, `DoctorMorningToolService.listFreeSlots` → `ScheduleValidityService`) are untouched and
+belong to the P5 rewrites.
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),

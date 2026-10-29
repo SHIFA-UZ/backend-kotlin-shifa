@@ -46,11 +46,13 @@ class TreatmentPlanFulfillmentService(
         val toothMatch: Boolean,
     )
 
+    @Transactional(readOnly = true)
     fun isAppointmentLinkedToComprehensivePlan(appointmentId: Long): Boolean {
         if (linesRepo.existsComprehensivePlanLineForAppointment(appointmentId)) return true
         return linkRepo.existsComprehensiveLinkForAppointment(appointmentId)
     }
 
+    @Transactional(readOnly = true)
     fun fulfillmentCandidates(
         principal: Any,
         planId: Long,

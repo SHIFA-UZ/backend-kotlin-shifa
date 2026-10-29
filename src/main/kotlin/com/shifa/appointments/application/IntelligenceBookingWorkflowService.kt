@@ -27,28 +27,31 @@ class IntelligenceBookingWorkflowService(
     private val objectMapper: ObjectMapper,
     private val clock: Clock,
 ) {
+    @Transactional(readOnly = true)
     fun active(doctorId: Long, conversationId: String?): IntelligenceBookingWorkflow? {
         val conversation = validConversationId(conversationId) ?: return null
         return repository.findActive(doctorId, conversation, clock.instant())
     }
 
+    @Transactional(readOnly = true)
     fun activeOpen(doctorId: Long, conversationId: String?): IntelligenceBookingWorkflow? {
         val conversation = validConversationId(conversationId) ?: return null
         return repository.findActive(doctorId, openConversation(conversation), clock.instant())
     }
 
+    @Transactional(readOnly = true)
     fun activeReschedule(doctorId: Long, conversationId: String?): IntelligenceBookingWorkflow? {
         val conversation = validConversationId(conversationId) ?: return null
         return repository.findActive(doctorId, rescheduleConversation(conversation), clock.instant())
     }
 
-    fun rescheduleContextLine(workflow: IntelligenceBookingWorkflow): String =
+    internal fun rescheduleContextLine(workflow: IntelligenceBookingWorkflow): String =
         "Active RESCHEDULE proposal ${workflow.id}: appointmentId=${workflow.appointmentId}, " +
             "newDate=${workflow.appointmentDate}, newTime=${workflow.appointmentTime}, status=${workflow.status}. " +
             "A confirmation or rejection applies only to this exact proposal. Call propose_reschedule with " +
             "turnType CONFIRM or REJECT. Do not select another appointment from an affirmative answer."
 
-    fun contextLine(workflow: IntelligenceBookingWorkflow): String =
+    internal fun contextLine(workflow: IntelligenceBookingWorkflow): String =
         "Active BOOK workflow ${workflow.id}: status=${workflow.status}, " +
             "patient=${workflow.patientName ?: "missing"} (trusted patientId=${workflow.patientId ?: "missing"}), " +
             "date=${workflow.appointmentDate ?: "missing"}, time=${workflow.appointmentTime ?: "missing"}. " +
@@ -57,7 +60,7 @@ class IntelligenceBookingWorkflowService(
             "corrections, confirmation, rejection, or abandonment. A read-only question may use its normal read tool " +
             "without changing this workflow. Never send the trusted patientId as a model-generated slot."
 
-    fun pendingPatientCandidates(workflow: IntelligenceBookingWorkflow): List<PendingPatientCandidate> {
+    internal fun pendingPatientCandidates(workflow: IntelligenceBookingWorkflow): List<PendingPatientCandidate> {
         if (workflow.pendingQuestionType == null || workflow.pendingQuestionJson.isNullOrBlank()) return emptyList()
         return runCatching {
             objectMapper.readValue(
@@ -82,12 +85,14 @@ class IntelligenceBookingWorkflowService(
         time = null,
     )
 
+    @Transactional
     fun resolvePendingOpenPatient(
         doctorId: Long,
         conversationId: String,
         patientId: Long,
     ): IntelligenceBookingWorkflow? = resolvePendingPatient(doctorId, openConversation(conversationId), patientId)
 
+    @Transactional
     fun clearPendingOpenPatient(
         doctorId: Long,
         conversationId: String,

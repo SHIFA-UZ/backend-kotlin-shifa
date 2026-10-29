@@ -7,6 +7,7 @@ import com.shifa.ai.clinicalengine.infrastructure.ClinicalOcclusionChipRepositor
 import com.shifa.ai.clinicalengine.api.ClinicalChipSelectionDto
 import com.shifa.ai.clinicalengine.api.ClinicalSynthesizeResponseDto
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class ClinicalSynthesisService(
@@ -17,6 +18,7 @@ class ClinicalSynthesisService(
     private val catalogCache: ClinicalEngineCatalogCache,
 ) {
 
+    @Transactional(readOnly = true)
     fun synthesize(locale: String, selections: List<ClinicalChipSelectionDto>): ClinicalSynthesizeResponseDto {
         val normalizedLocale = normalizeLocale(locale)
         val chipIds = selections.map { it.chipId }.filter { !ClinicalEngineCatalogCache.isSharedChipId(it) }.toSet()

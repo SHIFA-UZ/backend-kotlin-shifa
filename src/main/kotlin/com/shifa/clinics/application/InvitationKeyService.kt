@@ -114,26 +114,32 @@ class InvitationKeyService(
         return invitationKeyRepository.save(key)
     }
     
+    @Transactional(readOnly = true)
     fun findById(keyId: Long): Optional<InvitationKey> {
         return invitationKeyRepository.findById(keyId)
     }
     
+    @Transactional(readOnly = true)
     fun findByKeyCode(keyCode: String): InvitationKey? {
         return invitationKeyRepository.findByKeyCode(keyCode)
     }
     
+    @Transactional(readOnly = true)
     fun findAllActive(pageable: Pageable): Page<InvitationKey> {
         return invitationKeyRepository.findActiveKeys(OffsetDateTime.now(), pageable)
     }
     
+    @Transactional(readOnly = true)
     fun findAllConsumed(consumed: Boolean, pageable: Pageable): Page<InvitationKey> {
         return invitationKeyRepository.findByConsumedOrderByCreatedAtDesc(consumed, pageable)
     }
     
+    @Transactional(readOnly = true)
     fun findByPurpose(purpose: String, pageable: Pageable): Page<InvitationKey> {
         return invitationKeyRepository.findByPurpose(purpose, pageable)
     }
     
+    @Transactional(readOnly = true)
     fun findExpiredUnused(pageable: Pageable): Page<InvitationKey> {
         return invitationKeyRepository.findExpiredUnusedKeys(OffsetDateTime.now(), pageable)
     }

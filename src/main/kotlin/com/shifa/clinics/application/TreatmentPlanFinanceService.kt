@@ -38,6 +38,7 @@ class TreatmentPlanFinanceService(
         (line.unitPriceMinor * line.quantity - line.discountMinor).coerceAtLeast(0)
 
     /** Live totals from lines + payments (same formula as treatment-plan summaries). */
+    @Transactional(readOnly = true)
     fun planLiveTotals(planId: Long): PlanLiveTotals {
         val lines = linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(planId)
         val estimated = lines.sumOf { lineTotal(it) }
@@ -188,6 +189,7 @@ class TreatmentPlanFinanceService(
      * Creates a single ISSUED invoice for a newly created installment schedule
      * unless one already exists with the marker `Installment plan #…` (idempotent).
      */
+    @Transactional
     fun ensureInstallmentInvoice(
         treatmentPlan: TreatmentPlan,
         installmentPlanId: Long,

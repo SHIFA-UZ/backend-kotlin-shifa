@@ -6,6 +6,7 @@ import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
+import org.springframework.transaction.annotation.Transactional
 
 
 @Service
@@ -15,7 +16,7 @@ class DoctorRevenueShareService(
     private val doctors: DoctorProfileRepository,
 ) {
 
-    fun validatePercent(percent: Int?) {
+    internal fun validatePercent(percent: Int?) {
         if (percent == null) return
         if (percent !in 0..100) {
             throw ResponseStatusException(
@@ -25,7 +26,7 @@ class DoctorRevenueShareService(
         }
     }
 
-    fun resolveEffectivePercent(
+    internal fun resolveEffectivePercent(
         membershipOverride: Int?,
         clinicDefault: Int?,
     ): Int? = membershipOverride ?: clinicDefault
@@ -34,6 +35,7 @@ class DoctorRevenueShareService(
      * Effective doctor share % keyed by doctor profile id for active clinic doctors.
      * Doctors without a configured override or clinic default are omitted.
      */
+    @Transactional(readOnly = true)
     fun loadEffectiveShareByDoctorProfileId(clinicId: Long): Map<Long, Int> {
         val clinic = clinics.findById(clinicId).orElse(null) ?: return emptyMap()
         val default = clinic.defaultDoctorRevenueSharePercent
@@ -51,7 +53,7 @@ class DoctorRevenueShareService(
         return map
     }
 
-    fun applySplit(agg: ClinicFinanceLedgerService.DoctorEarningAgg, percent: Int): ClinicFinanceLedgerService.DoctorEarningAgg {
+    internal fun applySplit(agg: ClinicFinanceLedgerService.DoctorEarningAgg, percent: Int): ClinicFinanceLedgerService.DoctorEarningAgg {
         val (doctorGross, clinicGross) = splitAmount(agg.grossMinor, percent)
         val (doctorCollected, clinicCollected) = splitAmount(agg.collectedMinor, percent)
         return agg.copy(
@@ -63,7 +65,7 @@ class DoctorRevenueShareService(
         )
     }
 
-    fun applySplits(
+    internal fun applySplits(
         earnings: List<ClinicFinanceLedgerService.DoctorEarningAgg>,
         shareByDoctor: Map<Long, Int>,
     ): List<ClinicFinanceLedgerService.DoctorEarningAgg> =
@@ -72,6 +74,7 @@ class DoctorRevenueShareService(
             applySplit(agg, percent)
         }
 
+    @Transactional(readOnly = true)
     fun assertMembershipMayHaveRevenueShare(membership: ClinicMembership) {
         val role = membership.membershipRole
         val hasDoctorProfile = membership.doctorProfile?.id != null

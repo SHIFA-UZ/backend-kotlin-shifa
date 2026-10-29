@@ -411,6 +411,7 @@ class PaymentService(
      * True when remaining plan balance still covers [payment.amountMinor]
      * (desk payment may have reduced the balance after checkout was created).
      */
+    @Transactional(readOnly = true)
     fun treatmentPlanAmountStillPayable(payment: Payment): Boolean {
         val planId = payment.treatmentPlan?.id ?: return false
         val remaining = financeService.planLiveTotals(planId).remainingMinor
@@ -654,7 +655,7 @@ class PaymentService(
         // shortcut: provider session is not revoked remotely, upgrade when refunds or session cancel is required
     }
 
-    fun enabledConsultationProviders(): List<com.shifa.payments.domain.PaymentGatewayCode> =
+    internal fun enabledConsultationProviders(): List<com.shifa.payments.domain.PaymentGatewayCode> =
         BookingPaymentPolicy.readyProviders(
             configured = paymentProperties.configuredProviders(),
             clickReady = clickSkipReason() == null,

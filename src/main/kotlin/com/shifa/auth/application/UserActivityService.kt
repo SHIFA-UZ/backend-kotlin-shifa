@@ -35,14 +35,17 @@ class UserActivityService(
         userActivityLogRepository.save(log)
     }
     
+    @Transactional(readOnly = true)
     fun getUserActivity(userId: Long, pageable: Pageable): Page<UserActivityLog> {
         return userActivityLogRepository.findByUserIdOrderByCreatedAtDesc(userId, pageable)
     }
     
+    @Transactional(readOnly = true)
     fun getActivityByType(activityType: String, since: OffsetDateTime, pageable: Pageable): Page<UserActivityLog> {
         return userActivityLogRepository.findByActivityTypeSince(activityType, since, pageable)
     }
     
+    @Transactional(readOnly = true)
     fun getActivityBetween(start: OffsetDateTime, end: OffsetDateTime, pageable: Pageable): Page<UserActivityLog> {
         return userActivityLogRepository.findByCreatedAtBetweenOrderByCreatedAtDesc(start, end, pageable)
     }

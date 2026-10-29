@@ -299,6 +299,7 @@ class MessageService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun searchUsers(doctorUserId: Long, query: String): List<UserSearchResultDto> {
         val results = mutableListOf<UserSearchResultDto>()
 
@@ -343,12 +344,14 @@ class MessageService(
         return results.distinctBy { it.id }
     }
 
+    @Transactional(readOnly = true)
     fun getUnreadCount(doctorUserId: Long): Long {
         return messageRepo.countUnreadMessagesForDoctor(doctorUserId)
     }
 
     // -------------------- Patient-facing methods --------------------
 
+    @Transactional(readOnly = true)
     fun listConversationsForPatient(patientProfileId: Long, patientUserId: Long): List<ConversationDto> {
         val conversations = conversationRepo.findByPatientParticipantIdOrderByLastMessageDesc(patientProfileId)
         return conversations.map { conv ->
@@ -373,6 +376,7 @@ class MessageService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun getConversationWithMessagesForPatient(
         conversationId: Long,
         patientProfileId: Long,
@@ -511,6 +515,7 @@ class MessageService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun searchDoctorsForPatient(query: String): List<UserSearchResultDto> {
         // Use database query instead of loading all doctors into memory
         val doctors = doctorProfileRepo.searchByQuery(query)
@@ -528,6 +533,7 @@ class MessageService(
         }.distinctBy { it.id }
     }
 
+    @Transactional(readOnly = true)
     fun getUnreadCountForPatient(patientProfileId: Long): Long {
         return messageRepo.countUnreadMessagesForPatient(patientProfileId)
     }

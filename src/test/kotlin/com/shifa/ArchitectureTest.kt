@@ -1,12 +1,21 @@
 package com.shifa
 
+import com.tngtech.archunit.base.DescribedPredicate
+import com.tngtech.archunit.core.domain.JavaClass
 import com.tngtech.archunit.core.domain.JavaClasses
+import com.tngtech.archunit.core.domain.JavaModifier
 import com.tngtech.archunit.core.importer.ImportOption
 import com.tngtech.archunit.junit.AnalyzeClasses
 import com.tngtech.archunit.junit.ArchTest
+import com.tngtech.archunit.lang.ArchCondition
 import com.tngtech.archunit.lang.ArchRule
+import com.tngtech.archunit.lang.ConditionEvents
+import com.tngtech.archunit.lang.SimpleConditionEvent
+import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.classes
 import com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses
 import com.tngtech.archunit.library.freeze.FreezingArchRule.freeze
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * The feature-border rules of the modular monolith (CLAUDE.md "backend target architecture", roadmap Phase 5 step 4).
@@ -23,7 +32,36 @@ class ArchitectureTest {
             "admin", "ai", "appointments", "auth", "chat", "clinics", "doctors", "documents",
             "notifications", "patients", "payments", "tasks",
         )
+
+        /** A class that depends on a repository, a JDBC query or an external gateway of some feature. */
+        val useInfrastructureClasses = object : DescribedPredicate<JavaClass>("use infrastructure classes") {
+            override fun test(input: JavaClass): Boolean = input.directDependenciesFromSelf.any {
+                it.targetClass.packageName.startsWith("com.shifa.") && it.targetClass.packageName.contains(".infrastructure")
+            }
+        }
+
+        /** Class-level `@Transactional`, or every public method annotated; reports each unannotated public method. */
+        val beTransactional = object : ArchCondition<JavaClass>("be @Transactional on the class or on every public method") {
+            override fun check(item: JavaClass, events: ConditionEvents) {
+                if (item.isAnnotatedWith(Transactional::class.java)) return
+                item.methods
+                    .filter { JavaModifier.PUBLIC in it.modifiers && JavaModifier.STATIC !in it.modifiers && JavaModifier.SYNTHETIC !in it.modifiers }
+                    .filterNot { it.name.contains('$') || it.name in setOf("equals", "hashCode", "toString") }
+                    .filterNot { it.isAnnotatedWith(Transactional::class.java) }
+                    .forEach { events.add(SimpleConditionEvent.violated(it, "${it.fullName} is public and not @Transactional")) }
+            }
+        }
     }
+
+    /** Roadmap P3: an application service that touches repositories, queries or gateways runs its public methods in a transaction. */
+    @ArchTest
+    val applicationServicesAreTransactional: ArchRule = freeze(
+        classes().that().resideInAPackage("com.shifa..application..")
+            .and().areAnnotatedWith(Service::class.java)
+            .and(useInfrastructureClasses)
+            .should(beTransactional)
+            .`as`("application services that use infrastructure classes are transactional (class-level or every public method)"),
+    )
 
     /** `domain` holds entities, enums and pure rules: no web layer, no services, no repositories. */
     @ArchTest

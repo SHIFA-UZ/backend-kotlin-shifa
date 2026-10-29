@@ -25,12 +25,14 @@ class ScheduleBlockService(
         val cancelledAppointmentCount: Int,
     )
 
+    @Transactional(readOnly = true)
     fun countCancellableOverlapping(
         doctorId: Long,
         startAt: Instant,
         endAt: Instant,
     ): Int = findCancellableOverlapping(doctorId, startAt, endAt).size
 
+    @Transactional(readOnly = true)
     fun findCancellableOverlapping(
         doctorId: Long,
         startAt: Instant,

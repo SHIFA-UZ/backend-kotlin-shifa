@@ -160,6 +160,7 @@ class InstallmentService(
         return n
     }
 
+    @Transactional(readOnly = true)
     fun getOverdueItems(clinicId: Long): List<InstallmentItem> {
         return installmentItems.findOverdueByClinic(clinicId, LocalDate.now())
     }

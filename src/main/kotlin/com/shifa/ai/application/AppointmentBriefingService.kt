@@ -346,7 +346,7 @@ class AppointmentBriefingService(
     fun summaryStatus(appointmentId: Long): String? =
         briefingRepo.findByAppointmentId(appointmentId).orElse(null)?.status?.name
 
-    fun toDto(row: AppointmentBriefing): AppointmentBriefingDto =
+    internal fun toDto(row: AppointmentBriefing): AppointmentBriefingDto =
         AppointmentBriefingDto(
             appointmentId = row.appointment.id,
             status = row.status.name,

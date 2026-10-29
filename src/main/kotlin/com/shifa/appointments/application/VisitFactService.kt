@@ -274,7 +274,7 @@ class VisitFactService(
         return "${type.name.lowercase()}:$normalized"
     }
 
-    fun toDto(fact: PatientVisitFact) = VisitFactDto(
+    internal fun toDto(fact: PatientVisitFact) = VisitFactDto(
         id = fact.id,
         appointmentId = fact.appointmentId,
         patientId = fact.patientId,
