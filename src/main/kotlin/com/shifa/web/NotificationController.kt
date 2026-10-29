@@ -77,22 +77,13 @@ class NotificationController(
             else -> emptyList()
         }
         return notifs.map { n ->
-            val req = n.documentAccessRequestId?.let { reqId ->
-                documentAccessRequestRepo.findById(reqId).orElse(null)
-            }
+            // Fetch-joined: open-in-view is off, so lazy associations cannot be read here otherwise
+            // (the former try/catch silently dropped the names on LazyInitializationException).
+            val req = n.documentAccessRequestId?.let { documentAccessRequestRepo.findWithDetailsById(it) }
             val requestStatus = req?.status?.name
-            val (docPatientName, documentTitle, requestingDoctorName) = try {
-                when (req) {
-                    null -> Triple(null, null, null)
-                    else -> Triple(
-                        req.document.patient?.fullName,
-                        req.document.title,
-                        "${req.requestingDoctor.firstName} ${req.requestingDoctor.lastName}".trim()
-                    )
-                }
-            } catch (_: Exception) {
-                Triple(null, null, null)
-            }
+            val docPatientName = req?.document?.patient?.fullName
+            val documentTitle = req?.document?.title
+            val requestingDoctorName = req?.let { "${it.requestingDoctor.firstName} ${it.requestingDoctor.lastName}".trim() }
             val appointment = n.appointmentId?.let { apptId ->
                 appointments.findById(apptId).orElse(null)
             }
