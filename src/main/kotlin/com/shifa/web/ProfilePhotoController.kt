@@ -7,9 +7,6 @@ import com.shifa.security.DoctorPrincipal
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.text.Normalizer
 import java.util.Locale
 
@@ -19,6 +16,7 @@ class ProfilePhotoController(
     private val doctors: DoctorProfileRepository,
     private val appProps: AppProperties,
     private val uploadGuard: com.shifa.shared.UploadGuard,
+    private val storage: com.shifa.shared.storage.FileStorage,
 ) {
 
     data class UploadResp(val photoUrl: String)
@@ -52,18 +50,11 @@ class ProfilePhotoController(
         val original = file.originalFilename ?: "photo.jpg"
         val ext = original.substringAfterLast('.', "jpg").lowercase(Locale.getDefault())
 
-        // Save under app.storageRoot (served by Nginx on 8090)
-        val imagesRoot = Path.of(appProps.storageRoot)
-        val doctorsDir = imagesRoot.resolve("doctors")
-        Files.createDirectories(doctorsDir)
-
-        val target = doctorsDir.resolve("$slug-${doctor.id}.$ext")
-        file.inputStream.use { input ->
-            Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING)
-        }
+        val key = "doctors/$slug-${doctor.id}.$ext"
+        file.inputStream.use { storage.put(key, it, file.size, file.contentType) }
 
         // Persist relative path in DB
-        doctor.avatarUrl = "doctors/$slug-${doctor.id}.$ext"
+        doctor.avatarUrl = key
         doctors.save(doctor)
 
         // Return absolute URL for client

@@ -8984,6 +8984,71 @@
         ],
         "type": "object"
       },
+      "Status": {
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "conflicts": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "copied": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "dryRun": {
+            "type": "boolean"
+          },
+          "failed": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "finishedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lastError": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "scanned": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "skipped": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "startedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "bytes",
+          "conflicts",
+          "copied",
+          "dryRun",
+          "failed",
+          "scanned",
+          "skipped",
+          "state"
+        ],
+        "type": "object"
+      },
       "SubmitCheckInRequest": {
         "properties": {
           "booleanValue": {
@@ -11417,6 +11482,55 @@
         },
         "tags": [
           "admin-payment-controller"
+        ]
+      }
+    },
+    "/api/admin/storage/migrate": {
+      "get": {
+        "operationId": "status",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "storage-migration-controller"
+        ]
+      },
+      "post": {
+        "operationId": "start",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "dryRun",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/Status"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "storage-migration-controller"
         ]
       }
     },
@@ -21878,7 +21992,7 @@
           }
         },
         "tags": [
-          "patient-document-file-controller"
+          "stored-file-controller"
         ]
       },
       "options": {
@@ -21889,7 +22003,57 @@
           }
         },
         "tags": [
-          "patient-document-file-controller"
+          "stored-file-controller"
+        ]
+      }
+    },
+    "/{dir}/{filename}": {
+      "get": {
+        "operationId": "serveFlat",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "dir",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "filename",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "stored-file-controller"
+        ]
+      },
+      "options": {
+        "operationId": "handleOptions_1",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "stored-file-controller"
         ]
       }
     }

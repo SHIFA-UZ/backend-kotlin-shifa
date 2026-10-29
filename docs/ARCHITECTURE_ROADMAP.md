@@ -395,6 +395,16 @@ deployment serving. After it is live in production, delete from **both** Railway
 `STRIPE_CONNECT_RETURN_URL`, `PAYMENT_ENABLED_PROVIDERS` (dev), and the stale `PUBLIC_BASE_URL` and
 `SPRING_VARIABLES_ACTIVE` (prod). `GOOGLE_MAPS_API_KEY` stays a variable until its value is confirmed public.
 
+2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
+to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
+prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),
+reads falling back to the volume meanwhile. Production steps, in order: (1) `railway bucket create shifa-uploads
+--region iad --environment production`; (2) the three reference variables on production (`S3_BUCKET=${{shifa-uploads.BUCKET}}`,
+`S3_ACCESS_KEY=${{shifa-uploads.ACCESS_KEY_ID}}`, `S3_SECRET_KEY=${{shifa-uploads.SECRET_ACCESS_KEY}}`, with
+`--skip-deploys`); (3) a PR moving the `app.storage.s3` block from application-dev.yml to application-prod.yml;
+(4) after the release, an admin runs the migration until it reports zero copied and zero failed; (5) a week of zero
+fallback reads later, unmount the volume. Object storage costs $0.015 per GB-month; bucket egress is free.
+
 ## 4. Phase 0: stop the bleeding (security hotfixes)
 
 **Goal:** close the findings in 1.4 and P1 with the smallest possible diffs, through the current deploy path, before anything else. Each row is one PR. None changes an API shape the apps rely on.

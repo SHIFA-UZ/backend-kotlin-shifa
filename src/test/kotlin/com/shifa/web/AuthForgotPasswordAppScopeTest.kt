@@ -7,7 +7,6 @@ import com.shifa.domain.Role
 import com.shifa.domain.User
 import com.shifa.domain.UserRole
 import com.shifa.domain.UserSession
-import com.shifa.config.StaticResourceConfig
 import com.shifa.repo.ClinicRepository
 import com.shifa.repo.DoctorProfileRepository
 import com.shifa.repo.InvitationKeyRepository
@@ -54,7 +53,6 @@ import java.util.Optional
         ComponentScan.Filter(
             type = FilterType.ASSIGNABLE_TYPE,
             classes = [
-                StaticResourceConfig::class,
                 com.shifa.security.AiRateLimitFilter::class,
                 com.shifa.security.JwtAuthFilter::class,
                 com.shifa.security.UserRateLimitFilter::class,

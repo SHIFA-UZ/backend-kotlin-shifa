@@ -104,7 +104,7 @@ Production HikariCP: max 20 connections, min 5 idle, 30s connection timeout, 30m
 
 ## Static File Serving
 
-Uploads served from `storageRoot` (default `./public-storage/images`) with 1-hour cache. Paths: `/doctors/**`, `/patients/**`, `/patientdocuments/**`, `/certificates/**`, `/chat-attachments/**`, `/photos/**`.
+Uploads are written and read through `shared/storage/FileStorage` (local directory `app.storageRoot`, or the S3-compatible Railway bucket when `app.storage.s3.enabled`; the bucket falls back to the directory for reads while a volume is being copied). `web/StoredFileController` serves them with a 1-hour cache at `/doctors/**`, `/patients/**`, `/patientdocuments/**`, `/certificates/**`, `/chat-attachments/**`. Admins copy a volume into the bucket with `POST /api/admin/storage/migrate`.
 
 ## Key Environment Variables
 

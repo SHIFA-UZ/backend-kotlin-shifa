@@ -2,19 +2,16 @@
 package com.shifa.web
 
 import com.shifa.config.AppProperties
-import com.shifa.service.PatientDocumentStorageService
+import com.shifa.shared.storage.FileStorage
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
 import java.util.UUID
 
 @RestController
 @RequestMapping("/api/messages")
 class ChatAttachmentController(
-    private val storage: PatientDocumentStorageService,
+    private val storage: FileStorage,
     private val appProperties: AppProperties,
     private val signer: com.shifa.security.FileUrlSigner,
     private val uploadGuard: com.shifa.shared.UploadGuard,
@@ -37,20 +34,13 @@ class ChatAttachmentController(
             val extension = originalFilename.substringAfterLast('.', "")
             val uniqueFilename = "${UUID.randomUUID()}.$extension"
             
-            // Save to chat attachments directory
-            val storageRoot = Paths.get(appProperties.storageRoot).toAbsolutePath().normalize()
-            val chatAttachmentsDir = storageRoot.resolve("chat-attachments")
-            Files.createDirectories(chatAttachmentsDir)
-            
-            val targetPath = chatAttachmentsDir.resolve(uniqueFilename)
-            file.transferTo(targetPath.toFile())
-            
+            file.inputStream.use { storage.put("chat-attachments/$uniqueFilename", it, file.size, file.contentType) }
+
             // Save thumbnail if provided
             var thumbnailUrl: String? = null
             if (thumbnail != null && !thumbnail.isEmpty) {
                 val thumbnailFilename = "thumb_$uniqueFilename"
-                val thumbnailPath = chatAttachmentsDir.resolve(thumbnailFilename)
-                thumbnail.transferTo(thumbnailPath.toFile())
+                thumbnail.inputStream.use { storage.put("chat-attachments/$thumbnailFilename", it, thumbnail.size, thumbnail.contentType) }
                 thumbnailUrl = signer.sign("${appProperties.publicBaseUrl.removeSuffix("/")}/chat-attachments/$thumbnailFilename")
             }
             

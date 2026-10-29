@@ -2,16 +2,15 @@
 package com.shifa.service
 
 import com.shifa.config.AppProperties
+import com.shifa.shared.storage.FileStorage
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.util.*
 
 @Service
 class DoctorPhotoStorageService(
-    private val appProperties: AppProperties
+    private val appProperties: AppProperties,
+    private val storage: FileStorage,
 ) {
     /**
      * Saves the uploaded photo to {storageRoot}/doctors/{slugOrId}.{ext}
@@ -21,13 +20,7 @@ class DoctorPhotoStorageService(
         val ext = guessExtension(file.originalFilename)
         val fileName = "$slugOrId.$ext"
 
-        val doctorsDir = Path.of(appProperties.storageRoot, "doctors")
-        Files.createDirectories(doctorsDir)
-
-        val target = doctorsDir.resolve(fileName)
-        file.inputStream.use { input ->
-            Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING)
-        }
+        file.inputStream.use { storage.put("doctors/$fileName", it, file.size, file.contentType) }
 
         return "${appProperties.publicBaseUrl}/doctors/$fileName"
     }
