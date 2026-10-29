@@ -62,6 +62,12 @@ listed in the commit messages (paths, schemas and fields added; nothing removed)
   four baseline entries (LongMethod, ThrowsCount) stopped matching. Fixed by regenerating the baseline
   (`./gradlew detektBaseline`, four lines changed). Rule for later steps: when a baselined function's signature
   changes, regenerate the baseline in the same commit, and run `build`, not only `test`, before pushing.
+- **The first development deploy of this branch failed in the Docker build** (2026-10-29 06:23). The Dockerfile ran
+  `gradle clean build -x test`, and `build` now includes detekt, whose rules and baseline live in `config/detekt/`,
+  which the image never copies. Fixed by building the image with `gradle clean bootJar`: the image only needs the
+  jar; tests, detekt and the coverage floor run in CI. Local verification of the gates must use `./gradlew build`,
+  which is also what CI runs. Note the image still uses the `gradle:8.5-jdk21` base while the wrapper is 8.14.3;
+  it compiles today, but pinning the image to the wrapper version is a cheap follow-up (2.1).
 - The dev seed accounts (`seed.doctor1..3@shifa.dev`, `seed.patient1..3@shifa.dev`, `seed.staff@shifa.dev`,
   password `Dev12345!`) appear on development after the next deploy. They are not in production.
 

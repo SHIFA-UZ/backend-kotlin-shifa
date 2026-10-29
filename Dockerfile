@@ -7,7 +7,9 @@ COPY src ./src
 # gradle.properties sets -Xmx2g for Gradle and the Kotlin compiler daemon.
 # -Xmx512m on this line overrode that and died with GC overhead while compiling
 # PatientFormDto's large default constructor.
-RUN gradle clean build -x test --no-daemon
+# bootJar only: tests, detekt and the coverage floor run in CI (ci.yml). `build` here would need config/detekt
+# in the image and fails without it.
+RUN gradle clean bootJar --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
