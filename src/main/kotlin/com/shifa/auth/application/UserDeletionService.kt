@@ -1,13 +1,11 @@
 package com.shifa.auth.application
 
-import com.shifa.ai.infrastructure.AiDraftNoteRepository
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
 import com.shifa.auth.infrastructure.UserActivityLogRepository
 import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.auth.infrastructure.UserRoleRepository
 import com.shifa.auth.infrastructure.UserSessionRepository
-import java.util.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -41,7 +39,7 @@ class UserDeletionService(
     private val patientFormRepository: com.shifa.patients.application.PatientForms,
     private val documentAccessService: com.shifa.documents.application.DocumentAccessService,
     private val consultationNoteRepository: com.shifa.appointments.application.ConsultationNotes,
-    private val aiDraftNoteRepository: AiDraftNoteRepository,
+    private val aiDraftNoteRepository: com.shifa.ai.application.AiDraftNotes,
     private val doctorSettingsRepository: com.shifa.doctors.application.DoctorSettingsDoor,
     private val doctorBillingService: com.shifa.payments.application.DoctorBillingService,
 ) {

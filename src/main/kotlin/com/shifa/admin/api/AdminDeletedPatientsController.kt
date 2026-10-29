@@ -1,23 +1,26 @@
 package com.shifa.admin.api
 
-import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.shifa.admin.api.dto.AiDraftNoteExportDto
+import com.shifa.admin.api.dto.AppointmentExportDto
+import com.shifa.admin.api.dto.ConsultationNoteExportDto
+import com.shifa.admin.api.dto.DeletedPatientExportDto
+import com.shifa.admin.api.dto.DeletedPatientMatchDto
+import com.shifa.admin.api.dto.DeletedPatientSearchRequest
+import com.shifa.admin.api.dto.DeletedPatientSearchResponse
+import com.shifa.admin.api.dto.PatientProfileExportDto
 import com.shifa.admin.application.AuditService
 import com.shifa.ai.domain.AiDraftNote
-import com.shifa.ai.infrastructure.AiDraftNoteRepository
 import com.shifa.appointments.domain.Appointment
 import com.shifa.appointments.domain.ConsultationNote
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
-import com.shifa.documents.api.PatientDocumentDto
 import com.shifa.documents.application.PatientDocumentService
-import com.shifa.patients.api.PatientFormDto
 import com.shifa.patients.application.PatientFormService
 import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.AdminPrincipal
 import com.shifa.shared.util.PhoneNormalizer
 import java.security.MessageDigest
-import java.util.UUID
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -34,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional as SpringTransac
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 
+
 @RestController
 @RequestMapping("/api/admin/patients/deleted")
 class AdminDeletedPatientsController(
@@ -43,30 +47,11 @@ class AdminDeletedPatientsController(
     private val patientDocumentService: PatientDocumentService,
     private val patientFormService: PatientFormService,
     private val consultationNoteRepository: com.shifa.appointments.application.ConsultationNotes,
-    private val aiDraftNoteRepository: AiDraftNoteRepository,
+    private val aiDraftNoteRepository: com.shifa.ai.application.AiDraftNotes,
     private val auditService: AuditService,
     private val objectMapper: ObjectMapper,
 ) {
     private val log = LoggerFactory.getLogger(AdminDeletedPatientsController::class.java)
-
-    data class DeletedPatientSearchRequest(
-        val phone: String? = null,
-        val email: String? = null,
-        val userId: Long? = null,
-    )
-
-    data class DeletedPatientMatchDto(
-        val userId: Long,
-        val patientProfileId: Long,
-        val deletedAt: String?,
-        val matchedBy: String,
-        val maskedPhone: String?,
-        val maskedEmail: String?,
-    )
-
-    data class DeletedPatientSearchResponse(
-        val matches: List<DeletedPatientMatchDto>,
-    )
 
     @PostMapping("/search")
     fun searchDeletedPatients(
@@ -179,72 +164,6 @@ class AdminDeletedPatientsController(
 
         return DeletedPatientSearchResponse(matches = matchesByPatientProfileId.values.toList())
     }
-
-    @JsonInclude(JsonInclude.Include.NON_NULL)
-    data class DeletedPatientExportDto(
-        val userId: Long,
-        val patientProfileId: Long,
-        val deletedAt: String?,
-        val deletionRequestedAt: String?,
-        val patientProfile: PatientProfileExportDto,
-        val appointments: List<AppointmentExportDto>,
-        val documents: List<PatientDocumentDto>,
-        val forms: List<PatientFormDto>,
-        val consultationNotes: List<ConsultationNoteExportDto>,
-        val aiDraftNotes: List<AiDraftNoteExportDto>,
-    )
-
-    data class PatientProfileExportDto(
-        val id: Long,
-        val fullName: String,
-        val birthDate: String?,
-        val language: String?,
-        val timeZone: String?,
-        val chronicDisease: String?,
-        val address: String?,
-        val photoUrl: String?,
-    )
-
-    data class AppointmentExportDto(
-        val id: Long,
-        val doctorId: Long,
-        val doctorName: String,
-        val startAt: String,
-        val endAt: String,
-        val location: String,
-        val reason: String?,
-        val status: String,
-        val signatureRequested: Boolean,
-        val patientSignedAt: String?,
-    )
-
-    data class ConsultationNoteExportDto(
-        val id: Long?,
-        val doctorId: Long,
-        val patientId: Long,
-        val appointmentId: Long?,
-        val aiDraftNoteId: UUID?,
-        val subjective: String?,
-        val assessment: String?,
-        val plan: String?,
-        val body: String?,
-        val createdAt: String,
-        val source: String,
-    )
-
-    data class AiDraftNoteExportDto(
-        val id: UUID?,
-        val doctorId: Long,
-        val patientId: Long?,
-        val consultationId: Long?,
-        val aiLabel: String,
-        val aiResponseText: String,
-        val icdSuggestionsJson: String?,
-        val createdAt: String,
-        val status: String,
-        val modelVersion: String,
-        val promptVersion: String,
-    )
 
     @GetMapping("/{patientProfileId}/export")
     @SpringTransactional(readOnly = true)

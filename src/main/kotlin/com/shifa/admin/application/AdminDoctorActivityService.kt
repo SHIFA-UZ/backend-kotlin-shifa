@@ -3,8 +3,6 @@ package com.shifa.admin.application
 import com.shifa.admin.api.DoctorActivityDailyPointDto
 import com.shifa.admin.api.DoctorActivityDetailDto
 import com.shifa.admin.api.DoctorActivityRowDto
-import com.shifa.ai.infrastructure.AiDraftNoteRepository
-import com.shifa.ai.infrastructure.AiUsageCounterRepository
 import com.shifa.appointments.domain.Appointment
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
@@ -39,8 +37,8 @@ class AdminDoctorActivityService(
     private val remoteCareTaskRepository: com.shifa.tasks.application.RemoteCareTasks,
     private val consultationNoteRepository: com.shifa.appointments.application.ConsultationNotes,
     private val patientFormRepository: com.shifa.patients.application.PatientForms,
-    private val aiUsageCounterRepository: AiUsageCounterRepository,
-    private val aiDraftNoteRepository: AiDraftNoteRepository,
+    private val aiUsageCounterRepository: com.shifa.ai.application.AiUsageCounters,
+    private val aiDraftNoteRepository: com.shifa.ai.application.AiDraftNotes,
     private val doctorSmsBillingService: DoctorSmsBillingService,
     private val userRepository: com.shifa.auth.application.Users,
     private val metricsBatchLoader: AdminDoctorActivityMetricsBatchLoader,

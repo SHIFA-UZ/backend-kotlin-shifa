@@ -1,24 +1,27 @@
 package com.shifa.admin.api
 
-import com.shifa.shared.security.AdminPrincipal
+import com.shifa.admin.api.dto.DoctorSubscriptionBillingRequest
+import com.shifa.admin.api.dto.SmsRemindersAllowedRequest
 import com.shifa.admin.application.AdminDoctorActivityService
-import com.shifa.notifications.application.DoctorSmsBillingService
-import com.shifa.doctors.application.EarlyPartnerContractService
-import org.springframework.http.HttpStatus
-import org.springframework.web.bind.annotation.PatchMapping
-import org.springframework.web.bind.annotation.RequestBody
-import org.springframework.web.server.ResponseStatusException
 import com.shifa.doctors.api.EarlyPartnerContractIssueDto
+import com.shifa.doctors.application.EarlyPartnerContractService
+import com.shifa.notifications.application.DoctorSmsBillingService
+import com.shifa.shared.security.AdminPrincipal
+import java.time.LocalDate
 import org.springframework.data.domain.Page
 import org.springframework.format.annotation.DateTimeFormat
+import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PatchMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
-import java.time.LocalDate
+import org.springframework.web.server.ResponseStatusException
+
 
 @RestController
 @RequestMapping("/api/admin/doctors")
@@ -27,8 +30,6 @@ class AdminDoctorActivityController(
     private val earlyPartnerContractService: EarlyPartnerContractService,
     private val doctorSmsBillingService: DoctorSmsBillingService,
 ) {
-
-    data class SmsRemindersAllowedRequest(val allowed: Boolean)
 
     /** List doctor activity aggregates (pagination + sorting in memory after filter). Read-only admins allowed. */
     @Suppress("UNUSED_PARAMETER")
@@ -72,11 +73,6 @@ class AdminDoctorActivityController(
             toInclusive = to,
         )
     }
-
-    data class DoctorSubscriptionBillingRequest(
-        val trialPeriodMonths: Int? = null,
-        val monthlyChargeUsd: Int? = null,
-    )
 
     /** Update admin-managed trial length and/or monthly charge for a doctor. */
     @PatchMapping("/{doctorId}/subscription-billing")

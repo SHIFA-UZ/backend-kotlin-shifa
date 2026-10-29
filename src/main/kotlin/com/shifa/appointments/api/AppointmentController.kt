@@ -6,7 +6,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.ai.application.ClinicalRagIndexingService
 import com.shifa.ai.application.ScribePipelineService
 import com.shifa.ai.domain.AiDraftNote
-import com.shifa.ai.infrastructure.AiDraftNoteRepository
 import com.shifa.appointments.api.dto.ChangeSlotReq
 import com.shifa.appointments.api.dto.CompleteAppointmentRequest
 import com.shifa.appointments.api.dto.CompleteAppointmentResponse
@@ -41,7 +40,7 @@ class AppointmentController(
     private val appts: com.shifa.appointments.application.Appointments,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val consultationNoteRepo: com.shifa.appointments.application.ConsultationNotes,
-    private val aiDraftNoteRepo: AiDraftNoteRepository,
+    private val aiDraftNoteRepo: com.shifa.ai.application.AiDraftNotes,
     private val objectMapper: ObjectMapper,
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
     private val clinicAccess: ClinicAccessService,

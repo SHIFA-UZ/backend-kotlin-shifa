@@ -71,7 +71,7 @@ class DevSeedRunner(
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val passwordEncoder: PasswordEncoder,
     private val documentStorage: PatientDocumentStorageService,
-    private val adminProfiles: com.shifa.admin.infrastructure.AdminProfileRepository,
+    private val adminProfiles: com.shifa.admin.application.AdminProfiles,
     private val environment: Environment,
     @org.springframework.beans.factory.annotation.Value("\${app.dev-seed-admin-emails:}") private val adminEmails: String,
 ) : ApplicationRunner {
