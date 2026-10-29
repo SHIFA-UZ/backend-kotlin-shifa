@@ -21,7 +21,7 @@ class UserSessionValidationCache {
     )
 
     private val cache = Caffeine.newBuilder()
-        .expireAfterWrite(Duration.ofMinutes(2))
+        .expireAfterWrite(Duration.ofSeconds(30)) // a revoke on another instance is visible within 30 s (roadmap 2.6)
         .maximumSize(50_000)
         .build<String, Entry>()
 
