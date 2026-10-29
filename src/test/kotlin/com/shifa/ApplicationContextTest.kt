@@ -1,10 +1,19 @@
 package com.shifa
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ObjectNode
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
+import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
+import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
+import java.io.File
 import java.sql.DriverManager
 
 /**
@@ -22,11 +31,36 @@ import java.sql.DriverManager
         "logging.file.name=build/shifa-backend-test.log",
     ],
 )
+@AutoConfigureMockMvc
 class ApplicationContextTest {
+
+    @Autowired
+    lateinit var mockMvc: MockMvc
 
     @Test
     fun `context loads, migrations apply and entities match the schema`() {
         // Reaching this point is the assertion: the context started with ddl-auto=validate.
+    }
+
+    /**
+     * The API contract the apps rely on: every path, parameter, request and response schema. A change to it
+     * must come with the snapshot update in the same PR, so accidental breaking changes are visible in review.
+     * To update: `./gradlew test --tests com.shifa.ApplicationContextTest` with a database on localhost:5433,
+     * then copy build/openapi.json over docs/api/openapi.json.
+     */
+    @Test
+    fun `openapi document matches the committed contract`() {
+        val body = mockMvc.perform(get("/v3/api-docs")).andExpect(status().isOk).andReturn().response.contentAsString
+        val mapper = ObjectMapper()
+        val actual = (mapper.readTree(body) as ObjectNode).apply { remove("servers") } // host-dependent
+        val expected = mapper.readTree(File("docs/api/openapi.json"))
+        File("build/openapi.json").writeText(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(actual) + "\n")
+        assertEquals(
+            expected,
+            actual,
+            "docs/api/openapi.json is stale. Run './gradlew test --tests com.shifa.ApplicationContextTest' with a database, " +
+                "copy build/openapi.json over docs/api/openapi.json (CI uploads it as the openapi artifact) and commit.",
+        )
     }
 
     companion object {
