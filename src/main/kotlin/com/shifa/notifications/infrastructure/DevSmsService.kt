@@ -1,5 +1,7 @@
 package com.shifa.notifications.infrastructure
 
+import com.shifa.notifications.domain.DevSmsSendResult
+
 
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -12,11 +14,6 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.Duration
 
-data class DevSmsSendResult(
-    val success: Boolean,
-    val smsId: String? = null,
-    val errorMessage: String? = null,
-)
 
 @Service
 class DevSmsService(

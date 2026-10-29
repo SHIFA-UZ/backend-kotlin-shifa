@@ -1,6 +1,5 @@
 package com.shifa.appointments.application
 
-import com.shifa.notifications.infrastructure.FcmService
 
 import com.shifa.appointments.domain.Appointment
 import com.shifa.doctors.domain.DoctorProfile
@@ -8,7 +7,6 @@ import com.shifa.notifications.domain.Notification
 import com.shifa.auth.domain.User
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -29,10 +27,9 @@ data class DoctorBookingCommand(
 class DoctorAppointmentBookingService(
     private val patients: PatientProfileRepository,
     private val appointments: AppointmentRepository,
-    private val notifications: NotificationRepository,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val doctorLocations: DoctorLocationRepository,
     private val slotAvailabilityService: SlotAvailabilityService,
-    private val fcmService: FcmService,
 ) {
     @Transactional
     fun book(doctor: DoctorProfile, actor: User?, command: DoctorBookingCommand): Appointment {
@@ -86,7 +83,7 @@ class DoctorAppointmentBookingService(
             ),
         )
         val local = saved.startAt.atZone(ZoneId.of(doctor.timeZone))
-        val notification = notifications.save(
+        val notification = notificationService.save(
             Notification(
                 patient = patient,
                 title = "New Appointment Scheduled",
@@ -97,7 +94,7 @@ class DoctorAppointmentBookingService(
                 appointmentId = saved.id,
             ),
         )
-        patient.fcmToken?.let { fcmService.sendPatientNotification(it, notification) }
+        patient.fcmToken?.let { notificationService.sendPatientNotification(it, notification) }
         return saved
     }
 }

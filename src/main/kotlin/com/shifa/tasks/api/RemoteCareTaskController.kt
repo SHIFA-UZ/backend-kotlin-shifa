@@ -6,13 +6,11 @@ import com.shifa.tasks.domain.RemoteCareTask
 import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.tasks.domain.TaskCheckIn
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
 import com.shifa.tasks.infrastructure.TaskCheckInRepository
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.shared.security.PatientPrincipal
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.payments.application.SubscriptionTierService
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -33,8 +31,7 @@ class RemoteCareTaskController(
     private val checkInRepo: TaskCheckInRepository,
     private val patientRepo: PatientProfileRepository,
     private val doctorRepo: DoctorProfileRepository,
-    private val notificationRepo: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val subscriptionTierService: SubscriptionTierService,
     private val appointmentRepo: com.shifa.appointments.infrastructure.AppointmentRepository,
     private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
@@ -223,8 +220,8 @@ class RemoteCareTaskController(
             documentAccessRequestId = null,
             taskId = saved.id
         )
-        val savedNotif = notificationRepo.save(notif)
-        patient.fcmToken?.let { fcmService.sendPatientNotification(it, savedNotif) }
+        val savedNotif = notificationService.save(notif)
+        patient.fcmToken?.let { notificationService.sendPatientNotification(it, savedNotif) }
 
         return toTaskDto(saved)
     }
@@ -353,8 +350,8 @@ class RemoteCareTaskController(
             documentAccessRequestId = null,
             taskId = saved.id
         )
-        val savedNotif = notificationRepo.save(notif)
-        task.patient.fcmToken?.let { fcmService.sendPatientNotification(it, savedNotif) }
+        val savedNotif = notificationService.save(notif)
+        task.patient.fcmToken?.let { notificationService.sendPatientNotification(it, savedNotif) }
 
         return toTaskDto(saved)
     }
@@ -477,8 +474,8 @@ class RemoteCareTaskController(
                 type = Notification.Type.TASK_COMPLETED,
                 taskId = task.id
             )
-            val savedNotif = notificationRepo.save(notification)
-            task.doctor.fcmToken?.let { fcmService.sendDoctorNotification(it, savedNotif) }
+            val savedNotif = notificationService.save(notification)
+            task.doctor.fcmToken?.let { notificationService.sendDoctorNotification(it, savedNotif) }
         }
 
         return toCheckInDto(saved)

@@ -1,7 +1,6 @@
 package com.shifa.ai.application
 
 import com.shifa.appointments.application.AppointmentDocumentationService
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.appointments.application.VisitFactService
 
 import com.shifa.ai.domain.AiDraftNote
@@ -12,7 +11,7 @@ import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientProfile
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
+import com.shifa.notifications.application.NotificationService
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.ArgumentMatchers.anyString
@@ -33,9 +32,8 @@ class ScribePipelineServiceTest {
     private val drafts = mock(AiDraftNoteService::class.java)
     private val diagnoses = mock(DiagnosisSuggestionService::class.java)
     private val appointments = mock(AppointmentRepository::class.java)
-    private val notifications = mock(NotificationRepository::class.java)
+    private val notificationService = mock(NotificationService::class.java)
     private val doctors = mock(DoctorProfileRepository::class.java)
-    private val fcm = mock(FcmService::class.java)
     private val docs = mock(AppointmentDocumentationService::class.java)
     private val visitSummaries = mock(PatientVisitAiSummaryService::class.java)
     private val visitFacts = mock(VisitFactService::class.java)
@@ -47,9 +45,8 @@ class ScribePipelineServiceTest {
         drafts,
         diagnoses,
         appointments,
-        notifications,
+        notificationService,
         doctors,
-        fcm,
         docs,
         visitSummaries,
         visitFacts,
@@ -97,14 +94,14 @@ class ScribePipelineServiceTest {
         `when`(drafts.confirmGeneratedScribeDrafts(42L, 7L, ScribePipelineService.SCRIBE_LABEL))
             .thenReturn(listOf(note))
         `when`(
-            notifications.existsByDoctor_IdAndAppointmentIdAndType(
+            notificationService.alreadyNotifiedDoctor(
                 7L,
                 42L,
                 Notification.Type.AI_SCRIBE_READY,
             )
         ).thenReturn(false, true)
         val saved = mutableListOf<Notification>()
-        `when`(notifications.save(anyValue())).thenAnswer { invocation ->
+        `when`(notificationService.save(anyValue())).thenAnswer { invocation ->
             val notif = invocation.arguments[0] as Notification
             saved += notif
             notif
@@ -114,7 +111,7 @@ class ScribePipelineServiceTest {
         service.finalizeScribeForAppointment(42L, 7L)
 
         org.junit.jupiter.api.Assertions.assertEquals(1, saved.size)
-        verify(fcm, times(1)).sendDoctorNotification("token", saved.first(), emptyMap())
+        verify(notificationService, times(1)).sendDoctorNotification("token", saved.first(), emptyMap())
         verify(visitSummaries, times(2)).enqueueGeneration(42L, null, false)
     }
 

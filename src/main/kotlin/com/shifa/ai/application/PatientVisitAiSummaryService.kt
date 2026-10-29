@@ -1,6 +1,5 @@
 package com.shifa.ai.application
 
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.ai.infrastructure.OpenAiResponsesService
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
@@ -9,7 +8,6 @@ import com.shifa.notifications.domain.Notification
 import com.shifa.ai.domain.PatientVisitAiSummary
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.appointments.infrastructure.ConsultationNoteRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.ai.infrastructure.PatientVisitAiSummaryRepository
 import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Service
@@ -38,8 +36,7 @@ class PatientVisitAiSummaryService(
     private val appointmentRepo: AppointmentRepository,
     private val consultationNoteRepo: ConsultationNoteRepository,
     private val summaryRepo: PatientVisitAiSummaryRepository,
-    private val notificationRepo: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val openAi: OpenAiResponsesService,
     private val openAiProps: OpenAiProperties,
     @Qualifier("scribeTaskExecutor")
@@ -193,7 +190,7 @@ class PatientVisitAiSummaryService(
         val appointment = appointmentRepo.findByIdWithDoctorAndPatient(appointmentId).orElse(null) ?: return
         val patient = appointment.patient
         val patientId = patient.id ?: return
-        if (notificationRepo.existsByPatient_IdAndAppointmentIdAndType(
+        if (notificationService.alreadyNotifiedPatient(
                 patientId,
                 appointmentId,
                 Notification.Type.AI_VISIT_SUMMARY_READY,
@@ -208,8 +205,8 @@ class PatientVisitAiSummaryService(
             type = Notification.Type.AI_VISIT_SUMMARY_READY,
             appointmentId = appointmentId
         )
-        val saved = notificationRepo.save(notif)
-        fcmService.sendPatientNotification(
+        val saved = notificationService.save(notif)
+        notificationService.sendPatientNotification(
             fcmToken = patient.fcmToken,
             notification = saved,
             extraData = mapOf(

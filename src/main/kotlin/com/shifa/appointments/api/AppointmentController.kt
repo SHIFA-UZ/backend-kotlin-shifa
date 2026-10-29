@@ -10,12 +10,10 @@ import com.shifa.ai.infrastructure.AiDraftNoteRepository
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.appointments.infrastructure.ConsultationNoteRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.clinics.application.ClinicAccessService
 import com.shifa.appointments.application.AppointmentCancellationService
 import com.shifa.appointments.application.AppointmentVisitLifecycleService
 import com.shifa.notifications.application.PatientPaymentPushI18n
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.ai.application.ClinicalRagIndexingService
 import com.shifa.appointments.application.SlotAvailabilityService
 import com.shifa.clinics.infrastructure.TreatmentPlanAppointmentLinkRepository
@@ -40,10 +38,9 @@ import java.time.*
 class AppointmentController(
     private val appts: AppointmentRepository,
     private val doctorLocations: DoctorLocationRepository,
-    private val notifications: NotificationRepository,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val consultationNoteRepo: ConsultationNoteRepository,
     private val aiDraftNoteRepo: AiDraftNoteRepository,
-    private val fcmService: FcmService,
     private val objectMapper: ObjectMapper,
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
     private val clinicAccess: ClinicAccessService,
@@ -393,9 +390,9 @@ class AppointmentController(
             type = Notification.Type.CONSULTATION_PAYMENT_REMINDER,
             appointmentId = appointment.id
         )
-        val savedNotif = notifications.save(notif)
+        val savedNotif = notificationService.save(notif)
         appointment.patient.fcmToken?.let {
-            fcmService.sendPatientNotification(
+            notificationService.sendPatientNotification(
                 it,
                 savedNotif,
                 mapOf("route" to "/bookings/${appointment.id}/pay")

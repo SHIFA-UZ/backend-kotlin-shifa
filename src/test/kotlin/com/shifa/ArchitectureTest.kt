@@ -52,12 +52,15 @@ class ArchitectureTest {
     /** One feature reaches another only through its application services, never its repositories. */
     @ArchTest
     fun featuresUseOtherFeaturesThroughApplicationOnly(classes: JavaClasses) {
-        for (feature in FEATURES) {
-            freeze(
+        // Every feature is evaluated, then all failures are reported together.
+        val failures = FEATURES.mapNotNull { feature ->
+            val result = freeze(
                 noClasses().that().resideOutsideOfPackage("com.shifa.$feature..")
                     .should().dependOnClassesThat().resideInAPackage("com.shifa.$feature..infrastructure..")
                     .`as`("only the $feature feature depends on $feature infrastructure classes"),
-            ).check(classes)
+            ).evaluate(classes)
+            if (result.hasViolation()) result.failureReport.toString() else null
         }
+        if (failures.isNotEmpty()) throw AssertionError(failures.joinToString("\n\n"))
     }
 }

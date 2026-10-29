@@ -1,13 +1,11 @@
 package com.shifa.patients.application
 
 import com.shifa.ai.application.ClinicalRagIndexingService
-import com.shifa.notifications.infrastructure.FcmService
 
 import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientForm
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.documents.domain.PatientDocumentCategory
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.documents.infrastructure.PatientDocumentRepository
 import com.shifa.patients.infrastructure.PatientFormRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
@@ -25,8 +23,7 @@ class PatientFormService(
     private val profiles: PatientProfileRepository,
     private val forms: PatientFormRepository,
     private val docs: PatientDocumentRepository,
-    private val notifications: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
     private val smartPriorityService: ClinicalSmartPriorityService,
     private val dentalChartKeyValidator: DentalChartKeyValidator,
@@ -129,9 +126,9 @@ class PatientFormService(
             appointmentId = null,
             patientFormId = saved.id
         )
-        val savedNotif = notifications.save(notif)
+        val savedNotif = notificationService.save(notif)
         patient.fcmToken?.let { token ->
-            fcmService.sendPatientNotification(
+            notificationService.sendPatientNotification(
                 token,
                 savedNotif,
                 mapOf(

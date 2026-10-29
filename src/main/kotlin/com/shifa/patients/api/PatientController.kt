@@ -16,12 +16,10 @@ import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
 import com.shifa.doctors.infrastructure.DoctorServiceRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.PatientPrincipal
 import com.shifa.appointments.domain.BookingPaymentPolicy
 import com.shifa.doctors.application.DoctorServicePricing
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.notifications.application.NotificationFormatting
 import com.shifa.documents.application.PatientDocumentService
 import com.shifa.appointments.application.SlotAvailabilityService
@@ -53,8 +51,7 @@ class PatientController(
     private val doctorServicePrices: DoctorServicePriceRepository,
     private val patientDocumentService: PatientDocumentService,
     private val appointmentBriefingService: com.shifa.ai.application.AppointmentBriefingService,
-    private val notifications: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val subscriptionTierService: com.shifa.payments.application.SubscriptionTierService,
     private val slotAvailabilityService: SlotAvailabilityService,
     private val paymentService: PaymentService,
@@ -369,11 +366,11 @@ class PatientController(
             type = Notification.Type.APPOINTMENT_CANCELLED_BY_PATIENT,
             appointmentId = appointment.id
         )
-        val savedNotif = notifications.save(notif)
-        fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
+        val savedNotif = notificationService.save(notif)
+        notificationService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
 
         // The patient gets the cancellation in their own list and as a push too (patient-app ask 7).
-        val patientNotif = notifications.save(
+        val patientNotif = notificationService.save(
             Notification(
                 patient = profile,
                 doctor = null,
@@ -383,7 +380,7 @@ class PatientController(
                 appointmentId = appointment.id,
             ),
         )
-        fcmService.sendPatientNotificationAfterCommit(profile.fcmToken, patientNotif)
+        notificationService.sendPatientNotificationAfterCommit(profile.fcmToken, patientNotif)
 
         return mapOf("message" to "Appointment cancelled successfully")
     }
@@ -647,8 +644,8 @@ class PatientController(
                 type = notifType,
                 appointmentId = saved.id
             )
-            val savedNotif = notifications.save(notif)
-            fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
+            val savedNotif = notificationService.save(notif)
+            notificationService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
         }
 
         return toAppointmentDto(

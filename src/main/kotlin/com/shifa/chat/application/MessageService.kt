@@ -1,6 +1,5 @@
 package com.shifa.chat.application
 
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.patients.application.PatientProfileMapper
 
 import com.shifa.chat.domain.Conversation
@@ -36,11 +35,10 @@ import java.time.OffsetDateTime
 class MessageService(
     private val conversationRepo: ConversationRepository,
     private val messageRepo: MessageRepository,
-    private val notificationRepo: NotificationRepository,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val userRepo: UserRepository,
     private val doctorProfileRepo: DoctorProfileRepository,
     private val patientProfileRepo: PatientProfileRepository,
-    private val fcmService: FcmService,
     private val fileUrlSigner: com.shifa.shared.security.FileUrlSigner,
     private val patientProfileMapper: PatientProfileMapper,
     private val publicUrls: com.shifa.shared.PublicUrls,
@@ -701,7 +699,7 @@ class MessageService(
 
         val body = message.text?.trim()?.takeIf { it.isNotEmpty() } ?: lastMessagePreview(message)
         val notificationRow = try {
-            notificationRepo.save(
+            notificationService.save(
                 Notification(
                     patient = recipientPatient,
                     doctor = null,
@@ -718,7 +716,7 @@ class MessageService(
             return
         }
 
-        notificationRepo.flush()
+        notificationService.flush()
 
         val notificationId = notificationRow.id
         val extraData = mapOf(
@@ -733,9 +731,9 @@ class MessageService(
                 log.info("CHAT_PUSH: no FCM token for patientProfileId={}", patientProfileId)
                 false
             } else {
-                val notif = notificationRepo.findById(notificationId).orElse(null)
+                val notif = notificationService.findById(notificationId).orElse(null)
                 if (notif == null) false
-                else fcmService.sendPatientNotification(token, notif, extraData)
+                else notificationService.sendPatientNotification(token, notif, extraData)
             }
         }
     }
@@ -759,7 +757,7 @@ class MessageService(
         val patientName = senderPatient.fullName.trim().ifEmpty { "Patient" }
         val body = message.text?.trim()?.takeIf { it.isNotEmpty() } ?: lastMessagePreview(message)
         val notificationRow = try {
-            notificationRepo.save(
+            notificationService.save(
                 Notification(
                     patient = null,
                     doctor = doctorProfile,
@@ -776,7 +774,7 @@ class MessageService(
             return
         }
 
-        notificationRepo.flush()
+        notificationService.flush()
         val notificationId = notificationRow.id
         val extraData = mapOf(
             "chatId" to chatId.toString(),
@@ -792,9 +790,9 @@ class MessageService(
                 log.info("CHAT_PUSH_DOCTOR: no FCM token for doctorProfileId={}", doctorProfile.id)
                 false
             } else {
-                val notif = notificationRepo.findById(notificationId).orElse(null)
+                val notif = notificationService.findById(notificationId).orElse(null)
                 if (notif == null) false
-                else fcmService.sendDoctorNotification(token, notif, extraData)
+                else notificationService.sendDoctorNotification(token, notif, extraData)
             }
         }
     }

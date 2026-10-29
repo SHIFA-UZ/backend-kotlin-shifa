@@ -28,7 +28,6 @@ import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
 import com.shifa.doctors.infrastructure.DoctorServiceRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.documents.infrastructure.PatientDocumentRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
@@ -83,7 +82,7 @@ class DevSeedRunner(
     private val documents: PatientDocumentRepository,
     private val tasks: RemoteCareTaskRepository,
     private val checkIns: TaskCheckInRepository,
-    private val notifications: NotificationRepository,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val passwordEncoder: PasswordEncoder,
     private val documentStorage: PatientDocumentStorageService,
     private val adminProfiles: com.shifa.admin.infrastructure.AdminProfileRepository,
@@ -215,10 +214,26 @@ class DevSeedRunner(
         // One notification of every type, for doctor 1 and for patient 1.
         Notification.Type.entries.forEach { type ->
             val title = type.name.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
-            notifications.save(Notification(doctor = doctor1, title = title, message = "Seed notification: $title", type = type, appointmentId = seededAppointments[0].id, taskId = bloodPressure.id))
-            notifications.save(Notification(patient = patient1, title = title, message = "Seed notification: $title", type = type, appointmentId = seededAppointments[0].id, taskId = bloodPressure.id))
+            seedNotification(type, title, doctor = doctor1, appointmentId = seededAppointments[0].id, taskId = bloodPressure.id)
+            seedNotification(type, title, patient = patient1, appointmentId = seededAppointments[0].id, taskId = bloodPressure.id)
         }
         log.warn("Dev seed done: 3 doctors, 1 staff, 5 patients, ${statusPlan.size + 2} appointments, 2 documents, 2 tasks, ${Notification.Type.entries.size * 2} notifications")
+    }
+
+    private fun seedNotification(
+        type: Notification.Type,
+        title: String,
+        doctor: DoctorProfile? = null,
+        patient: PatientProfile? = null,
+        appointmentId: Long?,
+        taskId: Long?,
+    ) {
+        notificationService.save(
+            Notification(
+                doctor = doctor, patient = patient, title = title, message = "Seed notification: $title", type = type,
+                appointmentId = appointmentId, taskId = taskId,
+            ),
+        )
     }
 
     /** ADMIN logins for the admin panel and the admin API (e.g. the storage migration), one per configured address. */

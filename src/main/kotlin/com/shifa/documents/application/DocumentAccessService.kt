@@ -1,6 +1,5 @@
 package com.shifa.documents.application
 
-import com.shifa.notifications.infrastructure.FcmService
 
 import com.shifa.documents.domain.DocumentAccessGrant
 import com.shifa.documents.domain.DocumentAccessRequest
@@ -8,7 +7,6 @@ import com.shifa.notifications.domain.Notification
 import com.shifa.documents.infrastructure.DocumentAccessGrantRepository
 import com.shifa.documents.infrastructure.DocumentAccessRequestRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.documents.infrastructure.PatientDocumentRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -20,8 +18,7 @@ class DocumentAccessService(
     private val grantRepo: DocumentAccessGrantRepository,
     private val documentRepo: PatientDocumentRepository,
     private val doctorProfiles: DoctorProfileRepository,
-    private val notificationRepo: NotificationRepository,
-    private val fcmService: FcmService
+    private val notificationService: com.shifa.notifications.application.NotificationService,
 ) {
     private val log = LoggerFactory.getLogger(DocumentAccessService::class.java)
 
@@ -126,7 +123,7 @@ class DocumentAccessService(
                 documentTitle = docTitle
             )
         }
-        val savedNotif = notificationRepo.save(notification)
+        val savedNotif = notificationService.save(notification)
 
         val patient = notification.patient
         val doctor = notification.doctor
@@ -139,7 +136,7 @@ class DocumentAccessService(
                     savedNotif.id
                 )
             } else {
-                fcmService.sendPatientNotification(token, savedNotif)
+                notificationService.sendPatientNotification(token, savedNotif)
             }
         }
         if (doctor != null) {
@@ -151,7 +148,7 @@ class DocumentAccessService(
                     savedNotif.id
                 )
             } else {
-                fcmService.sendDoctorNotificationAfterCommit(token, savedNotif)
+                notificationService.sendDoctorNotificationAfterCommit(token, savedNotif)
             }
         }
     }
@@ -208,8 +205,8 @@ class DocumentAccessService(
             documentPatientId = doc.patient?.id,
             documentTitle = docTitle
         )
-        val savedNotif = notificationRepo.save(notifForRequester)
-        doctor.fcmToken?.let { fcmService.sendDoctorNotificationAfterCommit(it, savedNotif) }
+        val savedNotif = notificationService.save(notifForRequester)
+        doctor.fcmToken?.let { notificationService.sendDoctorNotificationAfterCommit(it, savedNotif) }
 
         return request
     }
@@ -251,8 +248,8 @@ class DocumentAccessService(
             documentPatientId = doc.patient?.id,
             documentTitle = docTitle
         )
-        val savedNotif = notificationRepo.save(notifForRequester)
-        request.requestingDoctor.fcmToken?.let { fcmService.sendDoctorNotificationAfterCommit(it, savedNotif) }
+        val savedNotif = notificationService.save(notifForRequester)
+        request.requestingDoctor.fcmToken?.let { notificationService.sendDoctorNotificationAfterCommit(it, savedNotif) }
 
         return saved
     }

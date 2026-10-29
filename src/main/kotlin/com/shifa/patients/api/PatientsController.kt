@@ -11,7 +11,6 @@ import com.shifa.patients.infrastructure.PatientProphylaxisSettingRepository
 import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
 import com.shifa.clinics.application.ClinicAccessService
 import com.shifa.notifications.application.SmsReminderFormatting
-import com.shifa.notifications.infrastructure.DevSmsService
 import com.shifa.notifications.application.DoctorSmsBillingService
 import com.shifa.patients.application.PatientAccountService
 import com.shifa.patients.application.PatientProfileMapper
@@ -52,7 +51,7 @@ class PatientsController(
     private val clinicAccess: ClinicAccessService,
     private val doctorProfiles: DoctorProfileRepository,
     private val doctorSmsBilling: DoctorSmsBillingService,
-    private val devSmsService: DevSmsService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val prophylaxisSettingsRepo: PatientProphylaxisSettingRepository,
     private val remoteCareTaskRepo: RemoteCareTaskRepository,
     private val documentStorage: com.shifa.documents.application.PatientDocumentStorageService,
@@ -456,7 +455,7 @@ class PatientsController(
                 "SMS appointment reminders are not enabled for your account. Contact support.",
             )
         }
-        if (!devSmsService.isConfigured()) {
+        if (!notificationService.isSmsConfigured()) {
             throw ResponseStatusException(
                 HttpStatus.SERVICE_UNAVAILABLE,
                 "SMS service is not configured (DEVSMS_API_TOKEN missing).",
@@ -491,7 +490,7 @@ class PatientsController(
             startAt = sampleStart,
             timeZone = zone,
         )
-        val result = devSmsService.sendSms(phone, message)
+        val result = notificationService.sendSms(phone, message)
         if (!result.success) {
             val detail = result.errorMessage?.trim()?.takeIf { it.isNotEmpty() }
                 ?: "Failed to send SMS via DevSMS. Check token, balance, and phone format."

@@ -25,10 +25,8 @@ import com.shifa.payments.infrastructure.PaymentRepository
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.payments.infrastructure.DoctorBillingRepository
 import com.shifa.clinics.infrastructure.InstallmentItemRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanRepository
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.clinics.application.InstallmentService
 import com.shifa.clinics.application.TreatmentPlanFinanceService
 import org.slf4j.LoggerFactory
@@ -49,8 +47,7 @@ class PaymentService(
     private val installmentItems: InstallmentItemRepository,
     private val financeService: TreatmentPlanFinanceService,
     private val installmentService: InstallmentService,
-    private val notificationRepository: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val stripeGateway: StripeGateway,
     private val clickGateway: ClickGateway,
     private val manualPaymentGateway: ManualPaymentGateway,
@@ -740,8 +737,8 @@ class PaymentService(
                 type = Notification.Type.APPOINTMENT_PAID_BY_PATIENT,
                 appointmentId = appointment.id,
             )
-            val savedNotif = notificationRepository.save(notif)
-            fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
+            val savedNotif = notificationService.save(notif)
+            notificationService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
         } catch (e: Exception) {
             log.warn("Doctor payment notification failed: {}", e.message)
         }
@@ -762,8 +759,8 @@ class PaymentService(
                 type = Notification.Type.APPOINTMENT_PAID_BY_PATIENT,
                 treatmentPlanId = plan.id,
             )
-            val savedNotif = notificationRepository.save(notif)
-            fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
+            val savedNotif = notificationService.save(notif)
+            notificationService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
         } catch (e: Exception) {
             log.warn("Doctor treatment-plan payment notification failed: {}", e.message)
         }
