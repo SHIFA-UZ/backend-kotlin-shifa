@@ -38,3 +38,9 @@ jobs:
         with:
           name: test-reports
           path: build/reports/tests/test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: openapi
+          path: build/openapi.json
+          if-no-files-found: ignore

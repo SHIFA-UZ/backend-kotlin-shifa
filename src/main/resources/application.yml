@@ -67,6 +67,10 @@ server:
   # Use PORT on Railway (or SERVER_PORT), default 8080 for local
   port: ${PORT:${SERVER_PORT:8080}}
 
+# OpenAPI: sorted output so docs/api/openapi.json (the committed contract, see ApplicationContextTest) diffs cleanly.
+springdoc:
+  writer-with-order-by-keys: true
+
 # Actuator: same baseline as prod/qa so /actuator/health/liveness exists for every profile (Docker/Railway).
 management:
   endpoints:
