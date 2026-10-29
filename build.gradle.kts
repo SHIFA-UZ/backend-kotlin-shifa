@@ -7,6 +7,10 @@ plugins {
     kotlin("jvm") version "2.2.21"
     kotlin("plugin.spring") version "2.2.21"
     kotlin("plugin.jpa") version "2.2.21"
+
+    // Quality gates (roadmap 1.11): static analysis with a baseline so existing code does not block, coverage floor.
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
+    jacoco
 }
 
 group = "com.shifa"
@@ -82,6 +86,53 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    // Findings in code that existed before the gate are listed here; new code must be clean. Regenerate with
+    // ./gradlew detektBaseline only when a rule is intentionally relaxed.
+    baseline = file("config/detekt/baseline.xml")
+    config.setFrom(file("config/detekt/detekt.yml"))
+}
+
+// detekt 1.23 is compiled against Kotlin 2.0; it must run with that compiler even though the project uses 2.2.
+configurations.matching { it.name == "detekt" }.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.jetbrains.kotlin") useVersion("2.0.21")
+    }
+}
+
+jacoco {
+    toolVersion = "0.8.16"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+// Coverage ratchet: the floor is the measured line coverage at the time the gate was added; raise it, never lower it.
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.27".toBigDecimal() // measured 0.283 on 2026-10-29
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
 java {

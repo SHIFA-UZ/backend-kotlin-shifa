@@ -1,0 +1,35 @@
+# Project overrides on top of detekt's default rule set (buildUponDefaultConfig = true).
+# Kotlin style in this repo: long Spring constructor parameter lists and long controller methods are the
+# norm in the legacy layers; those rules would only produce noise until Phase 5 moves the code.
+style:
+  MaxLineLength:
+    maxLineLength: 160
+  ReturnCount:
+    active: false
+  MagicNumber:
+    active: false
+  WildcardImport:
+    active: false
+  UnusedPrivateMember:
+    active: true
+complexity:
+  LongParameterList:
+    active: false
+  LongMethod:
+    threshold: 120
+  TooManyFunctions:
+    active: false
+  LargeClass:
+    active: false
+  CyclomaticComplexMethod:
+    threshold: 25
+  NestedBlockDepth:
+    threshold: 6
+exceptions:
+  TooGenericExceptionCaught:
+    active: false
+  SwallowedException:
+    active: false
+naming:
+  FunctionNaming:
+    ignoreAnnotated: ['Test']
