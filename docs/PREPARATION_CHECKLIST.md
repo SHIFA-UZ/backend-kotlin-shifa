@@ -139,7 +139,7 @@ A sentence per store is enough. This sets when the "two releases later" cleanups
 
 - **Q10** Should a doctor or clinic staff member be able to search (chat) and assign (calendar) patients who have no appointment, conversation or clinic relationship with them? Today they see the whole patient base. "Yes, keep it" means S3 is accepted risk; "No" means a doctor-app change in Phase 4.
 - **Q12** Intended token lifetimes: doctors 12 hours (as `CLAUDE.md` says) or 30 days (as production is configured)? Patients 365 days?
-- **Q3** Drop the GCP Cloud Run path (files, dependency, docs) and keep Railway only? The roadmap assumes yes.
+- **Q3** Drop the GCP Cloud Run path (files, dependency, docs) and keep Railway only? **Yes, done 2026-10-29.**
 
 With 1.1 to 1.7 done I can open the Phase 0 PRs in the order in roadmap section 11, days 1 to 5. Each PR comes with: what changed, test output, and the exact smoke checks to do in the apps after the Railway deploy.
 

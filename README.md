@@ -241,7 +241,7 @@ Environments: `development` deploys `main` (`https://api-dev.shifa.uz`, `SPRING_
 
 ### Docker
 
-The Dockerfile's own ENTRYPOINT (the image default, used when no start command is configured, e.g. Cloud Run) runs the JRE stage with **`Xmx≈1024m`** heap (512m proved too tight for Hibernate + Flyway startup and led to unhealthy deploys—Tomcat never bound before health timeouts). Provision **≥ ~2 GiB RAM** on the Railway service or override `JAVA_TOOL_OPTIONS` only if you know the limit.
+The Dockerfile's own ENTRYPOINT (the image default, used when no start command is configured) runs the JRE stage with **`Xmx≈1024m`** heap (512m proved too tight for Hibernate + Flyway startup and led to unhealthy deploys—Tomcat never bound before health timeouts). Provision **≥ ~2 GiB RAM** on the Railway service or, to change the heap, change the `-Xmx` in the Railway start command (explicit flags there win over `JAVA_TOOL_OPTIONS`).
 
 ```bash
 docker build -t shifa-api .
