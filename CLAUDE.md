@@ -97,7 +97,6 @@ Production HikariCP: max 20 connections, min 5 idle, 30s connection timeout, 30m
 ## Deployment
 
 - **Primary:** Railway (Nixpacks builder, `railway.toml`)
-- **Alternative:** GCP Cloud Run (`cloudbuild.yaml`, Dockerfile)
 - **Profiles:** none = `local` (reads `application-local.yml`), `prod` (production), `prod,dev` (development)
 - **Health check:** `/actuator/health/liveness` (180s timeout for cold start + migrations)
 - **JVM:** `-Xmx1536m -Xms512m -XX:+UseG1GC -XX:+UseStringDeduplication`
@@ -239,7 +238,7 @@ These rules apply to ALL code written in this project. Follow them strictly.
 - New endpoints must be added to `SecurityConfig.kt` authorization rules. Default is **deny** (`anyRequest().authenticated()`). Role checks use `hasRole("DOCTOR")`, `hasRole("PATIENT")`, `hasRole("ADMIN")`.
 - Public endpoints require explicit whitelisting in both `SecurityConfig` (via `.permitAll()`) and `JwtAuthFilter.shouldNotFilter()`.
 - `@EnableMethodSecurity(prePostEnabled = true)` is enabled but `@PreAuthorize` is not actively used — role enforcement is route-based in `SecurityConfig`.
-- CORS: allowed origins include localhost, `*.netlify.app`, `*.vercel.app`, `*.railway.app`, `*.web.app`, `*.firebaseapp.com`, `*.run.app`, plus `frontendUrl` and `publicBaseUrl` from config. Allowed headers: `Authorization`, `Content-Type`, `Accept`, `Origin`, `X-Requested-With`. Credentials allowed. Preflight cached 1 hour.
+- CORS: allowed origins include localhost, `*.netlify.app`, `*.vercel.app`, `*.railway.app`, `*.web.app`, `*.firebaseapp.com`, plus `frontendUrl` and `publicBaseUrl` from config. Allowed headers: `Authorization`, `Content-Type`, `Accept`, `Origin`, `X-Requested-With`. Credentials allowed. Preflight cached 1 hour.
 - Rate limit sensitive endpoints (auth, OTP) at 10 req/min per IP. General API at 200 req/min per IP + per user.
 
 ### AI Module (`ai/`)

@@ -98,7 +98,7 @@ The code is layered by technical type (`web/` → `service/` → `repo/` → `do
 
 - `.gitignore` ignores every `*.md` except `CLAUDE.md` and `README.md`, so `docs/` files must be force-added. It also ignores `application-dev.yml`, which blocks the `dev` profile this plan introduces. (Fixed on this branch.)
 - Tracked in git and must be removed: 8 rolled log archives (`shifa-backend.log.*`, likely containing PII), 11 one-off SQL scripts in the root, an empty `uat_dump.sql`, 440 generated JSON files under `src/main/kotlin/graphify-out/cache/`, and two sample photos under `images/`.
-- `MIGRATION_GCP*.md` and `cloudbuild.yaml` describe a Cloud Run alternative. `build.gradle.kts` carries the Cloud SQL socket factory for it. See Q3.
+- `MIGRATION_GCP*.md` and `cloudbuild.yaml` described a Cloud Run alternative, with the Cloud SQL socket factory in `build.gradle.kts`. Removed 2026-10-29 (Q3): the owner deleted the Cloud Build trigger in Google Cloud (the Cloud Run service and any Cloud SQL or Artifact Registry resources there still need deleting to stop their cost); the runbooks, the dependency, the `CLOUD_SQL_INSTANCE` branch and the `*.run.app` CORS origin are gone from the repo.
 
 ### 1.4 Security findings (ordered by severity)
 
@@ -150,7 +150,7 @@ These are confirmed in code. They go first, in Phase 0.
 | Gradle wrapper | 8.10.2 | 9.x is current (Kotlin 2.4 targets Gradle 9.5). |
 | Flyway | 11.18.0 pinned | 12.x/13.x exist; Spring Boot manages a version, so the pin should go once on Boot 4. |
 | `jackson-module-kotlin` | declared twice, once as `2.17.+` | A dynamic version makes builds non-reproducible. Remove both lines; Boot manages it. |
-| `postgres-socket-factory` (Cloud SQL) | 1.15.2 | Only needed for the Cloud Run path (Q3). |
+| `postgres-socket-factory` (Cloud SQL) | 1.15.2 | Removed 2026-10-29 with the Cloud Run path (Q3). |
 | JJWT 0.12.6, Bucket4j 8.16.1, Caffeine 3.1.8, stripe-java 30.1.0, firebase-admin 9.4.0, pdfbox 3.0.3, OkHttp 4.12.0, springdoc 2.6.0 | fine | springdoc 2.x works with Boot 3; Boot 4 needs springdoc 3.x. |
 
 ---
@@ -472,7 +472,7 @@ Do these after Phase 2, on `chore/` branches, each verified on development for a
 | 3.3 | Gradle 8.10.2 → **8.14**, then **9.x** | 9.x drops deprecated APIs; the build script here is small, so expect minor edits. Configuration cache on. |
 | 3.4 | Spring Boot 3.5.16 → **4.1.x** | The big one: Spring Framework 7, Spring Security 7, Hibernate 7, Jackson 3, Jakarta EE 11. Known touch points in this codebase: springdoc → 3.x; `jjwt-jackson` → check Jackson 3 support or switch to `jjwt-gson`; `HttpSecurity` lambda DSL already used (good); `@MockBean` → `@MockitoBean` in tests; Hibernate 7 is stricter about implicit joins and `OffsetDateTime` mapping. Drop the Flyway pin (Boot 4 manages 11.x+) and the `flyway-database-postgresql` artifact stays. **Contract risks specific to this step, all caught by the golden response tests from 1.4:** Jackson 3 changes some defaults (null handling, date/time rendering), so Jackson is configured explicitly to today's output before the upgrade; Spring Data's `Page` JSON must stay in `direct` mode (`spring.data.web.pageable.serialization-mode`), otherwise `for-assignment` and every other paged endpoint would switch to the `PagedModel` shape (`page{…}` wrapper) and break the doctor app's paging loop; `@Enumerated(STRING)` names and `ErrorHandler` bodies are compared byte for byte. Soak on development for at least a week with both apps' debug builds. |
 | 3.5 | Kotlin → 2.4.x, remaining libs to current (stripe-java, firebase-admin, Bucket4j, Caffeine, pdfbox, OkHttp) | Dependabot does the rest from here. |
-| 3.6 | Remove `postgres-socket-factory` and Cloud Run files | Only if Q3 = drop GCP. |
+| 3.6 | Remove `postgres-socket-factory` and Cloud Run files | Done 2026-10-29 (Q3 = Railway only). |
 
 **Done when:** the service runs on a supported Spring Boot line and Dependabot PRs are green by default.
 
@@ -582,7 +582,7 @@ Answer these when you can; nothing in Phase 0 or the first half of Phase 1 depen
 
 - **Q1. Answered 2026-10-27:** `shifa-backend-qa` (environment `QA`) and `shifa-backend-sheroziy` exist but contain no services. Nothing uses the `qa` profile; it is deleted in 1.5. Proposal: delete both empty projects on your "go".
 - **Q2. Answered 2026-10-27:** a 2 GB volume is mounted at `/app/storage` with daily backups. No action.
-- **Q3. Answered 2026-10-27: Railway only.** The GCP files and the Cloud SQL dependency are removed in Phase 2.1 / 3.6.
+- **Q3. Answered 2026-10-27: Railway only.** Done 2026-10-29 on the repo side: runbooks, `cloudbuild.yaml`, the Cloud SQL dependency and code path, and the `*.run.app` CORS origin removed; the owner deleted the Cloud Build trigger. Still to delete in Google Cloud: the `shifa` Cloud Run service in europe-west1 and any Cloud SQL instance or Artifact Registry repository the exploration created.
 - **Q4. Answered 2026-10-27: share the production Firebase project now; separate in Phase 2, once development is stable.** The backend uses Firebase Admin for two things only: verifying the phone-OTP ID tokens the doctor app sends at login and password reset, and sending FCM pushes. A development backend sharing the project can only push to tokens registered in the development database, which come from debug builds, so real users are not reachable from dev. Separation is worth it later for three reasons: test phone numbers for OTP without SMS cost, push testing that cannot touch a tester's production install on the same phone, and a dev service-account key that can be revoked without affecting production. The separation steps are in `PREPARATION_CHECKLIST.md` 3.3.
 - **Q5. Answered 2026-10-27: add `api.shifa.uz` (production) and `api-dev.shifa.uz` (development), keep the Railway hostnames alive until every app build has moved.** Today's hostnames: backend `https://shifa-doc-backend-mvp-production.up.railway.app` (hardcoded in the patient app and in the doctor app's build), doctor web `https://doctor.shifa.uz`, admin panel `https://admin.shifa.uz`, doctor web's Firebase hosting `https://shifa-doctor-staging.web.app`. Sequence:
   1. **Done 2026-10-28:** `api.shifa.uz` added to the production service; Railway's CNAME target is `7vnksdyz.up.railway.app`. **Railway requires two DNS records per custom domain:** the CNAME and a TXT ownership record (`_railway-verify.<label>` = `railway-verify=<token>`); without the TXT the certificate stays in "validating ownership" forever. The generated `*.up.railway.app` domain stays; both serve the same service.

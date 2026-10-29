@@ -230,7 +230,6 @@ class SecurityConfig(
                 "https://*.railway.app",
                 "https://*.web.app",      // Explicitly add Firebase web.app
                 "https://*.firebaseapp.com", // Explicitly add Firebase firebaseapp.com
-                "https://*.run.app",      // Google Cloud Run
                 "https://*.shifa.uz"      // Custom production domains (admin.shifa.uz, etc.)
             ))
             

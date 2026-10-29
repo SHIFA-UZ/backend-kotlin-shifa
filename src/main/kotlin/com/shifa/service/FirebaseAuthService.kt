@@ -14,7 +14,7 @@ import java.util.Optional
 /**
  * Verifies Firebase ID tokens (e.g. from phone OTP sign-in).
  * Supports (1) FIREBASE_SERVICE_ACCOUNT_JSON env (raw JSON, e.g. Railway),
- * (2) GOOGLE_APPLICATION_CREDENTIALS path (file or env set by Application.kt).
+ * (2) GOOGLE_APPLICATION_CREDENTIALS, the path to a key file (local only).
  */
 @Service
 class FirebaseAuthService {
