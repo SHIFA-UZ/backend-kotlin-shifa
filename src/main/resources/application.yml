@@ -26,6 +26,12 @@ spring:
         default_batch_fetch_size: 50
     open-in-view: false  # same as prod, so lazy-loading mistakes show up locally
 
+  data:
+    web:
+      pageable:
+        # Page JSON stays exactly as the apps read it today (Boot 3.4+ warns that the default may change).
+        serialization-mode: direct
+
   flyway:
     enabled: true
     locations: classpath:db/migration

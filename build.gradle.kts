@@ -1,7 +1,7 @@
 plugins {
     // Spring Boot + dependency management plugins
-    id("org.springframework.boot") version "3.3.4"
-    id("io.spring.dependency-management") version "1.1.6"
+    id("org.springframework.boot") version "3.5.16"
+    id("io.spring.dependency-management") version "1.1.7"
 
     // Kotlin plugins
     kotlin("jvm") version "2.0.21"
@@ -45,7 +45,7 @@ dependencies {
     // implementation("org.springframework.boot:spring-boot-starter-websocket")
 
     // Swagger UI + OpenAPI
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
 
 
     // Testing
@@ -55,7 +55,6 @@ dependencies {
 	
 	//OPEN AI 
 	implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.+")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0") // optional
 
     // If you plan to use caching/rate limiting libraries later:
