@@ -18,15 +18,16 @@ class AsyncConfig {
 
     /**
      * SSE streams (Shifa AI for doctors and patients) run here instead of on unbounded raw threads (roadmap P7):
-     * at most 16 concurrent streams plus a short queue; beyond that the request is rejected instead of
-     * exhausting memory. The request id travels with the stream so its log lines stay correlated.
+     * up to 16 streams at once, no queue (a queued stream would only make the client wait), the 17th is
+     * rejected and the controllers answer 503. The request id travels with the stream so its log lines
+     * stay correlated.
      */
     @Bean(name = ["sseTaskExecutor"])
     fun sseTaskExecutor(): Executor {
         val executor = ThreadPoolTaskExecutor().apply {
-            corePoolSize = 4
+            corePoolSize = 16
             maxPoolSize = 16
-            queueCapacity = 16
+            queueCapacity = 0
             setThreadNamePrefix("sse-")
             setTaskDecorator { task ->
                 val mdc = org.slf4j.MDC.getCopyOfContextMap()
@@ -43,7 +44,7 @@ class AsyncConfig {
             setAwaitTerminationSeconds(30)
         }
         executor.initialize()
-        log.info("SSE executor initialized: corePoolSize=4, maxPoolSize=16, queueCapacity=16")
+        log.info("SSE executor initialized: poolSize=16, no queue")
         return executor
     }
 

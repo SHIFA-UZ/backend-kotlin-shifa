@@ -64,6 +64,15 @@ class PatientCopilotController(
         /** A stream that is still open after five minutes is stuck; close it instead of holding the thread forever. */
         const val SSE_TIMEOUT_MS = 5L * 60 * 1000
     }
+    /** Starts an SSE worker; when all stream slots are busy the client gets 503 instead of a 500 from the executor. */
+    private fun stream(block: () -> Unit) {
+        try {
+            sseExecutor.execute(block)
+        } catch (e: org.springframework.core.task.TaskRejectedException) {
+            throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Shifa AI is busy, please try again in a moment")
+        }
+    }
+
 
     private fun currentPatientProfile(principal: PatientPrincipal): PatientProfile {
         val user = principal.user
@@ -157,7 +166,7 @@ class PatientCopilotController(
         val emitter = SseEmitter(SSE_TIMEOUT_MS)
         val profile = currentPatientProfile(principal)
 
-        sseExecutor.execute {
+        stream {
             try {
                 var clientConnected = true
                 val conversation = try {

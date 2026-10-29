@@ -50,6 +50,15 @@ class DoctorAiController(
         /** A stream that is still open after five minutes is stuck; close it instead of holding the thread forever. */
         const val SSE_TIMEOUT_MS = 5L * 60 * 1000
     }
+    /** Starts an SSE worker; when all stream slots are busy the client gets 503 instead of a 500 from the executor. */
+    private fun stream(block: () -> Unit) {
+        try {
+            sseExecutor.execute(block)
+        } catch (e: org.springframework.core.task.TaskRejectedException) {
+            throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "Shifa AI is busy, please try again in a moment")
+        }
+    }
+
     private val log = LoggerFactory.getLogger(javaClass)
 
     @PostMapping(
@@ -65,7 +74,7 @@ class DoctorAiController(
 
         val emitter = SseEmitter(SSE_TIMEOUT_MS)
 
-        sseExecutor.execute {
+        stream {
             try {
                 val patientCtx = request.patientId?.let { patientId ->
                     patientAiContextBuilder.build(patientId, principal.profile.id)
@@ -91,7 +100,7 @@ class DoctorAiController(
                     }
                 }
 
-                if (!clientConnected) return@execute
+                if (!clientConnected) return@stream
 
                 val draft = aiDraftNoteService.createDraft(
                     doctorId = principal.profile.id,
@@ -107,7 +116,7 @@ class DoctorAiController(
                     )
                 )
                 if (!SseIoSupport.sendEvent(emitter, SseEmitter.event().name("draft").data(draftPayload))) {
-                    return@execute
+                    return@stream
                 }
                 SseIoSupport.completeQuietly(emitter)
             } catch (ex: AiStreamException) {
@@ -208,7 +217,7 @@ class DoctorAiController(
     ): SseEmitter {
         subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
         val emitter = SseEmitter(SSE_TIMEOUT_MS)
-        sseExecutor.execute {
+        stream {
             try {
                 val patientCtx = request.patientId?.let { patientId ->
                     patientAiContextBuilder.build(patientId, principal.profile.id)
