@@ -25,8 +25,6 @@ import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.util.PhoneNormalizer
 import com.shifa.tasks.domain.RemoteCareTask
 import com.shifa.tasks.domain.TaskCheckIn
-import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
-import com.shifa.tasks.infrastructure.TaskCheckInRepository
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -70,8 +68,8 @@ class DevSeedRunner(
     private val patients: com.shifa.patients.application.PatientProfiles,
     private val appointments: com.shifa.appointments.application.Appointments,
     private val documents: com.shifa.documents.application.PatientDocumentService,
-    private val tasks: RemoteCareTaskRepository,
-    private val checkIns: TaskCheckInRepository,
+    private val tasks: com.shifa.tasks.application.RemoteCareTasks,
+    private val checkIns: com.shifa.tasks.application.TaskCheckIns,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val passwordEncoder: PasswordEncoder,
     private val documentStorage: PatientDocumentStorageService,

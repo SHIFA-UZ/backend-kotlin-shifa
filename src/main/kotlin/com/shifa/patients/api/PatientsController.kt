@@ -18,7 +18,6 @@ import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.shared.util.PatientPhones
 import com.shifa.shared.util.PhoneNormalizer
-import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
 import jakarta.validation.Valid
 import java.time.Instant
 import java.time.LocalDate
@@ -51,7 +50,7 @@ class PatientsController(
     private val doctorSmsBilling: DoctorSmsBillingService,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val prophylaxisSettingsRepo: com.shifa.patients.application.PatientProphylaxisSettings,
-    private val remoteCareTaskRepo: RemoteCareTaskRepository,
+    private val remoteCareTaskRepo: com.shifa.tasks.application.RemoteCareTasks,
     private val documentStorage: com.shifa.documents.application.PatientDocumentStorageService,
     private val fileUrlSigner: com.shifa.shared.security.FileUrlSigner,
 ) {

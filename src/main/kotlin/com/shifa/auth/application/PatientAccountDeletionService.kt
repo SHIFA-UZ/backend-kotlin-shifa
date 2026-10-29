@@ -2,8 +2,6 @@ package com.shifa.auth.application
 
 import com.shifa.auth.domain.User
 import com.shifa.auth.infrastructure.UserRepository
-import com.shifa.chat.infrastructure.ConversationRepository
-import com.shifa.chat.infrastructure.MessageRepository
 import java.security.MessageDigest
 import java.time.OffsetDateTime
 import org.slf4j.LoggerFactory
@@ -17,8 +15,8 @@ class PatientAccountDeletionService(
     private val users: UserRepository,
     private val userManagementService: com.shifa.auth.application.UserManagementService,
     private val patientProfiles: com.shifa.patients.application.PatientProfiles,
-    private val conversations: ConversationRepository,
-    private val messages: MessageRepository,
+    private val conversations: com.shifa.chat.application.Conversations,
+    private val messages: com.shifa.chat.application.Messages,
     private val storage: com.shifa.shared.storage.FileStorage,
 ) {
     private val log = LoggerFactory.getLogger(PatientAccountDeletionService::class.java)

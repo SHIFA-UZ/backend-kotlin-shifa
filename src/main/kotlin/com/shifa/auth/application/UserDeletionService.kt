@@ -7,10 +7,7 @@ import com.shifa.auth.infrastructure.UserActivityLogRepository
 import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.auth.infrastructure.UserRoleRepository
 import com.shifa.auth.infrastructure.UserSessionRepository
-import com.shifa.chat.infrastructure.ConversationRepository
-import com.shifa.chat.infrastructure.MessageRepository
 import com.shifa.clinics.infrastructure.InvitationKeyRepository
-import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
 import java.util.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -38,9 +35,9 @@ class UserDeletionService(
     private val scheduleValidityPeriodRepository: com.shifa.appointments.application.ScheduleValidityPeriods,
     private val doctorReviewRepository: com.shifa.doctors.application.DoctorReviews,
     private val notificationService: com.shifa.notifications.application.NotificationService,
-    private val remoteCareTaskRepository: RemoteCareTaskRepository,
-    private val conversationRepository: ConversationRepository,
-    private val messageRepository: MessageRepository,
+    private val remoteCareTaskRepository: com.shifa.tasks.application.RemoteCareTasks,
+    private val conversationRepository: com.shifa.chat.application.Conversations,
+    private val messageRepository: com.shifa.chat.application.Messages,
     private val patientDocumentService: com.shifa.documents.application.PatientDocumentService,
     private val patientFormRepository: com.shifa.patients.application.PatientForms,
     private val documentAccessService: com.shifa.documents.application.DocumentAccessService,

@@ -10,7 +10,6 @@ import com.shifa.notifications.domain.Notification
 import com.shifa.notifications.infrastructure.DevSmsService
 import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.notifications.infrastructure.NotificationRepository
-import com.shifa.tasks.infrastructure.TaskCheckInRepository
 import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -30,7 +29,7 @@ import org.springframework.transaction.annotation.Transactional
  */
 @Service
 class ReminderNotificationService(
-    private val taskCheckInRepository: TaskCheckInRepository,
+    private val taskCheckInRepository: com.shifa.tasks.application.TaskCheckIns,
     private val notificationRepository: NotificationRepository,
     private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,

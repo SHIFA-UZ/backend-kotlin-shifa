@@ -5,8 +5,6 @@ import com.shifa.auth.domain.User
 import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.chat.domain.Conversation
 import com.shifa.chat.domain.Message
-import com.shifa.chat.infrastructure.ConversationRepository
-import com.shifa.chat.infrastructure.MessageRepository
 import com.shifa.patients.domain.PatientProfile
 import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -26,8 +24,8 @@ class PatientAccountDeletionServiceTest {
         val users = mock(UserRepository::class.java)
         val userManagement = mock(UserManagementService::class.java)
         val patientProfiles = mock(com.shifa.patients.application.PatientProfiles::class.java)
-        val conversations = mock(ConversationRepository::class.java)
-        val messages = mock(MessageRepository::class.java)
+        val conversations = mock(com.shifa.chat.application.Conversations::class.java)
+        val messages = mock(com.shifa.chat.application.Messages::class.java)
         val svc = PatientAccountDeletionService(
             users = users,
             userManagementService = userManagement,

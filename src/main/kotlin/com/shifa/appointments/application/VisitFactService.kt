@@ -7,7 +7,6 @@ import com.shifa.appointments.infrastructure.ClinicVisitPatternRepository
 import com.shifa.appointments.infrastructure.PatientVisitFactRepository
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.tasks.domain.RemoteCareTask
-import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
 import java.time.Instant
 import java.time.LocalDate
 import java.util.Locale
@@ -22,7 +21,7 @@ class VisitFactService(
     private val factRepository: PatientVisitFactRepository,
     private val patternRepository: ClinicVisitPatternRepository,
     private val extractionService: VisitFactExtractionService,
-    private val taskRepository: RemoteCareTaskRepository,
+    private val taskRepository: com.shifa.tasks.application.RemoteCareTasks,
     private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
     @Lazy private val visitLifecycle: AppointmentVisitLifecycleService,
 ) {
