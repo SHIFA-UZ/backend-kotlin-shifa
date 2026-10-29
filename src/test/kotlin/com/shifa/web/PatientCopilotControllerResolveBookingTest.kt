@@ -54,6 +54,7 @@ class PatientCopilotControllerResolveBookingTest {
             objectMapper = jacksonObjectMapper(),
             subscriptionTierService = mock(SubscriptionTierService::class.java),
             uploadGuard = com.shifa.shared.UploadGuard(AppProperties()),
+            sseExecutor = java.util.concurrent.Executor { it.run() },
         )
     }
 

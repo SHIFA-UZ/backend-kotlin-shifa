@@ -299,6 +299,9 @@
       },
       "AppointmentDto": {
         "properties": {
+          "alreadySigned": {
+            "type": "boolean"
+          },
           "canCancel": {
             "type": "boolean"
           },
@@ -335,6 +338,13 @@
               "string",
               "null"
             ]
+          },
+          "documentIds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "array"
           },
           "endAt": {
             "type": "string"
@@ -375,6 +385,12 @@
             ]
           },
           "locationLabel": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
             "type": [
               "string",
               "null"
@@ -443,6 +459,9 @@
               "null"
             ]
           },
+          "signatureRequested": {
+            "type": "boolean"
+          },
           "startAt": {
             "type": "string"
           },
@@ -451,13 +470,16 @@
           }
         },
         "required": [
+          "alreadySigned",
           "canCancel",
           "canReschedule",
+          "documentIds",
           "endAt",
           "isLocked24h",
           "isVideoConsultation",
           "location",
           "refundRequired",
+          "signatureRequested",
           "startAt",
           "status"
         ],
@@ -661,6 +683,21 @@
         },
         "required": [
           "question"
+        ],
+        "type": "object"
+      },
+      "AttachDocumentsRequest": {
+        "properties": {
+          "documentIds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "documentIds"
         ],
         "type": "object"
       },
@@ -17366,6 +17403,47 @@
                     "type": "string"
                   },
                   "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "patient-controller"
+        ]
+      }
+    },
+    "/api/patients/me/appointments/{id}/documents": {
+      "post": {
+        "operationId": "attachDocuments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachDocumentsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentDto"
                 }
               }
             },

@@ -58,6 +58,7 @@ class AppointmentController(
     private val scribePipelineService: ScribePipelineService,
     private val appointmentDocumentationService: AppointmentDocumentationService,
     private val doctorAppointmentRescheduleService: DoctorAppointmentRescheduleService,
+    private val patientDocumentService: com.shifa.service.PatientDocumentService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
 
@@ -83,6 +84,10 @@ class AppointmentController(
         val fulfilledLineIds: List<Long> = emptyList(),
         val briefingStatus: String? = null,
         val attachmentCount: Int = 0,
+        /** Same live-visit fields as the patient side (ask 13). */
+        val alreadySigned: Boolean = false,
+        val documentIds: List<Long> = emptyList(),
+        val notes: String? = null,
     )
 
     @GetMapping("/{appointmentId}")
@@ -123,6 +128,9 @@ class AppointmentController(
             fulfilledLineIds = fulfilled,
             briefingStatus = briefingStatus,
             attachmentCount = attachmentCount,
+            alreadySigned = appointment.patientSignatureImage != null,
+            documentIds = patientDocumentService.documentIdsByAppointment(listOf(appointmentId))[appointmentId] ?: emptyList(),
+            notes = appointment.reason,
         )
     }
 

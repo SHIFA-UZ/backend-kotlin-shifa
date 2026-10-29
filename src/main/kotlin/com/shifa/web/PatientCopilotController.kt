@@ -34,6 +34,7 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import java.util.concurrent.Executor
 import java.nio.file.Files
 import java.time.Instant
 import java.time.ZoneId
@@ -57,7 +58,12 @@ class PatientCopilotController(
     private val objectMapper: ObjectMapper,
     private val subscriptionTierService: SubscriptionTierService,
     private val uploadGuard: com.shifa.shared.UploadGuard,
+    @org.springframework.beans.factory.annotation.Qualifier("sseTaskExecutor") private val sseExecutor: Executor,
 ) {
+    private companion object {
+        /** A stream that is still open after five minutes is stuck; close it instead of holding the thread forever. */
+        const val SSE_TIMEOUT_MS = 5L * 60 * 1000
+    }
 
     private fun currentPatientProfile(principal: PatientPrincipal): PatientProfile {
         val user = principal.user
@@ -148,10 +154,10 @@ class PatientCopilotController(
         @RequestBody @Valid request: PatientCopilotAiRequest
     ): SseEmitter {
         requireCopilotAccess(principal)
-        val emitter = SseEmitter(0L)
+        val emitter = SseEmitter(SSE_TIMEOUT_MS)
         val profile = currentPatientProfile(principal)
 
-        Thread {
+        sseExecutor.execute {
             try {
                 var clientConnected = true
                 val conversation = try {
@@ -203,7 +209,7 @@ class PatientCopilotController(
             } catch (ex: Exception) {
                 SseIoSupport.finish(emitter, ex)
             }
-        }.start()
+        }
 
         return emitter
     }

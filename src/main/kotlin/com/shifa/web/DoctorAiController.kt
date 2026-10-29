@@ -25,6 +25,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
 import java.util.NoSuchElementException
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import java.util.concurrent.Executor
 import org.slf4j.LoggerFactory
 import org.springframework.web.multipart.MultipartFile
 import java.nio.file.Files
@@ -43,7 +44,12 @@ class DoctorAiController(
     private val subscriptionTierService: SubscriptionTierService,
     private val transcriptionService: TranscriptionService,
     private val uploadGuard: com.shifa.shared.UploadGuard,
+    @org.springframework.beans.factory.annotation.Qualifier("sseTaskExecutor") private val sseExecutor: Executor,
 ) {
+    private companion object {
+        /** A stream that is still open after five minutes is stuck; close it instead of holding the thread forever. */
+        const val SSE_TIMEOUT_MS = 5L * 60 * 1000
+    }
     private val log = LoggerFactory.getLogger(javaClass)
 
     @PostMapping(
@@ -57,9 +63,9 @@ class DoctorAiController(
 
         subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
 
-        val emitter = SseEmitter(0L) // no timeout
+        val emitter = SseEmitter(SSE_TIMEOUT_MS)
 
-        Thread {
+        sseExecutor.execute {
             try {
                 val patientCtx = request.patientId?.let { patientId ->
                     patientAiContextBuilder.build(patientId, principal.profile.id)
@@ -85,7 +91,7 @@ class DoctorAiController(
                     }
                 }
 
-                if (!clientConnected) return@Thread
+                if (!clientConnected) return@execute
 
                 val draft = aiDraftNoteService.createDraft(
                     doctorId = principal.profile.id,
@@ -101,7 +107,7 @@ class DoctorAiController(
                     )
                 )
                 if (!SseIoSupport.sendEvent(emitter, SseEmitter.event().name("draft").data(draftPayload))) {
-                    return@Thread
+                    return@execute
                 }
                 SseIoSupport.completeQuietly(emitter)
             } catch (ex: AiStreamException) {
@@ -118,7 +124,7 @@ class DoctorAiController(
             } catch (ex: Exception) {
                 SseIoSupport.finish(emitter, ex)
             }
-        }.start()
+        }
 
         return emitter
     }
@@ -201,8 +207,8 @@ class DoctorAiController(
         @RequestBody @Valid request: DoctorAiRequest
     ): SseEmitter {
         subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
-        val emitter = SseEmitter(0L)
-        Thread {
+        val emitter = SseEmitter(SSE_TIMEOUT_MS)
+        sseExecutor.execute {
             try {
                 val patientCtx = request.patientId?.let { patientId ->
                     patientAiContextBuilder.build(patientId, principal.profile.id)
@@ -253,7 +259,7 @@ class DoctorAiController(
             } catch (ex: Exception) {
                 SseIoSupport.finish(emitter, ex)
             }
-        }.start()
+        }
         return emitter
     }
 

@@ -20,6 +20,10 @@ interface PatientDocumentRepository : JpaRepository<PatientDocument, Long> {
     @Query("select d from PatientDocument d where d.appointment.id = :appointmentId order by d.date desc, d.id desc")
     fun findByAppointmentId(@Param("appointmentId") appointmentId: Long): List<PatientDocument>
 
+    /** (appointmentId, documentId) pairs; a projection, so no entity or lazy association is loaded. */
+    @Query("select d.appointment.id, d.id from PatientDocument d where d.appointment.id in :appointmentIds")
+    fun findIdPairsByAppointmentIds(@Param("appointmentIds") appointmentIds: Collection<Long>): List<Array<Any>>
+
     @Query(
         """
         SELECT d.appointment.id, COUNT(d.id) FROM PatientDocument d
