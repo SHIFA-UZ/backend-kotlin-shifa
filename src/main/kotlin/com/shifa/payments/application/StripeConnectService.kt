@@ -1,25 +1,24 @@
 package com.shifa.payments.application
 
-import com.shifa.shared.config.StripeProperties
 import com.shifa.payments.domain.DoctorBilling
 import com.shifa.payments.infrastructure.DoctorBillingRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.stripe.exception.StripeException
+import com.shifa.shared.config.StripeProperties
 import com.stripe.Stripe
+import com.stripe.exception.StripeException
 import com.stripe.model.Account
 import com.stripe.model.AccountLink
 import com.stripe.param.AccountCreateParams
 import com.stripe.param.AccountLinkCreateParams
+import java.time.OffsetDateTime
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.OffsetDateTime
 
 @Service
 class StripeConnectService(
     private val stripeProperties: StripeProperties,
-    private val doctorProfiles: DoctorProfileRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
     private val doctorBillingRepository: DoctorBillingRepository
 ) {
     data class ConnectOnboardingResult(

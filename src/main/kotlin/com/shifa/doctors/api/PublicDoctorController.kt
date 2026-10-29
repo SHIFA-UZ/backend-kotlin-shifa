@@ -2,40 +2,31 @@
 package com.shifa.doctors.api
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.shifa.appointments.application.PatientDaySlotsService
+import com.shifa.doctors.api.dto.DoctorListResponse
+import com.shifa.doctors.api.dto.PublicLocationDto
+import com.shifa.doctors.api.dto.ServicePriceDto
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorService
-import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
-import com.shifa.doctors.infrastructure.DoctorServiceRepository
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorReviewRepository
-import com.shifa.shared.security.PatientPrincipal
-import com.shifa.appointments.application.PatientDaySlotsService
-import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.web.bind.annotation.*
 import java.time.Instant
 import java.time.ZoneId
+import org.springframework.web.bind.annotation.*
+
 
 @RestController
 @RequestMapping("/api/public/doctors")
 class PublicDoctorController(
-    private val doctorProfiles: DoctorProfileRepository,
-    private val reviewRepository: DoctorReviewRepository,
-    private val doctorLocations: DoctorLocationRepository,
-    private val doctorServices: DoctorServiceRepository,
-    private val doctorServicePrices: DoctorServicePriceRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
+    private val reviewRepository: com.shifa.doctors.application.DoctorReviews,
+    private val doctorLocations: com.shifa.doctors.application.DoctorLocations,
+    private val doctorServices: com.shifa.doctors.application.DoctorServices,
+    private val doctorServicePrices: com.shifa.doctors.application.DoctorServicePrices,
     private val weeklyScheduleRules: com.shifa.appointments.application.WeeklyScheduleRules,
     private val dateSpecificScheduleRules: com.shifa.appointments.application.DateSpecificScheduleRules,
     private val daySlotsService: PatientDaySlotsService,
     private val objectMapper: ObjectMapper,
     private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
-    data class DoctorListResponse(
-        val totalCount: Long,
-        val page: Int,
-        val pageSize: Int,
-        val doctors: List<DoctorDto>
-    )
 
     private data class PriceSummary(
         val minPriceMinor: Long?,
@@ -49,12 +40,6 @@ class PublicDoctorController(
         val supportsInPerson: Boolean,
         val priceSummary: PriceSummary,
         val nextAvailableStartAt: Instant?
-    )
-    data class ServicePriceDto(
-        val amountMinor: Long,
-        val currency: String,
-        /** Null means the default price row for all locations (unless overridden per location). */
-        val locationId: Long? = null
     )
 
     data class ServiceDto(
@@ -71,20 +56,6 @@ class PublicDoctorController(
         val prices: List<ServicePriceDto>
     )
 
-
-    data class PublicLocationDto(
-        val id: Long,
-        val label: String,
-        val clinic: String?,
-        val address: String?,
-        val latitude: Double?,
-        val longitude: Double?,
-        val locationCountry: String?,
-        val locationRegion: String?,
-        val locationCity: String?,
-        val locationStreetAddress: String?,
-        val isPrimary: Boolean
-    )
 
     data class DoctorDto(
         val id: Long?,

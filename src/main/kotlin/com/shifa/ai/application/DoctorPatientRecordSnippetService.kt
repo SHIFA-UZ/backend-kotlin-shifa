@@ -3,11 +3,9 @@ package com.shifa.ai.application
 import com.shifa.ai.domain.ConsultationNoteAiSnapshot
 import com.shifa.ai.domain.ConsultationNoteText
 import com.shifa.ai.domain.Form0252AiSnapshot
-import com.shifa.appointments.domain.ConsultationNote
 import com.shifa.patients.domain.PatientForm
-import com.shifa.patients.infrastructure.PatientFormRepository
-import org.springframework.stereotype.Service
 import java.time.ZoneId
+import org.springframework.stereotype.Service
 
 /**
  * Shared structured clinical snippets for [com.shifa.ai.application.PatientAiContextBuilder] (Ask Shifa AI)
@@ -15,7 +13,7 @@ import java.time.ZoneId
  */
 @Service
 class DoctorPatientRecordSnippetService(
-    private val patientFormRepo: PatientFormRepository,
+    private val patientFormRepo: com.shifa.patients.application.PatientForms,
     private val consultationNoteRepo: com.shifa.appointments.application.ConsultationNotes,
 ) {
 

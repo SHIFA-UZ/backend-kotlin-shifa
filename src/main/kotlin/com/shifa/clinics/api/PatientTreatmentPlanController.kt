@@ -7,7 +7,6 @@ import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanPaymentRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanRepository
 import com.shifa.shared.security.PatientPrincipal
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
@@ -20,7 +19,7 @@ import org.springframework.web.server.ResponseStatusException
 @RestController
 @RequestMapping("/api/patients/me/treatment-plans")
 class PatientTreatmentPlanController(
-    private val patientProfiles: PatientProfileRepository,
+    private val patientProfiles: com.shifa.patients.application.PatientProfiles,
     private val plans: TreatmentPlanRepository,
     private val linesRepo: TreatmentPlanLineRepository,
     private val paymentsRepo: TreatmentPlanPaymentRepository,

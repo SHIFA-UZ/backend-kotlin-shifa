@@ -1,15 +1,17 @@
 package com.shifa.appointments.application
 
 import com.shifa.ai.application.AiDraftNoteService
-import com.shifa.documents.application.PatientDocumentStorageService
 import com.shifa.ai.application.ScribePipelineService
-
 import com.shifa.appointments.domain.Appointment
-import com.shifa.documents.domain.PatientDocument
-import com.shifa.documents.domain.PatientDocumentCategory
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.appointments.infrastructure.ConsultationNoteRepository
-import com.shifa.doctors.infrastructure.DoctorSettingsRepository
+import com.shifa.documents.application.PatientDocumentStorageService
+import com.shifa.documents.domain.PatientDocument
+import com.shifa.documents.domain.PatientDocumentCategory
+import java.io.ByteArrayOutputStream
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -18,10 +20,7 @@ import org.apache.pdfbox.pdmodel.font.PDType0Font
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.io.ByteArrayOutputStream
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+
 
 /**
  * Creates or replaces the appointment documentation PDF (AI scribe first, doctor notes after).
@@ -32,7 +31,7 @@ class AppointmentDocumentationService(
     private val consultationNoteRepository: ConsultationNoteRepository,
     private val patientDocumentRepository: com.shifa.documents.application.PatientDocumentService,
     private val storage: PatientDocumentStorageService,
-    private val doctorSettingsRepository: DoctorSettingsRepository,
+    private val doctorSettingsRepository: com.shifa.doctors.application.DoctorSettingsDoor,
     private val aiDraftNoteService: AiDraftNoteService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)

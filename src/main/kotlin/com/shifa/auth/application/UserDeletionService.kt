@@ -1,23 +1,22 @@
 package com.shifa.auth.application
 
+import com.shifa.ai.infrastructure.AiDraftNoteRepository
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
-import com.shifa.admin.infrastructure.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.infrastructure.*
-import com.shifa.clinics.infrastructure.*
-import com.shifa.doctors.infrastructure.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.infrastructure.*
-import com.shifa.tasks.infrastructure.*
+import com.shifa.auth.infrastructure.UserActivityLogRepository
+import com.shifa.auth.infrastructure.UserRepository
+import com.shifa.auth.infrastructure.UserRoleRepository
+import com.shifa.auth.infrastructure.UserSessionRepository
+import com.shifa.chat.infrastructure.ConversationRepository
+import com.shifa.chat.infrastructure.MessageRepository
+import com.shifa.clinics.infrastructure.InvitationKeyRepository
+import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
+import java.util.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.util.*
 
 /**
  * Permanently deletes a user and all related data so the phone number (and email) can be used to create a new account.
@@ -30,24 +29,24 @@ class UserDeletionService(
     private val userSessionRepository: UserSessionRepository,
     private val userActivityLogRepository: UserActivityLogRepository,
     private val invitationKeyRepository: InvitationKeyRepository,
-    private val doctorProfileRepository: DoctorProfileRepository,
-    private val patientProfileRepository: PatientProfileRepository,
+    private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
+    private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
     private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val weeklyScheduleRuleRepository: com.shifa.appointments.application.WeeklyScheduleRules,
     private val dateSpecificScheduleRuleRepository: com.shifa.appointments.application.DateSpecificScheduleRules,
     private val scheduleBlockRepository: com.shifa.appointments.application.ScheduleBlocks,
     private val scheduleValidityPeriodRepository: com.shifa.appointments.application.ScheduleValidityPeriods,
-    private val doctorReviewRepository: DoctorReviewRepository,
+    private val doctorReviewRepository: com.shifa.doctors.application.DoctorReviews,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val remoteCareTaskRepository: RemoteCareTaskRepository,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
     private val patientDocumentService: com.shifa.documents.application.PatientDocumentService,
-    private val patientFormRepository: PatientFormRepository,
+    private val patientFormRepository: com.shifa.patients.application.PatientForms,
     private val documentAccessService: com.shifa.documents.application.DocumentAccessService,
     private val consultationNoteRepository: com.shifa.appointments.application.ConsultationNotes,
     private val aiDraftNoteRepository: AiDraftNoteRepository,
-    private val doctorSettingsRepository: DoctorSettingsRepository,
+    private val doctorSettingsRepository: com.shifa.doctors.application.DoctorSettingsDoor,
     private val doctorBillingService: com.shifa.payments.application.DoctorBillingService,
 ) {
     private val log = LoggerFactory.getLogger(UserDeletionService::class.java)

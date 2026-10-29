@@ -1,7 +1,6 @@
 package com.shifa.admin.application
 
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -13,7 +12,7 @@ import org.springframework.transaction.annotation.Transactional
  */
 @Service
 class AdminCalendarResetService(
-    private val doctorProfileRepository: DoctorProfileRepository,
+    private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
     private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val weeklyScheduleRuleRepository: com.shifa.appointments.application.WeeklyScheduleRules,
     private val dateSpecificScheduleRuleRepository: com.shifa.appointments.application.DateSpecificScheduleRules,

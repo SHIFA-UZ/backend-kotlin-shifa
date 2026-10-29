@@ -12,12 +12,13 @@ import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
 import com.shifa.auth.domain.UserRole
 import com.shifa.auth.domain.UserSession
+import com.shifa.patients.domain.PatientProfile
 import com.shifa.auth.infrastructure.FirebaseAuthService
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
 import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.clinics.infrastructure.InvitationKeyRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.doctors.application.DoctorProfiles
+import com.shifa.patients.application.PatientProfiles
 import com.shifa.shared.security.JwtService
 import com.shifa.shared.security.PrincipalResolverService
 import java.time.Instant
@@ -71,8 +72,8 @@ class AuthCreatePatientForDoctorOtpTest {
 
     @MockBean lateinit var users: Users
     @MockBean lateinit var invites: InvitationKeyRepository
-    @MockBean lateinit var doctors: DoctorProfileRepository
-    @MockBean lateinit var patients: PatientProfileRepository
+    @MockBean lateinit var doctors: DoctorProfiles
+    @MockBean lateinit var patients: PatientProfiles
     @MockBean lateinit var userSessions: UserSessions
     @MockBean lateinit var encoder: PasswordEncoder
     @MockBean lateinit var jwt: JwtService
@@ -241,7 +242,10 @@ class AuthCreatePatientForDoctorOtpTest {
             org.mockito.ArgumentMatchers.argThat<UserRole> { it.user.id == user.id && it.role == Role.PATIENT }
                 ?: UserRole(user = user, role = Role.PATIENT),
         )
-        verify(patients).save(org.mockito.ArgumentMatchers.argThat { it.user?.id == user.id && it.phone == doctorPhone })
+        verify(patients).save(
+            org.mockito.ArgumentMatchers.argThat<PatientProfile> { it.user?.id == user.id && it.phone == doctorPhone }
+                ?: PatientProfile(fullName = "P", user = user),
+        )
         verify(userSessions).save(
             org.mockito.ArgumentMatchers.argThat<UserSession> { it.tokenJti == "jti-2" && it.user.id == user.id }
                 ?: UserSession(user = user, expiresAt = Instant.now().atOffset(java.time.ZoneOffset.UTC)),

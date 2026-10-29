@@ -1,36 +1,33 @@
 package com.shifa.tasks.api
 
+import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.tasks.domain.RemoteCareTask
-import com.shifa.auth.domain.SubscriptionFeature
-import com.shifa.tasks.domain.TaskCheckIn
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
-import com.shifa.tasks.infrastructure.TaskCheckInRepository
+import com.shifa.payments.application.SubscriptionTierService
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.shared.security.PatientPrincipal
-import com.shifa.payments.application.SubscriptionTierService
-import org.springframework.http.HttpStatus
-import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.bind.annotation.*
-import org.springframework.web.server.ResponseStatusException
+import com.shifa.tasks.domain.RemoteCareTask
+import com.shifa.tasks.domain.TaskCheckIn
+import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
+import com.shifa.tasks.infrastructure.TaskCheckInRepository
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import org.springframework.http.HttpStatus
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/api/tasks")
 class RemoteCareTaskController(
     private val taskRepo: RemoteCareTaskRepository,
     private val checkInRepo: TaskCheckInRepository,
-    private val patientRepo: PatientProfileRepository,
-    private val doctorRepo: DoctorProfileRepository,
+    private val patientRepo: com.shifa.patients.application.PatientProfiles,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val subscriptionTierService: SubscriptionTierService,
     private val appointmentRepo: com.shifa.appointments.application.Appointments,

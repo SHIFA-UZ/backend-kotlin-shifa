@@ -1,27 +1,26 @@
 package com.shifa.ai.application
 
-import com.shifa.ai.infrastructure.ClinicalRagJdbcRepository
-import com.shifa.ai.infrastructure.OpenAiEmbeddingService
-
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.ai.domain.ClinicalRagSources
 import com.shifa.ai.domain.DentalChartExpansion
+import com.shifa.ai.infrastructure.ClinicalRagJdbcRepository
+import com.shifa.ai.infrastructure.OpenAiEmbeddingService
 import com.shifa.appointments.domain.Appointment
 import com.shifa.appointments.domain.ConsultationNote
 import com.shifa.patients.domain.PatientForm
-import com.shifa.patients.infrastructure.PatientFormRepository
+import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import java.util.concurrent.ConcurrentHashMap
+
 
 /**
  * Indexes structured clinical text into [clinical_rag_chunks] for semantic retrieval.
  */
 @Service
 class ClinicalRagIndexingService(
-    private val patientForms: PatientFormRepository,
+    private val patientForms: com.shifa.patients.application.PatientForms,
     private val consultationNotes: com.shifa.appointments.application.ConsultationNotes,
     private val appointments: com.shifa.appointments.application.Appointments,
     private val jdbcRepository: ClinicalRagJdbcRepository,

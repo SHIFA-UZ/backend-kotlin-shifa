@@ -1,26 +1,23 @@
 package com.shifa.clinics.application
 
 import com.shifa.admin.application.AdminClinicService
-import com.shifa.doctors.application.DoctorRevenueShareService
-
-import com.shifa.appointments.domain.Appointment
 import com.shifa.clinics.domain.Clinic
 import com.shifa.clinics.domain.ClinicMembership
-import com.shifa.patients.domain.PatientProfile
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
 import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.doctors.application.DoctorRevenueShareService
+import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.ZoneId
-import java.time.ZonedDateTime
+
 
 @Service
 class ClinicWorkspaceService(
@@ -28,9 +25,9 @@ class ClinicWorkspaceService(
     private val financeAccess: ClinicFinanceAccessService,
     private val memberships: ClinicMembershipRepository,
     private val clinics: ClinicRepository,
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val appointments: com.shifa.appointments.application.Appointments,
-    private val patients: PatientProfileRepository,
+    private val patients: com.shifa.patients.application.PatientProfiles,
     private val adminClinicService: AdminClinicService,
     private val revenueShareService: DoctorRevenueShareService,
 ) {

@@ -2,16 +2,16 @@ package com.shifa.auth.application
 
 import com.shifa.admin.domain.AdminLevel
 import com.shifa.admin.domain.AdminProfile
+import com.shifa.admin.infrastructure.AdminProfileRepository
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
 import com.shifa.auth.domain.UserRole
-import com.shifa.admin.infrastructure.AdminProfileRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.auth.infrastructure.UserRoleRepository
 import com.shifa.auth.infrastructure.UserSessionRepository
 import com.shifa.shared.security.UserSessionValidationCache
+import java.time.OffsetDateTime
+import java.util.*
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -19,15 +19,13 @@ import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.OffsetDateTime
-import java.util.*
 
 @Service
 class UserManagementService(
     private val userRepository: UserRepository,
     private val adminProfileRepository: AdminProfileRepository,
-    private val doctorProfileRepository: DoctorProfileRepository,
-    private val patientProfileRepository: PatientProfileRepository,
+    private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
+    private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
     private val userRoleRepository: UserRoleRepository,
     private val userSessionRepository: UserSessionRepository,
     private val passwordEncoder: PasswordEncoder,

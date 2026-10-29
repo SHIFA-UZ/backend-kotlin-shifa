@@ -7,7 +7,6 @@ import com.shifa.appointments.domain.Appointment
 import com.shifa.clinics.domain.TreatmentPlan
 import com.shifa.clinics.domain.TreatmentPlanLine
 import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanCatalogItemRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanRepository
@@ -23,7 +22,7 @@ class VisitChargeService(
     private val linesRepo: TreatmentPlanLineRepository,
     private val catalogRepo: TreatmentPlanCatalogItemRepository,
     private val clinics: ClinicRepository,
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val clinicAccess: ClinicAccessService,
     private val financeService: TreatmentPlanFinanceService,
     private val objectMapper: ObjectMapper,

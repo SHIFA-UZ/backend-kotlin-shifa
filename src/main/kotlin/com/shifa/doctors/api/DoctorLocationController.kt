@@ -1,16 +1,17 @@
 // src/main/kotlin/com/shifa/doctors/api/DoctorLocationController.kt
 package com.shifa.doctors.api
 
+import com.shifa.doctors.api.dto.LocationDto
 import com.shifa.doctors.domain.DoctorLocation
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.shared.security.DoctorPrincipal
+import java.time.Instant
+import java.time.OffsetDateTime
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
-import java.time.OffsetDateTime
+
 
 /**
  * CRUD for the doctor's practice locations. A doctor can have one or more locations and
@@ -20,27 +21,11 @@ import java.time.OffsetDateTime
 @RestController
 @RequestMapping("/api/doctors/me/locations")
 class DoctorLocationController(
-    private val locations: DoctorLocationRepository,
+    private val locations: com.shifa.doctors.application.DoctorLocations,
     private val weeklyRules: com.shifa.appointments.application.WeeklyScheduleRules,
     private val dateRules: com.shifa.appointments.application.DateSpecificScheduleRules,
     private val appointments: com.shifa.appointments.application.Appointments
 ) {
-
-    data class LocationDto(
-        val id: Long?,
-        val label: String,
-        val clinic: String? = null,
-        val address: String? = null,
-        val latitude: Double? = null,
-        val longitude: Double? = null,
-        val locationCountry: String? = null,
-        val locationRegion: String? = null,
-        val locationDistrict: String? = null,
-        val locationCity: String? = null,
-        val locationPostalCode: String? = null,
-        val locationStreetAddress: String? = null,
-        val isPrimary: Boolean = false
-    )
 
     @GetMapping
     @Transactional(readOnly = true)

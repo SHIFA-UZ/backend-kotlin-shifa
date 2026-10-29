@@ -2,19 +2,22 @@
 package com.shifa.appointments.api
 
 import com.shifa.appointments.api.dto.EntryDto
-
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.shared.security.ClinicStaffPrincipal
-import com.shifa.shared.security.DoctorPrincipal
+import com.shifa.appointments.application.ScheduleValidityService
 import com.shifa.clinics.application.ClinicAccessService
 import com.shifa.patients.application.PatientProfileMapper
-import com.shifa.appointments.application.ScheduleValidityService
+import com.shifa.shared.security.DoctorPrincipal
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalDateTime
+import java.time.LocalTime
+import java.time.ZoneId
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.*
+
 
 @RestController
 @RequestMapping("/api/calendar")
@@ -23,7 +26,7 @@ class CalendarController(
     private val dateSpecificRulesRepo: com.shifa.appointments.application.DateSpecificScheduleRules,
     private val appts: com.shifa.appointments.application.Appointments,
     private val blocksRepo: com.shifa.appointments.application.ScheduleBlocks,
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val profileMapper: PatientProfileMapper,
     private val scheduleValidityService: ScheduleValidityService,
     private val clinicAccess: ClinicAccessService,

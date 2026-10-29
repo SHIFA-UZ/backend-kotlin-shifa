@@ -17,10 +17,10 @@ import com.shifa.auth.infrastructure.FirebaseAuthService
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
 import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.clinics.infrastructure.InvitationKeyRepository
+import com.shifa.doctors.application.DoctorProfiles
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import com.shifa.patients.application.PatientProfiles
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.JwtService
 import com.shifa.shared.security.PrincipalResolverService
 import java.time.Instant
@@ -74,10 +74,10 @@ class AuthForgotPasswordAppScopeTest {
     lateinit var invites: InvitationKeyRepository
 
     @MockBean
-    lateinit var doctors: DoctorProfileRepository
+    lateinit var doctors: DoctorProfiles
 
     @MockBean
-    lateinit var patients: PatientProfileRepository
+    lateinit var patients: PatientProfiles
 
     @MockBean
     lateinit var userSessions: UserSessions

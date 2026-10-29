@@ -1,23 +1,16 @@
 package com.shifa.notifications.application
 
-import com.shifa.notifications.infrastructure.DevSmsService
-import com.shifa.notifications.infrastructure.FcmService
-import com.shifa.clinics.application.InstallmentService
-
 import com.shifa.appointments.domain.Appointment
-import com.shifa.notifications.domain.Notification
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
-import com.shifa.patients.infrastructure.PatientProphylaxisSettingRepository
-import com.shifa.tasks.infrastructure.TaskCheckInRepository
+import com.shifa.clinics.application.InstallmentService
+import com.shifa.clinics.infrastructure.InstallmentItemRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanPaymentRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanRepository
-import com.shifa.clinics.infrastructure.InstallmentItemRepository
-import org.slf4j.LoggerFactory
-import org.springframework.data.domain.PageRequest
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import com.shifa.notifications.domain.Notification
+import com.shifa.notifications.infrastructure.DevSmsService
+import com.shifa.notifications.infrastructure.FcmService
+import com.shifa.notifications.infrastructure.NotificationRepository
+import com.shifa.tasks.infrastructure.TaskCheckInRepository
 import java.time.Instant
 import java.time.LocalDate
 import java.time.OffsetDateTime
@@ -25,6 +18,11 @@ import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
+import org.slf4j.LoggerFactory
+import org.springframework.data.domain.PageRequest
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+
 
 /**
  * Task reminders: schedule is in patient's timezone; reminder window is in patient's "now".
@@ -35,12 +33,12 @@ class ReminderNotificationService(
     private val taskCheckInRepository: TaskCheckInRepository,
     private val notificationRepository: NotificationRepository,
     private val appointmentRepository: com.shifa.appointments.application.Appointments,
-    private val doctorProfileRepository: DoctorProfileRepository,
+    private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
     private val fcmService: FcmService,
     private val treatmentPlans: TreatmentPlanRepository,
     private val treatmentPlanLines: TreatmentPlanLineRepository,
     private val treatmentPlanPayments: TreatmentPlanPaymentRepository,
-    private val prophylaxisSettings: PatientProphylaxisSettingRepository,
+    private val prophylaxisSettings: com.shifa.patients.application.PatientProphylaxisSettings,
     private val installmentItems: InstallmentItemRepository,
     private val installmentService: InstallmentService,
     private val devSmsService: DevSmsService,

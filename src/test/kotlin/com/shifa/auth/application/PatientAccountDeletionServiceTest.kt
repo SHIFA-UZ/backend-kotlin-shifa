@@ -1,33 +1,31 @@
 package com.shifa.auth.application
 
-import com.shifa.chat.domain.Conversation
-import com.shifa.chat.domain.Message
-import com.shifa.patients.domain.PatientProfile
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
+import com.shifa.auth.infrastructure.UserRepository
+import com.shifa.chat.domain.Conversation
+import com.shifa.chat.domain.Message
 import com.shifa.chat.infrastructure.ConversationRepository
 import com.shifa.chat.infrastructure.MessageRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.auth.infrastructure.UserRepository
+import com.shifa.patients.domain.PatientProfile
+import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentCaptor
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.any
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
-import java.time.OffsetDateTime
-import java.util.Optional
 
 class PatientAccountDeletionServiceTest {
     @Test
     fun `deletePatientAccount revokes sessions deletes chat and clears phone for reuse`() {
         val users = mock(UserRepository::class.java)
         val userManagement = mock(UserManagementService::class.java)
-        val patientProfiles = mock(PatientProfileRepository::class.java)
+        val patientProfiles = mock(com.shifa.patients.application.PatientProfiles::class.java)
         val conversations = mock(ConversationRepository::class.java)
         val messages = mock(MessageRepository::class.java)
         val svc = PatientAccountDeletionService(
@@ -73,8 +71,8 @@ class PatientAccountDeletionServiceTest {
         `when`(patientProfiles.findByUserId(userId)).thenReturn(Optional.of(profile))
         `when`(conversations.findByPatientParticipantIdOrderByLastMessageDesc(42L)).thenReturn(listOf(conv))
         `when`(messages.findByConversationIdOrderByCreatedAtAsc(1L)).thenReturn(listOf(msg))
-        `when`(users.save(any(User::class.java))).thenAnswer { it.arguments[0] }
-        `when`(patientProfiles.save(any(PatientProfile::class.java))).thenAnswer { it.arguments[0] }
+        `when`(users.save(any(User::class.java) ?: user)).thenAnswer { it.arguments[0] }
+        `when`(patientProfiles.save(any(PatientProfile::class.java) ?: profile)).thenAnswer { it.arguments[0] }
 
         svc.deletePatientAccount(userId)
 
@@ -83,7 +81,7 @@ class PatientAccountDeletionServiceTest {
         verify(conversations, times(1)).deleteAll(listOf(conv))
 
         val userCaptor = ArgumentCaptor.forClass(User::class.java)
-        verify(users).save(userCaptor.capture())
+        verify(users).save(userCaptor.capture() ?: user)
         val savedUser = userCaptor.value
         assertFalse(savedUser.enabled)
         assertEquals(User.AccountStatus.DELETED, savedUser.accountStatus)
@@ -91,7 +89,7 @@ class PatientAccountDeletionServiceTest {
         assertNull(savedUser.email)
 
         val profileCaptor = ArgumentCaptor.forClass(PatientProfile::class.java)
-        verify(patientProfiles).save(profileCaptor.capture())
+        verify(patientProfiles).save(profileCaptor.capture() ?: profile)
         val savedProfile = profileCaptor.value
         assertEquals("Deleted User", savedProfile.fullName)
         assertNull(savedProfile.phone)

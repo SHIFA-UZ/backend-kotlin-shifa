@@ -1,47 +1,44 @@
 package com.shifa.payments.application
 
-import com.shifa.shared.config.ClickProperties
-import com.shifa.shared.config.PaymentProperties
-import com.shifa.shared.config.StripeProperties
 import com.shifa.appointments.domain.Appointment
-import com.shifa.clinics.domain.InstallmentItem
-import com.shifa.notifications.domain.Notification
-import com.shifa.clinics.domain.TreatmentPlanPayment
-import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
-import com.shifa.doctors.infrastructure.DoctorServiceRepository
 import com.shifa.appointments.domain.BookingPaymentPolicy
+import com.shifa.clinics.application.InstallmentService
+import com.shifa.clinics.application.TreatmentPlanFinanceService
+import com.shifa.clinics.domain.InstallmentItem
+import com.shifa.clinics.domain.TreatmentPlanPayment
+import com.shifa.clinics.infrastructure.InstallmentItemRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanRepository
 import com.shifa.doctors.application.DoctorServicePricing
+import com.shifa.notifications.domain.Notification
 import com.shifa.payments.domain.OpenCheckoutPolicy
 import com.shifa.payments.domain.Payment
 import com.shifa.payments.domain.PaymentGatewayCode
 import com.shifa.payments.domain.PaymentKind
 import com.shifa.payments.domain.PaymentStatus
 import com.shifa.payments.infrastructure.ClickGateway
+import com.shifa.payments.infrastructure.DoctorBillingRepository
 import com.shifa.payments.infrastructure.GatewayCheckoutRequest
 import com.shifa.payments.infrastructure.GatewayCheckoutResult
 import com.shifa.payments.infrastructure.ManualPaymentGateway
-import com.shifa.payments.infrastructure.StripeGateway
 import com.shifa.payments.infrastructure.PaymentRepository
-import com.shifa.payments.infrastructure.DoctorBillingRepository
-import com.shifa.clinics.infrastructure.InstallmentItemRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.clinics.infrastructure.TreatmentPlanRepository
-import com.shifa.clinics.application.InstallmentService
-import com.shifa.clinics.application.TreatmentPlanFinanceService
+import com.shifa.payments.infrastructure.StripeGateway
+import com.shifa.shared.config.ClickProperties
+import com.shifa.shared.config.PaymentProperties
+import com.shifa.shared.config.StripeProperties
+import java.time.Instant
+import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
-import java.util.UUID
 
 @Service
 class PaymentService(
     private val paymentRepository: PaymentRepository,
     private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val doctorBillingRepository: DoctorBillingRepository,
-    private val patientProfiles: PatientProfileRepository,
+    private val patientProfiles: com.shifa.patients.application.PatientProfiles,
     private val treatmentPlans: TreatmentPlanRepository,
     private val installmentItems: InstallmentItemRepository,
     private val financeService: TreatmentPlanFinanceService,
@@ -53,8 +50,8 @@ class PaymentService(
     private val clickProperties: ClickProperties,
     private val paymentProperties: PaymentProperties,
     private val stripeProperties: StripeProperties,
-    private val doctorServices: DoctorServiceRepository,
-    private val doctorServicePrices: DoctorServicePriceRepository,
+    private val doctorServices: com.shifa.doctors.application.DoctorServices,
+    private val doctorServicePrices: com.shifa.doctors.application.DoctorServicePrices,
     private val settlement: AppointmentPaymentSettlement,
     private val publicUrls: com.shifa.shared.PublicUrls,
 ) {

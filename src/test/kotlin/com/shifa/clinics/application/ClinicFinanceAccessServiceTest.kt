@@ -1,18 +1,17 @@
 package com.shifa.clinics.application
 
-import com.shifa.clinics.domain.Clinic
-import com.shifa.clinics.domain.ClinicMembership
-import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
+import com.shifa.clinics.domain.Clinic
+import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.shared.security.DoctorPrincipal
 import org.junit.jupiter.api.Assertions.assertDoesNotThrow
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import org.mockito.Mockito.mock
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.web.server.ResponseStatusException
 
@@ -20,7 +19,7 @@ class ClinicFinanceAccessServiceTest {
 
     private val memberships = mock(ClinicMembershipRepository::class.java)
     private val clinicAccess = mock(ClinicAccessService::class.java)
-    private val patients = mock(PatientProfileRepository::class.java)
+    private val patients = mock(com.shifa.patients.application.PatientProfiles::class.java)
 
     private val service = ClinicFinanceAccessService(memberships, clinicAccess, patients)
 

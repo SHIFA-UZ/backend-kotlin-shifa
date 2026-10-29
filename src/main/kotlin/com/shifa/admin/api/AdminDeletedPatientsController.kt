@@ -14,7 +14,6 @@ import com.shifa.documents.application.PatientDocumentService
 import com.shifa.patients.api.PatientFormDto
 import com.shifa.patients.application.PatientFormService
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.AdminPrincipal
 import com.shifa.shared.util.PhoneNormalizer
 import java.security.MessageDigest
@@ -39,7 +38,7 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/api/admin/patients/deleted")
 class AdminDeletedPatientsController(
     private val users: com.shifa.auth.application.Users,
-    private val patientProfiles: PatientProfileRepository,
+    private val patientProfiles: com.shifa.patients.application.PatientProfiles,
     private val appointments: com.shifa.appointments.application.Appointments,
     private val patientDocumentService: PatientDocumentService,
     private val patientFormService: PatientFormService,

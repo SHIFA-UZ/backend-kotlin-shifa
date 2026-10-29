@@ -1,8 +1,5 @@
 package com.shifa.notifications.infrastructure
 
-import com.shifa.notifications.application.DoctorPushI18n
-import com.shifa.notifications.application.FcmTokenCleanupService
-
 import com.google.auth.oauth2.GoogleCredentials
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
@@ -12,17 +9,19 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingException
 import com.google.firebase.messaging.Message
 import com.google.firebase.messaging.MessagingErrorCode
+import com.shifa.notifications.application.DoctorPushI18n
+import com.shifa.notifications.application.FcmTokenCleanupService
 import com.shifa.notifications.domain.Notification
-import com.shifa.doctors.infrastructure.DoctorSettingsRepository
-import org.slf4j.LoggerFactory
-import org.springframework.stereotype.Service
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
+
 
 @Service
 class FcmService(
     private val appointments: com.shifa.appointments.application.Appointments,
-    private val doctorSettings: DoctorSettingsRepository,
+    private val doctorSettings: com.shifa.doctors.application.DoctorSettingsDoor,
     private val tokenCleanup: FcmTokenCleanupService,
 ) {
 

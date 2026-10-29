@@ -1,29 +1,28 @@
 package com.shifa.admin.application
 
-import com.shifa.clinics.domain.Clinic
-import com.shifa.clinics.domain.ClinicMembership
-import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
+import com.shifa.clinics.domain.Clinic
+import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
 import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import com.shifa.doctors.domain.DoctorProfile
+import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.any
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
-import java.util.Optional
 
 class AdminClinicServiceTest {
 
     private val clinics = mock(ClinicRepository::class.java)
-    private val doctors = mock(DoctorProfileRepository::class.java)
+    private val doctors = mock(com.shifa.doctors.application.DoctorProfiles::class.java)
     private val memberships = mock(ClinicMembershipRepository::class.java)
 
     private val service = AdminClinicService(clinics, doctors, memberships)

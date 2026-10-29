@@ -2,17 +2,16 @@ package com.shifa.ai.application
 
 import com.shifa.documents.application.PatientDocumentStorageService
 import com.shifa.documents.application.PdfTextExtractionService
-
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.patients.infrastructure.PatientFormRepository
-import org.springframework.stereotype.Service
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import org.springframework.stereotype.Service
+
 
 @Service
 class PatientCopilotContextService(
     private val patientDocuments: com.shifa.documents.application.PatientDocumentService,
-    private val patientForms: PatientFormRepository,
+    private val patientForms: com.shifa.patients.application.PatientForms,
     private val appointments: com.shifa.appointments.application.Appointments,
     private val documentStorage: PatientDocumentStorageService,
     private val pdfTextExtraction: PdfTextExtractionService

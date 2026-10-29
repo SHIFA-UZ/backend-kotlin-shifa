@@ -1,26 +1,24 @@
 package com.shifa.ai.application
 
-import com.shifa.notifications.application.NotificationFormatting
 import com.shifa.appointments.application.PatientDaySlotsService
-
-import com.shifa.shared.config.AppProperties
 import com.shifa.appointments.domain.Appointment
+import com.shifa.notifications.application.NotificationFormatting
 import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import com.shifa.shared.config.AppProperties
+import java.time.Instant
+import java.time.ZoneId
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
-import java.time.ZoneId
+
 
 @Service
 class PatientCopilotBookingService(
-    private val doctorProfiles: DoctorProfileRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
     private val appointments: com.shifa.appointments.application.Appointments,
     private val notificationService: com.shifa.notifications.application.NotificationService,
-    private val doctorLocations: DoctorLocationRepository,
+    private val doctorLocations: com.shifa.doctors.application.DoctorLocations,
     private val appProps: AppProperties,
     private val patientDaySlotsService: PatientDaySlotsService
 ) {

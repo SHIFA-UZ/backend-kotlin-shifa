@@ -11,7 +11,6 @@ import com.shifa.clinics.infrastructure.TreatmentPlanCatalogItemRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanLineFulfillmentRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import java.time.OffsetDateTime
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -24,7 +23,7 @@ class TreatmentPlanFulfillmentService(
     private val linesRepo: TreatmentPlanLineRepository,
     private val appts: com.shifa.appointments.application.Appointments,
     private val catalogRepo: TreatmentPlanCatalogItemRepository,
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val linkRepo: TreatmentPlanAppointmentLinkRepository,
     private val fulfillmentRepo: TreatmentPlanLineFulfillmentRepository,
     private val financeService: TreatmentPlanFinanceService,

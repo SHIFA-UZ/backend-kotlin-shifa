@@ -1,23 +1,22 @@
 package com.shifa.auth.application
 
 import com.shifa.auth.domain.User
+import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.chat.infrastructure.ConversationRepository
 import com.shifa.chat.infrastructure.MessageRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.auth.infrastructure.UserRepository
+import java.security.MessageDigest
+import java.time.OffsetDateTime
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.security.MessageDigest
-import java.time.OffsetDateTime
 
 @Service
 class PatientAccountDeletionService(
     private val users: UserRepository,
     private val userManagementService: com.shifa.auth.application.UserManagementService,
-    private val patientProfiles: PatientProfileRepository,
+    private val patientProfiles: com.shifa.patients.application.PatientProfiles,
     private val conversations: ConversationRepository,
     private val messages: MessageRepository,
     private val storage: com.shifa.shared.storage.FileStorage,

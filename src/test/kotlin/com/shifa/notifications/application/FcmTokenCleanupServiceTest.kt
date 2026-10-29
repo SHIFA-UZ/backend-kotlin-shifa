@@ -1,24 +1,22 @@
 package com.shifa.notifications.application
 
 import com.shifa.notifications.infrastructure.FcmService
-
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
+
 
 class FcmTokenCleanupServiceTest {
 
-    private val patients = mock(PatientProfileRepository::class.java)
-    private val doctors = mock(DoctorProfileRepository::class.java)
+    private val patients = mock(com.shifa.patients.application.PatientProfiles::class.java)
+    private val doctors = mock(com.shifa.doctors.application.DoctorProfiles::class.java)
     private val service = FcmTokenCleanupService(patients, doctors)
 
     @Test

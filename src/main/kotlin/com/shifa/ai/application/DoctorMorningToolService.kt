@@ -1,39 +1,38 @@
 package com.shifa.ai.application
 
-import com.shifa.appointments.application.PatientDaySlotsService
-import com.shifa.documents.application.PatientDocumentService
-
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.shifa.appointments.domain.Appointment
-import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.patients.domain.PatientProfile
-import com.shifa.appointments.domain.PatientVisitFact
+import com.shifa.ai.infrastructure.IntelligenceToolReferenceService
 import com.shifa.appointments.application.AppointmentActionService
 import com.shifa.appointments.application.AppointmentIntelligenceService
+import com.shifa.appointments.application.IntelligenceBookingWorkflowService
+import com.shifa.appointments.application.PatientDaySlotsService
+import com.shifa.appointments.domain.Appointment
 import com.shifa.appointments.domain.AppointmentSpeechReference
+import com.shifa.appointments.domain.BookingTurnType
 import com.shifa.appointments.domain.CancellationIntent
 import com.shifa.appointments.domain.ClinicCalendarDay
-import com.shifa.appointments.domain.BookingTurnType
-import com.shifa.appointments.application.IntelligenceBookingWorkflowService
-import com.shifa.ai.infrastructure.IntelligenceToolReferenceService
+import com.shifa.appointments.domain.PatientVisitFact
 import com.shifa.appointments.domain.PendingPatientCandidate
 import com.shifa.appointments.domain.RescheduleIntent
-import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.documents.api.PatientDocumentDto
+import com.shifa.documents.application.PatientDocumentService
+import com.shifa.patients.domain.PatientProfile
+import java.time.Clock
+import java.time.Duration
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
 import kotlin.math.max
 import kotlin.math.min
 import org.slf4j.LoggerFactory
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.Duration
-import java.time.Clock
-import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
+
 
 /**
  * Read-only tools for the morning / Intelligence session.
@@ -45,7 +44,7 @@ class DoctorMorningToolService(
     private val patientBriefingService: PatientBriefingService,
     private val visitFactRepository: com.shifa.appointments.application.PatientVisitFacts,
     private val clinicVisitPatternRepository: com.shifa.appointments.application.ClinicVisitPatterns,
-    private val patientProfileRepository: PatientProfileRepository,
+    private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
     private val patientDaySlotsService: PatientDaySlotsService,
     private val patientDocumentService: PatientDocumentService,
     private val appointmentIntelligenceService: AppointmentIntelligenceService,

@@ -24,7 +24,6 @@ import com.shifa.clinics.infrastructure.TreatmentPlanRepository
 import com.shifa.doctors.application.DoctorRevenueShareService
 import com.shifa.notifications.application.NotificationService
 import com.shifa.notifications.domain.Notification
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
@@ -59,7 +58,7 @@ class ClinicFinanceController(
     private val linesRepo: TreatmentPlanLineRepository,
     private val appts: com.shifa.appointments.application.Appointments,
     private val clinics: ClinicRepository,
-    private val patients: PatientProfileRepository,
+    private val patients: com.shifa.patients.application.PatientProfiles,
     private val users: com.shifa.auth.application.Users,
     private val auditLogs: ClinicFinanceAuditLogRepository,
     private val notificationService: com.shifa.notifications.application.NotificationService,

@@ -3,17 +3,18 @@ package com.shifa.doctors.api
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.admin.application.AdminClinicService
 import com.shifa.appointments.application.ScheduleValidityService
+import com.shifa.doctors.api.dto.BillingDto
+import com.shifa.doctors.api.dto.ContactDto
+import com.shifa.doctors.api.dto.LanguageRequest
+import com.shifa.doctors.api.dto.ProfileDto
+import com.shifa.doctors.api.dto.SettingsDto
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorSettings
 import com.shifa.doctors.domain.DoctorStartTab
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorSettingsRepository
 import com.shifa.notifications.domain.Notification
 import com.shifa.payments.application.DoctorBillingService
 import com.shifa.payments.domain.DoctorBilling
 import com.shifa.shared.security.DoctorPrincipal
-import jakarta.validation.constraints.Email
-import jakarta.validation.constraints.NotBlank
 import java.text.Normalizer
 import java.time.OffsetDateTime
 import java.util.Locale
@@ -25,13 +26,14 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 
+
 @RestController
 @RequestMapping("/api/doctors/me")
 class DoctorController(
     private val users: com.shifa.auth.application.Users,
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val billingRepo: DoctorBillingService,
-    private val settingsRepo: DoctorSettingsRepository,
+    private val settingsRepo: com.shifa.doctors.application.DoctorSettingsDoor,
     private val scheduleValidityService: ScheduleValidityService,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val subscriptionTierService: com.shifa.payments.application.SubscriptionTierService,
@@ -79,67 +81,7 @@ class DoctorController(
 
     // -------------------- DTOs --------------------
 
-    data class ProfileDto(
-        val id: Long? = null,
-        val firstName: String?,
-        val lastName: String?,
-        val dob: String?,
-        val gender: String?,
-        val address: String?,
-        val clinic: String?,
-        val clinicId: Long? = null,
-        val profession: String?,
-        val avatarUrl: String?,
-        val photoUrl: String?,
-        val scheduleValidFrom: String?,
-        val scheduleValidUntil: String?,
-        val biography: String?,
-        val services: String?, // JSON array string
-        val certificates: String?, // JSON array string
-        val telegram: String?,
-        val instagram: String?,
-        val latitude: Double?,
-        val longitude: Double?,
-        // Structured location fields
-        val locationCountry: String?,
-        val locationRegion: String?,
-        val locationDistrict: String?,
-        val locationCity: String?,
-        val locationPostalCode: String?,
-        val locationStreetAddress: String?,
-        /** IANA time zone id (e.g. Europe/Berlin). Used for scheduling and calendar. */
-        val timeZone: String?,
-        val consultationPriceMinor: Long?,
-        val consultationCurrency: String?,
-        val smsRemindersAllowed: Boolean = false,
-    )
-
-    data class ContactDto(
-        @field:NotBlank val phone: String,
-        @field:Email val email: String?
-    )
-
-    data class BillingDto(
-        val billingName: String?,
-        val billingEmail: String?,
-        val iban: String?,
-        val taxId: String?,
-        val stripeConnectAccountId: String?,
-        val clickMerchantId: String?,
-        val paymeMerchantId: String?
-    )
-
-    data class SettingsDto(
-        val country: String?,
-        val language: String?,
-        val twoFA: Boolean,
-        val encryptedDocs: Boolean,
-        val defaultStartTab: String = DoctorStartTab.HOME,
-    )
-
     data class FcmTokenRequest(val fcmToken: String?)
-
-    data class LanguageRequest(val language: String?)
 
     data class UploadResp(val photoUrl: String)
 

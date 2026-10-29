@@ -1,51 +1,46 @@
 // src/main/kotlin/com/shifa/appointments/api/AppointmentController.kt
 package com.shifa.appointments.api
 
-import com.shifa.appointments.api.dto.ConsultationNoteDto
-import com.shifa.appointments.api.dto.PutConsultationNotesRequest
-import com.shifa.appointments.api.dto.IcdSuggestionDto
-import com.shifa.appointments.api.dto.DraftNoteDto
-import com.shifa.appointments.api.dto.ChangeSlotReq
-import com.shifa.appointments.api.dto.CompleteAppointmentRequest
-import com.shifa.appointments.api.dto.VisitChargeLineReq
-import com.shifa.appointments.api.dto.CompleteAppointmentResponse
-import com.shifa.appointments.api.dto.ScribeStatusResponse
-
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.shifa.appointments.domain.Appointment
-import com.shifa.notifications.domain.Notification
+import com.shifa.ai.application.ClinicalRagIndexingService
+import com.shifa.ai.application.ScribePipelineService
 import com.shifa.ai.domain.AiDraftNote
 import com.shifa.ai.infrastructure.AiDraftNoteRepository
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.appointments.api.dto.ChangeSlotReq
+import com.shifa.appointments.api.dto.CompleteAppointmentRequest
+import com.shifa.appointments.api.dto.CompleteAppointmentResponse
+import com.shifa.appointments.api.dto.ConsultationNoteDto
+import com.shifa.appointments.api.dto.DraftNoteDto
+import com.shifa.appointments.api.dto.IcdSuggestionDto
+import com.shifa.appointments.api.dto.PutConsultationNotesRequest
+import com.shifa.appointments.api.dto.ScribeStatusResponse
 import com.shifa.appointments.application.AppointmentCancellationService
-import com.shifa.appointments.application.AppointmentVisitLifecycleService
-import com.shifa.notifications.application.PatientPaymentPushI18n
-import com.shifa.ai.application.ClinicalRagIndexingService
-import com.shifa.appointments.application.SlotAvailabilityService
-import com.shifa.clinics.infrastructure.TreatmentPlanAppointmentLinkRepository
-import com.shifa.clinics.infrastructure.TreatmentPlanLineFulfillmentRepository
-import com.shifa.clinics.application.TreatmentPlanFulfillmentService
-import com.shifa.clinics.application.VisitChargeService
-import com.shifa.ai.application.ScribePipelineService
 import com.shifa.appointments.application.AppointmentDocumentationService
+import com.shifa.appointments.application.AppointmentVisitLifecycleService
 import com.shifa.appointments.application.DoctorAppointmentRescheduleService
 import com.shifa.appointments.application.DoctorRescheduleCommand
+import com.shifa.appointments.application.SlotAvailabilityService
+import com.shifa.appointments.domain.Appointment
+import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.clinics.application.TreatmentPlanFulfillmentService
+import com.shifa.clinics.application.VisitChargeService
+import com.shifa.clinics.infrastructure.TreatmentPlanAppointmentLinkRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanLineFulfillmentRepository
+import com.shifa.notifications.application.PatientPaymentPushI18n
+import com.shifa.notifications.domain.Notification
+import java.time.Instant
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
-import java.time.ZoneId
-import java.time.*
+
 
 @RestController
 @RequestMapping("/api/appointments")
 class AppointmentController(
     private val appts: com.shifa.appointments.application.Appointments,
-    private val doctorLocations: DoctorLocationRepository,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val consultationNoteRepo: com.shifa.appointments.application.ConsultationNotes,
     private val aiDraftNoteRepo: AiDraftNoteRepository,

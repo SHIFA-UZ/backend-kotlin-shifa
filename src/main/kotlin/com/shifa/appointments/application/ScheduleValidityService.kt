@@ -1,11 +1,10 @@
 package com.shifa.appointments.application
 
-import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.appointments.domain.ScheduleValidityPeriod
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.appointments.infrastructure.ScheduleValidityPeriodRepository
-import org.springframework.stereotype.Service
+import com.shifa.doctors.domain.DoctorProfile
 import java.time.LocalDate
+import org.springframework.stereotype.Service
 
 /**
  * Centralizes logic for multiple schedule validity periods per doctor.
@@ -14,7 +13,7 @@ import java.time.LocalDate
 @Service
 class ScheduleValidityService(
     private val periodRepo: ScheduleValidityPeriodRepository,
-    private val doctorRepo: DoctorProfileRepository
+    private val doctorRepo: com.shifa.doctors.application.DoctorProfiles
 ) {
 
     /**

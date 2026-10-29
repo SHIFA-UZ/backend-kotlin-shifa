@@ -3,21 +3,20 @@ package com.shifa.ai.application
 import com.shifa.ai.domain.AppointmentSummary
 import com.shifa.ai.domain.DocumentPdfExcerpt
 import com.shifa.ai.domain.DocumentSummary
-
 import com.shifa.ai.domain.PatientAiContext
-
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.documents.application.PatientDocumentService
 import com.shifa.documents.application.PatientDocumentStorageService
 import com.shifa.documents.application.PdfTextExtractionService
-import org.springframework.stereotype.Component
 import java.time.LocalDate
 import java.time.Period
 import java.time.ZoneId
+import org.springframework.stereotype.Component
+
+
 
 @Component
 class PatientAiContextBuilder(
-    private val patientRepo: PatientProfileRepository,
+    private val patientRepo: com.shifa.patients.application.PatientProfiles,
     private val patientDocumentService: PatientDocumentService,
     private val appointmentRepo: com.shifa.appointments.application.Appointments,
     private val clinicalSnippets: DoctorPatientRecordSnippetService,

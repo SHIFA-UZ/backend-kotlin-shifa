@@ -39,9 +39,7 @@ import com.shifa.clinics.infrastructure.ClinicMembershipRepository
 import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.clinics.infrastructure.InvitationKeyRepository
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.JwtService
 import com.shifa.shared.security.PasswordPolicy
 import com.shifa.shared.util.PhoneNormalizer
@@ -65,8 +63,8 @@ import org.springframework.web.server.ResponseStatusException
 class AuthController(
     private val users: com.shifa.auth.application.Users,
     private val invites: InvitationKeyRepository,
-    private val doctors: DoctorProfileRepository,
-    private val patients: com.shifa.patients.infrastructure.PatientProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
+    private val patients: com.shifa.patients.application.PatientProfiles,
     private val userSessions: com.shifa.auth.application.UserSessions,
     private val encoder: PasswordEncoder,
     private val jwt: JwtService,

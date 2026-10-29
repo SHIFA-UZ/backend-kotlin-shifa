@@ -7,7 +7,6 @@ import com.shifa.auth.application.PatientAccountDeletionService
 import com.shifa.auth.application.SmsOtpService
 import com.shifa.auth.domain.AccountDeleteChallenge
 import com.shifa.auth.domain.User
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.PatientPrincipal
 import com.shifa.shared.util.PhoneNormalizer
 import jakarta.validation.Valid
@@ -24,7 +23,7 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/api/patients/me/delete-account")
 class PatientAccountDeletionController(
     private val users: com.shifa.auth.application.Users,
-    private val patientProfiles: PatientProfileRepository,
+    private val patientProfiles: com.shifa.patients.application.PatientProfiles,
     private val challenges: com.shifa.auth.application.AccountDeleteChallenges,
     private val emailOtpService: EmailOtpService,
     private val deletionService: PatientAccountDeletionService,

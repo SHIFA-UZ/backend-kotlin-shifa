@@ -1,30 +1,22 @@
 package com.shifa.doctors.api
 
+import com.shifa.doctors.api.dto.GroupDto
+import com.shifa.doctors.api.dto.UpsertGroupRequest
 import com.shifa.doctors.domain.DoctorServiceGroup
-import com.shifa.doctors.infrastructure.DoctorServiceGroupRepository
 import com.shifa.shared.security.DoctorPrincipal
+import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
+
 
 @RestController
 @RequestMapping("/api/doctors/me/service-groups")
 class DoctorServiceGroupController(
-    private val groups: DoctorServiceGroupRepository
+    private val groups: com.shifa.doctors.application.DoctorServiceGroups
 ) {
-    data class GroupDto(
-        val id: Long?,
-        val name: String,
-        val sortOrder: Int
-    )
-
-    data class UpsertGroupRequest(
-        val name: String,
-        val sortOrder: Int = 0
-    )
 
     @GetMapping
     @Transactional(readOnly = true)

@@ -6,7 +6,6 @@ import com.shifa.appointments.api.dto.BookReq
 import com.shifa.appointments.application.DoctorAppointmentBookingService
 import com.shifa.appointments.application.DoctorBookingCommand
 import com.shifa.clinics.application.ClinicAccessService
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.shared.security.DoctorPrincipal
 import java.time.Instant
 import org.springframework.http.HttpStatus
@@ -18,7 +17,7 @@ import org.springframework.web.server.ResponseStatusException
 @RestController
 @RequestMapping("/api/schedule/book")
 class BookingController(
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val users: com.shifa.auth.application.Users,
     private val clinicAccess: ClinicAccessService,
     private val bookingService: DoctorAppointmentBookingService,

@@ -1,40 +1,38 @@
 // src/main/kotlin/com/shifa/appointments/api/ScheduleController.kt
 package com.shifa.appointments.api
 
-import com.shifa.appointments.api.dto.RuleDto
-import com.shifa.appointments.api.dto.ValidUntilDto
-import com.shifa.appointments.api.dto.ValidRangeDto
-import com.shifa.appointments.api.dto.ValidityPeriodDto
 import com.shifa.appointments.api.dto.DateSpecificRuleDto
-
+import com.shifa.appointments.api.dto.RuleDto
+import com.shifa.appointments.api.dto.ValidRangeDto
+import com.shifa.appointments.api.dto.ValidUntilDto
+import com.shifa.appointments.api.dto.ValidityPeriodDto
+import com.shifa.appointments.application.ScheduleValidityService
 import com.shifa.appointments.domain.DateSpecificScheduleRule
-import com.shifa.doctors.domain.DoctorLocation
-import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.appointments.domain.ScheduleValidityPeriod
 import com.shifa.appointments.domain.WeeklyScheduleRule
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import com.shifa.doctors.domain.DoctorLocation
+import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.shared.security.DoctorPrincipal
-import com.shifa.appointments.application.ScheduleValidityService
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
+
 
 @RestController
 @RequestMapping("/api/schedule")
 class ScheduleController(
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val rulesRepo: com.shifa.appointments.application.WeeklyScheduleRules,
     private val dateSpecificRulesRepo: com.shifa.appointments.application.DateSpecificScheduleRules,
     private val periodRepo: com.shifa.appointments.application.ScheduleValidityPeriods,
     private val scheduleValidityService: ScheduleValidityService,
-    private val locationRepo: DoctorLocationRepository
+    private val locationRepo: com.shifa.doctors.application.DoctorLocations
 ) {
 
     companion object {

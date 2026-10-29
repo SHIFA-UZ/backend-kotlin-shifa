@@ -23,12 +23,7 @@ import com.shifa.clinics.infrastructure.TreatmentPlanLineFulfillmentRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanPaymentRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanRepository
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
-import com.shifa.doctors.infrastructure.DoctorServiceRepository
 import com.shifa.notifications.domain.Notification
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
@@ -52,8 +47,8 @@ class TreatmentPlanController(
     private val planLinks: TreatmentPlanAppointmentLinkRepository,
     private val fulfillments: TreatmentPlanLineFulfillmentRepository,
     private val clinics: ClinicRepository,
-    private val patients: PatientProfileRepository,
-    private val doctors: DoctorProfileRepository,
+    private val patients: com.shifa.patients.application.PatientProfiles,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val catalogRepo: TreatmentPlanCatalogItemRepository,
     private val plans: TreatmentPlanRepository,
     private val linesRepo: TreatmentPlanLineRepository,
@@ -64,10 +59,10 @@ class TreatmentPlanController(
     private val users: com.shifa.auth.application.Users,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val objectMapper: ObjectMapper,
-    private val doctorLocations: DoctorLocationRepository,
+    private val doctorLocations: com.shifa.doctors.application.DoctorLocations,
     private val patientDaySlots: PatientDaySlotsService,
-    private val doctorServices: DoctorServiceRepository,
-    private val doctorServicePrices: DoctorServicePriceRepository,
+    private val doctorServices: com.shifa.doctors.application.DoctorServices,
+    private val doctorServicePrices: com.shifa.doctors.application.DoctorServicePrices,
 ) {
 
     data class CatalogItemDto(

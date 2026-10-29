@@ -1,28 +1,26 @@
 package com.shifa.documents.application
 
 import com.shifa.appointments.domain.Appointment
+import com.shifa.documents.api.PatientDocumentDto
 import com.shifa.documents.domain.PatientDocument
 import com.shifa.documents.domain.PatientDocumentCategory
 import com.shifa.documents.infrastructure.DocumentAccessGrantRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.documents.infrastructure.PatientDocumentRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.documents.api.PatientDocumentDto
+import java.time.LocalDate
+import org.slf4j.LoggerFactory
 import org.springframework.core.io.Resource
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
-import org.slf4j.LoggerFactory
-import java.time.LocalDate
 
 @Service
 class PatientDocumentService(
-    private val profiles: PatientProfileRepository,
+    private val profiles: com.shifa.patients.application.PatientProfiles,
     private val docs: PatientDocumentRepository,
     private val storage: PatientDocumentStorageService,
-    private val doctorProfiles: DoctorProfileRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
     private val accessGrants: DocumentAccessGrantRepository,
 ) {
     private val log = LoggerFactory.getLogger(PatientDocumentService::class.java)

@@ -1,29 +1,27 @@
 package com.shifa.ai.application
 
+import com.shifa.ai.domain.AiDraftNote
 import com.shifa.appointments.application.AppointmentDocumentationService
 import com.shifa.appointments.application.VisitFactService
-
-import com.shifa.ai.domain.AiDraftNote
 import com.shifa.appointments.domain.Appointment
 import com.shifa.appointments.domain.ConsultationNote
 import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.notifications.application.NotificationService
 import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.notifications.application.NotificationService
+import java.nio.file.Path
+import java.util.Optional
+import java.util.concurrent.atomic.AtomicBoolean
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
-import java.nio.file.Path
-import java.util.Optional
-import java.util.concurrent.atomic.AtomicBoolean
+
 
 class ScribePipelineServiceTest {
     private val recordings = mock(ScribeRecordingService::class.java)
@@ -33,7 +31,7 @@ class ScribePipelineServiceTest {
     private val diagnoses = mock(DiagnosisSuggestionService::class.java)
     private val appointments = mock(com.shifa.appointments.application.Appointments::class.java)
     private val notificationService = mock(NotificationService::class.java)
-    private val doctors = mock(DoctorProfileRepository::class.java)
+    private val doctors = mock(com.shifa.doctors.application.DoctorProfiles::class.java)
     private val docs = mock(AppointmentDocumentationService::class.java)
     private val visitSummaries = mock(PatientVisitAiSummaryService::class.java)
     private val visitFacts = mock(VisitFactService::class.java)

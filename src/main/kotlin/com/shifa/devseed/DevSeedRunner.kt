@@ -17,16 +17,11 @@ import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorService
 import com.shifa.doctors.domain.DoctorServicePrice
 import com.shifa.doctors.domain.ServicePaymentType
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
-import com.shifa.doctors.infrastructure.DoctorServiceRepository
 import com.shifa.documents.application.PatientDocumentStorageService
 import com.shifa.documents.domain.PatientDocument
 import com.shifa.documents.domain.PatientDocumentCategory
 import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.util.PhoneNormalizer
 import com.shifa.tasks.domain.RemoteCareTask
 import com.shifa.tasks.domain.TaskCheckIn
@@ -65,14 +60,14 @@ import org.springframework.transaction.annotation.Transactional
 class DevSeedRunner(
     private val users: com.shifa.auth.application.Users,
     private val userRoles: com.shifa.auth.application.UserRoles,
-    private val doctors: DoctorProfileRepository,
-    private val locations: DoctorLocationRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
+    private val locations: com.shifa.doctors.application.DoctorLocations,
     private val rules: com.shifa.appointments.application.WeeklyScheduleRules,
-    private val services: DoctorServiceRepository,
-    private val prices: DoctorServicePriceRepository,
+    private val services: com.shifa.doctors.application.DoctorServices,
+    private val prices: com.shifa.doctors.application.DoctorServicePrices,
     private val clinics: ClinicRepository,
     private val memberships: ClinicMembershipRepository,
-    private val patients: PatientProfileRepository,
+    private val patients: com.shifa.patients.application.PatientProfiles,
     private val appointments: com.shifa.appointments.application.Appointments,
     private val documents: com.shifa.documents.application.PatientDocumentService,
     private val tasks: RemoteCareTaskRepository,

@@ -1,10 +1,9 @@
 package com.shifa.ai.api
 
-import com.shifa.auth.domain.SubscriptionFeature
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.ai.application.ClinicalRagIndexingService
+import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.payments.application.SubscriptionTierService
+import com.shifa.shared.security.DoctorPrincipal
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -23,7 +22,7 @@ class ClinicalRagReindexController(
     private val indexer: ClinicalRagIndexingService,
     private val subscriptionTierService: SubscriptionTierService,
     private val appointmentRepo: com.shifa.appointments.application.Appointments,
-    private val patientsRepo: PatientProfileRepository,
+    private val patientsRepo: com.shifa.patients.application.PatientProfiles,
 ) {
 
     @PostMapping("/clinical-rag/reindex-patient/{patientId}")

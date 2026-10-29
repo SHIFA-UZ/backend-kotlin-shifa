@@ -9,7 +9,6 @@ import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.SmsVerificationCode
 import com.shifa.auth.domain.User
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.PatientPrincipal
 import java.time.OffsetDateTime
 import java.util.Optional
@@ -26,7 +25,7 @@ import org.springframework.web.server.ResponseStatusException
 
 class PatientAccountDeletionSmsTest {
     private val users = mock(com.shifa.auth.application.Users::class.java)
-    private val patients = mock(PatientProfileRepository::class.java)
+    private val patients = mock(com.shifa.patients.application.PatientProfiles::class.java)
     private val challenges = mock(com.shifa.auth.application.AccountDeleteChallenges::class.java)
     private val emailOtp = mock(EmailOtpService::class.java)
     private val smsOtp = mock(SmsOtpService::class.java)

@@ -1,18 +1,17 @@
 // src/main/kotlin/com/shifa/doctors/api/ProfilePhotoController.kt
 package com.shifa.doctors.api
 
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.shared.security.DoctorPrincipal
+import java.text.Normalizer
+import java.util.Locale
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
-import java.text.Normalizer
-import java.util.Locale
 
 @RestController
 @RequestMapping("/api/profile/photo")
 class ProfilePhotoController(
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val uploadGuard: com.shifa.shared.UploadGuard,
     private val storage: com.shifa.shared.storage.FileStorage,
     private val publicUrls: com.shifa.shared.PublicUrls,

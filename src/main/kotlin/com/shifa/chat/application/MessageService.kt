@@ -11,10 +11,8 @@ import com.shifa.chat.domain.Conversation
 import com.shifa.chat.domain.Message
 import com.shifa.chat.infrastructure.ConversationRepository
 import com.shifa.chat.infrastructure.MessageRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.notifications.domain.Notification
 import com.shifa.patients.application.PatientProfileMapper
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import java.time.OffsetDateTime
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -29,8 +27,8 @@ class MessageService(
     private val messageRepo: MessageRepository,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val userRepo: com.shifa.auth.application.Users,
-    private val doctorProfileRepo: DoctorProfileRepository,
-    private val patientProfileRepo: PatientProfileRepository,
+    private val doctorProfileRepo: com.shifa.doctors.application.DoctorProfiles,
+    private val patientProfileRepo: com.shifa.patients.application.PatientProfiles,
     private val fileUrlSigner: com.shifa.shared.security.FileUrlSigner,
     private val patientProfileMapper: PatientProfileMapper,
     private val publicUrls: com.shifa.shared.PublicUrls,

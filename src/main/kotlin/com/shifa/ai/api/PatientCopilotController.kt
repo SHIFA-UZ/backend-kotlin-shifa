@@ -1,25 +1,30 @@
 package com.shifa.ai.api
 
-import com.shifa.shared.api.SseIoSupport
-
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.shifa.ai.application.PatientCopilotBookingService
+import com.shifa.ai.application.PatientCopilotContextService
+import com.shifa.ai.application.TranscriptionPurpose
+import com.shifa.ai.application.TranscriptionService
 import com.shifa.ai.domain.OutputLanguage
 import com.shifa.ai.domain.SpecialtyTaxonomy
 import com.shifa.ai.domain.SymptomMatcher
+import com.shifa.ai.infrastructure.OpenAiResponsesService
+import com.shifa.appointments.application.PatientDaySlotsService
+import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.auth.domain.SubscriptionFeature
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorReviewRepository
-import com.shifa.shared.security.PatientPrincipal
-import com.shifa.ai.infrastructure.OpenAiResponsesService
-import com.shifa.ai.application.PatientCopilotBookingService
-import com.shifa.ai.application.PatientCopilotContextService
-import com.shifa.appointments.application.PatientDaySlotsService
 import com.shifa.payments.application.SubscriptionTierService
-import com.shifa.ai.application.TranscriptionPurpose
-import com.shifa.ai.application.TranscriptionService
+import com.shifa.shared.api.SseIoSupport
+import com.shifa.shared.security.PatientPrincipal
 import jakarta.validation.Valid
+import java.nio.file.Files
+import java.time.Instant
+import java.time.ZoneId
+import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import java.util.Locale
+import java.util.concurrent.Executor
 import kotlinx.coroutines.runBlocking
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -29,22 +34,15 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
-import java.util.concurrent.Executor
-import java.nio.file.Files
-import java.time.Instant
-import java.time.ZoneId
-import java.time.ZonedDateTime
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
+
 
 @RestController
 @RequestMapping("/api/patients/me/copilot")
 class PatientCopilotController(
     private val aiService: OpenAiResponsesService,
     private val transcriptionService: TranscriptionService,
-    private val doctorProfiles: DoctorProfileRepository,
-    private val reviewRepository: DoctorReviewRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
+    private val reviewRepository: com.shifa.doctors.application.DoctorReviews,
     private val copilotBookingService: PatientCopilotBookingService,
     private val copilotContextService: PatientCopilotContextService,
     private val daySlotsService: PatientDaySlotsService,

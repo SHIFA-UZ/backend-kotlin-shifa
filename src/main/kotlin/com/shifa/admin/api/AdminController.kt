@@ -13,8 +13,6 @@ import com.shifa.auth.domain.SubscriptionTier
 import com.shifa.auth.domain.User
 import com.shifa.clinics.application.InvitationKeyService
 import com.shifa.clinics.domain.ClinicMembership
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.payments.application.SubscriptionTierService
 import com.shifa.shared.security.AdminPrincipal
 import jakarta.servlet.http.HttpServletRequest
@@ -40,8 +38,7 @@ class AdminController(
     private val auditService: AuditService,
     private val userActivityService: UserActivityService,
     private val userRepository: com.shifa.auth.application.Users,
-    private val doctorProfileRepository: DoctorProfileRepository,
-    private val patientProfileRepository: PatientProfileRepository,
+    private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
     private val systemConfigRepository: SystemConfigRepository,
     private val adminCalendarResetService: com.shifa.admin.application.AdminCalendarResetService,
     private val subscriptionTierService: SubscriptionTierService,

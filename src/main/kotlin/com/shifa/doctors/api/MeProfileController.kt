@@ -1,6 +1,7 @@
 package com.shifa.doctors.api
 
 import com.shifa.auth.domain.Role
+import com.shifa.doctors.api.dto.MeProfileDto
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
 import org.springframework.http.HttpStatus
@@ -9,23 +10,13 @@ import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 
+
 /**
  * Lightweight profile for authenticated practice actors (doctor or clinic staff).
  * Doctor app loads this instead of [/api/doctors/me] for users without a doctor profile.
  */
 @RestController
 class MeProfileController {
-
-    data class MeProfileDto(
-        val id: Long,
-        val role: String,
-        val firstName: String,
-        val lastName: String,
-        val email: String?,
-        val phone: String?,
-        val photoUrl: String?,
-        val timeZone: String?,
-    )
 
     @GetMapping("/api/me/profile")
     fun myProfile(@AuthenticationPrincipal principal: Any): MeProfileDto {

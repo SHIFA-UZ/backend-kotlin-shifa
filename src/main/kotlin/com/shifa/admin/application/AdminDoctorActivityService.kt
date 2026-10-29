@@ -11,10 +11,7 @@ import com.shifa.auth.domain.User
 import com.shifa.clinics.infrastructure.TreatmentPlanRepository
 import com.shifa.doctors.application.EarlyPartnerContractService
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.notifications.application.DoctorSmsBillingService
-import com.shifa.patients.infrastructure.PatientFormRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
 import java.time.Instant
 import java.time.LocalDate
@@ -36,14 +33,14 @@ import org.springframework.web.server.ResponseStatusException
 @Service
 class AdminDoctorActivityService(
     private val earlyPartnerContractService: EarlyPartnerContractService,
-    private val doctorProfileRepository: DoctorProfileRepository,
+    private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
     private val appointmentRepository: com.shifa.appointments.application.Appointments,
-    private val patientProfileRepository: PatientProfileRepository,
+    private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
     private val patientDocumentRepository: com.shifa.documents.application.PatientDocumentService,
     private val treatmentPlanRepository: TreatmentPlanRepository,
     private val remoteCareTaskRepository: RemoteCareTaskRepository,
     private val consultationNoteRepository: com.shifa.appointments.application.ConsultationNotes,
-    private val patientFormRepository: PatientFormRepository,
+    private val patientFormRepository: com.shifa.patients.application.PatientForms,
     private val aiUsageCounterRepository: AiUsageCounterRepository,
     private val aiDraftNoteRepository: AiDraftNoteRepository,
     private val doctorSmsBillingService: DoctorSmsBillingService,
