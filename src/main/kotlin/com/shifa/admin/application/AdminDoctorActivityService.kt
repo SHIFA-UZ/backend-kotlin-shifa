@@ -8,8 +8,6 @@ import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
 import com.shifa.ai.infrastructure.AiDraftNoteRepository
 import com.shifa.ai.infrastructure.AiUsageCounterRepository
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.appointments.infrastructure.ConsultationNoteRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.patients.infrastructure.PatientFormRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
@@ -40,12 +38,12 @@ import kotlin.math.min
 class AdminDoctorActivityService(
     private val earlyPartnerContractService: EarlyPartnerContractService,
     private val doctorProfileRepository: DoctorProfileRepository,
-    private val appointmentRepository: AppointmentRepository,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val patientProfileRepository: PatientProfileRepository,
     private val patientDocumentRepository: com.shifa.documents.application.PatientDocumentService,
     private val treatmentPlanRepository: TreatmentPlanRepository,
     private val remoteCareTaskRepository: RemoteCareTaskRepository,
-    private val consultationNoteRepository: ConsultationNoteRepository,
+    private val consultationNoteRepository: com.shifa.appointments.application.ConsultationNotes,
     private val patientFormRepository: PatientFormRepository,
     private val aiUsageCounterRepository: AiUsageCounterRepository,
     private val aiDraftNoteRepository: AiDraftNoteRepository,

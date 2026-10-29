@@ -6,7 +6,6 @@ import com.shifa.clinics.application.InstallmentService
 
 import com.shifa.appointments.domain.Appointment
 import com.shifa.notifications.domain.Notification
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.patients.infrastructure.PatientProphylaxisSettingRepository
@@ -35,7 +34,7 @@ import java.time.temporal.ChronoUnit
 class ReminderNotificationService(
     private val taskCheckInRepository: TaskCheckInRepository,
     private val notificationRepository: NotificationRepository,
-    private val appointmentRepository: AppointmentRepository,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val doctorProfileRepository: DoctorProfileRepository,
     private val fcmService: FcmService,
     private val treatmentPlans: TreatmentPlanRepository,

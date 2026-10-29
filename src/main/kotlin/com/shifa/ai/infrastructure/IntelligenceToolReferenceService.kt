@@ -1,4 +1,4 @@
-package com.shifa.appointments.infrastructure
+package com.shifa.ai.infrastructure
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory

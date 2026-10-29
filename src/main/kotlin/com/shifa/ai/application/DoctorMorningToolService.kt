@@ -16,13 +16,10 @@ import com.shifa.appointments.domain.CancellationIntent
 import com.shifa.appointments.domain.ClinicCalendarDay
 import com.shifa.appointments.domain.BookingTurnType
 import com.shifa.appointments.application.IntelligenceBookingWorkflowService
-import com.shifa.appointments.infrastructure.IntelligenceToolReferenceService
+import com.shifa.ai.infrastructure.IntelligenceToolReferenceService
 import com.shifa.appointments.domain.PendingPatientCandidate
 import com.shifa.appointments.domain.RescheduleIntent
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.appointments.infrastructure.ClinicVisitPatternRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.appointments.infrastructure.PatientVisitFactRepository
 import com.shifa.documents.api.PatientDocumentDto
 import kotlin.math.max
 import kotlin.math.min
@@ -44,10 +41,10 @@ import java.time.format.DateTimeFormatter
  */
 @Service
 class DoctorMorningToolService(
-    private val appointmentRepository: AppointmentRepository,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val patientBriefingService: PatientBriefingService,
-    private val visitFactRepository: PatientVisitFactRepository,
-    private val clinicVisitPatternRepository: ClinicVisitPatternRepository,
+    private val visitFactRepository: com.shifa.appointments.application.PatientVisitFacts,
+    private val clinicVisitPatternRepository: com.shifa.appointments.application.ClinicVisitPatterns,
     private val patientProfileRepository: PatientProfileRepository,
     private val patientDaySlotsService: PatientDaySlotsService,
     private val patientDocumentService: PatientDocumentService,
@@ -585,7 +582,7 @@ class DoctorMorningToolService(
         conversationId: String?,
         patientName: String?,
         userText: String,
-    ): List<com.shifa.appointments.infrastructure.TrustedAppointmentReference> {
+    ): List<com.shifa.ai.infrastructure.TrustedAppointmentReference> {
         if (conversationId.isNullOrBlank()) return emptyList()
         val zone = zoneOf(doctor)
         val today = LocalDate.now(clock.withZone(zone))
@@ -603,7 +600,7 @@ class DoctorMorningToolService(
     }
 
     private fun clarifyVisitOperation(
-        matches: List<com.shifa.appointments.infrastructure.TrustedAppointmentReference>,
+        matches: List<com.shifa.ai.infrastructure.TrustedAppointmentReference>,
         spokenHint: String,
     ): Map<String, Any?> = mapOf(
         "supported" to true,
@@ -1463,7 +1460,7 @@ class DoctorMorningToolService(
     }
 
     private fun clarifyRescheduleReferences(
-        matches: List<com.shifa.appointments.infrastructure.TrustedAppointmentReference>,
+        matches: List<com.shifa.ai.infrastructure.TrustedAppointmentReference>,
     ): Map<String, Any?> = mapOf(
         "cardType" to "propose_reschedule",
         "workflowStatus" to "AWAITING_CLARIFICATION",

@@ -13,7 +13,6 @@ import com.google.firebase.messaging.FirebaseMessagingException
 import com.google.firebase.messaging.Message
 import com.google.firebase.messaging.MessagingErrorCode
 import com.shifa.notifications.domain.Notification
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorSettingsRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -22,7 +21,7 @@ import java.nio.charset.StandardCharsets
 
 @Service
 class FcmService(
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val doctorSettings: DoctorSettingsRepository,
     private val tokenCleanup: FcmTokenCleanupService,
 ) {

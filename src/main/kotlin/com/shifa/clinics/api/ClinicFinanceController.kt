@@ -65,7 +65,7 @@ class ClinicFinanceController(
     private val installmentPlans: InstallmentPlanRepository,
     private val installmentItems: InstallmentItemRepository,
     private val linesRepo: TreatmentPlanLineRepository,
-    private val appts: AppointmentRepository,
+    private val appts: com.shifa.appointments.application.Appointments,
     private val clinics: ClinicRepository,
     private val patients: PatientProfileRepository,
     private val users: UserRepository,

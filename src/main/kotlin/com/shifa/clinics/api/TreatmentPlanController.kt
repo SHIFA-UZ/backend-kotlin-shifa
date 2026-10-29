@@ -57,7 +57,7 @@ class TreatmentPlanController(
     private val plans: TreatmentPlanRepository,
     private val linesRepo: TreatmentPlanLineRepository,
     private val paymentsRepo: TreatmentPlanPaymentRepository,
-    private val appts: AppointmentRepository,
+    private val appts: com.shifa.appointments.application.Appointments,
     private val installmentPlans: InstallmentPlanRepository,
     private val installmentItems: InstallmentItemRepository,
     private val users: UserRepository,

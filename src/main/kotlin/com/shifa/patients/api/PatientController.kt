@@ -11,7 +11,6 @@ import com.shifa.appointments.domain.Appointment
 import com.shifa.doctors.domain.ServicePaymentType
 import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
@@ -42,7 +41,7 @@ private fun normalizeAvatarUrl(avatarUrl: String?, baseUrl: String): String? = c
 @RequestMapping("/api/patients/me")
 class PatientController(
     private val patientProfiles: PatientProfileRepository,
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val profileMapper: PatientProfileMapper,
     private val appProps: AppProperties,
     private val doctorProfiles: DoctorProfileRepository,

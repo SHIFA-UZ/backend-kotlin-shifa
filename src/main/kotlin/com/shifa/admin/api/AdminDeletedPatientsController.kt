@@ -49,10 +49,10 @@ import org.slf4j.LoggerFactory
 class AdminDeletedPatientsController(
     private val users: UserRepository,
     private val patientProfiles: PatientProfileRepository,
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val patientDocumentService: PatientDocumentService,
     private val patientFormService: PatientFormService,
-    private val consultationNoteRepository: ConsultationNoteRepository,
+    private val consultationNoteRepository: com.shifa.appointments.application.ConsultationNotes,
     private val aiDraftNoteRepository: AiDraftNoteRepository,
     private val auditService: AuditService,
     private val objectMapper: ObjectMapper,

@@ -2,10 +2,7 @@
 package com.shifa.doctors.api
 
 import com.shifa.doctors.domain.DoctorLocation
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.appointments.infrastructure.DateSpecificScheduleRuleRepository
 import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.appointments.infrastructure.WeeklyScheduleRuleRepository
 import com.shifa.shared.security.DoctorPrincipal
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -24,9 +21,9 @@ import java.time.OffsetDateTime
 @RequestMapping("/api/doctors/me/locations")
 class DoctorLocationController(
     private val locations: DoctorLocationRepository,
-    private val weeklyRules: WeeklyScheduleRuleRepository,
-    private val dateRules: DateSpecificScheduleRuleRepository,
-    private val appointments: AppointmentRepository
+    private val weeklyRules: com.shifa.appointments.application.WeeklyScheduleRules,
+    private val dateRules: com.shifa.appointments.application.DateSpecificScheduleRules,
+    private val appointments: com.shifa.appointments.application.Appointments
 ) {
 
     data class LocationDto(

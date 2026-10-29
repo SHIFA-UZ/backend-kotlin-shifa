@@ -27,7 +27,7 @@ import java.time.OffsetDateTime
 class TreatmentPlanFulfillmentService(
     private val plans: TreatmentPlanRepository,
     private val linesRepo: TreatmentPlanLineRepository,
-    private val appts: AppointmentRepository,
+    private val appts: com.shifa.appointments.application.Appointments,
     private val catalogRepo: TreatmentPlanCatalogItemRepository,
     private val doctors: DoctorProfileRepository,
     private val linkRepo: TreatmentPlanAppointmentLinkRepository,

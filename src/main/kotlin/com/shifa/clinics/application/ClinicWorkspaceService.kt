@@ -7,7 +7,6 @@ import com.shifa.appointments.domain.Appointment
 import com.shifa.clinics.domain.Clinic
 import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
 import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
@@ -30,7 +29,7 @@ class ClinicWorkspaceService(
     private val memberships: ClinicMembershipRepository,
     private val clinics: ClinicRepository,
     private val doctors: DoctorProfileRepository,
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val patients: PatientProfileRepository,
     private val adminClinicService: AdminClinicService,
     private val revenueShareService: DoctorRevenueShareService,

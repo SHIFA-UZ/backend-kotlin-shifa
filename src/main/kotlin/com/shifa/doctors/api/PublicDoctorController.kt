@@ -4,13 +4,11 @@ package com.shifa.doctors.api
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorService
-import com.shifa.appointments.infrastructure.DateSpecificScheduleRuleRepository
 import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
 import com.shifa.doctors.infrastructure.DoctorServiceRepository
 import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.DoctorReviewRepository
-import com.shifa.appointments.infrastructure.WeeklyScheduleRuleRepository
 import com.shifa.shared.security.PatientPrincipal
 import com.shifa.appointments.application.PatientDaySlotsService
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -26,8 +24,8 @@ class PublicDoctorController(
     private val doctorLocations: DoctorLocationRepository,
     private val doctorServices: DoctorServiceRepository,
     private val doctorServicePrices: DoctorServicePriceRepository,
-    private val weeklyScheduleRules: WeeklyScheduleRuleRepository,
-    private val dateSpecificScheduleRules: DateSpecificScheduleRuleRepository,
+    private val weeklyScheduleRules: com.shifa.appointments.application.WeeklyScheduleRules,
+    private val dateSpecificScheduleRules: com.shifa.appointments.application.DateSpecificScheduleRules,
     private val daySlotsService: PatientDaySlotsService,
     private val objectMapper: ObjectMapper,
     private val publicUrls: com.shifa.shared.PublicUrls,

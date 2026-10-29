@@ -7,7 +7,6 @@ import com.shifa.shared.config.OpenAiProperties
 import com.shifa.ai.domain.AiDraftNote
 import com.shifa.appointments.domain.ConsultationNote
 import com.shifa.ai.infrastructure.AiDraftNoteRepository
-import com.shifa.appointments.infrastructure.ConsultationNoteRepository
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -19,7 +18,7 @@ import java.util.UUID
 @Service
 class AiDraftNoteService(
     private val draftRepo: AiDraftNoteRepository,
-    private val consultationNoteRepo: ConsultationNoteRepository,
+    private val consultationNoteRepo: com.shifa.appointments.application.ConsultationNotes,
     private val openAiProps: OpenAiProperties,
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
 ) {

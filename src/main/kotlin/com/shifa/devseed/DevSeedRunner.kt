@@ -21,7 +21,6 @@ import com.shifa.admin.domain.AdminProfile
 import com.shifa.auth.domain.User
 import com.shifa.auth.domain.UserRole
 import com.shifa.appointments.domain.WeeklyScheduleRule
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
 import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.doctors.infrastructure.DoctorLocationRepository
@@ -33,7 +32,6 @@ import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
 import com.shifa.tasks.infrastructure.TaskCheckInRepository
 import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.auth.infrastructure.UserRoleRepository
-import com.shifa.appointments.infrastructure.WeeklyScheduleRuleRepository
 import com.shifa.documents.application.PatientDocumentStorageService
 import com.shifa.shared.util.PhoneNormalizer
 import org.slf4j.LoggerFactory
@@ -71,13 +69,13 @@ class DevSeedRunner(
     private val userRoles: UserRoleRepository,
     private val doctors: DoctorProfileRepository,
     private val locations: DoctorLocationRepository,
-    private val rules: WeeklyScheduleRuleRepository,
+    private val rules: com.shifa.appointments.application.WeeklyScheduleRules,
     private val services: DoctorServiceRepository,
     private val prices: DoctorServicePriceRepository,
     private val clinics: ClinicRepository,
     private val memberships: ClinicMembershipRepository,
     private val patients: PatientProfileRepository,
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val documents: com.shifa.documents.application.PatientDocumentService,
     private val tasks: RemoteCareTaskRepository,
     private val checkIns: TaskCheckInRepository,

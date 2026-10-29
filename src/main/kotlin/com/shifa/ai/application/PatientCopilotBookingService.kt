@@ -7,7 +7,6 @@ import com.shifa.shared.config.AppProperties
 import com.shifa.appointments.domain.Appointment
 import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import org.springframework.http.HttpStatus
@@ -19,7 +18,7 @@ import java.time.ZoneId
 @Service
 class PatientCopilotBookingService(
     private val doctorProfiles: DoctorProfileRepository,
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val doctorLocations: DoctorLocationRepository,
     private val appProps: AppProperties,

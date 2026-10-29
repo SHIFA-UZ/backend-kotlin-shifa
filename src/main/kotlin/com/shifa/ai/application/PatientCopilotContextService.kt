@@ -4,7 +4,6 @@ import com.shifa.documents.application.PatientDocumentStorageService
 import com.shifa.documents.application.PdfTextExtractionService
 
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.patients.infrastructure.PatientFormRepository
 import org.springframework.stereotype.Service
 import java.time.ZoneId
@@ -14,7 +13,7 @@ import java.time.format.DateTimeFormatter
 class PatientCopilotContextService(
     private val patientDocuments: com.shifa.documents.application.PatientDocumentService,
     private val patientForms: PatientFormRepository,
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val documentStorage: PatientDocumentStorageService,
     private val pdfTextExtraction: PdfTextExtractionService
 ) {

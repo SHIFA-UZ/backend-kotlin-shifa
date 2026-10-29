@@ -6,7 +6,6 @@ import com.shifa.appointments.application.VisitFactService
 import com.shifa.ai.domain.OutputLanguage
 import com.shifa.ai.domain.TranscriptPromptLeakStripper
 import com.shifa.notifications.domain.Notification
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Async
@@ -25,7 +24,7 @@ class ScribePipelineService(
     private val medicalSummaryService: MedicalSummaryService,
     private val aiDraftNoteService: AiDraftNoteService,
     private val diagnosisSuggestionService: DiagnosisSuggestionService,
-    private val appointmentRepository: AppointmentRepository,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val doctorProfileRepository: DoctorProfileRepository,
     private val appointmentDocumentationService: AppointmentDocumentationService,

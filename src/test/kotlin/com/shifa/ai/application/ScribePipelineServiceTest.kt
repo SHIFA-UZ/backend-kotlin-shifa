@@ -31,7 +31,7 @@ class ScribePipelineServiceTest {
     private val summaries = mock(MedicalSummaryService::class.java)
     private val drafts = mock(AiDraftNoteService::class.java)
     private val diagnoses = mock(DiagnosisSuggestionService::class.java)
-    private val appointments = mock(AppointmentRepository::class.java)
+    private val appointments = mock(com.shifa.appointments.application.Appointments::class.java)
     private val notificationService = mock(NotificationService::class.java)
     private val doctors = mock(DoctorProfileRepository::class.java)
     private val docs = mock(AppointmentDocumentationService::class.java)

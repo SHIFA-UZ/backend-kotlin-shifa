@@ -2,7 +2,6 @@ package com.shifa.appointments.api
 
 import com.shifa.shared.config.ScribeProperties
 import com.shifa.auth.domain.SubscriptionFeature
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.ai.application.ScribePipelineService
 import com.shifa.ai.application.ScribeRecordingService
@@ -26,7 +25,7 @@ import java.util.UUID
 class ConsultationController(
     private val scribePipelineService: ScribePipelineService,
     private val scribeRecordingService: ScribeRecordingService,
-    private val appointmentRepository: AppointmentRepository,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val scribeProps: ScribeProperties,
     private val subscriptionTierService: SubscriptionTierService,
     private val uploadGuard: com.shifa.shared.UploadGuard,

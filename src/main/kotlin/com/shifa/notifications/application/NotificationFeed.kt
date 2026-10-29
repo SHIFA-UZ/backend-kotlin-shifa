@@ -1,6 +1,5 @@
 package com.shifa.notifications.application
 
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.notifications.domain.Notification
 import com.shifa.notifications.infrastructure.NotificationRepository
 import org.springframework.http.HttpStatus
@@ -24,7 +23,7 @@ data class NotificationDetails(
 class NotificationFeed(
     private val notifications: NotificationRepository,
     private val documentAccess: com.shifa.documents.application.DocumentAccessService,
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
 ) {
     sealed interface Owner {
         data class Doctor(val doctorId: Long) : Owner

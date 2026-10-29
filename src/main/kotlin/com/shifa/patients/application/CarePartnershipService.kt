@@ -4,7 +4,6 @@ package com.shifa.patients.application
 import com.shifa.patients.domain.CarePartnership
 import com.shifa.patients.domain.CarePartnershipProgressUpdate
 import com.shifa.notifications.domain.Notification
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.patients.infrastructure.CarePartnershipProgressUpdateRepository
 import com.shifa.patients.infrastructure.CarePartnershipRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
@@ -58,7 +57,7 @@ class CarePartnershipService(
     private val progressRepo: CarePartnershipProgressUpdateRepository,
     private val doctors: DoctorProfileRepository,
     private val patients: PatientProfileRepository,
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val access: DoctorPatientAccessService,
     private val notificationService: com.shifa.notifications.application.NotificationService,
 ) {

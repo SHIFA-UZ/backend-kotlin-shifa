@@ -3,7 +3,6 @@ package com.shifa.patients.api
 
 import com.shifa.documents.domain.PatientDocument
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.patients.infrastructure.PatientProphylaxisSettingRepository
@@ -43,7 +42,7 @@ import java.time.ZonedDateTime
 @RequestMapping("/api/patients")
 class PatientsController(
     private val patientsRepo: PatientProfileRepository,
-    private val appointmentRepo: AppointmentRepository,
+    private val appointmentRepo: com.shifa.appointments.application.Appointments,
     private val documentAccess: com.shifa.documents.application.DocumentAccessService,
     private val profileMapper: PatientProfileMapper,
     private val patientAccountService: PatientAccountService,

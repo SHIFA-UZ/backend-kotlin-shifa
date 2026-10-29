@@ -10,7 +10,6 @@ import com.shifa.ai.domain.AppointmentBriefing
 import com.shifa.notifications.domain.Notification
 import com.shifa.documents.domain.PatientDocument
 import com.shifa.ai.infrastructure.AppointmentBriefingRepository
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.scheduling.annotation.Async
@@ -39,7 +38,7 @@ data class AppointmentBriefingDto(
 @Service
 class AppointmentBriefingService(
     private val briefingRepo: AppointmentBriefingRepository,
-    private val appointmentRepo: AppointmentRepository,
+    private val appointmentRepo: com.shifa.appointments.application.Appointments,
     private val patientDocumentService: PatientDocumentService,
     private val documentStorage: PatientDocumentStorageService,
     private val pdfExtraction: PdfTextExtractionService,

@@ -1,7 +1,9 @@
 package com.shifa.appointments.api
 
+import com.shifa.appointments.api.dto.BlockDto
+import com.shifa.appointments.api.dto.OverlapCountDto
+
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.appointments.infrastructure.ScheduleBlockRepository
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.clinics.application.ClinicAccessService
 import com.shifa.appointments.application.ScheduleBlockService
@@ -17,25 +19,11 @@ import java.time.ZoneId
 @RestController
 @RequestMapping("/api/schedule/blocks")
 class ScheduleBlockController(
-    private val blocksRepo: ScheduleBlockRepository,
+    private val blocksRepo: com.shifa.appointments.application.ScheduleBlocks,
     private val doctors: DoctorProfileRepository,
     private val clinicAccess: ClinicAccessService,
     private val scheduleBlockService: ScheduleBlockService,
 ) {
-
-    data class BlockDto(
-        val id: Long? = null,
-        val startAt: String,
-        val endAt: String,
-        val reason: String? = null,
-        /** When true, overlapping future/in-progress appointments are cancelled. */
-        val cancelOverlappingAppointments: Boolean = false,
-        /** Calendar doctor (defaults to authenticated doctor). */
-        val resourceDoctorId: Long? = null,
-        val cancelledAppointmentCount: Int? = null,
-    )
-
-    data class OverlapCountDto(val count: Int)
 
     private fun resolveDoctorId(principal: Any, resourceDoctorId: Long?): Long {
         clinicAccess.assertPracticeActor(principal)

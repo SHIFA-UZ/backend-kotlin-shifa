@@ -1,6 +1,5 @@
 package com.shifa.appointments.domain
 
-import com.shifa.appointments.application.AppointmentActionService
 
 /**
  * Keeps a cancellation on the visit the doctor already named or was just shown.
@@ -46,8 +45,8 @@ object CancellationIntent {
     )
 
     fun shouldPreview(current: String, priorUsers: List<String>, priorAssistants: List<String>): Boolean {
-        if (AppointmentActionService.isExplicitConfirmation(current) &&
-            AppointmentActionService.actionToken(priorAssistants) != null
+        if (AppointmentActionPhrases.isExplicitConfirmation(current) &&
+            AppointmentActionPhrases.actionToken(priorAssistants) != null
         ) {
             return false
         }

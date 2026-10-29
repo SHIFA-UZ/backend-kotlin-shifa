@@ -9,7 +9,6 @@ import com.shifa.ai.domain.ConsultationNoteAiSnapshot
 import com.shifa.ai.domain.ConsultationNoteText
 import com.shifa.ai.domain.Form0252AiSnapshot
 import com.shifa.appointments.domain.Appointment
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -49,7 +48,7 @@ class PatientBriefingService(
     private val documentStorage: PatientDocumentStorageService,
     private val pdfExtraction: PdfTextExtractionService,
     private val patientRepo: PatientProfileRepository,
-    private val appointmentRepo: AppointmentRepository,
+    private val appointmentRepo: com.shifa.appointments.application.Appointments,
     private val openAi: OpenAiResponsesService,
     private val clinicalSnippets: DoctorPatientRecordSnippetService,
 ) {

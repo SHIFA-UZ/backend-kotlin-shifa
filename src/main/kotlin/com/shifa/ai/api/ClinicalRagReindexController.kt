@@ -1,7 +1,6 @@
 package com.shifa.ai.api
 
 import com.shifa.auth.domain.SubscriptionFeature
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.ai.application.ClinicalRagIndexingService
@@ -23,7 +22,7 @@ import org.springframework.web.server.ResponseStatusException
 class ClinicalRagReindexController(
     private val indexer: ClinicalRagIndexingService,
     private val subscriptionTierService: SubscriptionTierService,
-    private val appointmentRepo: AppointmentRepository,
+    private val appointmentRepo: com.shifa.appointments.application.Appointments,
     private val patientsRepo: PatientProfileRepository,
 ) {
 

@@ -1,7 +1,6 @@
 package com.shifa.clinics.application
 
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
@@ -14,7 +13,7 @@ import org.springframework.web.server.ResponseStatusException
 @Service
 class ClinicAccessService(
     private val doctors: DoctorProfileRepository,
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val patients: PatientProfileRepository,
     private val memberships: ClinicMembershipRepository,
     private val carePartnerships: com.shifa.patients.infrastructure.CarePartnershipRepository,

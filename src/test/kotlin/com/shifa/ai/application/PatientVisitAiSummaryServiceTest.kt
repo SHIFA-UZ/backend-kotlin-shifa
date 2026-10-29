@@ -19,8 +19,8 @@ import java.util.Optional
 import java.util.concurrent.atomic.AtomicInteger
 
 class PatientVisitAiSummaryServiceTest {
-    private val appointments = mock(AppointmentRepository::class.java)
-    private val notes = mock(ConsultationNoteRepository::class.java)
+    private val appointments = mock(com.shifa.appointments.application.Appointments::class.java)
+    private val notes = mock(com.shifa.appointments.application.ConsultationNotes::class.java)
     private val summaries = mock(PatientVisitAiSummaryRepository::class.java)
     private val notificationService = mock(NotificationService::class.java)
     private val openAi = mock(OpenAiResponsesService::class.java)

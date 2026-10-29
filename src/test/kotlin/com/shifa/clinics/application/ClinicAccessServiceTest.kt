@@ -28,7 +28,7 @@ import java.util.Optional
 class ClinicAccessServiceTest {
 
     private val doctors = mock(DoctorProfileRepository::class.java)
-    private val appointments = mock(AppointmentRepository::class.java)
+    private val appointments = mock(com.shifa.appointments.application.Appointments::class.java)
     private val patients = mock(PatientProfileRepository::class.java)
     private val memberships = mock(ClinicMembershipRepository::class.java)
     private val carePartnerships = mock(CarePartnershipRepository::class.java)

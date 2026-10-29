@@ -22,7 +22,6 @@ import com.shifa.payments.infrastructure.GatewayCheckoutResult
 import com.shifa.payments.infrastructure.ManualPaymentGateway
 import com.shifa.payments.infrastructure.StripeGateway
 import com.shifa.payments.infrastructure.PaymentRepository
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.payments.infrastructure.DoctorBillingRepository
 import com.shifa.clinics.infrastructure.InstallmentItemRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
@@ -40,7 +39,7 @@ import java.util.UUID
 @Service
 class PaymentService(
     private val paymentRepository: PaymentRepository,
-    private val appointmentRepository: AppointmentRepository,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val doctorBillingRepository: DoctorBillingRepository,
     private val patientProfiles: PatientProfileRepository,
     private val treatmentPlans: TreatmentPlanRepository,

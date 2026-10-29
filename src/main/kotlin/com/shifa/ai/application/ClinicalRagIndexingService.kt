@@ -11,8 +11,6 @@ import com.shifa.ai.domain.DentalChartExpansion
 import com.shifa.appointments.domain.Appointment
 import com.shifa.appointments.domain.ConsultationNote
 import com.shifa.patients.domain.PatientForm
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.appointments.infrastructure.ConsultationNoteRepository
 import com.shifa.patients.infrastructure.PatientFormRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
@@ -24,8 +22,8 @@ import java.util.concurrent.ConcurrentHashMap
 @Service
 class ClinicalRagIndexingService(
     private val patientForms: PatientFormRepository,
-    private val consultationNotes: ConsultationNoteRepository,
-    private val appointments: AppointmentRepository,
+    private val consultationNotes: com.shifa.appointments.application.ConsultationNotes,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val jdbcRepository: ClinicalRagJdbcRepository,
     private val embeddings: OpenAiEmbeddingService,
 ) {

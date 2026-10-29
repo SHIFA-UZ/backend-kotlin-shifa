@@ -5,19 +5,18 @@ import com.shifa.ai.domain.ConsultationNoteText
 import com.shifa.ai.domain.Form0252AiSnapshot
 import com.shifa.appointments.domain.ConsultationNote
 import com.shifa.patients.domain.PatientForm
-import com.shifa.appointments.infrastructure.ConsultationNoteRepository
 import com.shifa.patients.infrastructure.PatientFormRepository
 import org.springframework.stereotype.Service
 import java.time.ZoneId
 
 /**
- * Shared structured clinical snippets for [com.shifa.ai.domain.PatientAiContextBuilder] (Ask Shifa AI)
+ * Shared structured clinical snippets for [com.shifa.ai.application.PatientAiContextBuilder] (Ask Shifa AI)
  * and [PatientBriefingService] so chat and briefing stay aligned.
  */
 @Service
 class DoctorPatientRecordSnippetService(
     private val patientFormRepo: PatientFormRepository,
-    private val consultationNoteRepo: ConsultationNoteRepository,
+    private val consultationNoteRepo: com.shifa.appointments.application.ConsultationNotes,
 ) {
 
     fun buildForm0252Snapshots(patientId: Long, maxForms: Int): List<Form0252AiSnapshot> {

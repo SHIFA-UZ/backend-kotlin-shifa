@@ -24,7 +24,7 @@ import java.time.Instant
 import java.util.Optional
 
 class AppointmentPaymentSettlementTest {
-    private val appointments = mock(AppointmentRepository::class.java)
+    private val appointments = mock(com.shifa.appointments.application.Appointments::class.java)
     private val payments = mock(PaymentRepository::class.java)
     private val settlement = AppointmentPaymentSettlement(appointments, payments)
     private val doctor = DoctorProfile(

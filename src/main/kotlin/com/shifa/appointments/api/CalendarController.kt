@@ -1,11 +1,9 @@
 // src/main/kotlin/com/shifa/appointments/api/CalendarController.kt
 package com.shifa.appointments.api
 
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.appointments.infrastructure.DateSpecificScheduleRuleRepository
+import com.shifa.appointments.api.dto.EntryDto
+
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.appointments.infrastructure.ScheduleBlockRepository
-import com.shifa.appointments.infrastructure.WeeklyScheduleRuleRepository
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.clinics.application.ClinicAccessService
@@ -21,10 +19,10 @@ import java.time.*
 @RestController
 @RequestMapping("/api/calendar")
 class CalendarController(
-    private val rulesRepo: WeeklyScheduleRuleRepository,
-    private val dateSpecificRulesRepo: DateSpecificScheduleRuleRepository,
-    private val appts: AppointmentRepository,
-    private val blocksRepo: ScheduleBlockRepository,
+    private val rulesRepo: com.shifa.appointments.application.WeeklyScheduleRules,
+    private val dateSpecificRulesRepo: com.shifa.appointments.application.DateSpecificScheduleRules,
+    private val appts: com.shifa.appointments.application.Appointments,
+    private val blocksRepo: com.shifa.appointments.application.ScheduleBlocks,
     private val doctors: DoctorProfileRepository,
     private val profileMapper: PatientProfileMapper,
     private val scheduleValidityService: ScheduleValidityService,
@@ -32,29 +30,6 @@ class CalendarController(
     private val appointmentBriefingService: com.shifa.ai.application.AppointmentBriefingService,
 ) {
     private val logger = LoggerFactory.getLogger(CalendarController::class.java)
-
-    data class EntryDto(
-        val type: String, // FREE_SLOT | APPOINTMENT | BLOCKED
-        val startAt: String, // ISO 8601 UTC
-        val endAt: String,
-        val appointmentId: Long? = null,
-        val blockId: Long? = null,
-        val blockReason: String? = null,
-        val patientId: Long? = null,
-        val patientName: String? = null,
-        val patientPhotoUrl: String? = null,
-        val location: String? = null,
-        val reason: String? = null,
-        val status: String? = null, // Appointment status: CONFIRMED, COMPLETED, CANCELLED, REQUESTED
-        val paymentStatus: String? = null, // For video payment visibility in doctor calendar
-        val signatureRequested: Boolean = false,
-        val patientSignedAt: String? = null, // ISO when patient signed
-        /** Which practice location this slot/appointment belongs to (null for video/legacy). */
-        val locationId: Long? = null,
-        val locationLabel: String? = null,
-        val briefingStatus: String? = null,
-        val attachmentCount: Int = 0,
-    )
 
     @GetMapping
     fun byDay(

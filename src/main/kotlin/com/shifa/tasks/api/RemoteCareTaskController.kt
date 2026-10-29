@@ -33,7 +33,7 @@ class RemoteCareTaskController(
     private val doctorRepo: DoctorProfileRepository,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val subscriptionTierService: SubscriptionTierService,
-    private val appointmentRepo: com.shifa.appointments.infrastructure.AppointmentRepository,
+    private val appointmentRepo: com.shifa.appointments.application.Appointments,
     private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
     private companion object {

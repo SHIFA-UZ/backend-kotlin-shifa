@@ -4,7 +4,7 @@ import com.shifa.shared.api.SseIoSupport
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.ai.domain.OutputLanguage
-import com.shifa.ai.domain.PatientAiContextBuilder
+import com.shifa.ai.application.PatientAiContextBuilder
 import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.ai.application.AiDraftNoteService
