@@ -1,25 +1,24 @@
 package com.shifa.doctors.application
 
+import com.shifa.admin.domain.SystemConfig
+import com.shifa.doctors.api.EarlyPartnerContractIssueDto
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.EarlyPartnerContract
-import com.shifa.admin.domain.SystemConfig
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.EarlyPartnerContractRepository
-import com.shifa.admin.infrastructure.SystemConfigRepository
-import com.shifa.doctors.api.EarlyPartnerContractIssueDto
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.LocalDate
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
 
 @Service
 class EarlyPartnerContractService(
     private val doctorProfileRepository: DoctorProfileRepository,
     private val earlyPartnerContractRepository: EarlyPartnerContractRepository,
-    private val systemConfigRepository: SystemConfigRepository,
+    private val systemConfigRepository: com.shifa.admin.application.SystemConfigs,
 ) {
     companion object {
         const val SEQ_KEY = "early_partner_contract_next_seq"

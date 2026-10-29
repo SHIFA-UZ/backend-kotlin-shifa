@@ -1,75 +1,81 @@
 package com.shifa.auth.api
 
-import com.shifa.admin.domain.*
-import com.shifa.ai.domain.*
-import com.shifa.appointments.domain.*
-import com.shifa.auth.domain.*
-import com.shifa.chat.domain.*
-import com.shifa.clinics.domain.*
-import com.shifa.doctors.domain.*
-import com.shifa.documents.domain.*
-import com.shifa.notifications.domain.*
-import com.shifa.patients.domain.*
-import com.shifa.payments.domain.*
-import com.shifa.tasks.domain.*
-import com.shifa.admin.infrastructure.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.infrastructure.*
-import com.shifa.clinics.infrastructure.*
-import com.shifa.doctors.infrastructure.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.infrastructure.*
-import com.shifa.payments.infrastructure.*
-import com.shifa.tasks.infrastructure.*
+import com.shifa.auth.api.dto.AdminLoginOtpSentResponse
+import com.shifa.auth.api.dto.AdminVerifyLoginOtpRequest
+import com.shifa.auth.api.dto.ChangePasswordRequest
+import com.shifa.auth.api.dto.CheckExistingDoctorRequest
+import com.shifa.auth.api.dto.CheckExistingDoctorResponse
+import com.shifa.auth.api.dto.CheckExistingPatientRequest
+import com.shifa.auth.api.dto.CheckExistingPatientResponse
+import com.shifa.auth.api.dto.CheckIdentifierRequest
+import com.shifa.auth.api.dto.CheckIdentifierResponse
+import com.shifa.auth.api.dto.CreatePatientForDoctorRequest
+import com.shifa.auth.api.dto.ForgotPasswordResetRequest
+import com.shifa.auth.api.dto.LoginRequest
+import com.shifa.auth.api.dto.RegisterClinicStaffRequest
+import com.shifa.auth.api.dto.RegisterPatientRequest
+import com.shifa.auth.api.dto.RegisterRequest
+import com.shifa.auth.api.dto.SendEmailOtpRequest
+import com.shifa.auth.api.dto.SendEmailOtpResponse
+import com.shifa.auth.api.dto.SendForgotPasswordOtpRequest
+import com.shifa.auth.api.dto.SendForgotPasswordOtpResponse
+import com.shifa.auth.api.dto.SendLoginOtpRequest
+import com.shifa.auth.api.dto.SendOtpChannelResponse
+import com.shifa.auth.api.dto.SendSmsOtpRequest
+import com.shifa.auth.api.dto.VerifyEmailOtpRequest
+import com.shifa.auth.api.dto.VerifyKeyRequest
+import com.shifa.auth.api.dto.VerifyKeyResponse
+import com.shifa.auth.domain.EmailVerificationCode
+import com.shifa.auth.domain.Role
+import com.shifa.auth.domain.SmsVerificationCode
+import com.shifa.auth.domain.User
+import com.shifa.auth.domain.UserRole
+import com.shifa.auth.domain.UserSession
+import com.shifa.auth.infrastructure.FirebaseAuthService
+import com.shifa.clinics.domain.Clinic
+import com.shifa.clinics.domain.ClinicMembership
+import com.shifa.clinics.domain.InvitationKey
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.JwtService
-import com.shifa.shared.util.PhoneNormalizer
-import java.nio.charset.StandardCharsets
-import java.security.MessageDigest
-import java.time.ZoneOffset
 import com.shifa.shared.security.PasswordPolicy
+import com.shifa.shared.util.PhoneNormalizer
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Email
-import jakarta.validation.constraints.NotBlank
-import org.springframework.security.crypto.password.PasswordEncoder
+import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
+import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.security.core.userdetails.UserDetails
+import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.bind.annotation.*
-import java.time.OffsetDateTime
-import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
-import org.slf4j.LoggerFactory
+
 
 @RestController
 @RequestMapping("/api/auth")
 class AuthController(
-    private val users: UserRepository,
-    private val invites: InvitationKeyRepository,
-    private val doctors: DoctorProfileRepository,
-    private val patients: com.shifa.patients.infrastructure.PatientProfileRepository,
-    private val userSessions: UserSessionRepository,
+    private val users: com.shifa.auth.application.Users,
+    private val invites: com.shifa.clinics.application.InvitationKeys,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
+    private val patients: com.shifa.patients.application.PatientProfiles,
+    private val userSessions: com.shifa.auth.application.UserSessions,
     private val encoder: PasswordEncoder,
     private val jwt: JwtService,
     private val userActivityService: com.shifa.auth.application.UserActivityService,
     private val userManagementService: com.shifa.auth.application.UserManagementService,
-    private val userRoles: com.shifa.auth.infrastructure.UserRoleRepository,
+    private val userRoles: com.shifa.auth.application.UserRoles,
     private val firebaseAuthService: com.shifa.auth.infrastructure.FirebaseAuthService,
     private val emailOtpService: com.shifa.auth.application.EmailOtpService,
     private val smsOtpService: com.shifa.auth.application.SmsOtpService,
-    private val clinicMemberships: ClinicMembershipRepository,
-    private val clinics: ClinicRepository,
+    private val clinicMemberships: com.shifa.clinics.application.ClinicMemberships,
+    private val clinics: com.shifa.clinics.application.Clinics,
 ) {
     private val log = LoggerFactory.getLogger(AuthController::class.java)
     // ---------- VerifyKey ----------
-    data class VerifyKeyRequest(@field:NotBlank val key: String)
-    data class VerifyKeyResponse(
-        val valid: Boolean,
-        val purpose: String? = null,
-        val clinicId: Long? = null,
-        val clinicName: String? = null,
-        val emailSentTo: String? = null,
-    )
 
     /**
      * VerifyKeyScreen calls this to check if the one-time key is valid & not consumed.
@@ -96,19 +102,6 @@ class AuthController(
     }
 
     // ---------- Check existing patient (for doctor registration UX) ----------
-    data class CheckExistingPatientRequest(
-        @field:NotBlank val firstName: String,
-        @field:NotBlank val lastName: String,
-        /** Optional; when set, used together with email to detect an existing patient account. */
-        val phone: String? = null,
-        @field:NotBlank @field:Email val email: String
-    )
-    data class CheckExistingPatientResponse(
-        val found: Boolean,
-        val fullName: String? = null,
-        val photoUrl: String? = null,
-        val email: String? = null
-    )
 
     /**
      * Doctor app calls this after user enters first name, last name, email, and optional phone.
@@ -136,14 +129,6 @@ class AuthController(
     }
 
     // ---------- Check existing doctor (for patient app create-account) ----------
-    data class CheckExistingDoctorRequest(
-        val phone: String? = null,
-        val email: String? = null
-    )
-    data class CheckExistingDoctorResponse(
-        val firstName: String,
-        val lastName: String
-    )
 
     /**
      * Patient app calls this after user enters phone and/or email on create-account.
@@ -174,15 +159,6 @@ class AuthController(
     }
 
     // ---------- Check identifier for patient app (phone/email -> doctor | patient | none) ----------
-    data class CheckIdentifierRequest(
-        val phone: String? = null,
-        val email: String? = null
-    )
-    data class CheckIdentifierResponse(
-        val type: String, // "doctor" | "patient" | "none"
-        val firstName: String? = null,
-        val lastName: String? = null
-    )
 
     /**
      * Patient app create-account: check if phone/email is already a doctor or patient.
@@ -220,18 +196,6 @@ class AuthController(
     }
 
     // ---------- Send email OTP (generic – registration, doctor-to-patient, etc.) ----------
-    data class SendEmailOtpRequest(
-        @field:NotBlank @field:Email val email: String,
-        val purpose: String? = null
-    )
-    data class SendEmailOtpResponse(val sent: Boolean = true)
-
-    /** Response when OTP channel may be SMS or email (e.g. SMS failure fallback). */
-    data class SendOtpChannelResponse(
-        val sent: Boolean = true,
-        val channel: String,
-        val smsFallbackUsed: Boolean = false,
-    )
 
     /**
      * Sends a 6-digit OTP to the given email via Brevo SMTP.
@@ -256,12 +220,6 @@ class AuthController(
     }
 
     // ---------- Send SMS OTP (patient registration / forgot-password for UZ numbers) ----------
-    data class SendSmsOtpRequest(
-        @field:NotBlank val phone: String,
-        val purpose: String? = null,
-        /** When SMS delivery fails, send OTP to this email instead (registration flow). */
-        val fallbackEmail: String? = null,
-    )
 
     /**
      * Sends a 6-digit OTP via DevSMS to an Uzbek mobile number (+998).
@@ -295,7 +253,6 @@ class AuthController(
     }
 
     // ---------- Send login OTP (doctor email OTP sign-in) ----------
-    data class SendLoginOtpRequest(@field:NotBlank @field:Email val email: String)
 
     /**
      * Doctor app: send a sign-in OTP to the doctor's registered email.
@@ -322,10 +279,6 @@ class AuthController(
     }
 
     // ---------- Verify email OTP → JWT (doctor email OTP sign-in) ----------
-    data class VerifyEmailOtpRequest(
-        @field:NotBlank @field:Email val email: String,
-        @field:NotBlank val code: String
-    )
 
     /**
      * Doctor app: verify the email OTP code and return a JWT.
@@ -361,16 +314,6 @@ class AuthController(
     }
 
     // ---------- Send forgot-password OTP ----------
-    data class SendForgotPasswordOtpRequest(
-        @field:NotBlank val identifier: String,
-        val app: String? = null
-    )
-
-    /**
-     * Send a forgot-password OTP. Accepts email or phone as identifier;
-     * looks up the user and sends OTP to their email address.
-     */
-    data class SendForgotPasswordOtpResponse(val sent: Boolean = true, val channel: String)
 
     @PostMapping("/send-forgot-password-otp")
     fun sendForgotPasswordOtp(
@@ -427,13 +370,6 @@ class AuthController(
     }
 
     // ---------- Create patient account for existing doctor ----------
-    data class CreatePatientForDoctorRequest(
-        val phone: String? = null,
-        val email: String? = null,
-        val emailOtp: String? = null,
-        /** Required when no email is given: SMS code sent via /send-sms-otp (REGISTRATION purpose). */
-        val smsOtp: String? = null,
-    )
 
     /**
      * Patient app: after doctor confirms and verifies an OTP, create PATIENT role + patient profile.
@@ -583,17 +519,6 @@ class AuthController(
     }
 
     // ---------- Register ----------
-    data class RegisterRequest(
-        @field:NotBlank val firstName: String,
-        @field:NotBlank val lastName: String,
-        /** Optional. When omitted or blank, the account is created/linked using email only (must still be unique when set). */
-        val phone: String? = null,
-        @field:NotBlank @field:Email val email: String,
-        @field:NotBlank val password: String,
-        @field:NotBlank val key: String,
-        /** Optional IANA timezone (e.g. Europe/Berlin). If provided, used for new doctor profile so appointment times are correct. */
-        val timeZone: String? = null
-    )
     data class TokenResponse(
         val token: String,
         val forcePasswordReset: Boolean = false // ✅ NEW
@@ -779,17 +704,6 @@ class AuthController(
         )
     }
 
-    /** Receptionist/clinic staff self-signup via [InvitationKey.PURPOSE_CLINIC_RECEPTIONIST_INVITE]; no [DoctorProfile]. */
-    data class RegisterClinicStaffRequest(
-        @field:NotBlank val firstName: String,
-        @field:NotBlank val lastName: String,
-        val phone: String? = null,
-        @field:NotBlank @field:Email val email: String,
-        @field:NotBlank val password: String,
-        @field:NotBlank val key: String,
-        val timeZone: String? = null,
-    )
-
     @PostMapping("/register-clinic-staff")
     fun registerClinicStaff(@RequestBody @Valid r: RegisterClinicStaffRequest): TokenResponse {
         PasswordPolicy.validate(r.password)?.let { msg ->
@@ -962,7 +876,6 @@ class AuthController(
     }
 
     // ---------- Login ----------
-    data class LoginRequest(@field:NotBlank val username: String, @field:NotBlank val password: String)
 
     /**
      * Accepts email OR phone as 'username'. Returns JWT on success.
@@ -1106,13 +1019,6 @@ class AuthController(
 	}
 
     // ---------- Admin login: password + email OTP (2FA) ----------
-    data class AdminVerifyLoginOtpRequest(
-        @field:NotBlank val username: String,
-        @field:NotBlank val password: String,
-        @field:NotBlank val code: String
-    )
-
-    data class AdminLoginOtpSentResponse(val sent: Boolean = true, val emailHint: String? = null)
 
     /**
      * Step 1: validate admin credentials and send a 6-digit code to the admin's email.
@@ -1190,19 +1096,6 @@ class AuthController(
     }
 
     // ---------- Register Patient ----------
-    data class RegisterPatientRequest(
-        @field:NotBlank val firstName: String,
-        @field:NotBlank val lastName: String,
-        val phone: String? = null,
-        val email: String? = null,
-        @field:NotBlank val password: String,
-        val birthDate: String? = null,
-        val gender: String? = null,
-        val address: String? = null,
-        val language: String? = null,
-        val emailOtp: String? = null,
-        val smsOtp: String? = null,
-    )
 
     /**
      * Creates a PATIENT user, saves PatientProfile, and returns JWT.
@@ -1314,21 +1207,8 @@ class AuthController(
     // ---------- Change/Reset Password ----------
     // For normal change: requires currentPassword + newPassword.
     // For forced reset (forcePasswordReset=true): only newPassword needed.
-    data class ChangePasswordRequest(
-        val currentPassword: String? = null,
-        @field:NotBlank val newPassword: String
-    )
 
     // ---------- Forgot Password ----------
-    data class ForgotPasswordResetRequest(
-        val idToken: String? = null,
-        val email: String? = null,
-        val emailOtp: String? = null,
-        val phone: String? = null,
-        val smsOtp: String? = null,
-        val app: String? = null,
-        @field:NotBlank val newPassword: String
-    )
 
     /**
      * Reset password using either:

@@ -1,30 +1,28 @@
 package com.shifa.appointments.application
 
 import com.shifa.ai.application.VisitFactExtractionService
-
 import com.shifa.appointments.domain.ClinicVisitPattern
-import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.appointments.domain.PatientVisitFact
-import com.shifa.tasks.domain.RemoteCareTask
 import com.shifa.appointments.infrastructure.ClinicVisitPatternRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.appointments.infrastructure.PatientVisitFactRepository
-import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.tasks.domain.RemoteCareTask
+import java.time.Instant
+import java.time.LocalDate
+import java.util.Locale
 import org.slf4j.LoggerFactory
 import org.springframework.context.annotation.Lazy
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.Instant
-import java.time.LocalDate
-import java.util.Locale
+
 
 @Service
 class VisitFactService(
     private val factRepository: PatientVisitFactRepository,
     private val patternRepository: ClinicVisitPatternRepository,
     private val extractionService: VisitFactExtractionService,
-    private val taskRepository: RemoteCareTaskRepository,
-    private val patientProfileRepository: PatientProfileRepository,
+    private val taskRepository: com.shifa.tasks.application.RemoteCareTasks,
+    private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
     @Lazy private val visitLifecycle: AppointmentVisitLifecycleService,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)

@@ -1,6 +1,9 @@
 package com.shifa.clinics.api
 
 import com.shifa.admin.application.AdminClinicService
+import com.shifa.clinics.api.dto.UpdateFinanceSettingsBody
+import com.shifa.clinics.api.dto.UpdateMemberRevenueShareBody
+import com.shifa.clinics.api.dto.VisitChargeLineBody
 import com.shifa.clinics.application.ClinicWorkspaceService
 import com.shifa.clinics.application.VisitChargeService
 import org.springframework.data.domain.Page
@@ -13,6 +16,7 @@ import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+
 
 @RestController
 class ClinicWorkspaceController(
@@ -38,8 +42,6 @@ class ClinicWorkspaceController(
     ): List<AdminClinicService.ClinicDoctorDto> =
         workspace.listMembers(principal, clinicId)
 
-    data class UpdateFinanceSettingsBody(val defaultDoctorRevenueSharePercent: Int? = null)
-
     @PatchMapping("/api/clinics/{clinicId}/finance-settings")
     fun updateFinanceSettings(
         @AuthenticationPrincipal principal: Any,
@@ -47,8 +49,6 @@ class ClinicWorkspaceController(
         @RequestBody body: UpdateFinanceSettingsBody,
     ): ClinicWorkspaceService.ClinicFinanceSettingsDto =
         workspace.updateFinanceSettings(principal, clinicId, body.defaultDoctorRevenueSharePercent)
-
-    data class UpdateMemberRevenueShareBody(val doctorRevenueSharePercent: Int? = null)
 
     @PatchMapping("/api/clinics/{clinicId}/members/{doctorProfileId}/revenue-share")
     fun updateMemberRevenueShare(
@@ -80,8 +80,6 @@ class ClinicWorkspaceController(
         @PathVariable patientId: Long,
     ): List<ClinicWorkspaceService.ClinicPatientAppointmentRow> =
         workspace.listPatientAppointments(principal, clinicId, patientId)
-
-    data class VisitChargeLineBody(val catalogItemId: Long, val quantity: Int = 1, val unitPriceMinor: Long? = null)
 
     @PostMapping("/api/clinics/{clinicId}/appointments/{appointmentId}/visit-charges")
     fun addVisitCharges(

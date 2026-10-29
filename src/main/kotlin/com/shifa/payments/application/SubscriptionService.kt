@@ -1,26 +1,25 @@
 package com.shifa.payments.application
 
-import com.shifa.shared.config.StripeProperties
 import com.shifa.payments.domain.DoctorSubscription
 import com.shifa.payments.domain.DoctorSubscriptionStatus
 import com.shifa.payments.domain.PaymentGatewayCode
 import com.shifa.payments.infrastructure.DoctorSubscriptionRepository
 import com.shifa.payments.infrastructure.SubscriptionPlanRepository
-import com.stripe.exception.StripeException
+import com.shifa.shared.config.StripeProperties
 import com.stripe.Stripe
+import com.stripe.exception.StripeException
 import com.stripe.model.Subscription
 import com.stripe.model.checkout.Session
 import com.stripe.param.checkout.SessionCreateParams
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
 
 @Service
 class SubscriptionService(
-    private val doctorProfiles: DoctorProfileRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
     private val planRepository: SubscriptionPlanRepository,
     private val doctorSubscriptionRepository: DoctorSubscriptionRepository,
     private val stripeProperties: StripeProperties,

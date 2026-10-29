@@ -1,40 +1,30 @@
 package com.shifa.admin.api
 
-import com.shifa.clinics.domain.ClinicMembership
+import com.shifa.admin.api.dto.AdminClinicMemberRoleRequest
+import com.shifa.admin.api.dto.AdminClinicUpsertRequest
+import com.shifa.admin.api.dto.AdminPatientProfileResponse
+import com.shifa.admin.api.dto.CreateAdminRequest
+import com.shifa.admin.api.dto.GenerateTokenRequest
+import com.shifa.admin.api.dto.UpdateSubscriptionTierRequest
+import com.shifa.admin.api.dto.UserResponse
+import com.shifa.admin.application.AdminCalendarResetService
+import com.shifa.admin.application.AdminClinicService
+import com.shifa.admin.application.AuditService
+import com.shifa.admin.domain.AdminLevel
+import com.shifa.auth.application.UserActivityService
+import com.shifa.auth.application.UserDeletionService
+import com.shifa.auth.application.UserManagementService
+import com.shifa.auth.application.Users
 import com.shifa.auth.domain.SubscriptionTier
 import com.shifa.auth.domain.User
-import com.shifa.admin.infrastructure.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.infrastructure.*
-import com.shifa.clinics.infrastructure.*
-import com.shifa.doctors.infrastructure.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.infrastructure.*
-import com.shifa.payments.infrastructure.*
-import com.shifa.tasks.infrastructure.*
+import com.shifa.clinics.application.InvitationKeyService
+import com.shifa.clinics.domain.ClinicMembership
+import com.shifa.payments.application.SubscriptionTierService
 import com.shifa.shared.security.AdminPrincipal
-import com.shifa.admin.application.*
-import com.shifa.ai.application.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.application.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.application.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.application.*
-import com.shifa.clinics.application.*
-import com.shifa.doctors.application.*
-import com.shifa.documents.application.*
-import com.shifa.notifications.application.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.application.*
-import com.shifa.payments.application.*
-import com.shifa.shared.storage.*
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
-import jakarta.validation.constraints.Email
-import jakarta.validation.constraints.NotBlank
+import java.time.OffsetDateTime
+import java.util.NoSuchElementException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
@@ -42,9 +32,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import com.shifa.admin.domain.AdminLevel
-import java.time.OffsetDateTime
-import java.util.NoSuchElementException
+
 
 @RestController
 @RequestMapping("/api/admin")
@@ -54,10 +42,9 @@ class AdminController(
     private val userDeletionService: com.shifa.auth.application.UserDeletionService,
     private val auditService: AuditService,
     private val userActivityService: UserActivityService,
-    private val userRepository: UserRepository,
-    private val doctorProfileRepository: DoctorProfileRepository,
-    private val patientProfileRepository: PatientProfileRepository,
-    private val systemConfigRepository: SystemConfigRepository,
+    private val userRepository: com.shifa.auth.application.Users,
+    private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
+    private val systemConfigRepository: com.shifa.admin.application.SystemConfigs,
     private val adminCalendarResetService: com.shifa.admin.application.AdminCalendarResetService,
     private val subscriptionTierService: SubscriptionTierService,
     private val adminClinicService: AdminClinicService,
@@ -85,14 +72,6 @@ class AdminController(
     }
     
     // ==================== INVITATION KEY MANAGEMENT ====================
-    
-    data class GenerateTokenRequest(
-        val expiresInDays: Int? = null,
-        val purpose: String = "DOCTOR_ONBOARDING",
-        val notes: String? = null,
-        val sendEmail: Boolean = false,
-        @field:Email val emailTo: String? = null
-    )
     
     data class TokenResponse(
         val id: Long,
@@ -247,41 +226,10 @@ class AdminController(
     
     // ==================== USER MANAGEMENT ====================
     
-    data class UserResponse(
-        val id: Long,
-        val email: String?,
-        val phone: String?,
-        val role: String,
-        val enabled: Boolean,
-        val lastLoginAt: String?,
-        val failedLoginAttempts: Int,
-        val lockedUntil: String?,
-        val subscriptionTier: String,
-        val profile: Map<String, Any>?,
-        val deviceRegistered: Boolean = false,
-        val hasProfile: Boolean = false,
-        val createdAt: String? = null,
-        val emailVerified: Boolean = false,
-    )
-
-    data class UpdateSubscriptionTierRequest(
-        @field:NotBlank val tier: String
-    )
-    
     @GetMapping("/users/stats")
     fun getUserManagementStats(@AuthenticationPrincipal principal: AdminPrincipal): Map<String, Any> {
         return userManagementService.getUserManagementStats()
     }
-
-    data class AdminPatientProfileResponse(
-        val patientProfileId: Long,
-        val fullName: String,
-        val phone: String?,
-        val email: String?,
-        val createdAt: String?,
-        val createdByDoctorId: Long?,
-        val createdByDoctorName: String?,
-    )
 
     @GetMapping("/users/patient-profiles/without-app-account")
     fun listPatientProfilesWithoutAppAccount(
@@ -326,14 +274,6 @@ class AdminController(
         val user = userManagementService.getUserById(userId)
         return toUserResponse(user)
     }
-
-    data class CreateAdminRequest(
-        @NotBlank val email: String,
-        @NotBlank val password: String,
-        @NotBlank val firstName: String,
-        @NotBlank val lastName: String,
-        val adminLevel: String? = "ADMIN"
-    )
 
     @PostMapping("/users/create-admin")
     fun createAdminUser(
@@ -624,21 +564,6 @@ class AdminController(
     }
 
     // ==================== CLINICS (STRUCTURED PRACTICE) ====================
-
-    data class AdminClinicUpsertRequest(
-        @field:NotBlank val name: String,
-        val phone: String? = null,
-        val email: String? = null,
-        val address: String? = null,
-        /** IANA timezone id, e.g. Asia/Tashkent */
-        val timeZone: String? = null,
-        /** ISO 4217 code, e.g. UZS */
-        val currency: String? = null,
-    )
-
-    data class AdminClinicMemberRoleRequest(
-        @field:NotBlank val membershipRole: String,
-    )
 
     @Suppress("UNUSED_PARAMETER")
     @GetMapping("/clinics")

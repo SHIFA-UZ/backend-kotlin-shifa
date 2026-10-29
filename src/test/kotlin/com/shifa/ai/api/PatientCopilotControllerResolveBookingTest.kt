@@ -2,40 +2,38 @@ package com.shifa.ai.api
 
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.shifa.ai.domain.OutputLanguage
-import com.shifa.shared.config.AppProperties
-import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.patients.domain.PatientProfile
-import com.shifa.auth.domain.Role
-import com.shifa.auth.domain.User
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorReviewRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.shared.security.PatientPrincipal
-import com.shifa.ai.infrastructure.OpenAiResponsesService
 import com.shifa.ai.application.PatientCopilotBookingService
 import com.shifa.ai.application.PatientCopilotContextService
-import com.shifa.appointments.application.PatientDaySlotsService
-import com.shifa.payments.application.SubscriptionTierService
 import com.shifa.ai.application.TranscriptionService
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertTrue
-import org.junit.jupiter.api.Test
-import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
-import org.springframework.security.core.authority.SimpleGrantedAuthority
+import com.shifa.ai.domain.OutputLanguage
+import com.shifa.ai.infrastructure.OpenAiResponsesService
+import com.shifa.appointments.application.PatientDaySlotsService
+import com.shifa.auth.domain.Role
+import com.shifa.auth.domain.User
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.patients.domain.PatientProfile
+import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.payments.application.SubscriptionTierService
+import com.shifa.shared.config.AppProperties
+import com.shifa.shared.security.PatientPrincipal
 import java.time.Instant
 import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Optional
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.mockito.Mockito.`when`
+import org.mockito.Mockito.mock
+import org.springframework.security.core.authority.SimpleGrantedAuthority
 
 class PatientCopilotControllerResolveBookingTest {
 
     private fun buildController(
         aiService: OpenAiResponsesService,
         patientProfiles: PatientProfileRepository,
-        doctorProfiles: DoctorProfileRepository,
-        reviewRepo: DoctorReviewRepository,
+        doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
+        reviewRepo: com.shifa.doctors.application.DoctorReviews,
         booking: PatientCopilotBookingService,
         daySlots: PatientDaySlotsService
     ): PatientCopilotController {
@@ -63,8 +61,8 @@ class PatientCopilotControllerResolveBookingTest {
     fun `resolve booking uses deterministic fallback for doctor time and visit type`() {
         val ai = mock(OpenAiResponsesService::class.java)
         val patients = mock(PatientProfileRepository::class.java)
-        val doctors = mock(DoctorProfileRepository::class.java)
-        val reviews = mock(DoctorReviewRepository::class.java)
+        val doctors = mock(com.shifa.doctors.application.DoctorProfiles::class.java)
+        val reviews = mock(com.shifa.doctors.application.DoctorReviews::class.java)
         val booking = mock(PatientCopilotBookingService::class.java)
         val daySlots = mock(PatientDaySlotsService::class.java)
 
@@ -124,8 +122,8 @@ class PatientCopilotControllerResolveBookingTest {
     fun `resolve booking returns NO_UPCOMING_SLOTS when doctor has no free slot`() {
         val ai = mock(OpenAiResponsesService::class.java)
         val patients = mock(PatientProfileRepository::class.java)
-        val doctors = mock(DoctorProfileRepository::class.java)
-        val reviews = mock(DoctorReviewRepository::class.java)
+        val doctors = mock(com.shifa.doctors.application.DoctorProfiles::class.java)
+        val reviews = mock(com.shifa.doctors.application.DoctorReviews::class.java)
         val booking = mock(PatientCopilotBookingService::class.java)
         val daySlots = mock(PatientDaySlotsService::class.java)
 

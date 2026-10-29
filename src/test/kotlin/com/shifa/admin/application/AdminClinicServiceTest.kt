@@ -1,30 +1,27 @@
 package com.shifa.admin.application
 
+import com.shifa.auth.domain.Role
+import com.shifa.auth.domain.User
 import com.shifa.clinics.domain.Clinic
 import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.auth.domain.Role
-import com.shifa.auth.domain.User
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.any
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
 import org.springframework.http.HttpStatus
 import org.springframework.web.server.ResponseStatusException
-import java.util.Optional
 
 class AdminClinicServiceTest {
 
-    private val clinics = mock(ClinicRepository::class.java)
-    private val doctors = mock(DoctorProfileRepository::class.java)
-    private val memberships = mock(ClinicMembershipRepository::class.java)
+    private val clinics = mock(com.shifa.clinics.application.Clinics::class.java)
+    private val doctors = mock(com.shifa.doctors.application.DoctorProfiles::class.java)
+    private val memberships = mock(com.shifa.clinics.application.ClinicMemberships::class.java)
 
     private val service = AdminClinicService(clinics, doctors, memberships)
 
@@ -64,13 +61,13 @@ class AdminClinicServiceTest {
         `when`(doctors.findAllByPracticeClinic_Id(10L)).thenReturn(listOf(ownerDoc, newOwnerDoc))
         `when`(memberships.findByClinic_IdAndUser_Id(10L, 1L)).thenReturn(ownerMembership)
         `when`(memberships.findByClinic_IdAndUser_Id(10L, 2L)).thenReturn(newOwnerMembership)
-        `when`(memberships.save(any(ClinicMembership::class.java))).thenAnswer { it.arguments[0] }
+        `when`(memberships.save(any(ClinicMembership::class.java) ?: ownerMembership)).thenAnswer { it.arguments[0] }
 
         service.updateMemberRole(10L, 102L, ClinicMembership.MembershipRole.OWNER)
 
         assertEquals(ClinicMembership.MembershipRole.DOCTOR, ownerMembership.membershipRole)
         assertEquals(ClinicMembership.MembershipRole.OWNER, newOwnerMembership.membershipRole)
-        verify(memberships, times(2)).save(any(ClinicMembership::class.java))
+        verify(memberships, times(2)).save(any(ClinicMembership::class.java) ?: ownerMembership)
     }
 
     @Test
@@ -152,7 +149,7 @@ class AdminClinicServiceTest {
         `when`(doctors.findAllByPracticeClinic_Id(10L)).thenReturn(listOf(ownerDoc, otherOwnerDoc))
         `when`(memberships.findByClinic_IdAndUser_Id(10L, 1L)).thenReturn(ownerMembership)
         `when`(memberships.findByClinic_IdAndUser_Id(10L, 2L)).thenReturn(otherOwnerMembership)
-        `when`(memberships.save(any(ClinicMembership::class.java))).thenAnswer { it.arguments[0] }
+        `when`(memberships.save(any(ClinicMembership::class.java) ?: ownerMembership)).thenAnswer { it.arguments[0] }
 
         service.updateMemberRole(10L, 101L, ClinicMembership.MembershipRole.CLINIC_ADMIN)
 

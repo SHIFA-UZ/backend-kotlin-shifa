@@ -1,19 +1,18 @@
 // src/main/kotlin/com/shifa/appointments/api/PatientScheduleController.kt
 package com.shifa.appointments.api
 
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.shared.security.PatientPrincipal
 import com.shifa.appointments.application.PatientDaySlotsService
+import com.shifa.shared.security.PatientPrincipal
+import java.time.LocalDate
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.LocalDate
 
 @RestController
 @RequestMapping("/api/patients/me/schedule")
 class PatientScheduleController(
-    private val doctorProfiles: DoctorProfileRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
     private val patientDaySlotsService: PatientDaySlotsService
 ) {
 

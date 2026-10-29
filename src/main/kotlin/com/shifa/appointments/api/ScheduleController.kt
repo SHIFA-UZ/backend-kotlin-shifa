@@ -1,71 +1,43 @@
 // src/main/kotlin/com/shifa/appointments/api/ScheduleController.kt
 package com.shifa.appointments.api
 
+import com.shifa.appointments.api.dto.DateSpecificRuleDto
+import com.shifa.appointments.api.dto.RuleDto
+import com.shifa.appointments.api.dto.ValidRangeDto
+import com.shifa.appointments.api.dto.ValidUntilDto
+import com.shifa.appointments.api.dto.ValidityPeriodDto
+import com.shifa.appointments.application.ScheduleValidityService
 import com.shifa.appointments.domain.DateSpecificScheduleRule
-import com.shifa.doctors.domain.DoctorLocation
-import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.appointments.domain.ScheduleValidityPeriod
 import com.shifa.appointments.domain.WeeklyScheduleRule
-import com.shifa.appointments.infrastructure.DateSpecificScheduleRuleRepository
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.appointments.infrastructure.ScheduleValidityPeriodRepository
-import com.shifa.appointments.infrastructure.WeeklyScheduleRuleRepository
+import com.shifa.doctors.domain.DoctorLocation
+import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.shared.security.DoctorPrincipal
-import com.shifa.appointments.application.ScheduleValidityService
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
+
 
 @RestController
 @RequestMapping("/api/schedule")
 class ScheduleController(
-    private val doctors: DoctorProfileRepository,
-    private val rulesRepo: WeeklyScheduleRuleRepository,
-    private val dateSpecificRulesRepo: DateSpecificScheduleRuleRepository,
-    private val periodRepo: ScheduleValidityPeriodRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
+    private val rulesRepo: com.shifa.appointments.application.WeeklyScheduleRules,
+    private val dateSpecificRulesRepo: com.shifa.appointments.application.DateSpecificScheduleRules,
+    private val periodRepo: com.shifa.appointments.application.ScheduleValidityPeriods,
     private val scheduleValidityService: ScheduleValidityService,
-    private val locationRepo: DoctorLocationRepository
+    private val locationRepo: com.shifa.doctors.application.DoctorLocations
 ) {
 
     companion object {
         private val logger = LoggerFactory.getLogger(ScheduleController::class.java)
     }
-
-    /**
-     * One weekly recurring rule. `locationId` is optional on the wire — when omitted, the
-     * doctor's primary location is used. The patient app always sees one `locationId` per slot
-     * so it can show "which place" a slot belongs to.
-     */
-    data class RuleDto(
-        val weekday: Int,
-        val startTime: String,
-        val endTime: String,
-        val slotMinutes: Int,
-        val locationId: Long? = null
-    )
-
-    data class ValidUntilDto(
-        val validUntil: String
-    )
-
-    /** Request body for schedule validity range: from when until when (adds a new period) */
-    data class ValidRangeDto(
-        val validFrom: String? = null,
-        val validUntil: String
-    )
-
-    /** One validity period in the list response */
-    data class ValidityPeriodDto(
-        val validFrom: String,
-        val validUntil: String
-    )
 
     /**
      * GET /api/schedule/rules — optionally filtered by locationId.
@@ -367,16 +339,6 @@ class ScheduleController(
     }
 
     // ==================== DATE-SPECIFIC SCHEDULES ====================
-
-    data class DateSpecificRuleDto(
-        val id: Long? = null,
-        val startDate: String, // YYYY-MM-DD
-        val endDate: String, // YYYY-MM-DD
-        val startTime: String, // HH:mm
-        val endTime: String, // HH:mm
-        val slotMinutes: Int,
-        val locationId: Long? = null
-    )
 
     @GetMapping("/date-specific")
     fun getDateSpecificRules(

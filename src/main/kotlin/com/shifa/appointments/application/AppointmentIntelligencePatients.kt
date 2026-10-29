@@ -1,6 +1,5 @@
 package com.shifa.appointments.application
 
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.patients.application.DoctorPatientAccessService
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service
@@ -16,7 +15,7 @@ interface AppointmentIntelligencePatients {
 @Service
 class DoctorAppointmentIntelligencePatients(
     private val access: DoctorPatientAccessService,
-    private val patients: PatientProfileRepository,
+    private val patients: com.shifa.patients.application.PatientProfiles,
 ) : AppointmentIntelligencePatients {
     override fun mayAccess(doctorId: Long, patientId: Long): Boolean =
         access.doctorMayAccessPatient(doctorId, patientId)

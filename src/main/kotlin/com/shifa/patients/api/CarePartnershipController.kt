@@ -1,28 +1,21 @@
 package com.shifa.patients.api
 
-import com.shifa.shared.security.DoctorPrincipal
-import com.shifa.patients.application.CarePartnershipProgressDto
-import com.shifa.patients.application.CarePartnershipDto
+import com.shifa.patients.api.dto.InviteRequest
+import com.shifa.patients.api.dto.ProgressRequest
 import com.shifa.patients.application.CarePartnerSearchHit
+import com.shifa.patients.application.CarePartnershipDto
+import com.shifa.patients.application.CarePartnershipProgressDto
 import com.shifa.patients.application.CarePartnershipService
+import com.shifa.shared.security.DoctorPrincipal
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
+
 
 @RestController
 @RequestMapping("/api/care-partnerships")
 class CarePartnershipController(
     private val service: CarePartnershipService,
 ) {
-
-    data class InviteRequest(
-        val patientId: Long,
-        val partnerDoctorId: Long,
-        val specialtyRequested: String? = null,
-        val message: String? = null,
-        val originatingAppointmentId: Long? = null,
-    )
-
-    data class ProgressRequest(val body: String)
 
     @GetMapping("/partners/search")
     fun searchPartners(

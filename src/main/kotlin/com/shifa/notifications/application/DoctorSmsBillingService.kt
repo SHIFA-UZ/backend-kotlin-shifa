@@ -1,18 +1,17 @@
 package com.shifa.notifications.application
 
 import com.shifa.admin.application.AdminDoctorActivityService
-
-import com.shifa.shared.config.DevSmsProperties
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.notifications.domain.DoctorSmsUsage
-import com.shifa.patients.domain.PatientProfile
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.notifications.infrastructure.DoctorSmsUsageRepository
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import com.shifa.patients.domain.PatientProfile
+import com.shifa.shared.config.DevSmsProperties
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+
 
 data class DoctorSmsUsageSummary(
     val sentCount: Long,
@@ -24,7 +23,7 @@ data class DoctorSmsUsageSummary(
 @Service
 class DoctorSmsBillingService(
     private val doctorSmsUsageRepository: DoctorSmsUsageRepository,
-    private val doctorProfileRepository: DoctorProfileRepository,
+    private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
     private val devSmsProperties: DevSmsProperties,
 ) {
     val pricePerSmsMinor: Long get() = devSmsProperties.pricePerSmsMinor

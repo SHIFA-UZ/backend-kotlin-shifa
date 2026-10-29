@@ -1,29 +1,34 @@
 package com.shifa.auth.api
 
 
-import com.shifa.auth.domain.Role
-import com.shifa.auth.domain.User
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.clinics.infrastructure.InvitationKeyRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.auth.infrastructure.UserRepository
-import com.shifa.auth.infrastructure.UserRoleRepository
-import com.shifa.auth.infrastructure.UserSessionRepository
-import com.shifa.shared.security.JwtService
-import com.shifa.shared.security.PrincipalResolverService
 import com.shifa.auth.application.EmailOtpService
-import com.shifa.auth.infrastructure.FirebaseAuthService
 import com.shifa.auth.application.SmsOtpService
 import com.shifa.auth.application.UserActivityService
 import com.shifa.auth.application.UserManagementService
+import com.shifa.auth.application.UserRoles
+import com.shifa.auth.application.UserSessions
+import com.shifa.auth.application.Users
+import com.shifa.auth.domain.Role
+import com.shifa.auth.domain.User
+import com.shifa.auth.domain.UserRole
+import com.shifa.auth.domain.UserSession
+import com.shifa.auth.infrastructure.FirebaseAuthService
+import com.shifa.clinics.application.ClinicMemberships
+import com.shifa.clinics.application.Clinics
+import com.shifa.clinics.application.InvitationKeys
+import com.shifa.doctors.application.DoctorProfiles
+import com.shifa.patients.application.PatientProfiles
+import com.shifa.patients.domain.PatientProfile
+import com.shifa.shared.security.JwtService
+import com.shifa.shared.security.PrincipalResolverService
+import java.time.Instant
+import java.util.Optional
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.anyString
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.atLeastOnce
 import org.mockito.Mockito.never
-import org.mockito.Mockito.`when`
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.springframework.beans.factory.annotation.Autowired
@@ -39,8 +44,6 @@ import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import java.time.Instant
-import java.util.Optional
 
 /**
  * /api/auth/create-patient-for-doctor is public. It must (1) verify an OTP on every path and
@@ -67,21 +70,21 @@ class AuthCreatePatientForDoctorOtpTest {
     @Autowired
     lateinit var mockMvc: MockMvc
 
-    @MockBean lateinit var users: UserRepository
-    @MockBean lateinit var invites: InvitationKeyRepository
-    @MockBean lateinit var doctors: DoctorProfileRepository
-    @MockBean lateinit var patients: PatientProfileRepository
-    @MockBean lateinit var userSessions: UserSessionRepository
+    @MockBean lateinit var users: Users
+    @MockBean lateinit var invites: InvitationKeys
+    @MockBean lateinit var doctors: DoctorProfiles
+    @MockBean lateinit var patients: PatientProfiles
+    @MockBean lateinit var userSessions: UserSessions
     @MockBean lateinit var encoder: PasswordEncoder
     @MockBean lateinit var jwt: JwtService
     @MockBean lateinit var userActivityService: UserActivityService
     @MockBean lateinit var userManagementService: UserManagementService
-    @MockBean lateinit var userRoles: UserRoleRepository
+    @MockBean lateinit var userRoles: UserRoles
     @MockBean lateinit var firebaseAuthService: FirebaseAuthService
     @MockBean lateinit var emailOtpService: EmailOtpService
     @MockBean lateinit var smsOtpService: SmsOtpService
-    @MockBean lateinit var clinicMemberships: ClinicMembershipRepository
-    @MockBean lateinit var clinics: ClinicRepository
+    @MockBean lateinit var clinicMemberships: ClinicMemberships
+    @MockBean lateinit var clinics: Clinics
     @MockBean lateinit var principalResolverService: PrincipalResolverService
 
     private val doctorPhone = "+998901234567"
@@ -235,9 +238,18 @@ class AuthCreatePatientForDoctorOtpTest {
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.token").value("patient-token"))
 
-        verify(userRoles).save(org.mockito.ArgumentMatchers.argThat { it.user.id == user.id && it.role == Role.PATIENT })
-        verify(patients).save(org.mockito.ArgumentMatchers.argThat { it.user?.id == user.id && it.phone == doctorPhone })
-        verify(userSessions).save(org.mockito.ArgumentMatchers.argThat { it.tokenJti == "jti-2" && it.user.id == user.id })
+        verify(userRoles).save(
+            org.mockito.ArgumentMatchers.argThat<UserRole> { it.user.id == user.id && it.role == Role.PATIENT }
+                ?: UserRole(user = user, role = Role.PATIENT),
+        )
+        verify(patients).save(
+            org.mockito.ArgumentMatchers.argThat<PatientProfile> { it.user?.id == user.id && it.phone == doctorPhone }
+                ?: PatientProfile(fullName = "P", user = user),
+        )
+        verify(userSessions).save(
+            org.mockito.ArgumentMatchers.argThat<UserSession> { it.tokenJti == "jti-2" && it.user.id == user.id }
+                ?: UserSession(user = user, expiresAt = Instant.now().atOffset(java.time.ZoneOffset.UTC)),
+        )
     }
 
     @Test

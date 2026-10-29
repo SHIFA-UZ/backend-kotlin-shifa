@@ -1,19 +1,17 @@
 package com.shifa.doctors.application
 
 import com.shifa.clinics.application.ClinicFinanceLedgerService
-
 import com.shifa.clinics.domain.ClinicMembership
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
 
+
 @Service
 class DoctorRevenueShareService(
-    private val clinics: ClinicRepository,
-    private val memberships: ClinicMembershipRepository,
+    private val clinics: com.shifa.clinics.application.Clinics,
+    private val memberships: com.shifa.clinics.application.ClinicMemberships,
     private val doctors: DoctorProfileRepository,
 ) {
 

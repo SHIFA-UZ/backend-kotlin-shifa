@@ -1,58 +1,56 @@
 // src/main/kotlin/com/shifa/patients/api/PatientsController.kt
 package com.shifa.patients.api
 
-import com.shifa.documents.domain.PatientDocument
-import com.shifa.patients.domain.PatientProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.patients.infrastructure.PatientProphylaxisSettingRepository
-import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
+import com.shifa.appointments.domain.Appointment
 import com.shifa.clinics.application.ClinicAccessService
-import com.shifa.notifications.application.SmsReminderFormatting
+import com.shifa.documents.domain.PatientDocument
 import com.shifa.notifications.application.DoctorSmsBillingService
+import com.shifa.notifications.application.SmsReminderFormatting
+import com.shifa.patients.api.dto.CreatePatientRequest
+import com.shifa.patients.api.dto.DocumentDto
+import com.shifa.patients.api.dto.PatientAppointmentRow
+import com.shifa.patients.api.dto.PatientAssignmentDto
+import com.shifa.patients.api.dto.PatientDto
+import com.shifa.patients.api.dto.UpdatePatientRequest
 import com.shifa.patients.application.PatientAccountService
 import com.shifa.patients.application.PatientProfileMapper
+import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.DoctorPrincipal
-import com.shifa.shared.util.PhoneNormalizer
 import com.shifa.shared.util.PatientPhones
+import com.shifa.shared.util.PhoneNormalizer
 import jakarta.validation.Valid
-import org.springframework.http.HttpStatus
-import org.springframework.web.server.ResponseStatusException
-import org.slf4j.LoggerFactory
-import jakarta.validation.constraints.Email
-import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
-import jakarta.validation.constraints.Size
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import java.time.ZonedDateTime
 import org.hibernate.Hibernate
-import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.bind.annotation.*
+import org.slf4j.LoggerFactory
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 import org.springframework.data.web.PageableDefault
-import com.shifa.appointments.domain.Appointment
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
-import java.time.ZonedDateTime
+import org.springframework.http.HttpStatus
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ResponseStatusException
+
 
 @RestController
 @RequestMapping("/api/patients")
 class PatientsController(
-    private val patientsRepo: PatientProfileRepository,
-    private val appointmentRepo: AppointmentRepository,
+    private val patientsRepo: com.shifa.patients.application.PatientProfiles,
+    private val appointmentRepo: com.shifa.appointments.application.Appointments,
     private val documentAccess: com.shifa.documents.application.DocumentAccessService,
     private val profileMapper: PatientProfileMapper,
     private val patientAccountService: PatientAccountService,
     private val clinicAccess: ClinicAccessService,
-    private val doctorProfiles: DoctorProfileRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
     private val doctorSmsBilling: DoctorSmsBillingService,
     private val notificationService: com.shifa.notifications.application.NotificationService,
-    private val prophylaxisSettingsRepo: PatientProphylaxisSettingRepository,
-    private val remoteCareTaskRepo: RemoteCareTaskRepository,
+    private val prophylaxisSettingsRepo: com.shifa.patients.application.PatientProphylaxisSettings,
+    private val remoteCareTaskRepo: com.shifa.tasks.application.RemoteCareTasks,
     private val documentStorage: com.shifa.documents.application.PatientDocumentStorageService,
     private val fileUrlSigner: com.shifa.shared.security.FileUrlSigner,
 ) {
@@ -62,109 +60,7 @@ class PatientsController(
 
     // -------------------- DTOs --------------------
 
-    data class PatientDto(
-        val id: Long?,
-        val name: String,
-        val phone: String?,
-        val phones: List<String> = emptyList(),
-        val email: String?,
-        val address: String?, // Legacy field - will be populated from structured location if available
-        val birthDate: String?,
-        val language: String?,
-        val photoUrl: String?,              // absolute URL
-        val chronicDisease: String?,
-        val hasAccount: Boolean,            // ✅ NEW
-        val username: String?,              // ✅ NEW
-        val documents: List<DocumentDto>,
-        // Structured location fields
-        val locationCountry: String? = null,
-        val locationRegion: String? = null,
-        val locationDistrict: String? = null,
-        val locationCity: String? = null,
-        val locationPostalCode: String? = null,
-        val locationStreetAddress: String? = null,
-        /** IANA timezone for remote task schedule (e.g. Europe/Berlin). Doctor enters times in this zone. */
-        val timeZone: String? = null,
-        /** DevSMS before each future appointment when enabled. */
-        val smsReminderEnabled: Boolean = false,
-        /** Hours before appointment to send SMS (1 or 24). */
-        val smsReminderHoursBefore: Int = 24,
-        val gender: String? = null,
-        val bloodGroup: String? = null,
-        val allergies: String? = null,
-        /** ACTIVE | AT_RISK | FOLLOW_UP — computed for roster display. */
-        val clinicalStatus: String = "ACTIVE",
-        val atRisk: Boolean = false,
-        val followUpRequired: Boolean = false,
-    )
-
-    data class DocumentDto(
-        val id: Long?,
-        val title: String,
-        val date: String,
-        val url: String?,
-        val canView: Boolean = true,
-        val creatorLabel: String = "Unknown"
-    )
-
-    /** Minimal DTO for calendar assign-patient: search by id or name, show avatar. */
-    data class PatientAssignmentDto(val id: Long?, val name: String, val photoUrl: String? = null)
-
     // SECURITY (NEW): Bean validation to reject invalid input before business logic; prevents oversized/XSS payloads
-    data class CreatePatientRequest(
-        @field:NotBlank(message = "Name is required")
-        @field:Size(min = 1, max = 255)
-        val name: String,
-        @field:Size(max = 50)
-        val phone: String?,
-        val phones: List<@Size(max = 50) String>? = null,
-        @field:Email @field:Size(max = 255)
-        val email: String?,
-        @field:Size(max = 500)
-        val address: String?,
-        @field:Size(max = 10)
-        val birthDate: String?,
-        @field:Size(max = 20)
-        val language: String?,
-        @field:Size(max = 2048)
-        val photoUrl: String?,
-        @field:Size(max = 1000)
-        val chronicDisease: String?,
-        @field:Size(max = 20)
-        val gender: String? = null,
-        @field:Size(max = 10)
-        val bloodGroup: String? = null,
-        @field:Size(max = 1000)
-        val allergies: String? = null,
-    )
-
-    data class UpdatePatientRequest(
-        @field:Size(max = 255)
-        val name: String?,
-        @field:Size(max = 50)
-        val phone: String?,
-        val phones: List<@Size(max = 50) String>? = null,
-        @field:Email @field:Size(max = 255)
-        val email: String?,
-        @field:Size(max = 500)
-        val address: String?,
-        @field:Size(max = 10)
-        val birthDate: String?,
-        @field:Size(max = 20)
-        val language: String?,
-        @field:Size(max = 2048)
-        val photoUrl: String?,
-        @field:Size(max = 1000)
-        val chronicDisease: String?,
-        val smsReminderEnabled: Boolean? = null,
-        val smsReminderHoursBefore: Int? = null,
-        @field:Size(max = 20)
-        val gender: String? = null,
-        @field:Size(max = 10)
-        val bloodGroup: String? = null,
-        @field:Size(max = 1000)
-        val allergies: String? = null,
-    )
 
     private fun resolvePhoneInputs(phone: String?, phones: List<String>?): List<String> {
         val fromList = phones.orEmpty().map { it.trim() }.filter { it.isNotEmpty() }
@@ -283,16 +179,6 @@ class PatientsController(
             .orElseThrow { IllegalArgumentException("Patient not found") }
         return toDto(p, viewerDoctorId(principal), clinicalContextFor(p.id, buildClinicalContext(listOfNotNull(p.id))))
     }
-
-    data class PatientAppointmentRow(
-        val id: Long,
-        val startAt: String,
-        val endAt: String,
-        val status: String,
-        val location: String?,
-        val isVideo: Boolean,
-        val reason: String?,
-    )
 
     /**
      * GET /api/patients/{id}/appointments

@@ -4,18 +4,17 @@ import com.shifa.appointments.domain.Appointment
 import com.shifa.payments.domain.OpenCheckoutPolicy
 import com.shifa.payments.domain.PaymentStatus
 import com.shifa.payments.infrastructure.PaymentRepository
-import com.shifa.appointments.infrastructure.AppointmentRepository
+import java.time.Instant
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.Instant
 
 /**
  * Applies gateway results to an appointment. Payment success never comes from the browser redirect.
  */
 @Service
 class AppointmentPaymentSettlement(
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val payments: PaymentRepository,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)

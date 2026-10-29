@@ -1,18 +1,16 @@
 package com.shifa.ai.application
 
-import com.shifa.appointments.application.AppointmentDocumentationService
-import com.shifa.appointments.application.VisitFactService
-
 import com.shifa.ai.domain.OutputLanguage
 import com.shifa.ai.domain.TranscriptPromptLeakStripper
+import com.shifa.appointments.application.AppointmentDocumentationService
+import com.shifa.appointments.application.VisitFactService
 import com.shifa.notifications.domain.Notification
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import java.nio.file.Path
+import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
-import java.nio.file.Path
-import java.util.concurrent.ConcurrentHashMap
+
 
 /**
  * Orchestrates the AI scribe pipeline: recording -> transcription -> summarization -> ai_draft_notes.
@@ -25,9 +23,9 @@ class ScribePipelineService(
     private val medicalSummaryService: MedicalSummaryService,
     private val aiDraftNoteService: AiDraftNoteService,
     private val diagnosisSuggestionService: DiagnosisSuggestionService,
-    private val appointmentRepository: AppointmentRepository,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val notificationService: com.shifa.notifications.application.NotificationService,
-    private val doctorProfileRepository: DoctorProfileRepository,
+    private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
     private val appointmentDocumentationService: AppointmentDocumentationService,
     private val visitSummaryService: PatientVisitAiSummaryService,
     private val visitFactService: VisitFactService,

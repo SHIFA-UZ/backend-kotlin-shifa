@@ -1,10 +1,6 @@
-package com.shifa.appointments.infrastructure
+package com.shifa.ai.infrastructure
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import org.slf4j.LoggerFactory
-import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.sql.Timestamp
 import java.time.Clock
 import java.time.Duration
@@ -12,6 +8,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.util.UUID
+import org.slf4j.LoggerFactory
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 data class TrustedAppointmentReference(
     val appointmentId: Long,

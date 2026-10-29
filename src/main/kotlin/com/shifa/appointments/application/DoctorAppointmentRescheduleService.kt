@@ -2,15 +2,14 @@ package com.shifa.appointments.application
 
 
 import com.shifa.appointments.domain.Appointment
+import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.notifications.domain.Notification
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.Instant
 import java.time.ZoneId
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 data class DoctorRescheduleCommand(
     val appointmentId: Long,
@@ -25,7 +24,7 @@ data class DoctorRescheduleCommand(
 class DoctorAppointmentRescheduleService(
     private val appointments: AppointmentRepository,
     private val notificationService: com.shifa.notifications.application.NotificationService,
-    private val doctorLocations: DoctorLocationRepository,
+    private val doctorLocations: com.shifa.doctors.application.DoctorLocations,
     private val slotAvailabilityService: SlotAvailabilityService,
     private val clock: Clock,
 ) {

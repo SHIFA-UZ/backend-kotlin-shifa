@@ -2,41 +2,24 @@
 package com.shifa.doctors.api
 
 import com.shifa.appointments.domain.Appointment
+import com.shifa.doctors.api.dto.CreateReviewRequest
+import com.shifa.doctors.api.dto.ReviewDto
 import com.shifa.doctors.domain.DoctorReview
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorReviewRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.PatientPrincipal
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.OffsetDateTime
+
 
 @RestController
 @RequestMapping("/api/public/doctors/{doctorId}/reviews")
 class DoctorReviewController(
-    private val doctorProfiles: DoctorProfileRepository,
-    private val patientProfiles: PatientProfileRepository,
-    private val reviewRepository: DoctorReviewRepository,
-    private val appointmentRepository: AppointmentRepository
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
+    private val patientProfiles: com.shifa.patients.application.PatientProfiles,
+    private val reviewRepository: com.shifa.doctors.application.DoctorReviews,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments
 ) {
-
-    data class ReviewDto(
-        val id: Long?,
-        val patientName: String,
-        val patientPhotoUrl: String?,
-        val rating: Int,
-        val comment: String?,
-        val createdAt: String
-    )
-
-    data class CreateReviewRequest(
-        val rating: Int,
-        val comment: String?,
-        val appointmentId: Long?
-    )
 
     /**
      * GET /api/public/doctors/{doctorId}/reviews

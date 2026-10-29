@@ -1,25 +1,22 @@
 package com.shifa.clinics.application
 
-import com.shifa.doctors.domain.DoctorService
-import com.shifa.doctors.domain.DoctorServicePrice
 import com.shifa.clinics.domain.TreatmentPlanCatalogItem
 import com.shifa.clinics.domain.TreatmentPlanCatalogItemDoctor
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
-import com.shifa.doctors.infrastructure.DoctorServiceRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanCatalogItemDoctorRepository
+import com.shifa.doctors.domain.DoctorService
+import com.shifa.doctors.domain.DoctorServicePrice
+import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
 
 @Service
 class ClinicCatalogService(
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val catalogDoctorLinks: TreatmentPlanCatalogItemDoctorRepository,
-    private val doctorServices: DoctorServiceRepository,
-    private val prices: DoctorServicePriceRepository,
+    private val doctorServices: com.shifa.doctors.application.DoctorServices,
+    private val prices: com.shifa.doctors.application.DoctorServicePrices,
 ) {
     fun resolvePracticeDoctorIds(clinicId: Long): Set<Long> =
         doctors.findAllByPracticeClinic_Id(clinicId).mapNotNull { it.id }.toSet()

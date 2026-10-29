@@ -1,44 +1,50 @@
 package com.shifa.clinics.api
 
-import com.shifa.notifications.api.NotificationController
-
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.shifa.appointments.application.PatientDaySlotsService
 import com.shifa.appointments.domain.Appointment
-import com.shifa.notifications.domain.Notification
-import com.shifa.clinics.domain.TreatmentPlan
-import com.shifa.clinics.domain.TreatmentPlanLine
-import com.shifa.clinics.domain.TreatmentPlanPayment
-import com.shifa.clinics.domain.TreatmentPlanCatalogItem
-import com.shifa.admin.infrastructure.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.infrastructure.*
-import com.shifa.clinics.infrastructure.*
-import com.shifa.doctors.infrastructure.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.infrastructure.*
-import com.shifa.payments.infrastructure.*
-import com.shifa.tasks.infrastructure.*
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
+import com.shifa.clinics.api.dto.AppendLinesRequest
+import com.shifa.clinics.api.dto.BookSlotReq
+import com.shifa.clinics.api.dto.CatalogItemDto
+import com.shifa.clinics.api.dto.CreatePlanRequest
+import com.shifa.clinics.api.dto.DoctorRef
+import com.shifa.clinics.api.dto.FulfillPlanRequest
+import com.shifa.clinics.api.dto.FulfillmentCandidateDto
+import com.shifa.clinics.api.dto.InstallmentScheduleRowDto
+import com.shifa.clinics.api.dto.InstallmentSummaryDto
+import com.shifa.clinics.api.dto.LineReq
+import com.shifa.clinics.api.dto.LinkAppointmentReq
+import com.shifa.clinics.api.dto.PatchCatalogItemRequest
+import com.shifa.clinics.api.dto.PatchPlanRequest
+import com.shifa.clinics.api.dto.PatchPlanStatusRequest
+import com.shifa.clinics.api.dto.PaymentReq
+import com.shifa.clinics.api.dto.PlanDoctorLocationDto
+import com.shifa.clinics.api.dto.PlanServiceOptionDto
+import com.shifa.clinics.api.dto.PlanVisitDto
+import com.shifa.clinics.api.dto.TreatmentPlanDetailDto
+import com.shifa.clinics.api.dto.TreatmentPlanSummaryDto
+import com.shifa.clinics.api.dto.UpsertCatalogItemRequest
 import com.shifa.clinics.application.ClinicAccessService
 import com.shifa.clinics.application.ClinicCatalogService
 import com.shifa.clinics.application.ClinicFinanceLedgerService
-import com.shifa.appointments.application.PatientDaySlotsService
-import com.shifa.clinics.application.TreatmentPlanFulfillmentService
 import com.shifa.clinics.application.TreatmentPlanFinanceService
+import com.shifa.clinics.application.TreatmentPlanFulfillmentService
+import com.shifa.clinics.domain.TreatmentPlan
+import com.shifa.clinics.domain.TreatmentPlanCatalogItem
+import com.shifa.clinics.domain.TreatmentPlanLine
+import com.shifa.clinics.domain.TreatmentPlanPayment
+import com.shifa.notifications.domain.Notification
 import jakarta.validation.Valid
-import jakarta.validation.constraints.Min
-import jakarta.validation.constraints.NotBlank
-import jakarta.validation.constraints.NotNull
+import java.time.Instant
+import java.time.OffsetDateTime
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
-import java.time.OffsetDateTime
+
+
 
 @RestController
 @RequestMapping("/api/treatment-plans")
@@ -48,123 +54,24 @@ class TreatmentPlanController(
     private val financeService: TreatmentPlanFinanceService,
     private val clinicFinanceLedger: ClinicFinanceLedgerService,
     private val fulfillmentService: TreatmentPlanFulfillmentService,
-    private val planLinks: TreatmentPlanAppointmentLinkRepository,
-    private val fulfillments: TreatmentPlanLineFulfillmentRepository,
-    private val clinics: ClinicRepository,
-    private val patients: PatientProfileRepository,
-    private val doctors: DoctorProfileRepository,
-    private val catalogRepo: TreatmentPlanCatalogItemRepository,
-    private val plans: TreatmentPlanRepository,
-    private val linesRepo: TreatmentPlanLineRepository,
-    private val paymentsRepo: TreatmentPlanPaymentRepository,
-    private val appts: AppointmentRepository,
-    private val installmentPlans: InstallmentPlanRepository,
-    private val installmentItems: InstallmentItemRepository,
-    private val users: UserRepository,
+    private val clinics: com.shifa.clinics.application.Clinics,
+    private val patients: com.shifa.patients.application.PatientProfiles,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
+    private val catalogRepo: com.shifa.clinics.application.TreatmentPlanCatalogItems,
+    private val plans: com.shifa.clinics.application.TreatmentPlans,
+    private val linesRepo: com.shifa.clinics.application.TreatmentPlanLines,
+    private val paymentsRepo: com.shifa.clinics.application.TreatmentPlanPayments,
+    private val appts: com.shifa.appointments.application.Appointments,
+    private val installmentPlans: com.shifa.clinics.application.InstallmentPlans,
+    private val installmentItems: com.shifa.clinics.application.InstallmentItems,
+    private val users: com.shifa.auth.application.Users,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val objectMapper: ObjectMapper,
-    private val doctorLocations: DoctorLocationRepository,
+    private val doctorLocations: com.shifa.doctors.application.DoctorLocations,
     private val patientDaySlots: PatientDaySlotsService,
-    private val doctorServices: DoctorServiceRepository,
-    private val doctorServicePrices: DoctorServicePriceRepository,
+    private val doctorServices: com.shifa.doctors.application.DoctorServices,
+    private val doctorServicePrices: com.shifa.doctors.application.DoctorServicePrices,
 ) {
-
-    data class CatalogItemDto(
-        val id: Long,
-        val clinicId: Long,
-        val code: String?,
-        val title: String,
-        val defaultPriceMinor: Long,
-        val currency: String,
-        val active: Boolean,
-        val sortOrder: Int,
-        val appliesToAllDoctors: Boolean,
-        val assignedDoctorProfileIds: List<Long>,
-    )
-
-    /**
-     * Unified service option for the clinic Services tab and the treatment-plan
-     * wizard. Each row is either a clinic-managed catalog item or a
-     * doctor-defined service from the doctor's profile (when that service is
-     * not already mirroring a clinic catalog item).
-     *
-     * - [kind] = "CLINIC_CATALOG" — sourced from `treatment_plan_catalog_items`,
-     *   shared across the clinic. `catalogItemId` is set.
-     * - [kind] = "DOCTOR_SERVICE" — sourced from `doctor_services` (a single
-     *   doctor's own catalog row). `doctorServiceId` is set.
-     *
-     * [offeredByDoctorIds]/[offeredByDoctorNames] tell the UI which doctors of
-     * the clinic offer this service so it can render doctor tags on every line.
-     * The lists carry the **same length and the same order** (paired entries).
-     */
-    data class PlanServiceOptionDto(
-        /** Stable unique key for UI list rendering, e.g. "catalog:42" or "doctor:7:service:123". */
-        val key: String,
-        val kind: String,
-        val catalogItemId: Long?,
-        val doctorServiceId: Long?,
-        val title: String,
-        val code: String?,
-        val defaultPriceMinor: Long,
-        val currency: String,
-        val active: Boolean,
-        val offeredByDoctorIds: List<Long>,
-        val offeredByDoctorNames: List<String>,
-        val groupId: Long? = null,
-        val groupName: String? = null,
-        val groupSortOrder: Int? = null,
-    )
-
-    data class UpsertCatalogItemRequest(
-        @field:NotNull val clinicId: Long,
-        val code: String?,
-        @field:NotBlank val title: String,
-        @field:Min(0) val defaultPriceMinor: Long,
-        val currency: String = "UZS",
-        val active: Boolean = true,
-        val sortOrder: Int = 0,
-        val appliesToAllDoctors: Boolean = true,
-        val assignedDoctorProfileIds: List<Long> = emptyList(),
-    )
-
-    data class PatchCatalogItemRequest(
-        val code: String? = null,
-        val title: String? = null,
-        @field:Min(0) val defaultPriceMinor: Long? = null,
-        val currency: String? = null,
-        val active: Boolean? = null,
-        val sortOrder: Int? = null,
-        val appliesToAllDoctors: Boolean? = null,
-        val assignedDoctorProfileIds: List<Long>? = null,
-    )
-
-    data class TreatmentPlanSummaryDto(
-        val id: Long,
-        val clinicId: Long,
-        val patientId: Long?,
-        val patientName: String?,
-        val attendingDoctorId: Long?,
-        val attendingDoctorName: String?,
-        val attendingDoctors: List<DoctorRef>,
-        val title: String?,
-        val diagnosis: String?,
-        val status: String,
-        val notes: String?,
-        val paymentReminderDays: Int?,
-        val planKind: String,
-        val symptoms: List<String>,
-        val totalMinor: Long,
-        val paidMinor: Long,
-        val owedMinor: Long,
-        val currency: String,
-        val planPaymentStatus: String,
-        /** Distinct appointments linked via plan lines (scheduled or completed visits). */
-        val visitCount: Int,
-        val linesCompletedCount: Int,
-        val linesTotalCount: Int,
-        val createdAt: String?,
-        val updatedAt: String?,
-    )
 
     data class AppointmentSummaryDto(
         val id: Long,
@@ -190,138 +97,6 @@ class TreatmentPlanController(
         val specialtyMetadata: String?,
         val assignedDoctorId: Long?,
         val notes: String?,
-    )
-
-    data class InstallmentScheduleRowDto(
-        /** Stable id used by Finance → installments. */
-        val installmentItemId: Long,
-        val sequenceNumber: Int,
-        val dueDate: String,
-        val amountMinor: Long,
-        val currency: String,
-        val status: String,
-    )
-
-    data class InstallmentSummaryDto(
-        val installmentPlanId: Long,
-        val status: String,
-        val totalAmountMinor: Long,
-        val currency: String,
-        val numInstallments: Int,
-        val scheduleRows: List<InstallmentScheduleRowDto> = emptyList(),
-    )
-
-    data class TreatmentPlanDetailDto(
-        val summary: TreatmentPlanSummaryDto,
-        val lines: List<LineDetailDto>,
-        val installmentPlans: List<InstallmentSummaryDto>,
-        val dentalPlanDocumentation: String?,
-    )
-
-    data class FulfillmentCandidateDto(
-        val lineId: Long,
-        val title: String,
-        val fdi: String?,
-        val dentition: String?,
-        val unitPriceMinor: Long,
-        val quantity: Int,
-        val discountMinor: Long,
-        val currency: String,
-        val lineTotalMinor: Long,
-        val status: String,
-        val toothMatch: Boolean,
-    )
-
-    data class FulfillPlanRequest(val lineIds: List<Long>)
-
-    data class AppendLinesRequest(
-        val appointmentId: Long? = null,
-        val lines: List<LineReq>,
-    )
-
-    /** One appointment linked to a comprehensive treatment plan (past, upcoming, or cancelled). */
-    data class PlanVisitDto(
-        val appointmentId: Long,
-        val startAt: String,
-        val endAt: String,
-        val status: String,
-        val doctorProfileId: Long,
-        val doctorName: String,
-        val location: String,
-        val services: List<String>,
-        val visitTotalMinor: Long,
-        val visitCollectedMinor: Long,
-        val visitOwedMinor: Long,
-        val currency: String,
-        val visitPaymentStatus: String,
-        /** UPCOMING | PAST | CANCELLED — used by the doctor app for grouping / badges. */
-        val timing: String,
-    )
-
-    data class LineReq(
-        val catalogItemId: Long?,
-        @field:NotBlank val title: String,
-        @field:Min(1) val quantity: Int,
-        @field:Min(0) val unitPriceMinor: Long,
-        @field:Min(0) val discountMinor: Long = 0,
-        val currency: String = "UZS",
-        val sortOrder: Int = 0,
-        val linkedAppointmentId: Long? = null,
-        val status: TreatmentPlanLine.LineStatus? = null,
-        val specialtyMetadata: String? = null,
-        val assignedDoctorId: Long? = null,
-        val notes: String? = null,
-    )
-
-    data class CreatePlanRequest(
-        @field:NotNull val clinicId: Long,
-        @field:NotNull val patientId: Long,
-        val attendingDoctorId: Long?,
-        /** Optional full list of doctors attached to this plan. */
-        val attendingDoctorIds: List<Long>? = null,
-        val title: String?,
-        val diagnosis: String?,
-        val notes: String?,
-        val paymentReminderDays: Int?,
-        val symptoms: List<String>? = null,
-        val planKind: TreatmentPlan.PlanKind? = null,
-        val dentalPlanDocumentation: String? = null,
-    )
-
-    data class PatchPlanRequest(
-        val title: String? = null,
-        val diagnosis: String? = null,
-        val notes: String? = null,
-        val paymentReminderDays: Int? = null,
-        val attendingDoctorId: Long? = null,
-        /** When non-null replaces the full doctor list on the plan. */
-        val attendingDoctorIds: List<Long>? = null,
-        val symptoms: List<String>? = null,
-        val dentalPlanDocumentation: String? = null,
-    )
-
-    data class DoctorRef(val id: Long, val name: String)
-
-    data class BookSlotReq(
-        @field:NotNull val doctorId: Long,
-        /** ISO-8601 instant, e.g. "2026-06-12T09:00:00Z". */
-        @field:NotBlank val startAt: String,
-        @field:Min(5) val slotMinutes: Int = 30,
-        val locationId: Long? = null,
-        /** When set, the booked appointment is also linked to this plan line. */
-        val lineId: Long? = null,
-        val notes: String? = null,
-    )
-
-    data class PatchPlanStatusRequest(val status: TreatmentPlan.Status)
-
-    data class LinkAppointmentReq(val lineId: Long, val appointmentId: Long?)
-
-    data class PaymentReq(
-        @field:Min(1) val amountMinor: Long,
-        val currency: String = "UZS",
-        @field:NotNull val method: TreatmentPlanPayment.PaymentMethod,
-        val memo: String?,
     )
 
     private fun lineAmt(line: TreatmentPlanLine): Long =
@@ -1258,14 +1033,6 @@ class TreatmentPlanController(
     }
 
     // -- Free-slot lookup + multi-slot booking for the plan wizard -----------
-
-    data class PlanDoctorLocationDto(
-        val id: Long,
-        val label: String,
-        val clinic: String?,
-        val address: String?,
-        val isPrimary: Boolean,
-    )
 
     /**
      * Practice locations for [doctorId], for the treatment-plan wizard slot

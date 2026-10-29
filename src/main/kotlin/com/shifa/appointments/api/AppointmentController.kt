@@ -3,51 +3,51 @@ package com.shifa.appointments.api
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.shifa.appointments.domain.Appointment
-import com.shifa.notifications.domain.Notification
-import com.shifa.ai.domain.AiDraftNote
-import com.shifa.ai.infrastructure.AiDraftNoteRepository
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.appointments.infrastructure.ConsultationNoteRepository
-import com.shifa.clinics.application.ClinicAccessService
-import com.shifa.appointments.application.AppointmentCancellationService
-import com.shifa.appointments.application.AppointmentVisitLifecycleService
-import com.shifa.notifications.application.PatientPaymentPushI18n
 import com.shifa.ai.application.ClinicalRagIndexingService
-import com.shifa.appointments.application.SlotAvailabilityService
-import com.shifa.clinics.infrastructure.TreatmentPlanAppointmentLinkRepository
-import com.shifa.clinics.infrastructure.TreatmentPlanLineFulfillmentRepository
-import com.shifa.clinics.application.TreatmentPlanFulfillmentService
-import com.shifa.clinics.application.VisitChargeService
 import com.shifa.ai.application.ScribePipelineService
+import com.shifa.ai.domain.AiDraftNote
+import com.shifa.appointments.api.dto.ChangeSlotReq
+import com.shifa.appointments.api.dto.CompleteAppointmentRequest
+import com.shifa.appointments.api.dto.CompleteAppointmentResponse
+import com.shifa.appointments.api.dto.ConsultationNoteDto
+import com.shifa.appointments.api.dto.DraftNoteDto
+import com.shifa.appointments.api.dto.IcdSuggestionDto
+import com.shifa.appointments.api.dto.PutConsultationNotesRequest
+import com.shifa.appointments.api.dto.ScribeStatusResponse
+import com.shifa.appointments.application.AppointmentCancellationService
 import com.shifa.appointments.application.AppointmentDocumentationService
+import com.shifa.appointments.application.AppointmentVisitLifecycleService
 import com.shifa.appointments.application.DoctorAppointmentRescheduleService
 import com.shifa.appointments.application.DoctorRescheduleCommand
+import com.shifa.appointments.application.SlotAvailabilityService
+import com.shifa.appointments.domain.Appointment
+import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.clinics.application.TreatmentPlanFulfillmentService
+import com.shifa.clinics.application.VisitChargeService
+import com.shifa.notifications.application.PatientPaymentPushI18n
+import com.shifa.notifications.domain.Notification
+import java.time.Instant
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
-import java.time.ZoneId
-import java.time.*
+
 
 @RestController
 @RequestMapping("/api/appointments")
 class AppointmentController(
-    private val appts: AppointmentRepository,
-    private val doctorLocations: DoctorLocationRepository,
+    private val appts: com.shifa.appointments.application.Appointments,
     private val notificationService: com.shifa.notifications.application.NotificationService,
-    private val consultationNoteRepo: ConsultationNoteRepository,
-    private val aiDraftNoteRepo: AiDraftNoteRepository,
+    private val consultationNoteRepo: com.shifa.appointments.application.ConsultationNotes,
+    private val aiDraftNoteRepo: com.shifa.ai.application.AiDraftNotes,
     private val objectMapper: ObjectMapper,
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
     private val clinicAccess: ClinicAccessService,
     private val visitChargeService: VisitChargeService,
     private val fulfillmentService: TreatmentPlanFulfillmentService,
-    private val planLinks: TreatmentPlanAppointmentLinkRepository,
-    private val lineFulfillments: TreatmentPlanLineFulfillmentRepository,
+    private val planLinks: com.shifa.clinics.application.TreatmentPlanAppointmentLinks,
+    private val lineFulfillments: com.shifa.clinics.application.TreatmentPlanLineFulfillments,
     private val slotAvailabilityService: SlotAvailabilityService,
     private val appointmentCancellationService: AppointmentCancellationService,
     private val appointmentVisitLifecycleService: AppointmentVisitLifecycleService,
@@ -155,17 +155,6 @@ class AppointmentController(
 
     // -------------------- Doctor: request patient signature --------------------
 
-    /** Consultation notes for this appointment (e.g. saved Shifa AI drafts). Shown in appointment documentation with "From Shifa AI" badge when source == AI_DRAFT. */
-    data class ConsultationNoteDto(
-        val id: Long,
-        val body: String?,
-        val subjective: String?,
-        val assessment: String?,
-        val plan: String?,
-        val source: String,
-        val createdAt: String
-    )
-
     @GetMapping("/{appointmentId}/consultation-notes")
     fun getConsultationNotes(
         @AuthenticationPrincipal principal: Any,
@@ -200,10 +189,6 @@ class AppointmentController(
             )
         }
     }
-
-    data class PutConsultationNotesRequest(
-        val body: String? = null,
-    )
 
     /** Save the doctor's appointment notes without completing the visit. */
     @PutMapping("/{appointmentId}/consultation-notes")
@@ -270,22 +255,6 @@ class AppointmentController(
         appts.save(appointment)
         clinicalRagIndexingService.reindexAppointmentDentalDocumentation(appointmentId)
     }
-
-    /** Pending AI draft notes for this appointment (e.g. AI Scribe). Doctor can confirm or discard from the appointment screen. */
-    data class IcdSuggestionDto(
-        val code: String,
-        val title: String,
-        val confidence: Double? = null,
-        val isTop: Boolean = false
-    )
-
-    data class DraftNoteDto(
-        val id: String,
-        val aiLabel: String,
-        val body: String,
-        val createdAt: String,
-        val icdSuggestions: List<IcdSuggestionDto> = emptyList()
-    )
 
     @GetMapping("/{appointmentId}/draft-notes")
     fun getDraftNotes(
@@ -400,14 +369,6 @@ class AppointmentController(
         }
     }
 
-    /** startAt: ISO 8601 UTC. */
-    data class ChangeSlotReq(
-        val startAt: String,
-        val slotMinutes: Int,
-        /** Clinic of the free slot. A move can land at a different location than the original visit. */
-        val locationId: Long? = null,
-    )
-
     @DeleteMapping("/{appointmentId}")
     fun cancel(
         @AuthenticationPrincipal principal: Any,
@@ -429,32 +390,6 @@ class AppointmentController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment cannot be cancelled")
         }
     }
-
-    data class CompleteAppointmentRequest(
-        val clinicId: Long? = null,
-        val visitCharges: List<VisitChargeLineReq>? = null,
-        val doctorNotes: String? = null,
-        val awaitingScribe: Boolean? = null,
-    )
-
-    data class VisitChargeLineReq(
-        val catalogItemId: Long,
-        val quantity: Int = 1,
-        val unitPriceMinor: Long? = null,
-    )
-
-    data class CompleteAppointmentResponse(
-        val status: String,
-        val scribePending: Boolean,
-        val hasDocumentation: Boolean,
-        val hasScribeNote: Boolean,
-    )
-
-    data class ScribeStatusResponse(
-        val status: String,
-        val hasDocumentation: Boolean,
-        val hasScribeNote: Boolean,
-    )
 
     @GetMapping("/{appointmentId}/scribe-status")
     fun getScribeStatus(

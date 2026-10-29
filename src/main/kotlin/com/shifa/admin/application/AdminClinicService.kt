@@ -1,25 +1,22 @@
 package com.shifa.admin.application
 
+import com.shifa.auth.domain.Role
 import com.shifa.clinics.domain.Clinic
 import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.auth.domain.Role
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import org.springframework.transaction.annotation.Transactional
+import java.time.OffsetDateTime
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.OffsetDateTime
 
 @Service
 class AdminClinicService(
-    private val clinics: ClinicRepository,
-    private val doctors: DoctorProfileRepository,
-    private val memberships: ClinicMembershipRepository,
+    private val clinics: com.shifa.clinics.application.Clinics,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
+    private val memberships: com.shifa.clinics.application.ClinicMemberships,
 ) {
 
     data class ClinicRow(

@@ -1,30 +1,28 @@
 // src/main/kotlin/com/shifa/patients/api/PatientController.kt
 package com.shifa.patients.api
 
-import com.shifa.appointments.api.PatientAppointmentController
-
-import com.shifa.shared.config.AppProperties
-import com.shifa.shared.config.PaymentProperties
-import com.shifa.payments.application.PaymentService
-import java.time.ZoneOffset
+import com.shifa.appointments.application.SlotAvailabilityService
 import com.shifa.appointments.domain.Appointment
-import com.shifa.doctors.domain.ServicePaymentType
-import com.shifa.notifications.domain.Notification
-import com.shifa.patients.domain.PatientProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
-import com.shifa.doctors.infrastructure.DoctorServiceRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.shared.security.PatientPrincipal
 import com.shifa.appointments.domain.BookingPaymentPolicy
 import com.shifa.doctors.application.DoctorServicePricing
-import com.shifa.notifications.application.NotificationFormatting
-import com.shifa.documents.application.PatientDocumentService
-import com.shifa.appointments.application.SlotAvailabilityService
-import com.shifa.patients.application.PatientProfileMapper
+import com.shifa.doctors.domain.ServicePaymentType
 import com.shifa.documents.api.PatientDocumentDto
+import com.shifa.documents.application.PatientDocumentService
+import com.shifa.notifications.application.NotificationFormatting
+import com.shifa.notifications.domain.Notification
+import com.shifa.patients.api.dto.AttachDocumentsRequest
+import com.shifa.patients.api.dto.BookAppointmentRequest
+import com.shifa.patients.api.dto.PaymentCheckoutDto
+import com.shifa.patients.api.dto.UpdateProfileRequest
+import com.shifa.patients.application.PatientProfileMapper
+import com.shifa.patients.domain.PatientProfile
+import com.shifa.payments.application.PaymentService
+import com.shifa.shared.config.AppProperties
+import com.shifa.shared.config.PaymentProperties
+import com.shifa.shared.security.PatientPrincipal
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
@@ -33,22 +31,22 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
-import java.time.*
-import java.time.format.DateTimeFormatter
+
+
 
 private fun normalizeAvatarUrl(avatarUrl: String?, baseUrl: String): String? = com.shifa.shared.PublicUrls.absolute(baseUrl, avatarUrl)
 
 @RestController
 @RequestMapping("/api/patients/me")
 class PatientController(
-    private val patientProfiles: PatientProfileRepository,
-    private val appointments: AppointmentRepository,
+    private val patientProfiles: com.shifa.patients.application.PatientProfiles,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val profileMapper: PatientProfileMapper,
     private val appProps: AppProperties,
-    private val doctorProfiles: DoctorProfileRepository,
-    private val doctorLocations: DoctorLocationRepository,
-    private val doctorServices: DoctorServiceRepository,
-    private val doctorServicePrices: DoctorServicePriceRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
+    private val doctorLocations: com.shifa.doctors.application.DoctorLocations,
+    private val doctorServices: com.shifa.doctors.application.DoctorServices,
+    private val doctorServicePrices: com.shifa.doctors.application.DoctorServicePrices,
     private val patientDocumentService: PatientDocumentService,
     private val appointmentBriefingService: com.shifa.ai.application.AppointmentBriefingService,
     private val notificationService: com.shifa.notifications.application.NotificationService,
@@ -92,26 +90,6 @@ class PatientController(
         val features: List<String>?
     )
 
-    data class UpdateProfileRequest(
-        val firstName: String?,
-        val lastName: String?,
-        val birthDate: String?,
-        val gender: String?,
-        val address: String?,
-        val language: String?,
-        val photoUrl: String?,
-        val latitude: Double?,
-        val longitude: Double?,
-        // Structured location fields
-        val locationCountry: String?,
-        val locationRegion: String?,
-        val locationDistrict: String?,
-        val locationCity: String?,
-        val locationPostalCode: String?,
-        val locationStreetAddress: String?,
-        val timeZone: String?
-    )
-
     data class AppointmentDto(
         val id: Long?,
         val doctorId: Long?,
@@ -146,49 +124,6 @@ class PatientController(
         val alreadySigned: Boolean = false,
         val documentIds: List<Long> = emptyList(),
         val notes: String? = null,
-    )
-
-    data class AttachDocumentsRequest(val documentIds: List<Long>)
-
-    data class PaymentCheckoutDto(
-        val id: Long,
-        val provider: String,
-        val checkoutUrl: String,
-        val expiresAt: String?,
-    )
-
-    /** startAt: ISO 8601 UTC (e.g. 2026-02-12T13:00:00Z). */
-    data class BookAppointmentRequest(
-        val doctorId: Long,
-        val startAt: String,
-        val slotMinutes: Int = 30,
-        val reason: String?,
-        val isVideo: Boolean = false,
-        val serviceId: Long? = null,
-        /**
-         * Optional practice location id. If the doctor has multiple structured locations, the
-         * patient MUST pick one (unless the booking is a video consultation). For single-location
-         * doctors (or legacy doctors without structured locations), this can be omitted.
-         */
-        val locationId: Long? = null,
-        /**
-         * Optional patient document IDs already uploaded via POST /patients/me/documents.
-         * Linked to the new appointment as pre-appointment attachments.
-         */
-        val documentIds: List<Long>? = null,
-        /**
-         * When the patient is moving an existing booking, the id of the appointment
-         * to cancel after the new one is created. Doctor gets one reschedule push
-         * instead of booked + cancelled.
-         */
-        val rescheduleAppointmentId: Long? = null,
-        /**
-         * CLICK or STRIPE. The new app sends this for pay-now, including when only one method is listed.
-         * Omitted by the current app, which still books first and pays from the appointments screen.
-         */
-        val paymentProvider: String? = null,
-        /** "app": the gateway return pages redirect back into the patient app (ask 12). */
-        val platform: String? = null,
     )
 
     // -------------------- FCM Token (push notifications) --------------------

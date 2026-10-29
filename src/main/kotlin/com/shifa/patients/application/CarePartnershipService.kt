@@ -1,19 +1,17 @@
 package com.shifa.patients.application
 
 
+import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.CarePartnership
 import com.shifa.patients.domain.CarePartnershipProgressUpdate
-import com.shifa.notifications.domain.Notification
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.patients.infrastructure.CarePartnershipProgressUpdateRepository
 import com.shifa.patients.infrastructure.CarePartnershipRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
+import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
 
 data class CarePartnerSearchHit(
     val id: Long,
@@ -56,9 +54,9 @@ data class CarePartnershipProgressDto(
 class CarePartnershipService(
     private val partnerships: CarePartnershipRepository,
     private val progressRepo: CarePartnershipProgressUpdateRepository,
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val patients: PatientProfileRepository,
-    private val appointments: AppointmentRepository,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val access: DoctorPatientAccessService,
     private val notificationService: com.shifa.notifications.application.NotificationService,
 ) {

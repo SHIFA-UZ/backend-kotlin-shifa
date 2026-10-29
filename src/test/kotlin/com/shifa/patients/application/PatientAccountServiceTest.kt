@@ -1,29 +1,27 @@
 package com.shifa.patients.application
 
-import com.shifa.patients.domain.PatientProfile
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
+import com.shifa.patients.domain.PatientProfile
 import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.auth.infrastructure.UserRepository
-import com.shifa.auth.infrastructure.UserRoleRepository
+import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
 import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.web.server.ResponseStatusException
-import java.util.Optional
 
 class PatientAccountServiceTest {
 
-    private val userRepository = mock(UserRepository::class.java)
+    private val userRepository = mock(com.shifa.auth.application.Users::class.java)
     private val patientProfileRepository = mock(PatientProfileRepository::class.java)
     private val passwordEncoder = mock(PasswordEncoder::class.java)
-    private val userRoleRepository = mock(UserRoleRepository::class.java)
+    private val userRoleRepository = mock(com.shifa.auth.application.UserRoles::class.java)
 
     private val service = PatientAccountService(
         userRepository,
@@ -50,7 +48,7 @@ class PatientAccountServiceTest {
             service.createPatientAccount(241L)
         }
         assertEquals(HttpStatus.CONFLICT, ex.statusCode)
-        verify(userRepository, never()).save(org.mockito.ArgumentMatchers.any(User::class.java))
+        verify(userRepository, never()).save(org.mockito.ArgumentMatchers.any(User::class.java) ?: linkedUser)
     }
 
     @Test

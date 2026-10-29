@@ -441,6 +441,34 @@ the doctors and auth features; the Click webhook payload classes and the inline 
 subscription and Stripe-Connect controllers live in `api/dto`. No behaviour change; the payments border rule drops to 0.
 Item 12 (payment status for the apps) is a separate PR.
 
+**Phase 5, remaining features in one PR (branch `refactor/phase5-features`, one commit per feature in the 9.2 order:
+appointments; auth; patients+doctors; chat+tasks; clinics; ai+admin):** every feature now has its border sealed the
+same way. Each Spring Data repository that was used outside its feature's `application`/`infrastructure` layers got a
+pass-through **door** in `<feature>.application`, named after the entity in the plural (`Appointments`, `Users`,
+`PatientProfiles`, `DoctorProfiles`, `Clinics`, `RemoteCareTasks`, ...; `DoctorSettingsDoor` where the plural clashed)
+and carrying the comment "roadmap Phase 5 step 4". Door methods have exactly the repository's names and signatures, so
+the controllers, the other features and the dev seed changed only a constructor parameter type; `Emails` wraps the
+SMTP sender's clinic-invitation mail for the clinics feature. Every nested request/response `data class` moved from
+its controller to `<feature>/api/dto/<Controller>Dtos.kt` with its annotations (`@JsonInclude` on
+`DeletedPatientExportDto` included); DTOs whose simple name exists in two controllers (`TokenResponse`,
+`PatientProfileDto`, `AppointmentDto`, `AppointmentSummaryDto`, `FcmTokenRequest`, `SubmitSignatureRequest`,
+`UploadResp`, `ServiceDto`, `DoctorDto`, `LineDetailDto`, `AppointmentLedgerRowDto`) stayed nested so that no client-
+visible schema name changes. Three classes moved to the layer they belong to (`AppointmentActionPhrases` to
+`appointments.domain`, `PatientAiContextBuilder` to `ai.application`, `IntelligenceToolReferenceService` to
+`ai.infrastructure`); seven unused constructor parameters were removed. ArchUnit baseline before → after: domain rule
+25 → 0; api→infrastructure 827 → 35 (the rest are controllers calling their own feature's gateways: `DailyVideoService`,
+`DailyWebhookSignature`, `OpenAiResponsesService`, `FirebaseAuthService`); per-feature border rules appointments
+301 → 0, auth 92 → 17, patients 152 → 0, doctors 286 → 7, chat 18 → 0, tasks 30 → 0, clinics 102 → 7, ai 24 → 0,
+admin 22 → 7, where every remaining entry is `shared.security` (`JwtAuthFilter`, `UserDetailsServiceImpl`,
+`PrincipalResolverService` read `UserRepository`, `UserRoleRepository`, `UserSessionRepository`, `ClinicMembershipRepository`,
+`AdminProfileRepository`, `DoctorProfileRepository`, `PatientProfileRepository` directly; `shared` stays as it is until
+the auth split, where a `shared.security` port can be introduced). `shared`→features stays frozen at 184 by design.
+OpenAPI snapshot byte-identical; 422 tests. **What this step is and is not:** the seal is mechanical, so a controller
+that called `appointments.findById(...)` still does, through a same-named door; moving that logic into use-case methods
+(step 3 proper: `XxxCommands`/`XxxQueries`) remains open per feature and is done when the feature's behavioural items
+land. The step-5 items (auth split, P5 rewrites for doctor search and the conversation list, the `EXCLUDE` constraint,
+item 14, the AI split, `admin_audit_log`, items 1/2/5/6/12/13/15) are separate PRs as the recipe says.
+
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),

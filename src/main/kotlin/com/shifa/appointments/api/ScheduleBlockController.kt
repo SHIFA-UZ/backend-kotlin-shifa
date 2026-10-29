@@ -1,41 +1,28 @@
 package com.shifa.appointments.api
 
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.appointments.infrastructure.ScheduleBlockRepository
-import com.shifa.shared.security.DoctorPrincipal
-import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.appointments.api.dto.BlockDto
+import com.shifa.appointments.api.dto.OverlapCountDto
 import com.shifa.appointments.application.ScheduleBlockService
+import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.shared.security.DoctorPrincipal
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
-import java.time.LocalDate
-import java.time.ZoneId
+
 
 @RestController
 @RequestMapping("/api/schedule/blocks")
 class ScheduleBlockController(
-    private val blocksRepo: ScheduleBlockRepository,
-    private val doctors: DoctorProfileRepository,
+    private val blocksRepo: com.shifa.appointments.application.ScheduleBlocks,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val clinicAccess: ClinicAccessService,
     private val scheduleBlockService: ScheduleBlockService,
 ) {
-
-    data class BlockDto(
-        val id: Long? = null,
-        val startAt: String,
-        val endAt: String,
-        val reason: String? = null,
-        /** When true, overlapping future/in-progress appointments are cancelled. */
-        val cancelOverlappingAppointments: Boolean = false,
-        /** Calendar doctor (defaults to authenticated doctor). */
-        val resourceDoctorId: Long? = null,
-        val cancelledAppointmentCount: Int? = null,
-    )
-
-    data class OverlapCountDto(val count: Int)
 
     private fun resolveDoctorId(principal: Any, resourceDoctorId: Long?): Long {
         clinicAccess.assertPracticeActor(principal)

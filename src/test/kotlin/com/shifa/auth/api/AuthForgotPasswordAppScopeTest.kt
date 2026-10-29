@@ -1,28 +1,31 @@
 package com.shifa.auth.api
 
 
-import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.auth.application.EmailOtpService
+import com.shifa.auth.application.SmsOtpService
+import com.shifa.auth.application.UserActivityService
+import com.shifa.auth.application.UserManagementService
+import com.shifa.auth.application.UserRoles
+import com.shifa.auth.application.UserSessions
+import com.shifa.auth.application.Users
 import com.shifa.auth.domain.EmailVerificationCode
-import com.shifa.patients.domain.PatientProfile
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
 import com.shifa.auth.domain.UserRole
 import com.shifa.auth.domain.UserSession
-import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.clinics.infrastructure.InvitationKeyRepository
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.auth.infrastructure.UserRepository
-import com.shifa.auth.infrastructure.UserRoleRepository
-import com.shifa.auth.infrastructure.UserSessionRepository
+import com.shifa.auth.infrastructure.FirebaseAuthService
+import com.shifa.clinics.application.ClinicMemberships
+import com.shifa.clinics.application.Clinics
+import com.shifa.clinics.application.InvitationKeys
+import com.shifa.doctors.application.DoctorProfiles
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.patients.application.PatientProfiles
+import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.JwtService
 import com.shifa.shared.security.PrincipalResolverService
-import com.shifa.auth.application.EmailOtpService
-import com.shifa.auth.infrastructure.FirebaseAuthService
-import com.shifa.auth.application.SmsOtpService
-import com.shifa.auth.application.UserActivityService
-import com.shifa.auth.application.UserManagementService
+import java.time.Instant
+import java.time.OffsetDateTime
+import java.util.Optional
 import org.hamcrest.Matchers.containsString
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -35,18 +38,15 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
 import org.springframework.boot.test.mock.mockito.MockBean
-import org.springframework.http.MediaType
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.FilterType
+import org.springframework.http.MediaType
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
-import java.time.Instant
-import java.time.OffsetDateTime
-import java.util.Optional
 
 @WebMvcTest(
     controllers = [AuthController::class],
@@ -68,19 +68,19 @@ class AuthForgotPasswordAppScopeTest {
     lateinit var mockMvc: MockMvc
 
     @MockBean
-    lateinit var users: UserRepository
+    lateinit var users: Users
 
     @MockBean
-    lateinit var invites: InvitationKeyRepository
+    lateinit var invites: InvitationKeys
 
     @MockBean
-    lateinit var doctors: DoctorProfileRepository
+    lateinit var doctors: DoctorProfiles
 
     @MockBean
-    lateinit var patients: PatientProfileRepository
+    lateinit var patients: PatientProfiles
 
     @MockBean
-    lateinit var userSessions: UserSessionRepository
+    lateinit var userSessions: UserSessions
 
     @MockBean
     lateinit var encoder: PasswordEncoder
@@ -95,7 +95,7 @@ class AuthForgotPasswordAppScopeTest {
     lateinit var userManagementService: UserManagementService
 
     @MockBean
-    lateinit var userRoles: UserRoleRepository
+    lateinit var userRoles: UserRoles
 
     @MockBean
     lateinit var firebaseAuthService: FirebaseAuthService
@@ -107,10 +107,10 @@ class AuthForgotPasswordAppScopeTest {
     lateinit var smsOtpService: SmsOtpService
 
     @MockBean
-    lateinit var clinicMemberships: ClinicMembershipRepository
+    lateinit var clinicMemberships: ClinicMemberships
 
     @MockBean
-    lateinit var clinics: ClinicRepository
+    lateinit var clinics: Clinics
 
     @MockBean
     lateinit var principalResolverService: PrincipalResolverService
@@ -274,7 +274,8 @@ class AuthForgotPasswordAppScopeTest {
         `when`(encoder.encode("NewPass1!")).thenReturn("new-hash")
         `when`(encoder.matches("NewPass1!", "new-hash")).thenReturn(true)
         `when`(jwt.generate(user.id, "Patient@Example.com", Role.PATIENT.name)).thenReturn(tokenResult)
-        `when`(userSessions.save(any(UserSession::class.java))).thenAnswer { it.arguments[0] }
+        `when`(userSessions.save(any(UserSession::class.java) ?: UserSession(user = user, expiresAt = java.time.OffsetDateTime.now())))
+            .thenAnswer { it.arguments[0] }
 
         mockMvc.perform(
             post("/api/auth/forgot-password-reset")

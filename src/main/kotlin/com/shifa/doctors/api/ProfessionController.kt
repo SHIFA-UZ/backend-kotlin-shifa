@@ -1,22 +1,13 @@
 package com.shifa.doctors.api
 
-import com.shifa.doctors.domain.Profession
-import com.shifa.doctors.infrastructure.ProfessionRepository
+
 import org.springframework.web.bind.annotation.*
 
 @RestController
 @RequestMapping("/api/public/professions")
 class ProfessionController(
-    private val professionRepository: ProfessionRepository
+    private val professionRepository: com.shifa.doctors.application.Professions
 ) {
-    
-    data class ProfessionDto(
-        val id: Long,
-        val english: String,
-        val uzbek: String,
-        val category: String?,
-        val displayOrder: Int
-    )
     
     /**
      * Get all active professions

@@ -1,35 +1,37 @@
 package com.shifa.ai.api
 
-import com.shifa.shared.api.SseIoSupport
-
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.shifa.ai.domain.OutputLanguage
-import com.shifa.ai.domain.PatientAiContextBuilder
-import com.shifa.auth.domain.SubscriptionFeature
-import com.shifa.shared.security.DoctorPrincipal
+import com.shifa.ai.api.dto.CommitVisitFactsRequest
+import com.shifa.ai.api.dto.SpeakRequest
 import com.shifa.ai.application.AiDraftNoteService
 import com.shifa.ai.application.DoctorMorningAiService
-import com.shifa.ai.infrastructure.OpenAiResponsesService
+import com.shifa.ai.application.PatientAiContextBuilder
 import com.shifa.ai.application.PatientVisitAiSummaryService
-import com.shifa.payments.application.SubscriptionTierService
 import com.shifa.ai.application.TextToSpeechService
 import com.shifa.ai.application.TranscriptionPurpose
 import com.shifa.ai.application.TranscriptionService
+import com.shifa.ai.infrastructure.OpenAiResponsesService
 import com.shifa.appointments.application.VisitFactService
-import kotlinx.coroutines.runBlocking
-import org.springframework.http.MediaType
-import org.springframework.security.core.annotation.AuthenticationPrincipal
+import com.shifa.auth.domain.SubscriptionFeature
+import com.shifa.payments.application.SubscriptionTierService
+import com.shifa.shared.api.SseIoSupport
+import com.shifa.shared.security.DoctorPrincipal
 import jakarta.validation.Valid
-import org.springframework.http.ResponseEntity
-import org.springframework.web.bind.annotation.*
-import org.springframework.http.HttpStatus
-import org.springframework.web.server.ResponseStatusException
-import java.util.NoSuchElementException
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
-import java.util.concurrent.Executor
-import org.slf4j.LoggerFactory
-import org.springframework.web.multipart.MultipartFile
 import java.nio.file.Files
+import java.util.NoSuchElementException
+import java.util.concurrent.Executor
+import kotlinx.coroutines.runBlocking
+import org.slf4j.LoggerFactory
+import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.*
+import org.springframework.web.multipart.MultipartFile
+import org.springframework.web.server.ResponseStatusException
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+
+
 
 @RestController
 @RequestMapping("/api/ai")
@@ -273,11 +275,6 @@ class DoctorAiController(
         return emitter
     }
 
-    data class SpeakRequest(
-        val text: String,
-        val language: OutputLanguage = OutputLanguage.UZ,
-    )
-
     /** Server TTS for short morning replies (mp3). */
     @PostMapping("/speak")
     fun speak(
@@ -339,12 +336,6 @@ class DoctorAiController(
         subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
         return ResponseEntity.ok(mapOf("patterns" to visitFactService.clinicPatterns(principal.profile.id)))
     }
-
-    data class CommitVisitFactsRequest(
-        val appointmentId: Long,
-        val acceptFactIds: List<Long>? = null,
-        val rejectFactIds: List<Long>? = null,
-    )
 
     /** Doctor said "document everything" — commit kept draft facts into chart + remote-care drafts. */
     @PostMapping("/visit-facts/commit")

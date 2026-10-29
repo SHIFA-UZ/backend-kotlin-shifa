@@ -1,41 +1,34 @@
 package com.shifa.devseed
 
+import com.shifa.admin.domain.AdminLevel
+import com.shifa.admin.domain.AdminProfile
 import com.shifa.appointments.domain.Appointment
+import com.shifa.appointments.domain.WeeklyScheduleRule
+import com.shifa.auth.domain.Role
+import com.shifa.auth.domain.SubscriptionTier
+import com.shifa.auth.domain.User
+import com.shifa.auth.domain.UserRole
 import com.shifa.clinics.domain.Clinic
 import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.doctors.domain.DoctorLocation
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorService
 import com.shifa.doctors.domain.DoctorServicePrice
-import com.shifa.notifications.domain.Notification
+import com.shifa.doctors.domain.ServicePaymentType
+import com.shifa.documents.application.PatientDocumentStorageService
 import com.shifa.documents.domain.PatientDocument
 import com.shifa.documents.domain.PatientDocumentCategory
+import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.tasks.domain.RemoteCareTask
-import com.shifa.auth.domain.Role
-import com.shifa.doctors.domain.ServicePaymentType
-import com.shifa.auth.domain.SubscriptionTier
-import com.shifa.tasks.domain.TaskCheckIn
-import com.shifa.admin.domain.AdminLevel
-import com.shifa.admin.domain.AdminProfile
-import com.shifa.auth.domain.User
-import com.shifa.auth.domain.UserRole
-import com.shifa.appointments.domain.WeeklyScheduleRule
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
-import com.shifa.doctors.infrastructure.DoctorServiceRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
-import com.shifa.tasks.infrastructure.TaskCheckInRepository
-import com.shifa.auth.infrastructure.UserRepository
-import com.shifa.auth.infrastructure.UserRoleRepository
-import com.shifa.appointments.infrastructure.WeeklyScheduleRuleRepository
-import com.shifa.documents.application.PatientDocumentStorageService
 import com.shifa.shared.util.PhoneNormalizer
+import com.shifa.tasks.domain.RemoteCareTask
+import com.shifa.tasks.domain.TaskCheckIn
+import java.time.DayOfWeek
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.temporal.ChronoUnit
 import org.slf4j.LoggerFactory
 import org.springframework.boot.ApplicationArguments
 import org.springframework.boot.ApplicationRunner
@@ -44,12 +37,6 @@ import org.springframework.core.env.Environment
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
-import java.time.DayOfWeek
-import java.time.Instant
-import java.time.LocalDate
-import java.time.LocalTime
-import java.time.ZoneId
-import java.time.temporal.ChronoUnit
 
 /**
  * Deterministic test data for the development environment and local runs (roadmap 1.7). Enabled only with
@@ -67,24 +54,24 @@ import java.time.temporal.ChronoUnit
 @Component
 @ConditionalOnProperty("app.dev-seed", havingValue = "true")
 class DevSeedRunner(
-    private val users: UserRepository,
-    private val userRoles: UserRoleRepository,
-    private val doctors: DoctorProfileRepository,
-    private val locations: DoctorLocationRepository,
-    private val rules: WeeklyScheduleRuleRepository,
-    private val services: DoctorServiceRepository,
-    private val prices: DoctorServicePriceRepository,
-    private val clinics: ClinicRepository,
-    private val memberships: ClinicMembershipRepository,
-    private val patients: PatientProfileRepository,
-    private val appointments: AppointmentRepository,
+    private val users: com.shifa.auth.application.Users,
+    private val userRoles: com.shifa.auth.application.UserRoles,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
+    private val locations: com.shifa.doctors.application.DoctorLocations,
+    private val rules: com.shifa.appointments.application.WeeklyScheduleRules,
+    private val services: com.shifa.doctors.application.DoctorServices,
+    private val prices: com.shifa.doctors.application.DoctorServicePrices,
+    private val clinics: com.shifa.clinics.application.Clinics,
+    private val memberships: com.shifa.clinics.application.ClinicMemberships,
+    private val patients: com.shifa.patients.application.PatientProfiles,
+    private val appointments: com.shifa.appointments.application.Appointments,
     private val documents: com.shifa.documents.application.PatientDocumentService,
-    private val tasks: RemoteCareTaskRepository,
-    private val checkIns: TaskCheckInRepository,
+    private val tasks: com.shifa.tasks.application.RemoteCareTasks,
+    private val checkIns: com.shifa.tasks.application.TaskCheckIns,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val passwordEncoder: PasswordEncoder,
     private val documentStorage: PatientDocumentStorageService,
-    private val adminProfiles: com.shifa.admin.infrastructure.AdminProfileRepository,
+    private val adminProfiles: com.shifa.admin.application.AdminProfiles,
     private val environment: Environment,
     @org.springframework.beans.factory.annotation.Value("\${app.dev-seed-admin-emails:}") private val adminEmails: String,
 ) : ApplicationRunner {

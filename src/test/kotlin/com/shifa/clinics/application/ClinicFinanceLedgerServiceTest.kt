@@ -1,26 +1,26 @@
 package com.shifa.clinics.application
 
-import com.shifa.doctors.application.DoctorRevenueShareService
-
 import com.shifa.appointments.domain.Appointment
-import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.patients.domain.PatientProfile
 import com.shifa.clinics.domain.TreatmentPlan
 import com.shifa.clinics.domain.TreatmentPlanLine
 import com.shifa.clinics.domain.TreatmentPlanPayment
 import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanPaymentRepository
+import com.shifa.doctors.application.DoctorRevenueShareService
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.patients.domain.PatientProfile
+import java.time.Instant
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.anyCollection
+import org.mockito.Mockito.`when`
+import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
-import org.mockito.Mockito.mock
-import java.time.Instant
+
 
 class ClinicFinanceLedgerServiceTest {
 
@@ -265,8 +265,8 @@ class ClinicFinanceLedgerServiceTest {
             ),
         )
         val revenueShareService = DoctorRevenueShareService(
-            mock(com.shifa.clinics.infrastructure.ClinicRepository::class.java),
-            mock(com.shifa.clinics.infrastructure.ClinicMembershipRepository::class.java),
+            mock(com.shifa.clinics.application.Clinics::class.java),
+            mock(com.shifa.clinics.application.ClinicMemberships::class.java),
             mock(com.shifa.doctors.infrastructure.DoctorProfileRepository::class.java),
         )
         val out = revenueShareService.applySplits(earnings, emptyMap())
@@ -286,8 +286,8 @@ class ClinicFinanceLedgerServiceTest {
             ),
         )
         val revenueShareService = DoctorRevenueShareService(
-            mock(com.shifa.clinics.infrastructure.ClinicRepository::class.java),
-            mock(com.shifa.clinics.infrastructure.ClinicMembershipRepository::class.java),
+            mock(com.shifa.clinics.application.Clinics::class.java),
+            mock(com.shifa.clinics.application.ClinicMemberships::class.java),
             mock(com.shifa.doctors.infrastructure.DoctorProfileRepository::class.java),
         )
         val split = revenueShareService.applySplits(earnings, mapOf(16L to 40)).single()

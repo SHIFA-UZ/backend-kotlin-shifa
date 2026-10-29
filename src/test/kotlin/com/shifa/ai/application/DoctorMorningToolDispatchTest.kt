@@ -1,40 +1,36 @@
 package com.shifa.ai.application
 
-import com.shifa.appointments.application.PatientDaySlotsService
-import com.shifa.documents.application.PatientDocumentService
-
-import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.auth.domain.User
+import com.shifa.ai.infrastructure.IntelligenceToolReferenceService
+import com.shifa.ai.infrastructure.TrustedAppointmentReference
 import com.shifa.appointments.application.AppointmentActionService
 import com.shifa.appointments.application.AppointmentIntelligenceService
 import com.shifa.appointments.application.IntelligenceBookingWorkflowService
-import com.shifa.appointments.infrastructure.IntelligenceToolReferenceService
+import com.shifa.appointments.application.PatientDaySlotsService
 import com.shifa.appointments.domain.BookingWorkflowStatus
 import com.shifa.appointments.domain.IntelligenceBookingWorkflow
 import com.shifa.appointments.domain.PendingPatientCandidate
 import com.shifa.appointments.domain.PendingQuestionType
-import com.shifa.appointments.infrastructure.TrustedAppointmentReference
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.appointments.infrastructure.ClinicVisitPatternRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.appointments.infrastructure.PatientVisitFactRepository
+import com.shifa.auth.domain.User
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.documents.application.PatientDocumentService
+import java.time.Clock
+import java.time.Instant
+import java.time.LocalDate
+import java.util.UUID
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.anyLong
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
-import org.mockito.Mockito.`when`
 import org.springframework.data.domain.PageImpl
-import java.time.Instant
-import java.time.LocalDate
-import java.time.Clock
-import java.util.UUID
+
 
 class DoctorMorningToolDispatchTest {
-    private val appointments = mock(AppointmentRepository::class.java)
-    private val patients = mock(PatientProfileRepository::class.java)
+    private val appointments = mock(com.shifa.appointments.application.Appointments::class.java)
+    private val patients = mock(com.shifa.patients.application.PatientProfiles::class.java)
     private val slots = mock(PatientDaySlotsService::class.java)
     private val intelligence = mock(AppointmentIntelligenceService::class.java)
     private val bookingWorkflows = mock(IntelligenceBookingWorkflowService::class.java)
@@ -44,8 +40,8 @@ class DoctorMorningToolDispatchTest {
     private val tools = DoctorMorningToolService(
         appointments,
         mock(PatientBriefingService::class.java),
-        mock(PatientVisitFactRepository::class.java),
-        mock(ClinicVisitPatternRepository::class.java),
+        mock(com.shifa.appointments.application.PatientVisitFacts::class.java),
+        mock(com.shifa.appointments.application.ClinicVisitPatterns::class.java),
         patients,
         slots,
         mock(PatientDocumentService::class.java),
@@ -279,7 +275,8 @@ class DoctorMorningToolDispatchTest {
         assertEquals(1217L, result["appointmentId"])
         assertEquals("2026-10-21", result["date"])
         assertEquals("12:00", (result["preferredSlot"] as Map<*, *>)["startLocal"])
-        verify(appointments, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any())
+        verify(appointments, org.mockito.Mockito.never())
+            .save(org.mockito.ArgumentMatchers.any(com.shifa.appointments.domain.Appointment::class.java) ?: appointment)
     }
 
     @Test
@@ -337,7 +334,8 @@ class DoctorMorningToolDispatchTest {
         assertEquals("2026-10-21", result["date"])
         assertEquals("12:00", result["requestedTime"])
         assertEquals(false, result["autoConfirm"])
-        verify(appointments, org.mockito.Mockito.never()).save(org.mockito.ArgumentMatchers.any())
+        verify(appointments, org.mockito.Mockito.never())
+            .save(org.mockito.ArgumentMatchers.any(com.shifa.appointments.domain.Appointment::class.java) ?: appointment)
     }
 
     @Test
@@ -392,8 +390,8 @@ class DoctorMorningToolDispatchTest {
         val afternoonTools = DoctorMorningToolService(
             appointments,
             mock(PatientBriefingService::class.java),
-            mock(PatientVisitFactRepository::class.java),
-            mock(ClinicVisitPatternRepository::class.java),
+            mock(com.shifa.appointments.application.PatientVisitFacts::class.java),
+            mock(com.shifa.appointments.application.ClinicVisitPatterns::class.java),
             patients,
             slots,
             mock(PatientDocumentService::class.java),

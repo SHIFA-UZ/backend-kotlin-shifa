@@ -1,26 +1,28 @@
 // src/main/kotlin/com/shifa/appointments/api/PatientAppointmentController.kt
 package com.shifa.appointments.api
 
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.doctors.infrastructure.DoctorReviewRepository
-import com.shifa.appointments.domain.BookingPaymentPolicy
-import com.shifa.shared.security.PatientPrincipal
 import com.shifa.ai.application.PatientVisitAiSummaryService
+import com.shifa.appointments.api.dto.AppointmentReviewDto
+import com.shifa.appointments.api.dto.AskVisitSummaryRequest
+import com.shifa.appointments.api.dto.GenerateVisitSummaryRequest
+import com.shifa.appointments.domain.BookingPaymentPolicy
 import com.shifa.patients.application.PatientProfileMapper
+import com.shifa.shared.security.PatientPrincipal
+import java.time.Instant
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
+
 
 @RestController
 @RequestMapping("/api/patients/me/appointments")
 class PatientAppointmentController(
-    private val appts: AppointmentRepository,
+    private val appts: com.shifa.appointments.application.Appointments,
     private val profileMapper: PatientProfileMapper,
-    private val reviewRepository: DoctorReviewRepository,
+    private val reviewRepository: com.shifa.doctors.application.DoctorReviews,
     private val visitSummaryService: PatientVisitAiSummaryService,
     private val documents: com.shifa.documents.application.PatientDocumentService,
     private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
@@ -118,13 +120,6 @@ class PatientAppointmentController(
         }
     }
 
-    /** Response when the patient has already submitted a review for this appointment. */
-    data class AppointmentReviewDto(
-        val rating: Int,
-        val comment: String?,
-        val createdAt: String
-    )
-
     @GetMapping("/{appointmentId}/review")
     @Transactional(readOnly = true)
     fun getMyReviewForAppointment(
@@ -181,16 +176,6 @@ class PatientAppointmentController(
         appointment.patientSignedAt = Instant.now()
         appts.save(appointment)
     }
-
-    data class GenerateVisitSummaryRequest(
-        val language: String? = null,
-        val force: Boolean? = false
-    )
-
-    data class AskVisitSummaryRequest(
-        val language: String? = null,
-        val question: String
-    )
 
     @PostMapping("/{appointmentId}/ai-visit-summary:generate")
     fun generateVisitSummary(

@@ -1,37 +1,33 @@
 package com.shifa.clinics.application
 
-import com.shifa.clinics.domain.Clinic
-import com.shifa.clinics.domain.ClinicMembership
-import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.patients.domain.PatientProfile
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.patients.infrastructure.CarePartnershipRepository
+import com.shifa.clinics.domain.Clinic
+import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
+import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import org.mockito.Mockito.mock
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.web.server.ResponseStatusException
-import java.util.Optional
 
 class ClinicAccessServiceTest {
 
-    private val doctors = mock(DoctorProfileRepository::class.java)
-    private val appointments = mock(AppointmentRepository::class.java)
-    private val patients = mock(PatientProfileRepository::class.java)
+    private val doctors = mock(com.shifa.doctors.application.DoctorProfiles::class.java)
+    private val appointments = mock(com.shifa.appointments.application.Appointments::class.java)
+    private val patients = mock(com.shifa.patients.application.PatientProfiles::class.java)
     private val memberships = mock(ClinicMembershipRepository::class.java)
-    private val carePartnerships = mock(CarePartnershipRepository::class.java)
+    private val carePartnerships = mock(com.shifa.patients.application.CarePartnerships::class.java)
 
     private val service = ClinicAccessService(doctors, appointments, patients, memberships, carePartnerships)
 

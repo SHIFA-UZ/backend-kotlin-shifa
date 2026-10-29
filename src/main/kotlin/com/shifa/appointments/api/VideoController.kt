@@ -1,40 +1,31 @@
 // src/main/kotlin/com/shifa/appointments/api/VideoController.kt
 package com.shifa.appointments.api
 
-import com.shifa.auth.domain.SubscriptionFeature
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.shared.security.DoctorPrincipal
-import java.time.Instant
-import com.shifa.shared.security.PatientPrincipal
+import com.shifa.appointments.api.dto.VideoTokenRequest
+import com.shifa.appointments.api.dto.VideoTokenResponse
 import com.shifa.appointments.infrastructure.DailyVideoService
+import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.payments.application.SubscriptionTierService
+import com.shifa.shared.security.DoctorPrincipal
+import com.shifa.shared.security.PatientPrincipal
+import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 
+
 @RestController
 @RequestMapping("/api/video")
 class VideoController(
     private val dailyVideoService: DailyVideoService,
-    private val appointmentRepository: AppointmentRepository,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val subscriptionTierService: SubscriptionTierService,
     private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
     private val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
     
     private fun currentPatientProfile(principal: PatientPrincipal): com.shifa.patients.domain.PatientProfile = currentPatient.resolve(principal)
-
-    data class VideoTokenRequest(
-        val appointmentId: Long,
-        val roomName: String? = null
-    )
-
-    data class VideoTokenResponse(
-        val token: String,
-        val roomUrl: String,
-        val roomName: String
-    )
 
     /**
      * Generate video token for doctor or patient

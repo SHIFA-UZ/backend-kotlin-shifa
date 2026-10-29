@@ -1,18 +1,17 @@
 // src/main/kotlin/com/shifa/patients/api/PatientPhotoController.kt
 package com.shifa.patients.api
 
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.PatientPrincipal
+import java.text.Normalizer
+import java.util.Locale
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
-import java.text.Normalizer
-import java.util.Locale
 
 @RestController
 @RequestMapping("/api/patients/me/photo")
 class PatientPhotoController(
-    private val patientProfiles: PatientProfileRepository,
+    private val patientProfiles: com.shifa.patients.application.PatientProfiles,
     private val signer: com.shifa.shared.security.FileUrlSigner,
     private val uploadGuard: com.shifa.shared.UploadGuard,
     private val storage: com.shifa.shared.storage.FileStorage,

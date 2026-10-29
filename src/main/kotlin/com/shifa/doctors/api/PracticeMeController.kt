@@ -1,9 +1,10 @@
 package com.shifa.doctors.api
 
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.doctors.api.dto.ColleagueDto
+import com.shifa.doctors.api.dto.PracticeSessionDto
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
-import com.shifa.clinics.application.ClinicAccessService
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
@@ -11,20 +12,13 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
 
+
 @RestController
 @RequestMapping("/api/practice/me")
 class PracticeMeController(
     private val clinicAccess: ClinicAccessService,
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
 ) {
-
-    data class ColleagueDto(val doctorId: Long, val displayName: String)
-
-    data class PracticeSessionDto(
-        val principalRole: String,
-        val clinicIds: List<Long>,
-        val colleagues: List<ColleagueDto>
-    )
 
     @GetMapping
     fun me(@AuthenticationPrincipal principal: Any): PracticeSessionDto {

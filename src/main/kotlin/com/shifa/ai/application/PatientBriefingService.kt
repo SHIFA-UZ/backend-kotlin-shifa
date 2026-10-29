@@ -1,22 +1,20 @@
 package com.shifa.ai.application
 
-import com.shifa.ai.infrastructure.OpenAiResponsesService
-import com.shifa.documents.application.PatientDocumentService
-import com.shifa.documents.application.PatientDocumentStorageService
-import com.shifa.documents.application.PdfTextExtractionService
-
 import com.shifa.ai.domain.ConsultationNoteAiSnapshot
 import com.shifa.ai.domain.ConsultationNoteText
 import com.shifa.ai.domain.Form0252AiSnapshot
+import com.shifa.ai.infrastructure.OpenAiResponsesService
 import com.shifa.appointments.domain.Appointment
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import org.slf4j.LoggerFactory
-import org.springframework.stereotype.Service
+import com.shifa.documents.application.PatientDocumentService
+import com.shifa.documents.application.PatientDocumentStorageService
+import com.shifa.documents.application.PdfTextExtractionService
 import java.time.LocalDate
 import java.time.Period
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
+
 
 /** Max documents to include in briefing context (iteration order). */
 const val BRIEFING_MAX_DOCUMENTS = 20
@@ -48,8 +46,8 @@ class PatientBriefingService(
     private val patientDocumentService: PatientDocumentService,
     private val documentStorage: PatientDocumentStorageService,
     private val pdfExtraction: PdfTextExtractionService,
-    private val patientRepo: PatientProfileRepository,
-    private val appointmentRepo: AppointmentRepository,
+    private val patientRepo: com.shifa.patients.application.PatientProfiles,
+    private val appointmentRepo: com.shifa.appointments.application.Appointments,
     private val openAi: OpenAiResponsesService,
     private val clinicalSnippets: DoctorPatientRecordSnippetService,
 ) {

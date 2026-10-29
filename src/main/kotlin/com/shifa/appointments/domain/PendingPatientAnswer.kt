@@ -1,6 +1,5 @@
 package com.shifa.appointments.domain
 
-import com.shifa.appointments.application.AppointmentActionService
 
 /**
  * Interprets a short follow-up against an active pending patient question.
@@ -26,7 +25,7 @@ object PendingPatientAnswer {
         val normalized = normalize(text)
         if (normalized.isEmpty()) return Result(Kind.AMBIGUOUS)
         if (UNRELATED.containsMatchIn(normalized)) return Result(Kind.UNRELATED)
-        if (AppointmentActionService.isExplicitConfirmation(normalized)) return Result(Kind.CONFIRM)
+        if (AppointmentActionPhrases.isExplicitConfirmation(normalized)) return Result(Kind.CONFIRM)
         val tokens = normalized.split(' ').filter { it.isNotBlank() }
         val first = tokens.first()
         if (first in CONFIRM_STEMS) {

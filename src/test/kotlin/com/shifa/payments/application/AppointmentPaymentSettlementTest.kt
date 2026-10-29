@@ -1,30 +1,29 @@
 package com.shifa.payments.application
 
 import com.shifa.appointments.domain.Appointment
+import com.shifa.auth.domain.User
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.auth.domain.User
+import com.shifa.payments.domain.OpenCheckoutPolicy
 import com.shifa.payments.domain.Payment
 import com.shifa.payments.domain.PaymentGatewayCode
 import com.shifa.payments.domain.PaymentKind
-import com.shifa.payments.domain.OpenCheckoutPolicy
 import com.shifa.payments.domain.PaymentStatus
 import com.shifa.payments.infrastructure.PaymentRepository
-import com.shifa.appointments.infrastructure.AppointmentRepository
+import java.time.Instant
+import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.any
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
-import java.time.Instant
-import java.util.Optional
 
 class AppointmentPaymentSettlementTest {
-    private val appointments = mock(AppointmentRepository::class.java)
+    private val appointments = mock(com.shifa.appointments.application.Appointments::class.java)
     private val payments = mock(PaymentRepository::class.java)
     private val settlement = AppointmentPaymentSettlement(appointments, payments)
     private val doctor = DoctorProfile(

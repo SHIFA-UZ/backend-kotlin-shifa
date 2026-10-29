@@ -1,26 +1,22 @@
 package com.shifa.doctors.api
 
 
+import com.shifa.auth.domain.Role
+import com.shifa.auth.domain.User
 import com.shifa.clinics.domain.Clinic
+import com.shifa.clinics.domain.TreatmentPlanCatalogItem
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorService
-import com.shifa.auth.domain.Role
-import com.shifa.clinics.domain.TreatmentPlanCatalogItem
-import com.shifa.auth.domain.User
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorServiceGroupRepository
-import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
-import com.shifa.doctors.infrastructure.DoctorServiceRepository
 import com.shifa.shared.security.DoctorPrincipal
+import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
+import org.mockito.Mockito.mock
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.web.server.ResponseStatusException
-import java.util.Optional
 
 class DoctorServiceClinicManagedTest {
 
@@ -50,22 +46,22 @@ class DoctorServiceClinicManagedTest {
             isFreeConsultation = false,
             sourceCatalogItem = catalog,
         )
-        val services = mock(DoctorServiceRepository::class.java)
+        val services = mock(com.shifa.doctors.application.DoctorServices::class.java)
         `when`(services.findById(7L)).thenReturn(Optional.of(managed))
-        val prices = mock(DoctorServicePriceRepository::class.java)
-        val locations = mock(DoctorLocationRepository::class.java)
-        val groups = mock(DoctorServiceGroupRepository::class.java)
+        val prices = mock(com.shifa.doctors.application.DoctorServicePrices::class.java)
+        val locations = mock(com.shifa.doctors.application.DoctorLocations::class.java)
+        val groups = mock(com.shifa.doctors.application.DoctorServiceGroups::class.java)
         val controller = DoctorServiceController(services, prices, locations, groups)
         val principal = DoctorPrincipal(profile, listOf(SimpleGrantedAuthority("ROLE_DOCTOR")))
         val ex = assertThrows<ResponseStatusException> {
             controller.update(
                 principal,
                 7L,
-                DoctorServiceController.UpsertServiceRequest(
+                com.shifa.doctors.api.dto.UpsertServiceRequest(
                     title = "Changed",
                     isActive = true,
                     isFreeConsultation = false,
-                    prices = listOf(DoctorServiceController.PriceDto(amountMinor = 5000L, currency = "UZS")),
+                    prices = listOf(com.shifa.doctors.api.dto.PriceDto(amountMinor = 5000L, currency = "UZS")),
                 ),
             )
         }
@@ -98,13 +94,13 @@ class DoctorServiceClinicManagedTest {
             isFreeConsultation = false,
             sourceCatalogItem = catalog,
         )
-        val services = mock(DoctorServiceRepository::class.java)
+        val services = mock(com.shifa.doctors.application.DoctorServices::class.java)
         `when`(services.findById(7L)).thenReturn(Optional.of(managed))
         val controller = DoctorServiceController(
             services,
-            mock(DoctorServicePriceRepository::class.java),
-            mock(DoctorLocationRepository::class.java),
-            mock(DoctorServiceGroupRepository::class.java),
+            mock(com.shifa.doctors.application.DoctorServicePrices::class.java),
+            mock(com.shifa.doctors.application.DoctorLocations::class.java),
+            mock(com.shifa.doctors.application.DoctorServiceGroups::class.java),
         )
         val principal = DoctorPrincipal(profile, listOf(SimpleGrantedAuthority("ROLE_DOCTOR")))
         val ex = assertThrows<ResponseStatusException> {

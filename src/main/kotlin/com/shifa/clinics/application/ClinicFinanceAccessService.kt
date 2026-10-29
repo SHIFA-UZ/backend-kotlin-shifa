@@ -2,7 +2,6 @@ package com.shifa.clinics.application
 
 import com.shifa.clinics.domain.ClinicMembership.MembershipRole
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
 import org.springframework.http.HttpStatus
@@ -13,7 +12,7 @@ import org.springframework.web.server.ResponseStatusException
 class ClinicFinanceAccessService(
     private val memberships: ClinicMembershipRepository,
     private val clinicAccess: ClinicAccessService,
-    private val patients: PatientProfileRepository,
+    private val patients: com.shifa.patients.application.PatientProfiles,
 ) {
 
     enum class FinanceAccessLevel {

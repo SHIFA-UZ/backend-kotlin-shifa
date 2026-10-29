@@ -1,43 +1,34 @@
 package com.shifa.chat.application
 
-import com.shifa.patients.application.PatientProfileMapper
-
+import com.shifa.auth.domain.Role
+import com.shifa.chat.api.ConversationDto
+import com.shifa.chat.api.ConversationWithMessagesDto
+import com.shifa.chat.api.MessageContentDto
+import com.shifa.chat.api.MessageDto
+import com.shifa.chat.api.SendMessageRequest
+import com.shifa.chat.api.UserSearchResultDto
 import com.shifa.chat.domain.Conversation
 import com.shifa.chat.domain.Message
+import com.shifa.chat.infrastructure.ConversationRepository
+import com.shifa.chat.infrastructure.MessageRepository
 import com.shifa.notifications.domain.Notification
-import com.shifa.auth.domain.Role
-import com.shifa.admin.infrastructure.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.infrastructure.*
-import com.shifa.clinics.infrastructure.*
-import com.shifa.doctors.infrastructure.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.infrastructure.*
-import com.shifa.payments.infrastructure.*
-import com.shifa.tasks.infrastructure.*
-import com.shifa.admin.api.*
-import com.shifa.ai.api.*
-import com.shifa.chat.api.*
-import com.shifa.doctors.api.*
-import com.shifa.documents.api.*
-import com.shifa.patients.api.*
+import com.shifa.patients.application.PatientProfileMapper
+import java.time.OffsetDateTime
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
-import java.time.OffsetDateTime
+
 
 @Service
 class MessageService(
     private val conversationRepo: ConversationRepository,
     private val messageRepo: MessageRepository,
     private val notificationService: com.shifa.notifications.application.NotificationService,
-    private val userRepo: UserRepository,
-    private val doctorProfileRepo: DoctorProfileRepository,
-    private val patientProfileRepo: PatientProfileRepository,
+    private val userRepo: com.shifa.auth.application.Users,
+    private val doctorProfileRepo: com.shifa.doctors.application.DoctorProfiles,
+    private val patientProfileRepo: com.shifa.patients.application.PatientProfiles,
     private val fileUrlSigner: com.shifa.shared.security.FileUrlSigner,
     private val patientProfileMapper: PatientProfileMapper,
     private val publicUrls: com.shifa.shared.PublicUrls,

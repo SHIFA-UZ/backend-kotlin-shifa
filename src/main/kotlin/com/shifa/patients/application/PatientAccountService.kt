@@ -1,28 +1,26 @@
 package com.shifa.patients.application
 
-import com.shifa.patients.domain.PatientProfile
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
 import com.shifa.auth.domain.UserRole
+import com.shifa.patients.domain.PatientProfile
 import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.auth.infrastructure.UserRepository
-import com.shifa.auth.infrastructure.UserRoleRepository
 import com.shifa.shared.util.PhoneNormalizer
+import java.security.SecureRandom
+import java.text.Normalizer
+import java.util.Locale
 import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.security.SecureRandom
-import java.text.Normalizer
-import java.util.*
 
 @Service
 class PatientAccountService(
-    private val userRepository: UserRepository,
+    private val userRepository: com.shifa.auth.application.Users,
     private val patientProfileRepository: PatientProfileRepository,
     private val passwordEncoder: PasswordEncoder,
-    private val userRoleRepository: UserRoleRepository
+    private val userRoleRepository: com.shifa.auth.application.UserRoles
 ) {
     private val random = SecureRandom()
 

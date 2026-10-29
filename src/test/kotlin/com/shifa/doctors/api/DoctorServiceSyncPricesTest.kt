@@ -1,21 +1,17 @@
 package com.shifa.doctors.api
 
 
-import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.doctors.domain.DoctorService
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorServiceGroupRepository
-import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
-import com.shifa.doctors.infrastructure.DoctorServiceRepository
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.doctors.domain.DoctorService
 import com.shifa.shared.security.DoctorPrincipal
+import java.util.Optional
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.`when`
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
-import org.mockito.Mockito.`when`
 import org.springframework.security.core.authority.SimpleGrantedAuthority
-import java.util.Optional
 
 class DoctorServiceSyncPricesTest {
 
@@ -30,10 +26,10 @@ class DoctorServiceSyncPricesTest {
             isActive = true,
             isFreeConsultation = false,
         )
-        val services = mock(DoctorServiceRepository::class.java)
-        val prices = mock(DoctorServicePriceRepository::class.java)
-        val locations = mock(DoctorLocationRepository::class.java)
-        val groups = mock(DoctorServiceGroupRepository::class.java)
+        val services = mock(com.shifa.doctors.application.DoctorServices::class.java)
+        val prices = mock(com.shifa.doctors.application.DoctorServicePrices::class.java)
+        val locations = mock(com.shifa.doctors.application.DoctorLocations::class.java)
+        val groups = mock(com.shifa.doctors.application.DoctorServiceGroups::class.java)
         `when`(services.findById(28L)).thenReturn(Optional.of(service))
         `when`(prices.deleteByService_Id(28L)).thenReturn(1L)
 
@@ -42,12 +38,12 @@ class DoctorServiceSyncPricesTest {
         controller.update(
             principal,
             28L,
-            DoctorServiceController.UpsertServiceRequest(
+            com.shifa.doctors.api.dto.UpsertServiceRequest(
                 title = "Consult",
                 isActive = true,
                 isFreeConsultation = false,
                 prices = listOf(
-                    DoctorServiceController.PriceDto(amountMinor = 5000L, currency = "UZS"),
+                    com.shifa.doctors.api.dto.PriceDto(amountMinor = 5000L, currency = "UZS"),
                 ),
             ),
         )

@@ -1,18 +1,20 @@
 package com.shifa.appointments.application
 
+import com.shifa.appointments.domain.Appointment
+import com.shifa.appointments.domain.AppointmentActionPhrases
 import com.shifa.appointments.domain.ClinicTimeRangeResolver
+import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.appointments.infrastructure.PendingAppointmentActionStore
 import com.shifa.appointments.infrastructure.PendingCancellation
-
-import com.shifa.appointments.domain.Appointment
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+
+
 
 /**
  * Write actions for Shifa Intelligence. Cancellation uses [AppointmentCancellationService].
@@ -514,50 +516,9 @@ class AppointmentActionService(
     companion object {
         const val MAX_BULK = 40
 
-        fun isExplicitConfirmation(text: String): Boolean {
-            val normalized = text.trim().lowercase()
-                .replace(Regex("""[''ʻ’`]"""), "'")
-                .replace(Regex("""[,.!?]+"""), " ")
-                .replace(Regex("""\s+"""), " ")
-                .trim()
-            return normalized in CONFIRMATIONS
-        }
-
-        fun actionToken(messages: List<String>): String? =
-            messages.asReversed().firstNotNullOfOrNull { message ->
-                ACTION.find(message)?.groupValues?.getOrNull(1)
-            }
-
-        fun focusAppointmentId(messages: List<String>): Long? =
-            messages.asReversed().firstNotNullOfOrNull { message ->
-                FOCUS.find(message)?.groupValues?.getOrNull(1)?.toLongOrNull()
-            }
-
-        private val CONFIRMATIONS = setOf(
-            "yes",
-            "yes cancel",
-            "yes cancel them",
-            "yes cancel those",
-            "confirm",
-            "confirm cancellation",
-            "go ahead",
-            "do it",
-            "cancel them",
-            "cancel those",
-            "proceed",
-            "ha",
-            "haa",
-            "ha bekor qil",
-            "ha bekor qiling",
-            "xo'p",
-            "xop",
-            "mayli",
-            "да",
-            "да отмени",
-            "отмени",
-            "подтверждаю",
-        )
-        private val ACTION = Regex("""<appointment_action>([0-9a-fA-F-]{36})</appointment_action>""")
-        private val FOCUS = Regex("""<appointment_focus>(\d+)</appointment_focus>""")
+        /** Kept for callers and tests; the rules live in [AppointmentActionPhrases] (domain). */
+        fun isExplicitConfirmation(text: String): Boolean = AppointmentActionPhrases.isExplicitConfirmation(text)
+        fun actionToken(messages: List<String>): String? = AppointmentActionPhrases.actionToken(messages)
+        fun focusAppointmentId(messages: List<String>): Long? = AppointmentActionPhrases.focusAppointmentId(messages)
     }
 }

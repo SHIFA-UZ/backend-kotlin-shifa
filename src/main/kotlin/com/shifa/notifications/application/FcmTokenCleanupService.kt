@@ -1,7 +1,5 @@
 package com.shifa.notifications.application
 
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -12,8 +10,8 @@ import org.springframework.transaction.annotation.Transactional
  */
 @Service
 class FcmTokenCleanupService(
-    private val patientProfiles: PatientProfileRepository,
-    private val doctorProfiles: DoctorProfileRepository,
+    private val patientProfiles: com.shifa.patients.application.PatientProfiles,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
 ) {
     private val log = LoggerFactory.getLogger(FcmTokenCleanupService::class.java)
 

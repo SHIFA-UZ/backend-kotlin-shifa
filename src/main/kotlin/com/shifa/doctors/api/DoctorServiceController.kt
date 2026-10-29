@@ -1,36 +1,28 @@
 package com.shifa.doctors.api
 
+import com.shifa.doctors.api.dto.PriceDto
+import com.shifa.doctors.api.dto.UpsertServiceRequest
 import com.shifa.doctors.domain.DoctorService
 import com.shifa.doctors.domain.DoctorServiceGroup
-import com.shifa.doctors.domain.ServicePaymentType
 import com.shifa.doctors.domain.DoctorServicePrice
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.doctors.infrastructure.DoctorServiceGroupRepository
-import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
-import com.shifa.doctors.infrastructure.DoctorServiceRepository
+import com.shifa.doctors.domain.ServicePaymentType
 import com.shifa.shared.security.DoctorPrincipal
+import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
+
 
 @RestController
 @RequestMapping("/api/doctors/me/services")
 class DoctorServiceController(
-    private val services: DoctorServiceRepository,
-    private val prices: DoctorServicePriceRepository,
-    private val locations: DoctorLocationRepository,
-    private val groups: DoctorServiceGroupRepository
+    private val services: com.shifa.doctors.application.DoctorServices,
+    private val prices: com.shifa.doctors.application.DoctorServicePrices,
+    private val locations: com.shifa.doctors.application.DoctorLocations,
+    private val groups: com.shifa.doctors.application.DoctorServiceGroups
 ) {
-    data class PriceDto(
-        val id: Long? = null,
-        val amountMinor: Long,
-        val currency: String,
-        /** When null, this price applies to all locations unless a location-specific row exists. */
-        val locationId: Long? = null
-    )
 
     data class ServiceDto(
         val id: Long? = null,
@@ -45,16 +37,6 @@ class DoctorServiceController(
         val groupId: Long? = null,
         val groupName: String? = null,
         val groupSortOrder: Int? = null,
-        val prices: List<PriceDto> = emptyList()
-    )
-
-    data class UpsertServiceRequest(
-        val title: String,
-        val description: String? = null,
-        val isActive: Boolean = true,
-        val isFreeConsultation: Boolean = false,
-        val paymentType: String? = null,
-        val groupId: Long? = null,
         val prices: List<PriceDto> = emptyList()
     )
 

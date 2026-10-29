@@ -1,25 +1,23 @@
 package com.shifa.doctors.application
 
+import com.shifa.auth.domain.User
 import com.shifa.clinics.application.ClinicFinanceLedgerService
-
 import com.shifa.clinics.domain.Clinic
 import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.auth.domain.User
-import com.shifa.clinics.infrastructure.ClinicMembershipRepository
-import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
-import java.util.Optional
+import org.mockito.Mockito.mock
+
 
 class DoctorRevenueShareServiceTest {
 
-    private val clinics = mock(ClinicRepository::class.java)
-    private val memberships = mock(ClinicMembershipRepository::class.java)
+    private val clinics = mock(com.shifa.clinics.application.Clinics::class.java)
+    private val memberships = mock(com.shifa.clinics.application.ClinicMemberships::class.java)
     private val doctors = mock(DoctorProfileRepository::class.java)
     private val service = DoctorRevenueShareService(clinics, memberships, doctors)
 

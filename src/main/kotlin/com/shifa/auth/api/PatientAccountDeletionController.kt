@@ -1,52 +1,35 @@
 package com.shifa.auth.api
 
-import com.shifa.auth.domain.AccountDeleteChallenge
-import com.shifa.auth.domain.User
-import com.shifa.auth.infrastructure.AccountDeleteChallengeRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.auth.infrastructure.UserRepository
-import com.shifa.shared.security.PatientPrincipal
+import com.shifa.auth.api.dto.ConfirmDeleteAccountRequest
+import com.shifa.auth.api.dto.DeleteAccountRequestResponse
 import com.shifa.auth.application.EmailOtpService
 import com.shifa.auth.application.PatientAccountDeletionService
 import com.shifa.auth.application.SmsOtpService
+import com.shifa.auth.domain.AccountDeleteChallenge
+import com.shifa.auth.domain.User
+import com.shifa.shared.security.PatientPrincipal
 import com.shifa.shared.util.PhoneNormalizer
 import jakarta.validation.Valid
-import jakarta.validation.constraints.NotBlank
+import java.time.OffsetDateTime
+import java.util.UUID
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.OffsetDateTime
-import java.util.UUID
+
 
 @RestController
 @RequestMapping("/api/patients/me/delete-account")
 class PatientAccountDeletionController(
-    private val users: UserRepository,
-    private val patientProfiles: PatientProfileRepository,
-    private val challenges: AccountDeleteChallengeRepository,
+    private val users: com.shifa.auth.application.Users,
+    private val patientProfiles: com.shifa.patients.application.PatientProfiles,
+    private val challenges: com.shifa.auth.application.AccountDeleteChallenges,
     private val emailOtpService: EmailOtpService,
     private val deletionService: PatientAccountDeletionService,
     private val smsOtpService: SmsOtpService,
     private val challengeAttempts: com.shifa.auth.application.AccountDeleteChallengeAttempts,
 ) {
-    data class DeleteAccountRequestResponse(
-        val challengeId: String,
-        val maskedPhone: String? = null,
-        val expiresInSeconds: Int = 300,
-        /** Which verification channels this account can use: "EMAIL" and/or "SMS" (patient-app ask 8). */
-        val channels: List<String> = emptyList(),
-        val maskedEmail: String? = null,
-    )
-
-    data class ConfirmDeleteAccountRequest(
-        @field:NotBlank val challengeId: String,
-        val email: String? = null,
-        val emailOtp: String? = null,
-        /** SMS code sent to the account's phone with purpose ACCOUNT_DELETION (phone-only patients, ask 8). */
-        val smsOtp: String? = null,
-    )
 
     @PostMapping("/request")
     @Transactional

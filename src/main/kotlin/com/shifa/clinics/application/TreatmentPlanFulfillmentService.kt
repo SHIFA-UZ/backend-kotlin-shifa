@@ -6,35 +6,29 @@ import com.shifa.clinics.domain.TreatmentPlan
 import com.shifa.clinics.domain.TreatmentPlanAppointmentLink
 import com.shifa.clinics.domain.TreatmentPlanLine
 import com.shifa.clinics.domain.TreatmentPlanLineFulfillment
-import com.shifa.admin.infrastructure.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.infrastructure.*
-import com.shifa.clinics.infrastructure.*
-import com.shifa.doctors.infrastructure.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.infrastructure.*
-import com.shifa.payments.infrastructure.*
-import com.shifa.tasks.infrastructure.*
+import com.shifa.clinics.infrastructure.TreatmentPlanAppointmentLinkRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanCatalogItemRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanLineFulfillmentRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanRepository
+import java.time.OffsetDateTime
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.OffsetDateTime
 
 @Service
 class TreatmentPlanFulfillmentService(
     private val plans: TreatmentPlanRepository,
     private val linesRepo: TreatmentPlanLineRepository,
-    private val appts: AppointmentRepository,
+    private val appts: com.shifa.appointments.application.Appointments,
     private val catalogRepo: TreatmentPlanCatalogItemRepository,
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val linkRepo: TreatmentPlanAppointmentLinkRepository,
     private val fulfillmentRepo: TreatmentPlanLineFulfillmentRepository,
     private val financeService: TreatmentPlanFinanceService,
     private val clinicAccess: ClinicAccessService,
-    private val users: UserRepository,
+    private val users: com.shifa.auth.application.Users,
     private val objectMapper: ObjectMapper,
 ) {
 

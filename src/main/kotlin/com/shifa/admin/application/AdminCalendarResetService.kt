@@ -1,12 +1,6 @@
 package com.shifa.admin.application
 
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.appointments.infrastructure.DateSpecificScheduleRuleRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.appointments.infrastructure.ScheduleBlockRepository
-import com.shifa.appointments.infrastructure.ScheduleValidityPeriodRepository
-import com.shifa.appointments.infrastructure.WeeklyScheduleRuleRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -18,12 +12,12 @@ import org.springframework.transaction.annotation.Transactional
  */
 @Service
 class AdminCalendarResetService(
-    private val doctorProfileRepository: DoctorProfileRepository,
-    private val appointmentRepository: AppointmentRepository,
-    private val weeklyScheduleRuleRepository: WeeklyScheduleRuleRepository,
-    private val dateSpecificScheduleRuleRepository: DateSpecificScheduleRuleRepository,
-    private val scheduleBlockRepository: ScheduleBlockRepository,
-    private val scheduleValidityPeriodRepository: ScheduleValidityPeriodRepository
+    private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments,
+    private val weeklyScheduleRuleRepository: com.shifa.appointments.application.WeeklyScheduleRules,
+    private val dateSpecificScheduleRuleRepository: com.shifa.appointments.application.DateSpecificScheduleRules,
+    private val scheduleBlockRepository: com.shifa.appointments.application.ScheduleBlocks,
+    private val scheduleValidityPeriodRepository: com.shifa.appointments.application.ScheduleValidityPeriods
 ) {
     private val log = LoggerFactory.getLogger(AdminCalendarResetService::class.java)
 

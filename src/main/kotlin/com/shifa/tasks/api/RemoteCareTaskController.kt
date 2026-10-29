@@ -1,39 +1,41 @@
 package com.shifa.tasks.api
 
+import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.tasks.domain.RemoteCareTask
-import com.shifa.auth.domain.SubscriptionFeature
-import com.shifa.tasks.domain.TaskCheckIn
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
-import com.shifa.tasks.infrastructure.TaskCheckInRepository
+import com.shifa.payments.application.SubscriptionTierService
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.shared.security.PatientPrincipal
-import com.shifa.payments.application.SubscriptionTierService
-import org.springframework.http.HttpStatus
-import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.bind.annotation.*
-import org.springframework.web.server.ResponseStatusException
+import com.shifa.tasks.api.dto.CheckInDto
+import com.shifa.tasks.api.dto.CreateTaskRequest
+import com.shifa.tasks.api.dto.SubmitCheckInRequest
+import com.shifa.tasks.api.dto.TaskDto
+import com.shifa.tasks.api.dto.TaskProgressDto
+import com.shifa.tasks.api.dto.TemplateDto
+import com.shifa.tasks.domain.RemoteCareTask
+import com.shifa.tasks.domain.TaskCheckIn
 import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import org.springframework.http.HttpStatus
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.bind.annotation.*
+import org.springframework.web.server.ResponseStatusException
+
 
 @RestController
 @RequestMapping("/api/tasks")
 class RemoteCareTaskController(
-    private val taskRepo: RemoteCareTaskRepository,
-    private val checkInRepo: TaskCheckInRepository,
-    private val patientRepo: PatientProfileRepository,
-    private val doctorRepo: DoctorProfileRepository,
+    private val taskRepo: com.shifa.tasks.application.RemoteCareTasks,
+    private val checkInRepo: com.shifa.tasks.application.TaskCheckIns,
+    private val patientRepo: com.shifa.patients.application.PatientProfiles,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val subscriptionTierService: SubscriptionTierService,
-    private val appointmentRepo: com.shifa.appointments.infrastructure.AppointmentRepository,
+    private val appointmentRepo: com.shifa.appointments.application.Appointments,
     private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
     private companion object {
@@ -50,99 +52,6 @@ class RemoteCareTaskController(
     }
 
     // ==================== DOCTOR ENDPOINTS ====================
-
-    data class CreateTaskRequest(
-        val patientId: Long,
-        val taskName: String,
-        val description: String?,
-        val category: String,
-        val timesPerDay: Int,
-        val startTime: String?,
-        val intervalHours: Int?,
-        /** Optional explicit list of HH:mm slot times. When non-null/non-empty
-         * this overrides startTime/intervalHours/timesPerDay-based scheduling. */
-        val customTimes: List<String>? = null,
-        val morningTime: String?,
-        val afternoonTime: String?,
-        val eveningTime: String?,
-        val startDate: String,
-        val endDate: String?,
-        val durationDays: Int?,
-        val inputType: String,
-        val inputLabel: String?,
-        val notesRequired: Boolean,
-        val notesLabel: String?,
-        /** The visit this task belongs to; must be an appointment of this doctor with this patient. */
-        val appointmentId: Long? = null,
-    )
-
-    data class TaskDto(
-        val id: Long,
-        val patientId: Long,
-        val patientName: String,
-        val patientTimeZone: String?,
-        val taskName: String,
-        val description: String?,
-        val category: String,
-        val status: String,
-        val timesPerDay: Int,
-        val startTime: String?,
-        val intervalHours: Int?,
-        val customTimes: List<String>? = null,
-        val morningTime: String?,
-        val afternoonTime: String?,
-        val eveningTime: String?,
-        val startDate: String,
-        val endDate: String?,
-        val durationDays: Int?,
-        val inputType: String,
-        val inputLabel: String?,
-        val notesRequired: Boolean,
-        val notesLabel: String?,
-        val createdAt: String,
-        val progress: TaskProgressDto?,
-        /** The doctor who assigned the task (patient-app ask 14). */
-        val doctorId: Long? = null,
-        val doctorName: String? = null,
-        val appointmentId: Long? = null,
-    )
-
-    data class TaskProgressDto(
-        val totalCheckIns: Int,
-        val completedCheckIns: Int,
-        val pendingCheckIns: Int,
-        val missedCheckIns: Int
-    )
-
-    /** Reusable task config (no patient, no dates) for "use as template". */
-    data class TemplateDto(
-        val taskName: String,
-        val description: String?,
-        val category: String,
-        val timesPerDay: Int,
-        val startTime: String?,
-        val intervalHours: Int?,
-        val customTimes: List<String>? = null,
-        val morningTime: String?,
-        val afternoonTime: String?,
-        val eveningTime: String?,
-        val inputType: String,
-        val inputLabel: String?,
-        val notesRequired: Boolean,
-        val notesLabel: String?
-    )
-
-    data class CheckInDto(
-        val id: Long,
-        val scheduledDate: String,
-        val scheduledTime: String?,
-        val status: String,
-        val numericValue: Double?,
-        val textValue: String?,
-        val booleanValue: Boolean?,
-        val notes: String?,
-        val completedAt: String?
-    )
 
     @PostMapping
     fun createTask(
@@ -402,14 +311,6 @@ class RemoteCareTaskController(
 
         return toTaskDto(task)
     }
-
-    data class SubmitCheckInRequest(
-        val checkInId: Long,
-        val numericValue: Double?,
-        val textValue: String?,
-        val booleanValue: Boolean?,
-        val notes: String?
-    )
 
     @PostMapping("/my-tasks/{taskId}/check-in")
     fun submitCheckIn(

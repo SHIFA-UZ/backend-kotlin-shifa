@@ -1,43 +1,25 @@
 package com.shifa.patients.api
 
-import com.shifa.patients.domain.PatientProphylaxisSetting
-import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.patients.infrastructure.PatientProphylaxisSettingRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.patients.api.dto.SettingDto
+import com.shifa.patients.api.dto.UpsertSettingRequest
+import com.shifa.patients.domain.PatientProphylaxisSetting
 import jakarta.validation.Valid
-import jakarta.validation.constraints.Max
-import jakarta.validation.constraints.Min
-import jakarta.validation.constraints.NotNull
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 
+
 @RestController
 @RequestMapping("/api/prophylaxis")
 class ProphylaxisController(
     private val clinicAccess: ClinicAccessService,
-    private val clinics: ClinicRepository,
-    private val patients: PatientProfileRepository,
-    private val settingsRepo: PatientProphylaxisSettingRepository,
+    private val clinics: com.shifa.clinics.application.Clinics,
+    private val patients: com.shifa.patients.application.PatientProfiles,
+    private val settingsRepo: com.shifa.patients.application.PatientProphylaxisSettings,
 ) {
-
-    data class SettingDto(
-        val patientId: Long?,
-        val clinicId: Long,
-        val intervalMonths: Int,
-        val enabled: Boolean,
-        val lastSentAt: String?
-    )
-
-    data class UpsertSettingRequest(
-        @field:NotNull val patientId: Long,
-        @field:NotNull val clinicId: Long,
-        @field:Min(1) @field:Max(60) val intervalMonths: Int,
-        val enabled: Boolean
-    )
 
     @GetMapping("/settings")
     @Transactional(readOnly = true)

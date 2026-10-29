@@ -6,9 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.appointments.domain.Appointment
 import com.shifa.clinics.domain.TreatmentPlan
 import com.shifa.clinics.domain.TreatmentPlanLine
-import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.clinics.infrastructure.ClinicRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanCatalogItemRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanRepository
@@ -19,12 +17,12 @@ import org.springframework.web.server.ResponseStatusException
 
 @Service
 class VisitChargeService(
-    private val appts: AppointmentRepository,
+    private val appts: com.shifa.appointments.application.Appointments,
     private val plans: TreatmentPlanRepository,
     private val linesRepo: TreatmentPlanLineRepository,
     private val catalogRepo: TreatmentPlanCatalogItemRepository,
     private val clinics: ClinicRepository,
-    private val doctors: DoctorProfileRepository,
+    private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val clinicAccess: ClinicAccessService,
     private val financeService: TreatmentPlanFinanceService,
     private val objectMapper: ObjectMapper,

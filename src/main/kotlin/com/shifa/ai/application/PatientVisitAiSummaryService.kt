@@ -1,22 +1,20 @@
 package com.shifa.ai.application
 
-import com.shifa.ai.infrastructure.OpenAiResponsesService
-
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.shifa.shared.config.OpenAiProperties
-import com.shifa.notifications.domain.Notification
 import com.shifa.ai.domain.PatientVisitAiSummary
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.appointments.infrastructure.ConsultationNoteRepository
+import com.shifa.ai.infrastructure.OpenAiResponsesService
 import com.shifa.ai.infrastructure.PatientVisitAiSummaryRepository
-import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import com.shifa.notifications.domain.Notification
+import com.shifa.shared.config.OpenAiProperties
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
+import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+
 
 data class PatientVisitSummaryResult(
     val status: String,
@@ -33,8 +31,8 @@ data class PatientVisitAskResult(
 
 @Service
 class PatientVisitAiSummaryService(
-    private val appointmentRepo: AppointmentRepository,
-    private val consultationNoteRepo: ConsultationNoteRepository,
+    private val appointmentRepo: com.shifa.appointments.application.Appointments,
+    private val consultationNoteRepo: com.shifa.appointments.application.ConsultationNotes,
     private val summaryRepo: PatientVisitAiSummaryRepository,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val openAi: OpenAiResponsesService,

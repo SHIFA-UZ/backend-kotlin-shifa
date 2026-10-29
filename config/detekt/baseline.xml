@@ -412,19 +412,12 @@
     <ID>UnusedParameter:UserManagementService.kt$UserManagementService$revokedBy: User? = null</ID>
     <ID>UnusedPrivateMember:CarePartnershipService.kt$CarePartnershipService$private fun matchesCountryFilter(doc: com.shifa.doctors.domain.DoctorProfile, country: String): Boolean</ID>
     <ID>UnusedPrivateMember:TreatmentPlanController.kt$TreatmentPlanController$private fun totals(planId: Long): Triple&lt;Long, Long, String&gt;</ID>
-    <ID>UnusedPrivateProperty:AdminController.kt$AdminController$private val doctorProfileRepository: DoctorProfileRepository</ID>
-    <ID>UnusedPrivateProperty:AppointmentController.kt$AppointmentController$private val doctorLocations: DoctorLocationRepository</ID>
     <ID>UnusedPrivateProperty:AppointmentController.kt$AppointmentController$private val slotAvailabilityService: SlotAvailabilityService</ID>
     <ID>UnusedPrivateProperty:ConsultationController.kt$ConsultationController$private val scribeRecordingService: ScribeRecordingService</ID>
     <ID>UnusedPrivateProperty:DocumentAccessController.kt$DocumentAccessController$private val appointmentRepo: AppointmentRepository</ID>
     <ID>UnusedPrivateProperty:JwtAuthFilter.kt$JwtAuthFilter$private val userDetailsService: UserDetailsService</ID>
     <ID>UnusedPrivateProperty:RedFlagEngine.kt$RedFlagEngine$val lower = trimmed.lowercase()</ID>
-    <ID>UnusedPrivateProperty:ReminderNotificationService.kt$ReminderNotificationService$private val treatmentPlanLines: TreatmentPlanLineRepository</ID>
-    <ID>UnusedPrivateProperty:ReminderNotificationService.kt$ReminderNotificationService$private val treatmentPlanPayments: TreatmentPlanPaymentRepository</ID>
-    <ID>UnusedPrivateProperty:RemoteCareTaskController.kt$RemoteCareTaskController$private val doctorRepo: DoctorProfileRepository</ID>
     <ID>UnusedPrivateProperty:SymptomMatcher.kt$SymptomMatcher$private const val NEGATION_WINDOW = 5</ID>
-    <ID>UnusedPrivateProperty:TreatmentPlanController.kt$TreatmentPlanController$private val fulfillments: TreatmentPlanLineFulfillmentRepository</ID>
-    <ID>UnusedPrivateProperty:TreatmentPlanController.kt$TreatmentPlanController$private val planLinks: TreatmentPlanAppointmentLinkRepository</ID>
     <ID>UnusedPrivateProperty:TreatmentPlanController.kt$TreatmentPlanController$val pid = patient.id ?: return</ID>
     <ID>UseCheckOrError:AiDraftNoteService.kt$AiDraftNoteService$throw IllegalStateException("Draft already confirmed or discarded")</ID>
     <ID>UseCheckOrError:AiDraftNoteService.kt$AiDraftNoteService$throw IllegalStateException("Draft has no patient; provide patientId when confirming")</ID>

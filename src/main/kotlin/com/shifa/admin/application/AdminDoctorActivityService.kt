@@ -1,32 +1,14 @@
 package com.shifa.admin.application
 
-import com.shifa.doctors.application.EarlyPartnerContractService
-import com.shifa.notifications.application.DoctorSmsBillingService
-import com.shifa.appointments.domain.Appointment
-import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.auth.domain.Role
-import com.shifa.auth.domain.User
-import com.shifa.ai.infrastructure.AiDraftNoteRepository
-import com.shifa.ai.infrastructure.AiUsageCounterRepository
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.appointments.infrastructure.ConsultationNoteRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.patients.infrastructure.PatientFormRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
-import com.shifa.clinics.infrastructure.TreatmentPlanRepository
-import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.admin.api.DoctorActivityDailyPointDto
 import com.shifa.admin.api.DoctorActivityDetailDto
 import com.shifa.admin.api.DoctorActivityRowDto
-import org.springframework.data.domain.Page
-import org.springframework.data.domain.PageImpl
-import org.springframework.data.domain.PageRequest
-import org.springframework.data.domain.Pageable
-import org.springframework.http.HttpStatus
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
-import org.springframework.web.server.ResponseStatusException
+import com.shifa.appointments.domain.Appointment
+import com.shifa.auth.domain.Role
+import com.shifa.auth.domain.User
+import com.shifa.doctors.application.EarlyPartnerContractService
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.notifications.application.DoctorSmsBillingService
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -35,22 +17,30 @@ import java.time.temporal.ChronoUnit
 import java.util.Comparator
 import java.util.Locale
 import kotlin.math.min
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.PageImpl
+import org.springframework.data.domain.PageRequest
+import org.springframework.data.domain.Pageable
+import org.springframework.http.HttpStatus
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.server.ResponseStatusException
 
 @Service
 class AdminDoctorActivityService(
     private val earlyPartnerContractService: EarlyPartnerContractService,
-    private val doctorProfileRepository: DoctorProfileRepository,
-    private val appointmentRepository: AppointmentRepository,
-    private val patientProfileRepository: PatientProfileRepository,
+    private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
+    private val appointmentRepository: com.shifa.appointments.application.Appointments,
+    private val patientProfileRepository: com.shifa.patients.application.PatientProfiles,
     private val patientDocumentRepository: com.shifa.documents.application.PatientDocumentService,
-    private val treatmentPlanRepository: TreatmentPlanRepository,
-    private val remoteCareTaskRepository: RemoteCareTaskRepository,
-    private val consultationNoteRepository: ConsultationNoteRepository,
-    private val patientFormRepository: PatientFormRepository,
-    private val aiUsageCounterRepository: AiUsageCounterRepository,
-    private val aiDraftNoteRepository: AiDraftNoteRepository,
+    private val treatmentPlanRepository: com.shifa.clinics.application.TreatmentPlans,
+    private val remoteCareTaskRepository: com.shifa.tasks.application.RemoteCareTasks,
+    private val consultationNoteRepository: com.shifa.appointments.application.ConsultationNotes,
+    private val patientFormRepository: com.shifa.patients.application.PatientForms,
+    private val aiUsageCounterRepository: com.shifa.ai.application.AiUsageCounters,
+    private val aiDraftNoteRepository: com.shifa.ai.application.AiDraftNotes,
     private val doctorSmsBillingService: DoctorSmsBillingService,
-    private val userRepository: UserRepository,
+    private val userRepository: com.shifa.auth.application.Users,
     private val metricsBatchLoader: AdminDoctorActivityMetricsBatchLoader,
 ) {
 

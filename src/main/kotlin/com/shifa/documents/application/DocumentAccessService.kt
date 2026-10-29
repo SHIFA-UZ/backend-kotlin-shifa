@@ -3,11 +3,10 @@ package com.shifa.documents.application
 
 import com.shifa.documents.domain.DocumentAccessGrant
 import com.shifa.documents.domain.DocumentAccessRequest
-import com.shifa.notifications.domain.Notification
 import com.shifa.documents.infrastructure.DocumentAccessGrantRepository
 import com.shifa.documents.infrastructure.DocumentAccessRequestRepository
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.documents.infrastructure.PatientDocumentRepository
+import com.shifa.notifications.domain.Notification
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -17,7 +16,7 @@ class DocumentAccessService(
     private val requestRepo: DocumentAccessRequestRepository,
     private val grantRepo: DocumentAccessGrantRepository,
     private val documentRepo: PatientDocumentRepository,
-    private val doctorProfiles: DoctorProfileRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
     private val notificationService: com.shifa.notifications.application.NotificationService,
 ) {
     private val log = LoggerFactory.getLogger(DocumentAccessService::class.java)

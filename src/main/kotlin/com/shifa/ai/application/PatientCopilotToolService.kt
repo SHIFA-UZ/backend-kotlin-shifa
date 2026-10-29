@@ -1,21 +1,19 @@
 package com.shifa.ai.application
 
-import com.shifa.appointments.application.PatientDaySlotsService
-
+import com.shifa.ai.api.AiMessageDto
 import com.shifa.ai.domain.SpecialtyTaxonomy
+import com.shifa.appointments.application.PatientDaySlotsService
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.patients.domain.PatientProfile
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.doctors.infrastructure.DoctorReviewRepository
-import com.shifa.ai.api.AiMessageDto
-import org.springframework.stereotype.Service
 import java.time.Instant
+import org.springframework.stereotype.Service
+
 
 @Service
 class PatientCopilotToolService(
     private val contextService: PatientCopilotContextService,
-    private val doctorProfiles: DoctorProfileRepository,
-    private val reviewRepository: DoctorReviewRepository,
+    private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
+    private val reviewRepository: com.shifa.doctors.application.DoctorReviews,
     private val daySlotsService: PatientDaySlotsService,
     private val bookingService: PatientCopilotBookingService
 ) {
