@@ -16,13 +16,14 @@ import org.springframework.web.filter.OncePerRequestFilter
  */
 @Component
 class SecurityHeadersFilter(
-    @Value("\${spring.profiles.active:}") private val activeProfile: String
+    /** Redirect to https when the edge reports X-Forwarded-Proto: http. True for deployed profiles. */
+    @Value("\${app.enforce-https:false}") private val enforceHttps: Boolean,
 ) : OncePerRequestFilter(), Ordered {
 
     override fun getOrder(): Int = -200 // Run first in security chain
 
     private val isProduction: Boolean
-        get() = activeProfile.contains("prod")
+        get() = enforceHttps
 
     override fun shouldNotFilter(request: HttpServletRequest): Boolean =
         CorsUtils.isPreFlightRequest(request)

@@ -1,0 +1,6 @@
+# Local developer overrides. Copy to application-local.yml (gitignored) next to this file.
+# Loaded when no SPRING_PROFILES_ACTIVE is set (spring.profiles.default=local in application.yml).
+
+app:
+  # Exception messages in 500 bodies while developing. Never set this in a deployed profile.
+  expose-error-details: true
