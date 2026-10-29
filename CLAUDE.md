@@ -8,18 +8,20 @@ Shifa Doctor Backend MVP — a medical platform backend connecting doctors and p
 
 ## Tech Stack
 
-- **Language:** Kotlin 2.0.21, Java 21
-- **Framework:** Spring Boot 3.3.4 with Spring Security
-- **Database:** PostgreSQL 16 with Spring Data JPA (Hibernate), HikariCP connection pooling
-- **Migrations:** Flyway 11.18.0 (57 migrations in `src/main/resources/db/migration/`)
+- **Language:** Kotlin 2.2.21, Java 21
+- **Framework:** Spring Boot 3.5.16 with Spring Security
+- **Database:** PostgreSQL (16 locally, 17 on Railway) with `pgvector` and `pg_trgm`, Spring Data JPA (Hibernate 6.6), HikariCP
+- **Migrations:** Flyway 11.18.0 (121 migrations in `src/main/resources/db/migration/`, latest V121)
 - **Auth:** JWT (JJWT 0.12.6) with session binding (JTI), Firebase phone OTP for patients, BCrypt passwords
-- **AI:** OpenAI GPT-4o-mini via OkHttp, Apache PDFBox 3.0.3 for PDF extraction, Whisper transcription
+- **AI:** OpenAI, Gemini and Grok behind `LlmProviderRegistry` (OkHttp), OpenAI embeddings for RAG, Whisper and Gemini speech, Apache PDFBox 3.0.3
 - **Video:** Daily.co integration with webhook recording
-- **Caching:** Caffeine 3.1.8 (ICD-10 search cache, 5min TTL, 10k max entries)
-- **Rate Limiting:** Bucket4j (10 req/min auth, 200 req/min general) — IP-based + per-user
+- **Caching:** Caffeine 3.1.8 (`icd10Search` 5 min; `professions`, `publicClinics`, `publicDoctor` 60 s; session validity 30 s; rate-limit buckets)
+- **Rate Limiting:** Bucket4j 8.16.1 (10 req/min auth, 200 req/min general) — IP-based + per-user, plus per-user AI limits
+- **Job locking:** ShedLock on every `@Scheduled` job that changes data
+- **Quality:** detekt (baseline), JaCoCo, ArchUnit (`ArchitectureTest`), OpenAPI snapshot test
 - **Email:** Brevo SMTP (OTP delivery)
-- **API Docs:** SpringDoc OpenAPI 2.6.0 (Swagger UI at `/swagger-ui/`)
-- **Build:** Gradle 8.5 (Kotlin DSL), output: `build/libs/app.jar`
+- **API Docs:** springdoc-openapi 2.8.17 (Swagger UI at `/swagger-ui/`, off in production)
+- **Build:** Gradle 8.14.3 (Kotlin DSL), output: `build/libs/app.jar`; Dockerfile for Railway
 
 ## Common Commands
 
@@ -36,8 +38,8 @@ docker-compose up -d
 # Build production JAR
 ./gradlew build
 
-# Run production JAR (Railway memory-constrained)
-java -Xmx350m -Xms256m -jar build/libs/app.jar
+# Run the built JAR (Railway start command uses -Xmx1536m; the Dockerfile default is -Xmx1024m)
+java -jar build/libs/app.jar
 ```
 
 ## Architecture
@@ -46,42 +48,48 @@ java -Xmx350m -Xms256m -jar build/libs/app.jar
 
 | Package | Files | Purpose |
 |---------|-------|---------|
-| `admin/` | 15 | Admin panel API, admin profiles, audit log, system config. |
-| `ai/` | 110 | All AI: doctor AI, patient co-pilot, briefings, scribe, transcription, RAG, ICD-10, LLM routing and clients, intelligence memory, speech, `clinicalengine/` (its own four layers). |
-| `appointments/` | 58 | Booking, calendar, schedule rules and blocks, visits, consultation notes, video (Daily), the morning-assistant appointment intelligence. |
-| `auth/` | 32 | Login, OTP (SMS and e-mail), sessions, users and roles, account deletion. |
-| `chat/` | 10 | Conversations, messages, attachments. |
-| `clinics/` | 46 | Clinics, memberships, invitations, finance ledger, treatment plans, installments. |
+| `admin/` | 20 | Admin panel API, admin profiles, audit log, system config. |
+| `ai/` | 114 | All AI: doctor AI, patient co-pilot, briefings, scribe, transcription, RAG, ICD-10, LLM routing and clients, intelligence memory, speech, `clinicalengine/` (its own four layers). |
+| `appointments/` | 74 | Booking, calendar, schedule rules and blocks, visits, consultation notes, video (Daily), the morning-assistant appointment intelligence. |
+| `auth/` | 39 | Login, OTP (SMS and e-mail), sessions, users and roles, account deletion. |
+| `chat/` | 12 | Conversations, messages, attachments. |
+| `clinics/` | 65 | Clinics, memberships, invitations, finance ledger, treatment plans, installments. |
 | `devseed/` | 1 | Deterministic development data (`app.dev-seed`). |
-| `doctors/` | 40 | Doctor profiles, services and prices, locations, reviews, analytics, professions, public listing. |
-| `documents/` | 14 | Patient documents, access grants and requests, document storage service. |
-| `notifications/` | 16 | Notifications, FCM push, SMS provider, reminders. |
-| `patients/` | 25 | Patient profiles, forms, prophylaxis, care partnerships, doctor-patient access. |
-| `payments/` | 35 | Checkout, gateways (Click, Stripe, manual), webhooks, subscriptions, doctor billing. |
-| `shared/` | 52 | Cross-cutting: `security/` (JWT chain, rate limits, principals), `config/`, `api/` (error handler, request id, file serving), `storage/`, `util/`, error codes, upload policy. |
-| `tasks/` | 5 | Remote-care tasks and check-ins. |
+| `doctors/` | 59 | Doctor profiles, services and prices, locations, reviews, analytics, professions, public listing. |
+| `documents/` | 15 | Patient documents, access grants and requests, document storage service. |
+| `notifications/` | 20 | Notifications, FCM push, SMS provider, reminders. |
+| `patients/` | 34 | Patient profiles, forms, prophylaxis, care partnerships, doctor-patient access. |
+| `payments/` | 40 | Checkout, gateways (Click, Stripe, manual), webhooks, subscriptions, doctor billing. |
+| `shared/` | 54 | Cross-cutting: `security/` (JWT chain, rate limits, principals), `config/`, `api/` (error handler, request id, file serving), `storage/`, `util/`, error codes, upload policy. |
+| `tasks/` | 8 | Remote-care tasks and check-ins. |
 
-**Total: 460 Kotlin source files, 83 test files.** Regenerate with `find src/main/kotlin -name '*.kt' | wc -l`.
+**Total: 556 Kotlin source files, 88 test files (2026-10-30).** Regenerate with `find src/main/kotlin -name '*.kt' | wc -l`.
 
 ### Auth Model
 
-Three roles — `DOCTOR`, `PATIENT`, `ADMIN`. Users can hold multiple roles. JWT tokens include `jti` for session revocation via `UserSession` table. Doctor tokens expire in 12h, patient tokens in 365 days.
+Four roles — `DOCTOR`, `PATIENT`, `ADMIN`, `CLINIC_STAFF`. Users can hold multiple roles. `CLINIC_STAFF` shares the doctor-app routes for the roster, booking, calendar, messages, clinics and treatment plans. JWT tokens include `jti` for session revocation via the `UserSession` table (validity cached 30 s). Doctor, staff and admin tokens expire after 30 days (`app.jwt.accessTokenMinutesDoctor`), patient tokens after 365 days. Admin login adds an e-mailed second factor.
 
 ### Security Filter Chain Order
 
-1. `SecurityHeadersFilter` (order: -200) — HTTPS enforcement, CSP, X-Frame-Options
-2. `RateLimitFilter` (order: -100) — IP-based rate limiting via Bucket4j
+1. `SecurityHeadersFilter` — HTTPS enforcement, CSP, X-Frame-Options
+2. `RateLimitFilter` — IP-based rate limiting via Bucket4j
 3. `JwtAuthFilter` — JWT validation, session binding check, principal resolution
-4. `UserRateLimitFilter` (order: 100) — Per-user rate limiting
+4. `UserRateLimitFilter` — per-user rate limiting
+5. `AiRateLimitFilter` — per-user daily and burst limits for `/api/ai/**`
+
+`SignedUrlFilter` checks the signature of file URLs (`?exp=&sig=`) on the static-file paths; it only logs until `app.file-url-enforce` is true.
 
 ### Route Authorization
 
-- `/api/patients/me/**` → PATIENT only
-- `/api/doctors/me/**`, `/api/schedule/**`, `/api/calendar/**`, `/api/appointments/**` → DOCTOR only
+- `/api/patients/me/**`, `/api/tasks/my-tasks/**`, `/api/payments/**` → PATIENT
+- `/api/doctors/me/**`, `/api/consultations/**`, `/api/doctor/**`, `/api/clinical-engine/**`, `/api/tasks/**` (except `my-tasks`), `/api/ai/memories/**` → DOCTOR only
+- `/api/patients/**`, `/api/appointments/**`, `/api/calendar/**`, `/api/messages/**`, `/api/clinics/**`, `/api/treatment-plans/**` → DOCTOR or CLINIC_STAFF; `/api/schedule/**` reads, booking and blocks for both, other schedule mutations DOCTOR only
+- Fallback: `anyRequest().authenticated()` (any signed-in user), so every new route gets an explicit rule
+- `/api/notifications/**`, `/api/ai/**`, `/api/video/**` → any authenticated user
 - `/api/admin/**` → ADMIN only
-- `/api/public/**`, `/api/webhooks/daily`, `/api/auth/**`, `/api/test/**` → no auth
-- `/actuator/health/**`, `/swagger-ui/**`, `/v3/api-docs/**` → no auth
-- Static files: `/doctors/**`, `/patients/**`, `/patientdocuments/**`, `/certificates/**`, `/chat-attachments/**`, `/photos/**` → no auth
+- `/api/public/**` (except `POST .../reviews`, authenticated), `/api/webhooks/**`, the public `/api/auth/*` endpoints → no auth
+- `/actuator/health/**`, `GET /actuator/info`, `/swagger-ui/**`, `/v3/api-docs/**` → no auth
+- Static files: `/doctors/**`, `/patients/**`, `/patientdocuments/**`, `/certificates/**`, `/chat-attachments/**` → no auth, signed URLs (`/photos/**` was removed)
 
 ## Entry Point
 
@@ -98,19 +106,19 @@ Annotations: `@EnableConfigurationProperties`, `@EnableScheduling`, `@EnableCach
 
 Local dev uses Docker PostgreSQL on port **5433** (not default 5432). Credentials: `shifa/shifa/shifa`. Flyway runs migrations automatically on startup. Dev uses `hibernate.ddl-auto: update`; prod uses `validate`.
 
-Production HikariCP: max 20 connections, min 5 idle, 30s connection timeout, 30min max lifetime.
+Production HikariCP: `maximum-pool-size: 15`, `minimum-idle: 2`; Tomcat `threads.max: 100` (`application-prod.yml`).
 
 ## Deployment
 
-- **Primary:** Railway (Nixpacks builder, `railway.toml`)
+- **Primary:** Railway, built from the `Dockerfile`; start command, health check and restart policy are Railway service settings (`railway.toml` and friends were removed)
 - **Profiles:** none = `local` (reads `application-local.yml`), `prod` (production), `prod,dev` (development)
 - **Health check:** `/actuator/health/liveness` (180s timeout for cold start + migrations)
-- **JVM:** `-Xmx1536m -Xms512m -XX:+UseG1GC -XX:+UseStringDeduplication`
+- **JVM:** `-Xmx1536m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+UseStringDeduplication -XX:MaxMetaspaceSize=384m` (Railway start command); the image default is `-Xmx1024m -Xms384m`
 - **Restart:** on_failure, max 10 retries
 
 ## Static File Serving
 
-Uploads are written and read through `shared/storage/FileStorage` (local directory `app.storageRoot`, or the S3-compatible Railway bucket when `app.storage.s3.enabled`; the bucket falls back to the directory for reads while a volume is being copied). `web/StoredFileController` serves them with a 1-hour cache at `/doctors/**`, `/patients/**`, `/patientdocuments/**`, `/certificates/**`, `/chat-attachments/**`. Admins copy a volume into the bucket with `POST /api/admin/storage/migrate`.
+Uploads are written and read through `shared/storage/FileStorage` (local directory `app.storageRoot`, or the S3-compatible Railway bucket when `app.storage.s3.enabled`; the bucket falls back to the directory for reads while a volume is being copied). `shared/api/StoredFileController` serves them with a 1-hour cache at `/doctors/**`, `/patients/**`, `/patientdocuments/**`, `/certificates/**`, `/chat-attachments/**`. Admins copy a volume into the bucket with `POST /api/admin/storage/migrate`.
 
 ## Key Environment Variables
 
@@ -119,7 +127,8 @@ Secrets only: `SPRING_DATASOURCE_URL`/`USERNAME`/`PASSWORD` (Railway references)
 ## Background Processing
 
 - `@Async` scribe pipeline (voice-to-notes): ThreadPool `scribeTaskExecutor` core=2, max=4, queue=50
-- Scheduled tasks: appointment reminders (`ReminderNotificationScheduler`), AI draft cleanup (`AiDraftNoteCleanupScheduler`), calendar resets (`AdminCalendarResetService`)
+- Scheduled tasks, under ShedLock except the log-only metrics line: reminders (`ReminderNotificationScheduler`, 60 s), payment hold expiry (`PaymentHoldExpiryScheduler`, 60 s), AI draft cleanup (`AiDraftNoteCleanupScheduler`, 02:00), OTP cleanup (`SmsOtpService`, `EmailOtpService`, hourly), session cleanup (`UserSessionCleanupScheduler`, hourly), runtime metrics line (`RuntimeMetricsLogger`, hourly)
+- `@Async` executors for briefings, visit summaries and intelligence memory; SSE streams on a bounded executor
 
 ## Git Workflow
 
@@ -258,7 +267,7 @@ These rules apply to ALL code written in this project. Follow them strictly.
 ### Database & Migrations
 
 - **Always** create a new Flyway migration for schema changes — never modify existing migrations.
-- Migration naming: `V{next_number}__{description}.sql` (double underscore, snake_case description). Current latest: V56.
+- Migration naming: `V{next_number}__{description}.sql` (double underscore, snake_case description). Check `ls src/main/resources/db/migration | sort -V | tail -1` (V121 at the time of writing).
 - **Never** use `hibernate.ddl-auto: create` or `create-drop` — Flyway is the single source of truth.
 - Include `IF NOT EXISTS` / `IF EXISTS` guards in migrations for idempotency where appropriate.
 - Seed data goes in dedicated seed migrations (e.g., `V3__seed.sql`, `V19__seed_doctor_reviews.sql`, `V53__seed_icd10_codes.sql`).
