@@ -167,7 +167,7 @@ class AiRateLimitFilter(
             "dailyLimit" to denied.dailyLimit,
             "resetAt" to resetIso,
             "reason" to denied.reason.name
-        )
+        ) + (com.shifa.shared.ErrorBodies.requestId()?.let { mapOf("requestId" to it) } ?: emptyMap())
         response.writer.write(objectMapper.writeValueAsString(body))
     }
 }

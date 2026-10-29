@@ -62,7 +62,7 @@ class UserRateLimitFilter(
             response.status = HttpStatus.TOO_MANY_REQUESTS.value()
             response.contentType = "application/json"
             response.characterEncoding = "UTF-8"
-            response.writer.write("""{"error":"Too many requests. Please try again later."}""")
+            response.writer.write(com.shifa.shared.ErrorBodies.filterJson("Too many requests. Please try again later.", com.shifa.shared.ErrorCode.RATE_LIMITED))
             return
         }
         filterChain.doFilter(request, response)
