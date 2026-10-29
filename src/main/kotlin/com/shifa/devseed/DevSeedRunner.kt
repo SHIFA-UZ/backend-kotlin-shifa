@@ -3,6 +3,7 @@ package com.shifa.devseed
 import com.shifa.admin.domain.AdminLevel
 import com.shifa.admin.domain.AdminProfile
 import com.shifa.appointments.domain.Appointment
+import com.shifa.appointments.domain.ScheduleValidityPeriod
 import com.shifa.appointments.domain.WeeklyScheduleRule
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.SubscriptionTier
@@ -59,6 +60,7 @@ class DevSeedRunner(
     private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val locations: com.shifa.doctors.application.DoctorLocations,
     private val rules: com.shifa.appointments.application.WeeklyScheduleRules,
+    private val validityPeriods: com.shifa.appointments.application.ScheduleValidityPeriods,
     private val services: com.shifa.doctors.application.DoctorServices,
     private val prices: com.shifa.doctors.application.DoctorServicePrices,
     private val clinics: com.shifa.clinics.application.Clinics,
@@ -87,6 +89,7 @@ class DevSeedRunner(
         val hash = passwordEncoder.encode(PASSWORD)
         seedAdmins(hash)
         if (users.findByEmail(doctorEmail(1)).isPresent) {
+            ensureValidityPeriods()
             log.info("Dev seed already present, nothing to do")
             return
         }
@@ -114,6 +117,7 @@ class DevSeedRunner(
             for (weekday in DayOfWeek.MONDAY.value..DayOfWeek.FRIDAY.value) {
                 rules.save(WeeklyScheduleRule(doctor = doctor, location = location, weekday = weekday, startTime = LocalTime.of(9, 0), endTime = LocalTime.of(17, 0), slotMinutes = 30))
             }
+            validityPeriods.save(validityPeriodFor(doctor))
             services.save(DoctorService(doctor = doctor, title = "Free first consultation", isFreeConsultation = true, paymentType = ServicePaymentType.PAY_LATER))
             val payLater = services.save(DoctorService(doctor = doctor, title = "Follow-up visit", paymentType = ServicePaymentType.PAY_LATER))
             prices.save(DoctorServicePrice(service = payLater, location = location, amountMinor = 100_000L * n, currency = "UZS"))
@@ -234,6 +238,18 @@ class DevSeedRunner(
         }
     }
 
+    /** Environments seeded before validity periods were part of the seed: give each seed doctor one, once. */
+    private fun ensureValidityPeriods() {
+        listOf(1, 2, 3)
+            .mapNotNull { n -> users.findByEmail(doctorEmail(n)).orElse(null) }
+            .mapNotNull { user -> doctors.findByUserId(user.id).orElse(null) }
+            .filter { doctor -> doctor.id != null && validityPeriods.findByDoctorIdOrderByValidFromAsc(doctor.id!!).isEmpty() }
+            .forEach { doctor ->
+                validityPeriods.save(validityPeriodFor(doctor))
+                log.info("Dev seed: added a schedule validity period for seed doctor {}", doctor.id)
+            }
+    }
+
     companion object {
         const val PASSWORD = "Dev12345!"
 
@@ -260,6 +276,13 @@ class DevSeedRunner(
             return out.toString().toByteArray(Charsets.ISO_8859_1)
         }
         fun doctorEmail(n: Int) = "seed.doctor$n@shifa.dev"
+
+        /** Slots exist only inside a validity period (ScheduleValidityService): one open period per seed doctor. */
+        fun validityPeriodFor(doctor: DoctorProfile) = ScheduleValidityPeriod(
+            doctor = doctor,
+            validFrom = LocalDate.now().minusDays(30),
+            validUntil = LocalDate.now().plusYears(1),
+        )
         fun patientEmail(n: Int) = "seed.patient$n@shifa.dev"
     }
 }
