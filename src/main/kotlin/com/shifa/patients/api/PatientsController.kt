@@ -4,7 +4,6 @@ package com.shifa.patients.api
 import com.shifa.documents.domain.PatientDocument
 import com.shifa.patients.domain.PatientProfile
 import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.documents.infrastructure.DocumentAccessGrantRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.patients.infrastructure.PatientProphylaxisSettingRepository
@@ -45,7 +44,7 @@ import java.time.ZonedDateTime
 class PatientsController(
     private val patientsRepo: PatientProfileRepository,
     private val appointmentRepo: AppointmentRepository,
-    private val accessGrants: DocumentAccessGrantRepository,
+    private val documentAccess: com.shifa.documents.application.DocumentAccessService,
     private val profileMapper: PatientProfileMapper,
     private val patientAccountService: PatientAccountService,
     private val clinicAccess: ClinicAccessService,
@@ -683,7 +682,7 @@ class PatientsController(
     private fun documentToDto(d: PatientDocument, doctorId: Long): DocumentDto {
         return try {
             val canView = d.uploadedByDoctor?.id == doctorId ||
-                (d.id != null && accessGrants.existsByDocument_IdAndDoctor_Id(d.id!!, doctorId))
+                (d.id != null && documentAccess.grantExists(d.id!!, doctorId))
             val creatorLabel = when {
                 d.uploadedByDoctor != null -> {
                     val doctor = d.uploadedByDoctor!!

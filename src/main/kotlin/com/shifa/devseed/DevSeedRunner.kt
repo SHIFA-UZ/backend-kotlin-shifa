@@ -28,7 +28,6 @@ import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
 import com.shifa.doctors.infrastructure.DoctorServiceRepository
-import com.shifa.documents.infrastructure.PatientDocumentRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
 import com.shifa.tasks.infrastructure.TaskCheckInRepository
@@ -79,7 +78,7 @@ class DevSeedRunner(
     private val memberships: ClinicMembershipRepository,
     private val patients: PatientProfileRepository,
     private val appointments: AppointmentRepository,
-    private val documents: PatientDocumentRepository,
+    private val documents: com.shifa.documents.application.PatientDocumentService,
     private val tasks: RemoteCareTaskRepository,
     private val checkIns: TaskCheckInRepository,
     private val notificationService: com.shifa.notifications.application.NotificationService,

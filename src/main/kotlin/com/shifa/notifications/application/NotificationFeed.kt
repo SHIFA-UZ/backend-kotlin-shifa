@@ -1,7 +1,6 @@
 package com.shifa.notifications.application
 
 import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.documents.infrastructure.DocumentAccessRequestRepository
 import com.shifa.notifications.domain.Notification
 import com.shifa.notifications.infrastructure.NotificationRepository
 import org.springframework.http.HttpStatus
@@ -24,7 +23,7 @@ data class NotificationDetails(
 @Service
 class NotificationFeed(
     private val notifications: NotificationRepository,
-    private val documentAccessRequests: DocumentAccessRequestRepository,
+    private val documentAccess: com.shifa.documents.application.DocumentAccessService,
     private val appointments: AppointmentRepository,
 ) {
     sealed interface Owner {
@@ -68,7 +67,7 @@ class NotificationFeed(
 
     private fun details(n: Notification): NotificationDetails {
         // Fetch-joined: open-in-view is off, so lazy associations cannot be read here otherwise.
-        val request = n.documentAccessRequestId?.let { documentAccessRequests.findWithDetailsById(it) }
+        val request = n.documentAccessRequestId?.let { documentAccess.requestWithDetails(it) }
         val appointment = n.appointmentId?.let { appointments.findById(it).orElse(null) }
         val patientName = request?.document?.patient?.fullName
             ?: appointment?.patient?.fullName

@@ -10,7 +10,6 @@ import com.shifa.documents.domain.PatientDocumentCategory
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.appointments.infrastructure.ConsultationNoteRepository
 import com.shifa.doctors.infrastructure.DoctorSettingsRepository
-import com.shifa.documents.infrastructure.PatientDocumentRepository
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
@@ -31,7 +30,7 @@ import java.time.format.DateTimeFormatter
 class AppointmentDocumentationService(
     private val appointmentRepository: AppointmentRepository,
     private val consultationNoteRepository: ConsultationNoteRepository,
-    private val patientDocumentRepository: PatientDocumentRepository,
+    private val patientDocumentRepository: com.shifa.documents.application.PatientDocumentService,
     private val storage: PatientDocumentStorageService,
     private val doctorSettingsRepository: DoctorSettingsRepository,
     private val aiDraftNoteService: AiDraftNoteService,
