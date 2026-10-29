@@ -1,6 +1,5 @@
 package com.shifa.service
 
-import com.shifa.config.AppProperties
 import com.shifa.domain.User
 import com.shifa.repo.ConversationRepository
 import com.shifa.repo.MessageRepository
@@ -11,8 +10,6 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.nio.file.Files
-import java.nio.file.Paths
 import java.security.MessageDigest
 import java.time.OffsetDateTime
 
@@ -23,7 +20,7 @@ class PatientAccountDeletionService(
     private val patientProfiles: PatientProfileRepository,
     private val conversations: ConversationRepository,
     private val messages: MessageRepository,
-    private val appProperties: AppProperties,
+    private val storage: com.shifa.shared.storage.FileStorage,
 ) {
     private val log = LoggerFactory.getLogger(PatientAccountDeletionService::class.java)
 
@@ -104,13 +101,9 @@ class PatientAccountDeletionService(
         // We only delete files stored in storageRoot/chat-attachments/<filename>
         val filename = (runCatching { java.net.URI(url.trim()).path }.getOrNull() ?: url.substringBefore('#').substringBefore('?'))
             .substringAfterLast('/').takeIf { it.isNotBlank() } ?: return
-        val storageRoot = Paths.get(appProperties.storageRoot).toAbsolutePath().normalize()
-        val path = storageRoot.resolve("chat-attachments").resolve(filename).normalize()
-        // Safety: ensure we never delete outside chat-attachments
-        if (!path.startsWith(storageRoot.resolve("chat-attachments"))) return
-        runCatching {
-            if (Files.exists(path)) Files.delete(path)
-        }
+        // Safety: a bare file name only, so nothing outside chat-attachments can be deleted.
+        if (filename.contains('/') || !com.shifa.shared.storage.StorageKeys.valid(filename)) return
+        runCatching { storage.delete("chat-attachments/$filename") }
     }
 }
 

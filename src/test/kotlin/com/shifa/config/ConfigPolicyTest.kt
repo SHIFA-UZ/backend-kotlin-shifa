@@ -27,6 +27,8 @@ class ConfigPolicyTest {
         "JWT_SECRET", "OPENAI_API_KEY", "GEMINI_API_KEY", "XAI_API_KEY", "DAILY_API_KEY", "DAILY_WEBHOOK_SECRET",
         "STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "CLICK_SECRET_KEY", "DEVSMS_API_TOKEN", "MAIL_PASSWORD",
         "GOOGLE_MAPS_API_KEY",
+        // the environment's own bucket (Railway reference variables)
+        "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY",
         // JVM property, not an environment variable
         "java.io.tmpdir",
     )
@@ -45,9 +47,11 @@ class ConfigPolicyTest {
 
     @Test
     fun `deployed profiles give secrets no default`() {
-        val text = ClassPathResource("application-prod.yml").inputStream.bufferedReader().readText()
-        val withDefault = placeholder.findAll(text).filter { it.groupValues[2].isNotEmpty() }.map { it.value }.toList()
-        assertTrue(withDefault.isEmpty(), "application-prod.yml placeholders with a default: $withDefault")
+        for (file in listOf("application-prod.yml", "application-dev.yml")) {
+            val text = ClassPathResource(file).inputStream.bufferedReader().readText()
+            val withDefault = placeholder.findAll(text).filter { it.groupValues[2].isNotEmpty() }.map { it.value }.toList()
+            assertTrue(withDefault.isEmpty(), "$file placeholders with a default: $withDefault")
+        }
     }
 
     @Test
@@ -71,6 +75,7 @@ class ConfigPolicyTest {
         assertEquals("validate", env.getProperty("spring.jpa.hibernate.ddl-auto"))
         assertEquals("false", env.getProperty("app.dev-seed"))
         assertEquals("false", env.getProperty("springdoc.api-docs.enabled"))
+        assertEquals("false", env.getProperty("app.storage.s3.enabled"))
         assertEquals("secret-from-railway", env.getProperty("app.jwt.secret"))
         assertEquals("jdbc:postgresql://db:5432/railway", env.getProperty("spring.datasource.url"))
     }
@@ -88,6 +93,8 @@ class ConfigPolicyTest {
         assertEquals("true", env.getProperty("app.dev-seed"))
         assertEquals("true", env.getProperty("springdoc.api-docs.enabled"))
         assertEquals("validate", env.getProperty("spring.jpa.hibernate.ddl-auto"))
+        assertEquals("true", env.getProperty("app.storage.s3.enabled"))
+        assertEquals("shifa-uploads-test", env.getProperty("app.storage.s3.bucket"))
     }
 
     @Test
@@ -144,5 +151,6 @@ class ConfigPolicyTest {
         "OPENAI_API_KEY" to "k", "DAILY_API_KEY" to "k", "DAILY_WEBHOOK_SECRET" to "k", "MAIL_PASSWORD" to "k",
         "STRIPE_SECRET_KEY" to "k", "STRIPE_WEBHOOK_SECRET" to "k", "CLICK_SECRET_KEY" to "k",
         "DEVSMS_API_TOKEN" to "k", "GOOGLE_MAPS_API_KEY" to "k",
+        "S3_BUCKET" to "shifa-uploads-test", "S3_ACCESS_KEY" to "k", "S3_SECRET_KEY" to "k",
     )
 }

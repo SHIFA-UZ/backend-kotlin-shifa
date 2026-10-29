@@ -1,6 +1,5 @@
 package com.shifa.service
 
-import com.shifa.config.AppProperties
 import com.shifa.domain.Conversation
 import com.shifa.domain.Message
 import com.shifa.domain.PatientProfile
@@ -31,18 +30,13 @@ class PatientAccountDeletionServiceTest {
         val patientProfiles = mock(PatientProfileRepository::class.java)
         val conversations = mock(ConversationRepository::class.java)
         val messages = mock(MessageRepository::class.java)
-        val appProps = AppProperties().apply {
-            storageRoot = "."
-            publicBaseUrl = "http://localhost"
-        }
-
         val svc = PatientAccountDeletionService(
             users = users,
             userManagementService = userManagement,
             patientProfiles = patientProfiles,
             conversations = conversations,
             messages = messages,
-            appProperties = appProps
+            storage = com.shifa.shared.storage.LocalFileStorage(java.nio.file.Files.createTempDirectory("shifa-test-storage")),
         )
 
         val userId = 123L

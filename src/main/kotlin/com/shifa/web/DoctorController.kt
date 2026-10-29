@@ -25,9 +25,6 @@ import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.multipart.MultipartFile
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.text.Normalizer
 import java.time.OffsetDateTime
 import java.util.Locale
@@ -47,6 +44,7 @@ class DoctorController(
     private val adminClinicService: AdminClinicService,
     private val fileUrlSigner: com.shifa.security.FileUrlSigner,
     private val uploadGuard: com.shifa.shared.UploadGuard,
+    private val storage: com.shifa.shared.storage.FileStorage,
 ) {
 
     // -------------------- helpers --------------------
@@ -440,16 +438,10 @@ class DoctorController(
         val original = file.originalFilename ?: "photo.jpg"
         val ext = original.substringAfterLast('.', "jpg").lowercase(Locale.getDefault())
 
-        val imagesRoot = Path.of(appProps.storageRoot)
-        val doctorsDir = imagesRoot.resolve("doctors")
-        Files.createDirectories(doctorsDir)
+        val key = "doctors/$slug-${d.id}.$ext"
+        file.inputStream.use { storage.put(key, it, file.size, file.contentType) }
 
-        val target = doctorsDir.resolve("$slug-${d.id}.$ext")
-        file.inputStream.use { input ->
-            Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING)
-        }
-
-        d.avatarUrl = "doctors/$slug-${d.id}.$ext"
+        d.avatarUrl = key
         doctors.save(d)
 
         return UploadResp(photoUrl = normalizeAvatar(d.avatarUrl)!!)
@@ -472,17 +464,9 @@ class DoctorController(
         val original = file.originalFilename ?: "certificate.pdf"
         val ext = original.substringAfterLast('.', "pdf").lowercase(Locale.getDefault())
 
-        val imagesRoot = Path.of(appProps.storageRoot)
-        val certificatesDir = imagesRoot.resolve("certificates")
-        Files.createDirectories(certificatesDir)
-
         val timestamp = System.currentTimeMillis()
-        val target = certificatesDir.resolve("$slug-${d.id}-$timestamp.$ext")
-        file.inputStream.use { input ->
-            Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING)
-        }
-
         val certUrl = "certificates/$slug-${d.id}-$timestamp.$ext"
+        file.inputStream.use { storage.put(certUrl, it, file.size, file.contentType) }
         val normalizedUrl = normalizeAvatar(certUrl)!!
 
         // Add to existing certificates JSON array

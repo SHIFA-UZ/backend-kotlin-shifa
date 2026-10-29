@@ -3,13 +3,12 @@
 package com.shifa.service
 
 import com.shifa.config.AppProperties
-import org.springframework.core.io.FileSystemResource
+import com.shifa.shared.storage.FileStorage
+import com.shifa.shared.storage.StorageKeys
 import org.springframework.core.io.Resource
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
+import java.io.ByteArrayInputStream
 import java.util.Locale
 
 @Service
@@ -17,6 +16,7 @@ class PatientDocumentStorageService(
     private val app: AppProperties,
     private val signer: com.shifa.security.FileUrlSigner,
     private val uploadGuard: com.shifa.shared.UploadGuard,
+    private val storage: FileStorage,
 ) {
 
     data class SaveResult(
@@ -35,16 +35,8 @@ class PatientDocumentStorageService(
         val extension = resolveExtension(file)
         val safeBase = sanitizeBaseName(preferredBaseName ?: originalName)
         // Unique suffix avoids overwriting another upload with the same display name.
-        val fileName = "$safeBase-${System.currentTimeMillis()}.$extension"
-
-        val base = Path.of(app.storageRoot)
-        val dir = base.resolve("patientdocuments").resolve(patientId.toString())
-        Files.createDirectories(dir)
-
-        val target = dir.resolve(fileName)
-        file.inputStream.use { input -> Files.copy(input, target) }
-
-        val rel = "patientdocuments/$patientId/$fileName"
+        val rel = "patientdocuments/$patientId/$safeBase-${System.currentTimeMillis()}.$extension"
+        file.inputStream.use { storage.put(rel, it, file.size, file.contentType) }
         return SaveResult(filePathRelative = rel, publicUrl = publicUrlFor(rel))
     }
 
@@ -56,13 +48,9 @@ class PatientDocumentStorageService(
     ): SaveResult {
         val ext = extension.lowercase(Locale.getDefault()).ifBlank { "pdf" }
         val safeBase = sanitizeBaseName(preferredBaseName ?: "document")
-        val fileName = "$safeBase-${System.currentTimeMillis()}.$ext"
-        val base = Path.of(app.storageRoot)
-        val dir = base.resolve("patientdocuments").resolve(patientId.toString())
-        Files.createDirectories(dir)
-        val target = dir.resolve(fileName)
-        Files.write(target, bytes)
-        val rel = "patientdocuments/$patientId/$fileName"
+        val rel = "patientdocuments/$patientId/$safeBase-${System.currentTimeMillis()}.$ext"
+        val contentType = if (ext == "pdf") "application/pdf" else null
+        storage.put(rel, ByteArrayInputStream(bytes), bytes.size.toLong(), contentType)
         return SaveResult(filePathRelative = rel, publicUrl = publicUrlFor(rel))
     }
 
@@ -78,26 +66,20 @@ class PatientDocumentStorageService(
         return signer.sign("$base/$rel")
     }
 
-    /** Delete file on disk by relative path. Returns true if deleted or did not exist. */
+    /** Delete the stored file by relative path. Returns true if deleted or did not exist. */
     fun deleteFile(filePathRelative: String): Boolean {
         if (filePathRelative.isBlank()) return true
-        val base = Paths.get(app.storageRoot).toAbsolutePath().normalize()
-        val fullPath = base.resolve(filePathRelative.removePrefix("/")).normalize()
-        if (!fullPath.startsWith(base)) return false
-        return try {
-            Files.deleteIfExists(fullPath)
-        } catch (_: Exception) {
-            false
-        }
+        val key = filePathRelative.removePrefix("/")
+        if (!StorageKeys.valid(key)) return false
+        return runCatching { storage.delete(key) }.getOrDefault(false)
     }
 
-    /** Resolve file on disk for authenticated download. Returns null if file does not exist. */
+    /** The stored file for an authenticated download or AI context. Returns null if it does not exist. */
     fun getFileResource(filePathRelative: String): Resource? {
         if (filePathRelative.isBlank()) return null
-        val base = Paths.get(app.storageRoot).toAbsolutePath().normalize()
-        val fullPath = base.resolve(filePathRelative.removePrefix("/")).normalize()
-        if (!fullPath.startsWith(base) || !Files.isRegularFile(fullPath)) return null
-        return FileSystemResource(fullPath.toFile())
+        val key = filePathRelative.removePrefix("/")
+        if (!StorageKeys.valid(key)) return null
+        return storage.open(key)
     }
 
     private fun resolveExtension(file: MultipartFile): String {

@@ -35,6 +35,7 @@ object RequiredSecrets {
         "daily.apiKey", "scribe.daily-webhook-secret",
         "stripe.secretKey", "stripe.webhookSecret",
         "click.secret-key", "devsms.api-token", "googleMaps.apiKey",
+        "app.storage.s3.bucket", "app.storage.s3.access-key", "app.storage.s3.secret-key",
     )
 
     private val placeholderName = Regex("""placeholder '([^']+)'""")

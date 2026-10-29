@@ -1,18 +1,17 @@
 package com.shifa.service
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.shifa.config.AppProperties
+import com.shifa.shared.storage.FileStorage
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import java.nio.file.Files
-import java.nio.file.Path
+import java.io.ByteArrayInputStream
 import java.time.Instant
 import java.util.Locale
 import java.util.UUID
 
 @Service
 class TranscriptionFeedbackService(
-    private val appProps: AppProperties
+    private val storage: FileStorage,
 ) {
     enum class FeedbackSource {
         PATIENT_COPILOT,
@@ -32,15 +31,14 @@ class TranscriptionFeedbackService(
         audioMimeType: String?,
         audioBytes: ByteArray?,
     ): String {
-        // Next to, not inside, the publicly served storage root.
-        val root = Path.of(appProps.storageRoot).toAbsolutePath().normalize().resolveSibling("private").resolve("transcription-feedback")
-        Files.createDirectories(root)
+        // "private/" is never served by StoredFileController.
+        val keyPrefix = "private/transcription-feedback"
 
         val id = UUID.randomUUID().toString()
         val sanitizedTranscript =
             transcript.replace(Regex("\\p{C}"), "").take(MAX_TRANSCRIPT_CHARS_STORED)
 
-        val metaPath = root.resolve("${id}_meta.json")
+        val metaKey = "$keyPrefix/${id}_meta.json"
         val suffixForFile = audioFilename?.substringAfterLast('.', "")?.takeIf { it.isNotBlank() }
             ?: deriveSafeSuffix(audioMimeType)
         val audit = mutableMapOf(
@@ -55,15 +53,15 @@ class TranscriptionFeedbackService(
             "audioMime" to audioMimeType?.takeIf { it.isNotBlank() },
             "storedAudioSuffix" to suffixForFile,
         )
-        mapper.writerWithDefaultPrettyPrinter().writeValue(metaPath.toFile(), audit)
+        val meta = mapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(audit)
+        storage.put(metaKey, ByteArrayInputStream(meta), meta.size.toLong(), "application/json")
 
         audioBytes?.let { bytes ->
             val ext = sanitizeExt(suffixForFile)
-            val sink = root.resolve("${id}_audio.$ext")
-            Files.write(sink, bytes)
+            storage.put("$keyPrefix/${id}_audio.$ext", ByteArrayInputStream(bytes), bytes.size.toLong(), audioMimeType?.takeIf { it.isNotBlank() })
         }
 
-        log.info("Stored transcription QA feedback {} at {}", id, metaPath.fileName)
+        log.info("Stored transcription QA feedback {} at {}", id, metaKey.substringAfterLast('/'))
         return id
     }
 

@@ -7,9 +7,6 @@ import com.shifa.security.PatientPrincipal
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
 import java.text.Normalizer
 import java.util.Locale
 
@@ -20,6 +17,7 @@ class PatientPhotoController(
     private val appProps: AppProperties,
     private val signer: com.shifa.security.FileUrlSigner,
     private val uploadGuard: com.shifa.shared.UploadGuard,
+    private val storage: com.shifa.shared.storage.FileStorage,
 ) {
 
     data class UploadResp(val photoUrl: String)
@@ -62,23 +60,16 @@ class PatientPhotoController(
         val original = file.originalFilename ?: "photo.jpg"
         val ext = original.substringAfterLast('.', "jpg").lowercase(Locale.getDefault())
 
-        // Save under app.storageRoot (served by Nginx on 8090)
-        val imagesRoot = Path.of(appProps.storageRoot)
-        val patientsDir = imagesRoot.resolve("patients")
-        Files.createDirectories(patientsDir)
-
         val profileId = profile.id ?: throw org.springframework.web.server.ResponseStatusException(
             org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
             "Patient profile ID not found"
         )
 
-        val target = patientsDir.resolve("$slug-$profileId.$ext")
-        file.inputStream.use { input ->
-            Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING)
-        }
+        val key = "patients/$slug-$profileId.$ext"
+        file.inputStream.use { storage.put(key, it, file.size, file.contentType) }
 
         // Persist relative path in DB
-        profile.photoUrl = "patients/$slug-$profileId.$ext"
+        profile.photoUrl = key
         patientProfiles.save(profile)
 
         // Return absolute URL for client

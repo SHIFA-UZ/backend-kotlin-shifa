@@ -203,6 +203,7 @@ request. `ConfigPolicyTest` fails on any other placeholder and pins the producti
 | `CLICK_SECRET_KEY` | Click callback signing |
 | `DEVSMS_API_TOKEN` | SMS provider (development sets it to empty in yml) |
 | `GOOGLE_MAPS_API_KEY` | Served to clients by `/api/public/config` |
+| `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY` | Reference variables to the environment's Railway bucket (`${{shifa-uploads.BUCKET}}` etc.), used where `app.storage.s3.enabled` is true |
 
 Railway also injects `PORT` and `RAILWAY_GIT_COMMIT_SHA` (shown by `/actuator/info`). A missing secret fails startup
 with the variable's name in the log.
