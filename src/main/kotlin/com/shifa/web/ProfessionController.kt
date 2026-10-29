@@ -24,10 +24,7 @@ class ProfessionController(
      * @param search Optional search query to filter professions
      */
     @GetMapping
-    @org.springframework.cache.annotation.Cacheable(
-        cacheNames = [com.shifa.config.CacheConfig.PROFESSIONS_CACHE],
-        key = "(#lang ?: '') + '|' + (#search ?: '')",
-    )
+    @org.springframework.cache.annotation.Cacheable(cacheNames = [com.shifa.config.CacheConfig.PROFESSIONS_CACHE]) // key: both params
     fun getAllProfessions(
         @RequestParam(required = false) lang: String?,
         @RequestParam(required = false) search: String?
