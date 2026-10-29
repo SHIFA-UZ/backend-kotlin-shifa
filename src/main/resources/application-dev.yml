@@ -23,6 +23,8 @@ app:
 
   # Test accounts for the app teams: see devseed/DevSeedRunner (seed.doctor1@shifa.dev etc., password Dev12345!).
   dev-seed: true
+  # The owners' mailboxes receive the admin login codes for the seeded admins (same password).
+  dev-seed-admin-emails: sheroziy.saidkhodjaev@code.berlin,bkobilov886@gmail.com
 
 # No real payments on development: no provider is enabled and the Stripe secrets are not set here.
 payment:
