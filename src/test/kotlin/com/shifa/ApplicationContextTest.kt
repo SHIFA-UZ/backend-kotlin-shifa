@@ -30,6 +30,7 @@ import java.sql.DriverManager
         "spring.jpa.open-in-view=false",
         "logging.file.name=build/shifa-backend-test.log",
         "app.dev-seed=true", // the seed must apply to a fresh schema
+        "app.dev-seed-admin-emails=seed.admin@shifa.dev, Seed.Admin2@shifa.dev",
     ],
 )
 @AutoConfigureMockMvc

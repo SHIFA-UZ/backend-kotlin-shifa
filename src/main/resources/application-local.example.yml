@@ -14,6 +14,8 @@ app:
   expose-error-details: true
   # Same test data as the development environment (seed.doctor1@shifa.dev / Dev12345!).
   dev-seed: true
+  # Your mailbox, to get an admin login locally (codes are logged anyway with log-otp-codes).
+  dev-seed-admin-emails: ""
 
 # Fill in what you need; leave the rest empty and that feature stays off or logs instead.
 openai:

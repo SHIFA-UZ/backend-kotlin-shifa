@@ -157,6 +157,8 @@ app:
   enforce-https: false
   # Deterministic test data at startup (devseed/DevSeedRunner). Only application-dev.yml and local overrides turn it on.
   dev-seed: false
+  # Real mailboxes, comma-separated: admin sign-in sends its second-factor code by e-mail. Empty = no seeded admin.
+  dev-seed-admin-emails: ""
 
 openai:
   apiKey: ${OPENAI_API_KEY:}

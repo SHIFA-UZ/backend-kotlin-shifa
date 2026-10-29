@@ -16,6 +16,8 @@ import com.shifa.domain.Role
 import com.shifa.domain.ServicePaymentType
 import com.shifa.domain.SubscriptionTier
 import com.shifa.domain.TaskCheckIn
+import com.shifa.domain.AdminLevel
+import com.shifa.domain.AdminProfile
 import com.shifa.domain.User
 import com.shifa.domain.UserRole
 import com.shifa.domain.WeeklyScheduleRule
@@ -59,6 +61,10 @@ import java.time.temporal.ChronoUnit
  *
  * Accounts: seed.doctor1..3@shifa.dev, seed.staff@shifa.dev, seed.patient1..3@shifa.dev (phones
  * +99890000010N), all with password [PASSWORD]. Patients 4 and 5 are doctor-created profiles without a login.
+ *
+ * Admins: one per address in `app.dev-seed-admin-emails` (comma-separated), because admin sign-in needs the e-mail
+ * second factor (POST /api/auth/admin/request-login-otp), so each must be a real mailbox. Same password. Seeded even
+ * when the rest of the data already exists, so they can be added to a running environment.
  */
 @Component
 @ConditionalOnProperty("app.dev-seed", havingValue = "true")
@@ -80,7 +86,9 @@ class DevSeedRunner(
     private val notifications: NotificationRepository,
     private val passwordEncoder: PasswordEncoder,
     private val documentStorage: PatientDocumentStorageService,
+    private val adminProfiles: com.shifa.repo.AdminProfileRepository,
     private val environment: Environment,
+    @org.springframework.beans.factory.annotation.Value("\${app.dev-seed-admin-emails:}") private val adminEmails: String,
 ) : ApplicationRunner {
     private val log = LoggerFactory.getLogger(DevSeedRunner::class.java)
 
@@ -91,12 +99,13 @@ class DevSeedRunner(
             log.error("app.dev-seed=true on a production profile: refusing to seed")
             return
         }
+        val hash = passwordEncoder.encode(PASSWORD)
+        seedAdmins(hash)
         if (users.findByEmail(doctorEmail(1)).isPresent) {
             log.info("Dev seed already present, nothing to do")
             return
         }
         log.warn("Seeding development data (app.dev-seed=true)")
-        val hash = passwordEncoder.encode(PASSWORD)
 
         val clinic = clinics.save(Clinic(name = "Shifa Dev Clinic", phone = "+998712000000", email = "clinic@shifa.dev", address = "Amir Temur 1, Tashkent"))
         val doctorRows = listOf(
@@ -210,6 +219,18 @@ class DevSeedRunner(
             notifications.save(Notification(patient = patient1, title = title, message = "Seed notification: $title", type = type, appointmentId = seededAppointments[0].id, taskId = bloodPressure.id))
         }
         log.warn("Dev seed done: 3 doctors, 1 staff, 5 patients, ${statusPlan.size + 2} appointments, 2 documents, 2 tasks, ${Notification.Type.entries.size * 2} notifications")
+    }
+
+    /** ADMIN logins for the admin panel and the admin API (e.g. the storage migration), one per configured address. */
+    private fun seedAdmins(hash: String) {
+        val emails = adminEmails.split(',').map { it.trim().lowercase() }.filter { it.isNotEmpty() }.distinct()
+        for (email in emails) {
+            if (users.findByEmailIgnoreCase(email).isPresent) continue // login resolves addresses case-insensitively too
+            val admin = users.save(User(email = email, passwordHash = hash, role = Role.ADMIN))
+            userRoles.save(UserRole(user = admin, role = Role.ADMIN))
+            adminProfiles.save(AdminProfile(user = admin, firstName = "Seed", lastName = "Admin", adminLevel = AdminLevel.SUPER_ADMIN))
+            log.warn("Seeded admin account {} (password: the dev seed password)", email.take(3) + "***")
+        }
     }
 
     companion object {
