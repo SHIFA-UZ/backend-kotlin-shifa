@@ -190,9 +190,9 @@ class PaymentService(
                 description = "Consultation payment for appointment #${appointment.id}",
                 destinationAccountId = destinationAccountId,
                 successUrl =
-                "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef",
+                "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef&platform=app",
                 cancelUrl =
-                "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef"
+                "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef&platform=app"
             )
 
         val (usedGateway: PaymentGatewayCode, gatewayResult: GatewayCheckoutResult) =
@@ -355,9 +355,9 @@ class PaymentService(
             },
             destinationAccountId = destinationAccountId,
             successUrl =
-            "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef",
+            "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef&platform=app",
             cancelUrl =
-            "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef",
+            "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef&platform=app",
         )
         val gatewayResult = try {
             when (usedGateway) {
@@ -577,6 +577,11 @@ class PaymentService(
     private fun checkoutUrlHost(checkoutUrl: String): String =
         runCatching { java.net.URI(checkoutUrl).host ?: checkoutUrl.take(80) }
             .getOrElse { checkoutUrl.take(80) }
+
+    /** Our payment id for a gateway return reference, for the app deep link on the return pages (ask 12). */
+    @Transactional(readOnly = true)
+    fun paymentIdForExternalRef(externalRef: String): Long? =
+        externalRef.takeIf { it.isNotBlank() }?.let { paymentRepository.findByExternalRef(it)?.id }
 
     @Transactional(readOnly = true)
     fun getPaymentStatus(paymentId: Long, userId: Long): Payment {

@@ -43,43 +43,75 @@ class PaymentController(
 
     @GetMapping("/checkout/success", produces = [MediaType.TEXT_HTML_VALUE])
     fun checkoutSuccessHtml(
-        @RequestParam(name = "ref", required = false) ref: String?
+        @RequestParam(name = "ref", required = false) ref: String?,
+        @RequestParam(name = "platform", required = false) platform: String?,
     ): String =
         htmlPaymentPage(
             title = "Payment successful",
             message = if (!ref.isNullOrBlank()) {
-                "Your payment reference: $ref. You may return to the Shifa app — your booking will update once payment is confirmed."
+                "Your payment reference: ${escapeHtml(ref)}. You may return to the Shifa app — your booking will update once payment is confirmed."
             } else {
                 "You may return to the Shifa app — your booking will update once payment is confirmed."
-            }
+            },
+            returnUrl = appReturnUrl(ref, "success"),
+            autoRedirect = platform == "app",
         )
 
     @GetMapping("/checkout/cancel", produces = [MediaType.TEXT_HTML_VALUE])
     fun checkoutCancelHtml(
-        @RequestParam(name = "ref", required = false) ref: String?
+        @RequestParam(name = "ref", required = false) ref: String?,
+        @RequestParam(name = "platform", required = false) platform: String?,
     ): String =
         htmlPaymentPage(
             title = "Payment cancelled",
             message = if (!ref.isNullOrBlank()) {
-                "Reference: $ref. You can retry payment from your appointments screen in the app."
+                "Reference: ${escapeHtml(ref)}. You can retry payment from your appointments screen in the app."
             } else {
                 "You can retry payment from your appointments screen in the app."
-            }
+            },
+            returnUrl = appReturnUrl(ref, "cancel"),
+            autoRedirect = platform == "app",
         )
 
-    private fun htmlPaymentPage(title: String, message: String): String =
+    /** Deep link back into the patient app (ask 12): shifa://payment/return?paymentId=&ref=&status=. */
+    private fun appReturnUrl(ref: String?, status: String): String {
+        val paymentId = ref?.let { paymentService.paymentIdForExternalRef(it) }
+        return appReturnUrl(paymentId, ref, status)
+    }
+
+    private fun htmlPaymentPage(title: String, message: String, returnUrl: String, autoRedirect: Boolean): String =
         """<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  ${if (autoRedirect) """<meta http-equiv="refresh" content="0;url=${escapeHtml(returnUrl)}"/>""" else ""}
   <title>$title — Shifa</title>
 </head>
 <body style="font-family:system-ui,Segoe UI,sans-serif;padding:24px;max-width:520px;line-height:1.5;">
   <h2 style="margin-top:0;">$title</h2>
   <p>$message</p>
+  <p><a href="${escapeHtml(returnUrl)}" style="display:inline-block;padding:12px 20px;background:#0a7f6b;color:#fff;border-radius:8px;text-decoration:none;">Return to the Shifa app</a></p>
 </body>
 </html>""".trimIndent()
+
+    companion object {
+        const val APP_RETURN_SCHEME = "shifa://payment/return"
+
+        fun appReturnUrl(paymentId: Long?, ref: String?, status: String): String {
+            val enc = { v: String -> java.net.URLEncoder.encode(v, Charsets.UTF_8) }
+            val params = listOfNotNull(
+                paymentId?.let { "paymentId=$it" },
+                ref?.takeIf { it.isNotBlank() }?.let { "ref=${enc(it)}" },
+                "status=${enc(status)}",
+            )
+            return "$APP_RETURN_SCHEME?${params.joinToString("&")}"
+        }
+
+        fun escapeHtml(s: String): String =
+            s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;")
+    }
+
 
     @Operation(
         summary = "Enabled online payment methods for a service",
