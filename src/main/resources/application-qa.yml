@@ -91,6 +91,9 @@ app:
   transcription-feedback-enabled: ${TRANSCRIPTION_FEEDBACK_ENABLED:false}
   # Never print OTP codes in a deployed environment.
   log-otp-codes: false
+  # Deployed: 500 bodies name the exception class only; http is redirected to https behind the edge.
+  expose-error-details: false
+  enforce-https: true
 
 openai:
   apiKey: ${OPENAI_API_KEY}

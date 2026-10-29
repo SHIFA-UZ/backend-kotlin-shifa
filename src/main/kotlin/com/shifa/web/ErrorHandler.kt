@@ -17,7 +17,8 @@ import org.springframework.web.servlet.resource.NoResourceFoundException
 
 @ControllerAdvice
 class ErrorHandler(
-    @Value("\${spring.profiles.active:}") private val activeProfile: String
+    /** Put exception messages in 500 bodies. True only locally; deployed profiles return the class name alone. */
+    @Value("\${app.expose-error-details:false}") private val exposeErrorDetails: Boolean,
 ) {
     private val log = LoggerFactory.getLogger(ErrorHandler::class.java)
 
@@ -131,13 +132,12 @@ class ErrorHandler(
             log.debug("Client disconnected: {}", e.message)
             return null
         }
-        // SECURITY: In production we still do NOT leak the exception message
+        // SECURITY: deployed profiles do NOT leak the exception message
         // (it may contain SQL fragments, file paths, PII, etc.), but the
         // exception class name alone is safe and dramatically improves
         // diagnosability when only the client log is available (e.g.
         // "Internal server error: DataIntegrityViolationException").
-        val isProd = activeProfile.contains("prod")
-        if (isProd) {
+        if (!exposeErrorDetails) {
             log.error(
                 "Unhandled exception {} (message not exposed to client): {}",
                 e.javaClass.simpleName,

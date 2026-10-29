@@ -6,6 +6,9 @@
 # If you get "password authentication failed for user shifa", set DB_USERNAME/DB_PASSWORD or create user shifa in Postgres.
 
 spring:
+  profiles:
+    # No SPRING_PROFILES_ACTIVE means "local": application-local.yml (gitignored) is read if present.
+    default: local
   datasource:
     url: jdbc:postgresql://localhost:${DB_PORT:5433}/shifa
     username: ${DB_USERNAME:shifa}
@@ -19,7 +22,7 @@ spring:
     properties:
       hibernate:
         format_sql: true
-    open-in-view: true
+    open-in-view: false  # same as prod, so lazy-loading mistakes show up locally
 
   flyway:
     enabled: true
@@ -120,6 +123,10 @@ app:
   file-url-enforce: false
   # Upload allow-list (see shared/UploadPolicy.kt). Log-only until true.
   upload-policy-enforce: false
+  # Fail-safe defaults for every profile: 500 bodies name the exception class only, no https redirect.
+  # For exception messages in local 500 bodies, copy application-local.example.yml to application-local.yml.
+  expose-error-details: false
+  enforce-https: false
 
 # OpenAI configuration
 # In development, these can be set via environment variables
