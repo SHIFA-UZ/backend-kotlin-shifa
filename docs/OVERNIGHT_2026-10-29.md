@@ -54,6 +54,9 @@ listed in the commit messages (paths, schemas and fields added; nothing removed)
   `TransientObjectException` / optimistic-lock errors during the soak.
 - **Railway ingress** puts `<client>, <CDN node>` into `X-Forwarded-For` and drops client-supplied values
   (verified 2026-10-28). The rate-limit key stays on the first entry; the dev overlay logs the chain on 429.
+- OTP attempt counters on the SMS and email codes themselves are read-modify-write (pre-existing); the deletion
+  challenge counter is now an atomic SQL increment. Under heavy concurrent guessing the code counters could
+  admit a few extra attempts; the challenge counter cannot. Worth an atomic update there too (Phase 5 `auth/`).
 - The dev seed accounts (`seed.doctor1..3@shifa.dev`, `seed.patient1..3@shifa.dev`, `seed.staff@shifa.dev`,
   password `Dev12345!`) appear on development after the next deploy. They are not in production.
 

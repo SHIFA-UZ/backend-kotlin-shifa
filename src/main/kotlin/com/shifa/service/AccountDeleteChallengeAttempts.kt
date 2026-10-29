@@ -11,9 +11,6 @@ import java.util.UUID
 class AccountDeleteChallengeAttempts(private val challenges: AccountDeleteChallengeRepository) {
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     fun recordFailure(challengeId: UUID) {
-        challenges.findByChallengeId(challengeId).ifPresent {
-            it.attemptCount += 1
-            challenges.save(it)
-        }
+        challenges.incrementAttemptCount(challengeId)
     }
 }

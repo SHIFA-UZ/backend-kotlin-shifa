@@ -128,15 +128,16 @@ class PatientAccountDeletionController(
             }
         } else if (!body.email.isNullOrBlank() && !body.emailOtp.isNullOrBlank()) {
             val emailNorm = body.email.trim().lowercase()
+            val userEmail = user.email?.trim()?.lowercase()
+            // Ownership first, so a valid code is never consumed for an email that is not this account's.
+            if (userEmail == null || userEmail != emailNorm) {
+                challengeAttempts.recordFailure(challengeUuid) // own transaction: survives the rollback below
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email does not match account")
+            }
             if (!emailOtpService.verify(emailNorm, body.emailOtp.trim(),
                     com.shifa.domain.EmailVerificationCode.PURPOSE_ACCOUNT_DELETION)) {
                 challengeAttempts.recordFailure(challengeUuid) // own transaction: survives the rollback below
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid or expired verification code")
-            }
-            val userEmail = user.email?.trim()?.lowercase()
-            if (userEmail == null || userEmail != emailNorm) {
-                challengeAttempts.recordFailure(challengeUuid) // own transaction: survives the rollback below
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email does not match account")
             }
         } else {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Provide email and emailOtp")
