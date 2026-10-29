@@ -1,5 +1,6 @@
 package com.shifa.payments.api
 
+import com.shifa.payments.api.dto.OnboardRequest
 import com.shifa.payments.application.StripeConnectService
 import com.shifa.shared.security.DoctorPrincipal
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -13,10 +14,6 @@ import org.springframework.web.bind.annotation.RestController
 class DoctorStripeConnectController(
     private val stripeConnectService: StripeConnectService
 ) {
-    data class OnboardRequest(
-        val refreshUrl: String? = null,
-        val returnUrl: String? = null
-    )
 
     @PostMapping("/onboard")
     fun onboard(

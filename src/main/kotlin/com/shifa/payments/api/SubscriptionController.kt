@@ -1,5 +1,7 @@
 package com.shifa.payments.api
 
+import com.shifa.payments.api.dto.StartSubscriptionRequest
+import com.shifa.payments.api.dto.SubscriptionDto
 import com.shifa.payments.domain.PaymentGatewayCode
 import com.shifa.payments.application.SubscriptionService
 import com.shifa.shared.security.DoctorPrincipal
@@ -11,20 +13,7 @@ import org.springframework.web.bind.annotation.*
 class SubscriptionController(
     private val subscriptionService: SubscriptionService
 ) {
-    data class StartSubscriptionRequest(
-        val planCode: String,
-        val gateway: PaymentGatewayCode = PaymentGatewayCode.STRIPE
-    )
 
-    data class SubscriptionDto(
-        val id: Long,
-        val planCode: String,
-        val status: String,
-        val gateway: String,
-        val currentPeriodEnd: String?,
-        val gracePeriodEndsAt: String?,
-        val suspendedAt: String?
-    )
 
     @GetMapping("/plans")
     fun listPlans(): List<Map<String, Any?>> =

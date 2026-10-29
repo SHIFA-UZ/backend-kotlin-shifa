@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.shared.config.ClickProperties
 import com.shifa.appointments.domain.Appointment
 import com.shifa.payments.infrastructure.*
+import com.shifa.payments.api.dto.*
 import com.shifa.payments.domain.Payment
 import com.shifa.payments.domain.PaymentEvent
 import com.shifa.payments.domain.PaymentGatewayCode

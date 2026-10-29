@@ -1,4 +1,4 @@
-package com.shifa.payments.infrastructure
+package com.shifa.payments.api.dto
 
 import com.fasterxml.jackson.annotation.JsonProperty
 

@@ -1,5 +1,8 @@
 package com.shifa.payments.api
 
+import com.shifa.payments.api.dto.ConsultationCheckoutRequest
+import com.shifa.payments.api.dto.TreatmentPlanCheckoutRequest
+import com.shifa.payments.api.dto.PaymentStatusDto
 import com.shifa.payments.domain.PaymentGatewayCode
 import com.shifa.payments.application.PaymentService
 import com.shifa.shared.security.PatientPrincipal
@@ -19,31 +22,8 @@ import org.springframework.web.bind.annotation.RestController
 class PaymentController(
     private val paymentService: PaymentService
 ) {
-    data class ConsultationCheckoutRequest(
-        val appointmentId: Long,
-        val gateway: PaymentGatewayCode? = null,
-        /** "app": the gateway return pages redirect back into the patient app (ask 12). */
-        val platform: String? = null,
-    )
 
-    data class TreatmentPlanCheckoutRequest(
-        val treatmentPlanId: Long,
-        val installmentItemId: Long? = null,
-        val gateway: PaymentGatewayCode? = null,
-        /** "app": the gateway return pages redirect back into the patient app (ask 12). */
-        val platform: String? = null,
-    )
 
-    data class PaymentStatusDto(
-        val id: Long,
-        val status: String,
-        val gateway: String,
-        val amountMinor: Long,
-        val currency: String,
-        val checkoutUrl: String?,
-        /** Why the payment failed, was cancelled or expired; null while open or paid (patient-app ask 12). */
-        val failureReason: String? = null,
-    )
 
     @GetMapping("/checkout/success", produces = [MediaType.TEXT_HTML_VALUE])
     fun checkoutSuccessHtml(

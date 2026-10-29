@@ -2,8 +2,8 @@ package com.shifa.payments.application
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.shared.config.ClickProperties
-import com.shifa.payments.infrastructure.ClickCompleteRequest
-import com.shifa.payments.infrastructure.ClickPrepareRequest
+import com.shifa.payments.api.dto.ClickCompleteRequest
+import com.shifa.payments.api.dto.ClickPrepareRequest
 import com.shifa.payments.infrastructure.ClickSignatureUtil
 import com.shifa.payments.domain.Payment
 import com.shifa.payments.domain.PaymentGatewayCode

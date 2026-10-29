@@ -6,7 +6,7 @@ import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorSettings
 import com.shifa.doctors.domain.DoctorStartTab
 import com.shifa.notifications.domain.Notification
-import com.shifa.payments.infrastructure.DoctorBillingRepository
+import com.shifa.payments.application.DoctorBillingService
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.DoctorSettingsRepository
 import com.shifa.auth.infrastructure.UserRepository
@@ -31,7 +31,7 @@ import java.util.Locale
 class DoctorController(
     private val users: UserRepository,
     private val doctors: DoctorProfileRepository,
-    private val billingRepo: DoctorBillingRepository,
+    private val billingRepo: DoctorBillingService,
     private val settingsRepo: DoctorSettingsRepository,
     private val scheduleValidityService: ScheduleValidityService,
     private val notificationService: com.shifa.notifications.application.NotificationService,
