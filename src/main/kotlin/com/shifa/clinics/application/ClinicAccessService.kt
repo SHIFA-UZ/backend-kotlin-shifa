@@ -2,7 +2,6 @@ package com.shifa.clinics.application
 
 import com.shifa.clinics.infrastructure.ClinicMembershipRepository
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
 import org.springframework.http.HttpStatus

@@ -1,19 +1,19 @@
 package com.shifa.doctors.application
 
-import com.shifa.notifications.application.DoctorSmsBillingService
-
 import com.shifa.appointments.domain.Appointment
-import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.api.AppointmentTrendPointDto
 import com.shifa.doctors.api.ConsultationTypesDto
 import com.shifa.doctors.api.DoctorAnalyticsOverviewDto
 import com.shifa.doctors.api.DoctorEngagementDto
 import com.shifa.doctors.api.DoctorSmsUsageDto
-import org.springframework.stereotype.Service
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.notifications.application.DoctorSmsBillingService
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
+import org.springframework.stereotype.Service
+
 
 /**
  * Aggregated analytics for the logged-in doctor. No PII returned; doctor-scoped only.

@@ -8,7 +8,7 @@ import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.util.PhoneNormalizer
 import java.security.SecureRandom
 import java.text.Normalizer
-import java.util.*
+import java.util.Locale
 import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service

@@ -4,10 +4,10 @@ import com.shifa.appointments.domain.Appointment
 import com.shifa.payments.domain.OpenCheckoutPolicy
 import com.shifa.payments.domain.PaymentStatus
 import com.shifa.payments.infrastructure.PaymentRepository
+import java.time.Instant
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import java.time.Instant
 
 /**
  * Applies gateway results to an appointment. Payment success never comes from the browser redirect.

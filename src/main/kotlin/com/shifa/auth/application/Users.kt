@@ -3,7 +3,6 @@ package com.shifa.auth.application
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
 import com.shifa.auth.infrastructure.UserRepository
-import java.util.*
 import java.util.Optional
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable

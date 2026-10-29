@@ -2,7 +2,6 @@ package com.shifa.appointments.application
 
 import com.shifa.appointments.domain.ClinicVisitPattern
 import com.shifa.appointments.infrastructure.ClinicVisitPatternRepository
-import java.util.Optional
 import org.springframework.stereotype.Service
 
 /**

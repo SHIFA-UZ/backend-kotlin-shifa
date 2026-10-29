@@ -2,7 +2,6 @@ package com.shifa.appointments.application
 
 import com.shifa.appointments.domain.WeeklyScheduleRule
 import com.shifa.appointments.infrastructure.WeeklyScheduleRuleRepository
-import java.util.Optional
 import org.springframework.stereotype.Service
 
 /**

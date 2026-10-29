@@ -1,6 +1,5 @@
 package com.shifa.patients.application
 
-import com.shifa.patients.domain.CarePartnership
 import com.shifa.patients.infrastructure.CarePartnershipRepository
 import org.springframework.stereotype.Service
 

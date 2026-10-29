@@ -2,7 +2,6 @@ package com.shifa.appointments.application
 
 import com.shifa.appointments.domain.PatientVisitFact
 import com.shifa.appointments.infrastructure.PatientVisitFactRepository
-import java.util.Optional
 import org.springframework.stereotype.Service
 
 /**

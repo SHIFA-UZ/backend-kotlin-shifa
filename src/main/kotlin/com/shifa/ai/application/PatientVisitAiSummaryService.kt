@@ -1,20 +1,20 @@
 package com.shifa.ai.application
 
-import com.shifa.ai.infrastructure.OpenAiResponsesService
-
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.shifa.shared.config.OpenAiProperties
-import com.shifa.notifications.domain.Notification
 import com.shifa.ai.domain.PatientVisitAiSummary
+import com.shifa.ai.infrastructure.OpenAiResponsesService
 import com.shifa.ai.infrastructure.PatientVisitAiSummaryRepository
-import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import com.shifa.notifications.domain.Notification
+import com.shifa.shared.config.OpenAiProperties
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executor
+import org.springframework.beans.factory.annotation.Qualifier
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+
 
 data class PatientVisitSummaryResult(
     val status: String,

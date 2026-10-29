@@ -1,20 +1,20 @@
 package com.shifa.appointments.application
 
+import com.shifa.appointments.domain.Appointment
 import com.shifa.appointments.domain.AppointmentActionPhrases
-
 import com.shifa.appointments.domain.ClinicTimeRangeResolver
+import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.appointments.infrastructure.PendingAppointmentActionStore
 import com.shifa.appointments.infrastructure.PendingCancellation
-
-import com.shifa.appointments.domain.Appointment
 import com.shifa.doctors.domain.DoctorProfile
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+
+
 
 /**
  * Write actions for Shifa Intelligence. Cancellation uses [AppointmentCancellationService].

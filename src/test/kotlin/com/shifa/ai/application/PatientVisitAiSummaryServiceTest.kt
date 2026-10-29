@@ -1,22 +1,20 @@
 package com.shifa.ai.application
 
-import com.shifa.ai.infrastructure.OpenAiResponsesService
-
-import com.shifa.shared.config.OpenAiProperties
-import com.shifa.appointments.domain.Appointment
-import com.shifa.patients.domain.PatientProfile
 import com.shifa.ai.domain.PatientVisitAiSummary
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.appointments.infrastructure.ConsultationNoteRepository
-import com.shifa.notifications.application.NotificationService
+import com.shifa.ai.infrastructure.OpenAiResponsesService
 import com.shifa.ai.infrastructure.PatientVisitAiSummaryRepository
+import com.shifa.appointments.domain.Appointment
+import com.shifa.notifications.application.NotificationService
+import com.shifa.patients.domain.PatientProfile
+import com.shifa.shared.config.OpenAiProperties
+import java.util.Optional
+import java.util.concurrent.atomic.AtomicInteger
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
 import org.mockito.Mockito
-import org.mockito.Mockito.mock
 import org.mockito.Mockito.`when`
-import java.util.Optional
-import java.util.concurrent.atomic.AtomicInteger
+import org.mockito.Mockito.mock
+
 
 class PatientVisitAiSummaryServiceTest {
     private val appointments = mock(com.shifa.appointments.application.Appointments::class.java)

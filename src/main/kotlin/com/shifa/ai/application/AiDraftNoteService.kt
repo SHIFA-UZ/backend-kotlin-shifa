@@ -1,19 +1,19 @@
 package com.shifa.ai.application
 
 
+import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import com.shifa.ai.domain.AiDraftNote
 import com.shifa.ai.domain.AiResponseLabelGenerator
 import com.shifa.ai.domain.StructuredNoteParser
-import com.shifa.shared.config.OpenAiProperties
-import com.shifa.ai.domain.AiDraftNote
-import com.shifa.appointments.domain.ConsultationNote
 import com.shifa.ai.infrastructure.AiDraftNoteRepository
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import org.slf4j.LoggerFactory
-import org.springframework.stereotype.Service
-import org.springframework.transaction.annotation.Transactional
+import com.shifa.appointments.domain.ConsultationNote
+import com.shifa.shared.config.OpenAiProperties
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import java.util.UUID
+import org.slf4j.LoggerFactory
+import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class AiDraftNoteService(

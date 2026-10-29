@@ -2,7 +2,6 @@ package com.shifa.doctors.application
 
 import com.shifa.doctors.domain.DoctorSettings
 import com.shifa.doctors.infrastructure.DoctorSettingsRepository
-import java.util.*
 import java.util.Optional
 import org.springframework.stereotype.Service
 

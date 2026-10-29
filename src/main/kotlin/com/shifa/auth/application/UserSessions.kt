@@ -2,7 +2,6 @@ package com.shifa.auth.application
 
 import com.shifa.auth.domain.UserSession
 import com.shifa.auth.infrastructure.UserSessionRepository
-import java.util.*
 import org.springframework.stereotype.Service
 
 /**

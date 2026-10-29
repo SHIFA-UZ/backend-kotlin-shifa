@@ -2,11 +2,11 @@ package com.shifa.notifications.application
 
 import com.shifa.notifications.domain.Notification
 import com.shifa.notifications.infrastructure.NotificationRepository
+import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
 
 /** A notification with the names and dates the feed shows next to it, read from the referenced records. */
 data class NotificationDetails(

@@ -1,6 +1,5 @@
 package com.shifa.appointments.api.dto
 
-import java.time.*
 
 /** Consultation notes for this appointment (e.g. saved Shifa AI drafts). Shown in appointment documentation with
  * "From Shifa AI" badge when source == AI_DRAFT. */

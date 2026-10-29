@@ -3,17 +3,17 @@ package com.shifa.appointments.api
 
 import com.shifa.appointments.api.dto.VideoTokenRequest
 import com.shifa.appointments.api.dto.VideoTokenResponse
-
-import com.shifa.auth.domain.SubscriptionFeature
-import com.shifa.shared.security.DoctorPrincipal
-import java.time.Instant
-import com.shifa.shared.security.PatientPrincipal
 import com.shifa.appointments.infrastructure.DailyVideoService
+import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.payments.application.SubscriptionTierService
+import com.shifa.shared.security.DoctorPrincipal
+import com.shifa.shared.security.PatientPrincipal
+import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+
 
 @RestController
 @RequestMapping("/api/video")

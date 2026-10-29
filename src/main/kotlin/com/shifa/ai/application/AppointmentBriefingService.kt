@@ -1,15 +1,17 @@
 package com.shifa.ai.application
 
+import com.shifa.ai.domain.AppointmentBriefing
+import com.shifa.ai.infrastructure.AppointmentBriefingRepository
 import com.shifa.ai.infrastructure.OpenAiResponsesService
+import com.shifa.appointments.domain.Appointment
 import com.shifa.documents.application.PatientDocumentService
 import com.shifa.documents.application.PatientDocumentStorageService
 import com.shifa.documents.application.PdfTextExtractionService
-
-import com.shifa.appointments.domain.Appointment
-import com.shifa.ai.domain.AppointmentBriefing
-import com.shifa.notifications.domain.Notification
 import com.shifa.documents.domain.PatientDocument
-import com.shifa.ai.infrastructure.AppointmentBriefingRepository
+import com.shifa.notifications.domain.Notification
+import java.time.Instant
+import java.time.format.DateTimeFormatter
+import java.util.concurrent.ConcurrentHashMap
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.scheduling.annotation.Async
@@ -18,9 +20,7 @@ import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
-import java.time.format.DateTimeFormatter
-import java.util.concurrent.ConcurrentHashMap
+
 
 data class AppointmentBriefingDto(
     val appointmentId: Long,

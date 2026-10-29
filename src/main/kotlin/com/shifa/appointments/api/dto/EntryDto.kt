@@ -1,6 +1,5 @@
 package com.shifa.appointments.api.dto
 
-import java.time.*
 
 data class EntryDto(
     val type: String, // FREE_SLOT | APPOINTMENT | BLOCKED

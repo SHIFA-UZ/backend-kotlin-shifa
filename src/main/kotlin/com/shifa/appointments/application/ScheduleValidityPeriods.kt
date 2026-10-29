@@ -2,7 +2,6 @@ package com.shifa.appointments.application
 
 import com.shifa.appointments.domain.ScheduleValidityPeriod
 import com.shifa.appointments.infrastructure.ScheduleValidityPeriodRepository
-import java.util.Optional
 import org.springframework.stereotype.Service
 
 /**

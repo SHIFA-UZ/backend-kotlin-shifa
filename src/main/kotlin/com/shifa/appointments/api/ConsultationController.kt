@@ -1,11 +1,14 @@
 package com.shifa.appointments.api
 
-import com.shifa.shared.config.ScribeProperties
-import com.shifa.auth.domain.SubscriptionFeature
-import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.ai.application.ScribePipelineService
 import com.shifa.ai.application.ScribeRecordingService
+import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.payments.application.SubscriptionTierService
+import com.shifa.shared.config.ScribeProperties
+import com.shifa.shared.security.DoctorPrincipal
+import java.nio.file.Files
+import java.nio.file.Path
+import java.util.UUID
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -13,9 +16,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
-import java.nio.file.Files
-import java.nio.file.Path
-import java.util.UUID
 
 /**
  * Endpoints for consultation-related operations (e.g. AI scribe audio upload).
