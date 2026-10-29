@@ -859,6 +859,12 @@
               "null"
             ]
           },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "reason": {
             "type": [
               "string",
@@ -2328,6 +2334,12 @@
               "PAYME",
               "MANUAL"
             ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platform": {
             "type": [
               "string",
               "null"
@@ -9361,6 +9373,12 @@
             "format": "int64",
             "type": [
               "integer",
+              "null"
+            ]
+          },
+          "platform": {
+            "type": [
+              "string",
               "null"
             ]
           },

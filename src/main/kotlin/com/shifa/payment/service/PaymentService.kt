@@ -89,7 +89,9 @@ class PaymentService(
     fun createConsultationCheckout(
         userId: Long,
         appointmentId: Long,
-        preferredGateway: PaymentGatewayCode?
+        preferredGateway: PaymentGatewayCode?,
+        /** "app" when the patient app started the checkout: the return pages then redirect into the app (ask 12). */
+        returnPlatform: String? = null,
     ): ConsultationCheckoutResult {
         val patient = patientProfiles.findByUserId(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Patient profile not found") }
@@ -190,9 +192,9 @@ class PaymentService(
                 description = "Consultation payment for appointment #${appointment.id}",
                 destinationAccountId = destinationAccountId,
                 successUrl =
-                "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef&platform=app",
+                "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef${returnPlatformQuery(returnPlatform)}",
                 cancelUrl =
-                "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef&platform=app"
+                "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef${returnPlatformQuery(returnPlatform)}"
             )
 
         val (usedGateway: PaymentGatewayCode, gatewayResult: GatewayCheckoutResult) =
@@ -244,6 +246,7 @@ class PaymentService(
         treatmentPlanId: Long,
         installmentItemId: Long?,
         preferredGateway: PaymentGatewayCode? = null,
+        returnPlatform: String? = null,
     ): TreatmentPlanCheckoutResult {
         val patient = patientProfiles.findByUserId(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Patient profile not found") }
@@ -355,9 +358,9 @@ class PaymentService(
             },
             destinationAccountId = destinationAccountId,
             successUrl =
-            "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef&platform=app",
+            "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef${returnPlatformQuery(returnPlatform)}",
             cancelUrl =
-            "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef&platform=app",
+            "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef${returnPlatformQuery(returnPlatform)}",
         )
         val gatewayResult = try {
             when (usedGateway) {
@@ -577,6 +580,10 @@ class PaymentService(
     private fun checkoutUrlHost(checkoutUrl: String): String =
         runCatching { java.net.URI(checkoutUrl).host ?: checkoutUrl.take(80) }
             .getOrElse { checkoutUrl.take(80) }
+
+    /** Only an explicitly app-started checkout gets the in-app redirect on the return pages. */
+    private fun returnPlatformQuery(returnPlatform: String?): String =
+        if (returnPlatform?.trim()?.lowercase() == "app") "&platform=app" else ""
 
     /** Our payment id for a gateway return reference, for the app deep link on the return pages (ask 12). */
     @Transactional(readOnly = true)

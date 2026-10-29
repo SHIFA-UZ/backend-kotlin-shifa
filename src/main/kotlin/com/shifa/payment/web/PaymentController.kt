@@ -21,13 +21,17 @@ class PaymentController(
 ) {
     data class ConsultationCheckoutRequest(
         val appointmentId: Long,
-        val gateway: PaymentGatewayCode? = null
+        val gateway: PaymentGatewayCode? = null,
+        /** "app": the gateway return pages redirect back into the patient app (ask 12). */
+        val platform: String? = null,
     )
 
     data class TreatmentPlanCheckoutRequest(
         val treatmentPlanId: Long,
         val installmentItemId: Long? = null,
         val gateway: PaymentGatewayCode? = null,
+        /** "app": the gateway return pages redirect back into the patient app (ask 12). */
+        val platform: String? = null,
     )
 
     data class PaymentStatusDto(
@@ -131,7 +135,8 @@ class PaymentController(
     ) = paymentService.createConsultationCheckout(
         userId = principal.user.id!!,
         appointmentId = body.appointmentId,
-        preferredGateway = body.gateway
+        preferredGateway = body.gateway,
+        returnPlatform = body.platform,
     )
 
     @PostMapping("/treatment-plan/checkout")
@@ -143,6 +148,7 @@ class PaymentController(
         treatmentPlanId = body.treatmentPlanId,
         installmentItemId = body.installmentItemId,
         preferredGateway = body.gateway,
+        returnPlatform = body.platform,
     )
 
     @GetMapping("/{paymentId}")

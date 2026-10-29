@@ -204,6 +204,8 @@ class PatientController(
          * Omitted by the current app, which still books first and pays from the appointments screen.
          */
         val paymentProvider: String? = null,
+        /** "app": the gateway return pages redirect back into the patient app (ask 12). */
+        val platform: String? = null,
     )
 
     // -------------------- FCM Token (push notifications) --------------------
@@ -620,6 +622,7 @@ class PatientController(
                 userId = principal.user.id ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "User id missing"),
                 appointmentId = saved.id,
                 preferredGateway = provider,
+                returnPlatform = req.platform,
             )
         }
 
