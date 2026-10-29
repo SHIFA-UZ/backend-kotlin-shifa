@@ -44,7 +44,7 @@ jobs:
           docker run --rm -v "$PWD:/repo" -w /repo ghcr.io/gitleaks/gitleaks:v8.29.1 \
             git --redact --no-banner --exit-code 0 --report-format json --report-path gitleaks-history.json .
           echo "findings: $(jq length gitleaks-history.json)" >> "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: gitleaks-history
           path: gitleaks-history.json
