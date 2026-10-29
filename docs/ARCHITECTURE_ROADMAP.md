@@ -383,6 +383,18 @@ Kotlin 2.2.21, Gradle 8.14.3); Phase 4 items 4, 5, 7, 8, 9, 12, 13, 14, 15 are i
 (batch size), P7 (SSE executor), the cache item and the first indexes from Phase 6 are in. The per-step
 record, the open items and why they are open are in `docs/OVERNIGHT_2026-10-29.md`.
 
+1.10 and 2.2 are implemented together (branch `refactor/config-consolidation`): every non-secret is a literal in
+`application.yml` / `application-prod.yml` / `application-dev.yml` with the values production ran with on
+2026-10-29, `Application.kt` is `runApplication` only, the datasource comes from the `SPRING_DATASOURCE_*` reference
+variables (set in both Railway environments on 2026-10-29), `ConfigPolicyTest` enforces the policy. Before the
+production release that carries it: apply the production deploy settings (1.13), so a boot failure keeps the old
+deployment serving. After it is live in production, delete from **both** Railway environments: `DATABASE_URL`,
+`DB_USERNAME`, `DB_PASSWORD`, `APP_PUBLICBASEURL`, `APP_FRONTENDURL`, `STORAGE_ROOT`, `JWT_ISSUER`, `MAIL_USERNAME`,
+`MAIL_FROM`, `MAIL_FROM_NAME`, `OPENAI_PROJECT_ID`, `DAILY_API_URL`, `DEVSMS_SENDER_FROM`, `CLICK_ENABLED`,
+`CLICK_MERCHANT_ID`, `CLICK_SERVICE_ID`, `CLICK_MERCHANT_USER_ID`, `STRIPE_CONNECT_REFRESH_URL`,
+`STRIPE_CONNECT_RETURN_URL`, `PAYMENT_ENABLED_PROVIDERS` (dev), and the stale `PUBLIC_BASE_URL` and
+`SPRING_VARIABLES_ACTIVE` (prod). `GOOGLE_MAPS_API_KEY` stays a variable until its value is confirmed public.
+
 ## 4. Phase 0: stop the bleeding (security hotfixes)
 
 **Goal:** close the findings in 1.4 and P1 with the smallest possible diffs, through the current deploy path, before anything else. Each row is one PR. None changes an API shape the apps rely on.

@@ -1,8 +1,41 @@
-# Local developer overrides. Copy to application-local.yml (gitignored) next to this file.
+# Local developer overrides. Copy to application-local.yml (git-ignored) next to this file.
 # Loaded when no SPRING_PROFILES_ACTIVE is set (spring.profiles.default=local in application.yml).
+# Secrets live here, not in a .env file and not in the shell; application.yml leaves them empty.
+
+spring:
+  datasource:
+    # Only if your Postgres is not the docker-compose one on 5433 with shifa/shifa.
+    url: jdbc:postgresql://localhost:5433/shifa
+    username: shifa
+    password: shifa
 
 app:
   # Exception messages in 500 bodies while developing. Never set this in a deployed profile.
   expose-error-details: true
   # Same test data as the development environment (seed.doctor1@shifa.dev / Dev12345!).
   dev-seed: true
+
+# Fill in what you need; leave the rest empty and that feature stays off or logs instead.
+openai:
+  apiKey: ""
+ai:
+  providers:
+    openai:
+      api-key: ""
+    gemini:
+      api-key: ""
+daily:
+  apiKey: ""
+scribe:
+  daily-webhook-secret: ""
+spring.mail.password: ""
+stripe:
+  secretKey: ""
+  webhookSecret: ""
+click:
+  secret-key: ""
+devsms:
+  api-token: ""
+googleMaps:
+  apiKey: ""
+# Firebase (phone OTP, push) reads the FIREBASE_SERVICE_ACCOUNT_JSON environment variable directly.

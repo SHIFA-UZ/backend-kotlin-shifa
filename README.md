@@ -34,20 +34,9 @@ git clone <repo-url>
 cd backend-kotlin-shifa
 ```
 
-Create a `.env` file in the project root (git-ignored):
-
-```env
-JWT_SECRET=your_64_plus_character_secret_here_generate_with_openssl_rand_base64_64
-OPENAI_API_KEY=sk-...
-DAILY_API_KEY=...
-DAILY_WEBHOOK_SECRET=...
-FIREBASE_SERVICE_ACCOUNT_JSON={"type":"service_account",...}
-GOOGLE_MAPS_API_KEY=...
-MAIL_USERNAME=...
-MAIL_PASSWORD=...
-```
-
-The app loads `.env` automatically in development. All values have sensible defaults except the ones above.
+Copy `src/main/resources/application-local.example.yml` to `application-local.yml` (git-ignored) in the same folder
+and fill in the keys you need. Everything left empty stays off or logs instead (OTP codes, SMS, AI). Firebase
+(phone OTP, push) reads the `FIREBASE_SERVICE_ACCOUNT_JSON` environment variable directly.
 
 ### 2. Start the database
 
@@ -113,9 +102,9 @@ src/main/kotlin/com/shifa/
     └── dto/                # Shared DTOs
 
 src/main/resources/
-├── application.yml         # Default (dev) config
-├── application-prod.yml    # Production config
-├── application-qa.yml      # QA config
+├── application.yml         # Base config, identical everywhere (local defaults)
+├── application-prod.yml    # Railway (production; development adds application-dev.yml)
+├── application-dev.yml     # Development overlay (profile prod,dev)
 └── db/migration/           # Flyway SQL migrations (V1 through V56)
 
 src/test/kotlin/com/shifa/  # Tests (JUnit 5 + MockMvc)
@@ -193,44 +182,34 @@ Naming convention: `V{number}__{snake_case_description}.sql` (double underscore)
 
 Never modify an existing migration. In dev, Hibernate `ddl-auto: update` fills gaps, but prod uses `validate` — migrations are the only way to change the schema.
 
-## Environment Variables
+## Configuration
 
-### Required in Production
+Only secrets are environment variables (roadmap 3.6). Everything else (URLs, model names, limits, merchant ids, mail
+sender) is a literal in `application.yml`, `application-prod.yml` or `application-dev.yml`; changing it is a pull
+request. `ConfigPolicyTest` fails on any other placeholder and pins the production and development values.
+
+### Railway variables (both environments)
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | PostgreSQL connection URL (Railway provides automatically) |
-| `SPRING_PROFILES_ACTIVE` | `prod` or `qa` |
-| `JWT_SECRET` | Min 64 characters (`openssl rand -base64 64`) |
-| `APP_PUBLICBASEURL` | Backend public URL |
-| `APP_FRONTENDURL` | Frontend URL (CORS) |
-| `STORAGE_ROOT` | File storage path (default: `/app/storage/images`) |
-| `OPENAI_API_KEY` | OpenAI API key |
-| `DAILY_API_KEY` | Daily.co API key |
-| `DAILY_WEBHOOK_SECRET` | Daily.co webhook verification |
-| `FIREBASE_SERVICE_ACCOUNT_JSON` | Firebase service account JSON string |
-| `MAIL_USERNAME` | Brevo SMTP username |
+| `SPRING_PROFILES_ACTIVE` | `prod` (production) or `prod,dev` (development) |
+| `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD` | Reference variables to the environment's Postgres (`${{Postgres.PGHOST}}` etc.) |
+| `JWT_SECRET` | Min 64 characters (`openssl rand -base64 64`); rotating it logs every user out |
+| `OPENAI_API_KEY`, `GEMINI_API_KEY` | AI providers (`XAI_API_KEY` optional) |
+| `DAILY_API_KEY`, `DAILY_WEBHOOK_SECRET` | Daily.co video |
+| `FIREBASE_SERVICE_ACCOUNT_JSON` | Firebase service account JSON string (read directly by the Firebase services) |
 | `MAIL_PASSWORD` | Brevo SMTP password |
+| `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` | Stripe (development sets them to empty in yml) |
+| `CLICK_SECRET_KEY` | Click callback signing |
+| `DEVSMS_API_TOKEN` | SMS provider (development sets it to empty in yml) |
+| `GOOGLE_MAPS_API_KEY` | Served to clients by `/api/public/config` |
 
-### Optional
+Railway also injects `PORT` and `RAILWAY_GIT_COMMIT_SHA` (shown by `/actuator/info`). A missing secret fails startup
+with the variable's name in the log.
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `PORT` | `8080` | Server port |
-| `DB_USERNAME` / `PGUSER` | `shifa` | Database username (fallback) |
-| `DB_PASSWORD` / `PGPASSWORD` | `shifa` | Database password (fallback) |
-| `OPENAI_PROJECT_ID` | — | OpenAI project ID |
-| `OPENAI_MODEL` | `gpt-4o-mini` | OpenAI model |
-| `OPENAI_TRANSCRIPTION_SEND_LANG` | `true` | Send `language=` to gpt-4o-transcribe; set `false` if API rejects a code |
-| `OPENAI_TRANSCRIPTION_MED_CLEANUP` | `true` | GPT pass to fix medical-term typos on long scribe transcripts |
-| `OPENAI_TRANSCRIPTION_MED_CLEANUP_VOICE` | `false` | Also run cleanup on short mic-upload transcriptions |
-| `OPENAI_TRANSCRIPTION_MED_CLEANUP_MODEL` | `gpt-4o-mini` | Model for cleanup pass |
-| `TRANSCRIPTION_FEEDBACK_ENABLED` | `false` | Enables patient/doctor “report bad transcript” + `transcriptionFeedbackEnabled` in public config |
-| `GOOGLE_MAPS_API_KEY` | — | Google Maps geocoding |
-| `RATE_LIMIT_AUTH_PER_MIN` | `10` | Auth endpoint rate limit |
-| `RATE_LIMIT_GENERAL_PER_MIN` | `200` | General API rate limit |
-| `JWT_ACCESS_TOKEN_MINUTES_DOCTOR` | `720` | Doctor token expiry (12h) |
-| `JWT_ACCESS_TOKEN_MINUTES_PATIENT` | `525600` | Patient token expiry (365d) |
+### Local
+
+Copy `application-local.example.yml` to `application-local.yml` (git-ignored) and fill in what you need.
 
 ## API contract
 
