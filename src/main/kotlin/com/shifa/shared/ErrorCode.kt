@@ -1,5 +1,6 @@
 package com.shifa.shared
 
+import com.shifa.shared.api.RequestIdFilter
 import org.slf4j.MDC
 
 /**

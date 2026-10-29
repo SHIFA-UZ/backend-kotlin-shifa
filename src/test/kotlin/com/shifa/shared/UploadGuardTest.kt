@@ -1,6 +1,6 @@
 package com.shifa.shared
 
-import com.shifa.config.AppProperties
+import com.shifa.shared.config.AppProperties
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Test

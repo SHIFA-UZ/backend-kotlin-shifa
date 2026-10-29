@@ -90,16 +90,21 @@ java -jar build/libs/app.jar
 
 ```
 src/main/kotlin/com/shifa/
-├── Application.kt          # Entry point, DB config, Firebase init
-├── ai/                     # Medical AI: symptom matching, red flags, severity scoring
-├── config/                 # Spring configs: async, cache, static resources, properties
-├── domain/                 # JPA entities (34)
-├── repo/                   # Spring Data JPA repositories (35)
-├── security/               # JWT filter, rate limiting, security headers, principals
-├── service/                # Business logic (39 services)
-├── util/                   # Utilities (phone normalization)
-└── web/                    # REST controllers (37) + DTOs
-    └── dto/                # Shared DTOs
+├── Application.kt          # Entry point
+├── admin/                 # feature: api / application / domain / infrastructure
+├── ai/                    # feature: api / application / domain / infrastructure
+├── appointments/          # feature: api / application / domain / infrastructure
+├── auth/                  # feature: api / application / domain / infrastructure
+├── chat/                  # feature: api / application / domain / infrastructure
+├── clinics/               # feature: api / application / domain / infrastructure
+├── devseed/               # feature: api / application / domain / infrastructure
+├── doctors/               # feature: api / application / domain / infrastructure
+├── documents/             # feature: api / application / domain / infrastructure
+├── notifications/         # feature: api / application / domain / infrastructure
+├── patients/              # feature: api / application / domain / infrastructure
+├── payments/              # feature: api / application / domain / infrastructure
+├── shared/                # cross-cutting: security, config, api, storage, util
+└── tasks/                 # feature: api / application / domain / infrastructure
 
 src/main/resources/
 ├── application.yml         # Base config, identical everywhere (local defaults)

@@ -1,8 +1,8 @@
 package com.shifa
 
-import com.shifa.config.AiRateLimitProperties
-import com.shifa.config.DevSmsProperties
-import com.shifa.config.OpenAiProperties
+import com.shifa.shared.config.AiRateLimitProperties
+import com.shifa.shared.config.DevSmsProperties
+import com.shifa.shared.config.OpenAiProperties
 import org.springframework.boot.autoconfigure.SpringBootApplication
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.boot.runApplication
@@ -19,8 +19,8 @@ import org.springframework.scheduling.annotation.EnableScheduling
     OpenAiProperties::class,
     AiRateLimitProperties::class,
     DevSmsProperties::class,
-    com.shifa.config.ScribeProperties::class,
-    com.shifa.ai.llm.AiRoutingProperties::class,
+    com.shifa.shared.config.ScribeProperties::class,
+    com.shifa.ai.application.AiRoutingProperties::class,
 )
 @EnableScheduling
 @EnableCaching

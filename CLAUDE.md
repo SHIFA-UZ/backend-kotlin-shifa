@@ -42,20 +42,26 @@ java -Xmx350m -Xms256m -jar build/libs/app.jar
 
 ## Architecture
 
-**Layered structure under `src/main/kotlin/com/shifa/`:**
+**Modular monolith under `src/main/kotlin/com/shifa/`:** one package per feature, each with the layers `api/` (controllers and DTOs), `application/` (use-case services, transactions), `domain/` (entities, enums, pure rules) and `infrastructure/` (Spring Data repositories, external gateways). Dependencies point inward (`api` → `application` → `domain`; `infrastructure` implements what `application`/`domain` need). A feature uses another feature only through its `application` services. The move into this layout was done 2026-10-29 (roadmap Phase 5 step 1, class-for-class; only package, import and fully-qualified references changed); the per-feature steps (DTO extraction, controllers without repositories, ArchUnit border rules) follow one feature at a time.
 
-| Package | Count | Purpose |
+| Package | Files | Purpose |
 |---------|-------|---------|
-| `web/` | 37 controllers + 10 DTO files | REST controllers and request/response DTOs. All routes under `/api/`. |
-| `service/` | 39 services | Business logic, transactions, external API calls. |
-| `repo/` | 35 repositories | Spring Data JPA repositories with custom `@Query` methods. |
-| `domain/` | 34 entities | JPA entities. Core: `User`, `DoctorProfile`, `PatientProfile`, `Appointment`, `ConsultationNote`, `Message`. |
-| `security/` | 13 files | JWT filter chain, rate limiting, security headers, role principals. |
-| `ai/` | 16 files | Medical AI: `SymptomMatcher`, `RedFlagEngine`, `SeverityScorer`, `MedicalPromptBuilder`, `StructuredNoteParser`. |
-| `config/` | 6 configs | Async executor, Caffeine cache, static resources, app/OpenAI/scribe properties. |
-| `util/` | 1 file | `PhoneNormalizer` — E.164 phone normalization. |
+| `admin/` | 15 | Admin panel API, admin profiles, audit log, system config. |
+| `ai/` | 110 | All AI: doctor AI, patient co-pilot, briefings, scribe, transcription, RAG, ICD-10, LLM routing and clients, intelligence memory, speech, `clinicalengine/` (its own four layers). |
+| `appointments/` | 58 | Booking, calendar, schedule rules and blocks, visits, consultation notes, video (Daily), the morning-assistant appointment intelligence. |
+| `auth/` | 32 | Login, OTP (SMS and e-mail), sessions, users and roles, account deletion. |
+| `chat/` | 10 | Conversations, messages, attachments. |
+| `clinics/` | 46 | Clinics, memberships, invitations, finance ledger, treatment plans, installments. |
+| `devseed/` | 1 | Deterministic development data (`app.dev-seed`). |
+| `doctors/` | 40 | Doctor profiles, services and prices, locations, reviews, analytics, professions, public listing. |
+| `documents/` | 14 | Patient documents, access grants and requests, document storage service. |
+| `notifications/` | 16 | Notifications, FCM push, SMS provider, reminders. |
+| `patients/` | 25 | Patient profiles, forms, prophylaxis, care partnerships, doctor-patient access. |
+| `payments/` | 35 | Checkout, gateways (Click, Stripe, manual), webhooks, subscriptions, doctor billing. |
+| `shared/` | 52 | Cross-cutting: `security/` (JWT chain, rate limits, principals), `config/`, `api/` (error handler, request id, file serving), `storage/`, `util/`, error codes, upload policy. |
+| `tasks/` | 5 | Remote-care tasks and check-ins. |
 
-**Total: 194 Kotlin source files, 2 test files.**
+**Total: 460 Kotlin source files, 83 test files.** Regenerate with `find src/main/kotlin -name '*.kt' | wc -l`.
 
 ### Auth Model
 
@@ -82,7 +88,7 @@ Three roles — `DOCTOR`, `PATIENT`, `ADMIN`. Users can hold multiple roles. JWT
 `Application.kt` is `runApplication` plus the annotations. All configuration is in `application.yml` (same everywhere),
 `application-prod.yml` (Railway, both environments) and `application-dev.yml` (the development overlay, profile `prod,dev`).
 Only secrets and Railway-injected values (`PORT`, `SPRING_DATASOURCE_*` reference variables, `RAILWAY_GIT_COMMIT_SHA`)
-are environment variables; `src/test/kotlin/com/shifa/config/ConfigPolicyTest.kt` fails on any other placeholder and pins
+are environment variables; `src/test/kotlin/com/shifa/shared/config/ConfigPolicyTest.kt` fails on any other placeholder and pins
 the production and development values. Local secrets go in the git-ignored `application-local.yml`
 (see `application-local.example.yml`). `FIREBASE_SERVICE_ACCOUNT_JSON` is read by the Firebase services directly.
 

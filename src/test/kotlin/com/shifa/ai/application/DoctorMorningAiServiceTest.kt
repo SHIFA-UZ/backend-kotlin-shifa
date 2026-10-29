@@ -1,0 +1,567 @@
+package com.shifa.ai.application
+
+
+import com.shifa.ai.domain.OutputLanguage
+import com.shifa.ai.infrastructure.LlmClient
+import com.shifa.ai.domain.LlmErrorKind
+import com.shifa.ai.domain.LlmException
+import com.shifa.ai.infrastructure.LlmProviderConfig
+import com.shifa.ai.domain.LlmRequest
+import com.shifa.ai.domain.LlmResponse
+import com.shifa.ai.domain.LlmToolCall
+import com.shifa.ai.infrastructure.LlmUsageRecorder
+import com.shifa.ai.domain.IntelligenceMemory
+import com.shifa.ai.domain.IntelligenceMemoryScope
+import com.shifa.ai.domain.IntelligenceMemoryStatus
+import com.shifa.ai.domain.IntelligenceMemoryType
+import com.shifa.shared.config.OpenAiProperties
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.auth.domain.User
+import com.shifa.appointments.application.IntelligenceBookingWorkflowService
+import com.shifa.appointments.domain.IntelligenceBookingWorkflow
+import com.shifa.appointments.domain.BookingWorkflowStatus
+import com.shifa.appointments.domain.PendingQuestionType
+import com.shifa.appointments.domain.PendingPatientCandidate
+import com.shifa.ai.api.AiMessageDto
+import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.runBlocking
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Test
+import org.mockito.ArgumentMatchers.any
+import org.mockito.ArgumentMatchers.anyBoolean
+import org.mockito.ArgumentMatchers.anyLong
+import org.mockito.ArgumentMatchers.anyString
+import org.mockito.ArgumentMatchers.eq
+import org.mockito.Mockito.mock
+import org.mockito.Mockito.never
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
+import org.mockito.Mockito.`when`
+import org.springframework.jdbc.core.JdbcTemplate
+import java.time.OffsetDateTime
+import java.time.Instant
+import java.time.LocalDate
+import java.time.LocalTime
+import java.util.UUID
+
+/**
+ * Regression anchor for the morning assistant: same SSE events, now through the routed LLM gateway.
+ */
+class DoctorMorningAiServiceTest {
+
+    private class ScriptedClient : LlmClient {
+        val outcomes = HashMap<String, ArrayDeque<Any>>()
+        val requests = ArrayList<Pair<String, LlmRequest>>()
+        fun on(provider: String, vararg o: Any) { outcomes.getOrPut(provider) { ArrayDeque() }.addAll(o) }
+        override fun complete(request: LlmRequest, provider: LlmProviderConfig): LlmResponse {
+            requests += provider.id to request
+            val next = outcomes[provider.id]?.removeFirstOrNull() ?: reply("…", provider.id)
+            if (next is LlmErrorKind) throw LlmException(next, provider.id, null, next.name)
+            return next as LlmResponse
+        }
+    }
+
+    companion object {
+        fun reply(text: String, provider: String = "openai") = LlmResponse(text, emptyList(), "stop", 50, 10, provider, "m", 5)
+        fun toolCall(name: String, args: Map<String, Any?> = emptyMap(), id: String = "c1", provider: String = "openai") =
+            LlmResponse("", listOf(LlmToolCall(id, name, args)), "tool_calls", 50, 10, provider, "m", 5)
+    }
+
+    private val tools = mock(DoctorMorningToolService::class.java)
+    private val memoryService = mock(IntelligenceMemoryService::class.java)
+    private val extractor = mock(IntelligenceMemoryExtractor::class.java)
+    private val bookingWorkflows = mock(IntelligenceBookingWorkflowService::class.java)
+    private val doctor = DoctorProfile(id = 5, user = User(id = 1, passwordHash = "x"), firstName = "Ada", lastName = "Lovelace", timeZone = "Asia/Tashkent")
+
+    private fun build(client: ScriptedClient, configure: AiRoutingProperties.() -> Unit = {}): DoctorMorningAiService {
+        val props = AiRoutingProperties().apply(configure)
+        val openAi = OpenAiProperties().apply { apiKey = "sk"; projectId = ""; model = "gpt-4o-mini"; maxRequestsPerMinute = 600 }
+        val registry = LlmProviderRegistry(props, openAi).also { it.init() }
+        val usage = LlmUsageRecorder(mock(JdbcTemplate::class.java), props)
+        val gateway = LlmGateway(client, LlmRouter(props, registry, usage), registry, usage, props)
+        `when`(memoryService.enabled()).thenReturn(true)
+        `when`(memoryService.retrieveForTurn(anyDoctor(), anyString())).thenReturn(emptyList())
+        `when`(tools.isCardTool(anyString())).thenAnswer {
+            (it.arguments[0] as String) in setOf(
+                "free_slots", "list_free_slots", "schedule", "get_today_schedule",
+                "patient_search", "search_patients", "propose_appointment", "manage_booking_workflow",
+            )
+        }
+        return DoctorMorningAiService(openAi, tools, gateway, memoryService, extractor, bookingWorkflows)
+    }
+
+    private fun provider() = AiRoutingProperties.Provider().apply { enabled = true; apiKey = "k"; chatModel = "m"; baseUrl = "https://x.example/v1" }
+
+    private fun run(service: DoctorMorningAiService, text: String, lang: OutputLanguage = OutputLanguage.EN): List<MorningStreamEvent> =
+        runBlocking {
+            service.streamMorningAssistant(doctor, null, listOf(AiMessageDto("user", text)), lang, null).toList()
+        }
+
+    // Non-null-safe matchers for Kotlin signatures (same pattern as DoctorMorningToolDispatchTest).
+    private fun anyDoctor(): DoctorProfile = any(DoctorProfile::class.java) ?: doctor
+    private fun anyArgs(): Map<String, Any?> = any<Map<String, Any?>>() ?: emptyMap()
+    private fun anyStrings(): List<String> = any<List<String>>() ?: emptyList()
+    private fun anyNames(): Collection<String> = any<Collection<String>>() ?: emptyList()
+    private fun anyIds(): Set<Long> = any<Set<Long>>() ?: emptySet()
+    private fun anyMemories(): List<IntelligenceMemory> = any<List<IntelligenceMemory>>() ?: emptyList()
+
+    private fun execArgs() =
+        tools.execute(
+            anyDoctor(),
+            anyString(),
+            anyArgs(),
+            anyStrings(),
+            anyStrings(),
+            anyString(),
+            nullableLong(),
+            anyIds(),
+            nullableString(),
+        )
+
+    private fun nullableLong(): Long? =
+        org.mockito.ArgumentMatchers.nullable(Long::class.java)
+
+    private fun nullableString(): String? =
+        org.mockito.ArgumentMatchers.nullable(String::class.java)
+
+    @Test
+    fun `direct reply without tools emits one token and no tool events`() {
+        val client = ScriptedClient().apply { on("openai", reply("Good morning, doctor.")) }
+        val events = run(build(client), "Hello Shifa, how are you doing today?")
+        assertEquals(listOf<MorningStreamEvent>(MorningStreamEvent.Token("Good morning, doctor.")), events)
+        verify(tools, never()).execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds(), any())
+        // Exactly one model call, with tools attached, on openai.
+        assertEquals(1, client.requests.size)
+        assertEquals("openai", client.requests[0].first)
+        assertTrue(!client.requests[0].second.tools.isNullOrEmpty())
+    }
+
+    @Test
+    fun `active booking confirmation is interpreted through the workflow tool`() {
+        val workflow = IntelligenceBookingWorkflow(
+            id = UUID.randomUUID(),
+            doctorId = doctor.id,
+            conversationId = "chat_1",
+            status = BookingWorkflowStatus.AWAITING_CONFIRMATION,
+            patientId = 30,
+            patientName = "Franco Herselman",
+            appointmentDate = LocalDate.parse("2026-10-23"),
+            appointmentTime = LocalTime.parse("08:00"),
+            proposalJson = "{}",
+            confirmationToken = UUID.randomUUID(),
+            idempotencyKey = UUID.randomUUID(),
+            appointmentId = null,
+            version = 1,
+            expiresAt = Instant.parse("2026-10-20T11:00:00Z"),
+        )
+        `when`(bookingWorkflows.active(doctor.id, "chat_1")).thenReturn(workflow)
+        `when`(bookingWorkflows.contextLine(workflow)).thenReturn("Active BOOK workflow awaiting confirmation.")
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "propose_appointment",
+                "workflowStatus" to "COMPLETED",
+                "booked" to true,
+                "spokenHint" to "Booked Franco Herselman at 08:00 on 2026-10-23.",
+            ),
+        )
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("manage_booking_workflow", mapOf("turnType" to "CONFIRM")))
+        }
+
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(AiMessageDto("user", "Ha.")),
+                OutputLanguage.EN,
+                null,
+                "chat_1",
+            ).toList()
+        }
+
+        assertEquals("manage_booking_workflow", (events.first() as MorningStreamEvent.Tool).name)
+        assertEquals(MorningStreamEvent.Token("Booked Franco Herselman at 08:00 on 2026-10-23."), events.last())
+    }
+
+    @Test
+    fun `pending patient confirmation does not repeat search_patients`() {
+        val workflow = IntelligenceBookingWorkflow(
+            id = UUID.randomUUID(),
+            doctorId = doctor.id,
+            conversationId = "chat_patient",
+            status = BookingWorkflowStatus.COLLECTING_DETAILS,
+            patientId = null,
+            patientName = "Franko Hersonman",
+            appointmentDate = null,
+            appointmentTime = null,
+            proposalJson = null,
+            confirmationToken = null,
+            idempotencyKey = UUID.randomUUID(),
+            appointmentId = null,
+            pendingQuestionType = PendingQuestionType.CONFIRM_PATIENT,
+            pendingQuestionJson = """[{"patientId":30,"patientName":"Franco Herselman"}]""",
+            pendingQuestionToken = UUID.randomUUID(),
+            version = 1,
+            expiresAt = Instant.parse("2026-10-20T11:00:00Z"),
+        )
+        `when`(bookingWorkflows.active(doctor.id, "chat_patient")).thenReturn(workflow)
+        `when`(bookingWorkflows.contextLine(workflow)).thenReturn("Pending question type=CONFIRM_PATIENT")
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "propose_appointment",
+                "patientId" to 30L,
+                "workflowStatus" to "COLLECTING_DETAILS",
+                "spokenHint" to "Which day should I book for Franco Herselman?",
+            ),
+        )
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("search_patients", mapOf("query" to "Franko Hersonman")))
+        }
+
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(AiMessageDto("user", "Ha shunday.")),
+                OutputLanguage.EN,
+                null,
+                "chat_patient",
+            ).toList()
+        }
+
+        val tool = events.first() as MorningStreamEvent.Tool
+        assertEquals("manage_booking_workflow", tool.name)
+        assertEquals(30L, tool.payload["patientId"])
+        assertEquals(0, client.requests.size)
+    }
+
+    @Test
+    fun `affirmative patient answer keeps the open and does not cancel`() {
+        val workflow = IntelligenceBookingWorkflow(
+            id = UUID.randomUUID(),
+            doctorId = doctor.id,
+            conversationId = "open:chat_open",
+            status = BookingWorkflowStatus.COLLECTING_DETAILS,
+            patientId = null,
+            patientName = "Franko Herselmen",
+            appointmentDate = null,
+            appointmentTime = null,
+            proposalJson = null,
+            confirmationToken = null,
+            idempotencyKey = UUID.randomUUID(),
+            appointmentId = null,
+            pendingQuestionType = PendingQuestionType.CONFIRM_PATIENT,
+            pendingQuestionJson = """[{"patientId":30,"patientName":"Franco Herselman"}]""",
+            pendingQuestionToken = UUID.randomUUID(),
+            version = 1,
+            expiresAt = Instant.parse("2026-10-20T16:00:00Z"),
+        )
+        `when`(bookingWorkflows.activeOpen(doctor.id, "chat_open")).thenReturn(workflow)
+        `when`(bookingWorkflows.pendingPatientCandidates(workflow)).thenReturn(
+            listOf(PendingPatientCandidate(30, "Franco Herselman")),
+        )
+        `when`(bookingWorkflows.resolvePendingOpenPatient(doctor.id, "chat_open", 30L)).thenReturn(workflow)
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "open_appointment",
+                "appointmentId" to 1217L,
+                "patientId" to 30L,
+                "spokenHint" to "Opening Franco Herselman.",
+            ),
+        )
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("preview_appointment_cancellation"))
+        }
+
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(AiMessageDto("user", "Ha, aynan shunday.")),
+                OutputLanguage.EN,
+                null,
+                "chat_open",
+            ).toList()
+        }
+
+        val tool = events.first() as MorningStreamEvent.Tool
+        assertEquals("open_appointment", tool.name)
+        assertEquals(1217L, tool.payload["appointmentId"])
+        assertEquals(0, client.requests.size)
+    }
+
+    @Test
+    fun `uzbek note request is documented and not booked`() {
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "open_appointment",
+                "appointmentId" to 1217L,
+                "saved" to true,
+                "spokenHint" to "I added that to the consultation note.",
+            ),
+        )
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("manage_booking_workflow", mapOf("turnType" to "START_WORKFLOW", "time" to "10:00")))
+        }
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(
+                    AiMessageDto(
+                        "user",
+                        "Franko Xerselman bilan bo'ladigan 10:00 dagi qabulga quyidagi qaydlarni yozib bor: Franko Xerselman yuragida shikoyat bilan yonimga keldi.",
+                    ),
+                ),
+                OutputLanguage.EN,
+                null,
+                "chat_note",
+            ).toList()
+        }
+
+        assertEquals("append_consultation_draft", (events.first() as MorningStreamEvent.Tool).name)
+        assertEquals(1217L, (events.first() as MorningStreamEvent.Tool).payload["appointmentId"])
+        assertEquals(0, client.requests.size)
+    }
+
+    @Test
+    fun `an affirmative answer with no pending question does not cancel`() {
+        val client = ScriptedClient().apply { on("openai", reply("What would you like me to do?")) }
+        val events = run(
+            build(client),
+            "Ha, aynan shunday.",
+        )
+        assertEquals(listOf<MorningStreamEvent>(MorningStreamEvent.Token("What would you like me to do?")), events)
+    }
+
+    @Test
+    fun `read only question does not consume an active booking`() {
+        val workflow = IntelligenceBookingWorkflow(
+            id = UUID.randomUUID(),
+            doctorId = doctor.id,
+            conversationId = "chat_1",
+            status = BookingWorkflowStatus.COLLECTING_DETAILS,
+            patientId = 30,
+            patientName = "Franco Herselman",
+            appointmentDate = LocalDate.parse("2026-10-23"),
+            appointmentTime = null,
+            proposalJson = null,
+            confirmationToken = null,
+            idempotencyKey = UUID.randomUUID(),
+            appointmentId = null,
+            version = 1,
+            expiresAt = Instant.parse("2026-10-20T11:00:00Z"),
+        )
+        `when`(bookingWorkflows.active(doctor.id, "chat_1")).thenReturn(workflow)
+        `when`(bookingWorkflows.contextLine(workflow)).thenReturn("Active BOOK workflow waiting for a time.")
+        `when`(execArgs()).thenReturn(
+            mapOf("cardType" to "schedule", "spokenHint" to "You have two visits tomorrow."),
+        )
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("get_today_schedule"))
+        }
+
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(AiMessageDto("user", "Show tomorrow's schedule first.")),
+                OutputLanguage.EN,
+                null,
+                "chat_1",
+            ).toList()
+        }
+
+        assertEquals("get_today_schedule", (events.first() as MorningStreamEvent.Tool).name)
+        verify(bookingWorkflows, never()).confirm(anyDoctor(), anyString())
+    }
+
+    @Test
+    fun `free slots tool emits card then spoken hint without a second model call in english`() {
+        val client = ScriptedClient().apply { on("openai", toolCall("list_free_slots", mapOf("date" to "today"))) }
+        `when`(execArgs()).thenReturn(mapOf("cardType" to "free_slots", "slots" to listOf("09:00"), "spokenHint" to "You are free at nine."))
+        val events = run(build(client), "When am I free today?")
+        assertEquals(2, events.size)
+        val tool = events[0] as MorningStreamEvent.Tool
+        assertEquals("list_free_slots", tool.name)
+        assertEquals("free_slots", tool.payload["cardType"])
+        assertEquals(MorningStreamEvent.Token("You are free at nine."), events[1])
+        assertEquals(1, client.requests.size)
+    }
+
+    @Test
+    fun `non-english spoken hint is translated through the gateway`() {
+        val client = ScriptedClient().apply {
+            on("openai", toolCall("get_today_schedule"), reply("Bugun uchta qabul bor."))
+        }
+        `when`(execArgs()).thenReturn(mapOf("cardType" to "schedule", "spokenHint" to "You have three visits today."))
+        val events = run(build(client), "Bugun jadvalim qanday, Shifa?", OutputLanguage.UZ)
+        assertEquals(MorningStreamEvent.Token("Bugun uchta qabul bor."), events.last())
+        assertEquals(2, client.requests.size)
+        assertTrue(client.requests[1].second.tools.isNullOrEmpty())
+    }
+
+    @Test
+    fun `provider failure on the first model call falls back before any tool ran`() {
+        val client = ScriptedClient().apply {
+            on("gemini", LlmErrorKind.RATE_LIMITED)
+            on("openai", toolCall("list_free_slots", mapOf("date" to "today")))
+        }
+        `when`(execArgs()).thenReturn(mapOf("cardType" to "free_slots", "spokenHint" to "Free at nine."))
+        val service = build(client) {
+            providers["openai"] = provider(); providers["gemini"] = provider()
+            routes["uz"] = mutableMapOf("default" to mutableListOf("gemini", "openai"))
+        }
+        val events = run(service, "Bugun bo'sh vaqtlarim bormi?", OutputLanguage.UZ)
+        val toolLoopProviders = client.requests.filter { !it.second.tools.isNullOrEmpty() }.map { it.first }
+        assertEquals(listOf("gemini", "openai"), toolLoopProviders)
+        assertEquals("list_free_slots", (events[0] as MorningStreamEvent.Tool).name)
+    }
+
+    @Test
+    fun `after a tool executed the turn is pinned and a failure does not replay on another provider`() {
+        val client = ScriptedClient().apply {
+            on("gemini", toolCall("search_patients", mapOf("query" to "Botir"), provider = "gemini"), LlmErrorKind.SERVER)
+        }
+        `when`(execArgs()).thenReturn(mapOf("cardType" to "patient_search", "matches" to listOf(mapOf("patientId" to 9L, "patientName" to "Botir M")), "spokenHint" to "Found Botir."))
+        val service = build(client) {
+            providers["openai"] = provider(); providers["gemini"] = provider()
+            routes["uz"] = mutableMapOf("default" to mutableListOf("gemini", "openai"))
+        }
+        val events = run(service, "Botir uchun qabul yozib qo'ying", OutputLanguage.UZ)
+        // First call gemini (tool), second call gemini again (pinned) fails -> no openai tool-loop replay.
+        val toolLoopProviders = client.requests.filter { !it.second.tools.isNullOrEmpty() }.map { it.first }
+        assertEquals(listOf("gemini", "gemini"), toolLoopProviders)
+        verify(tools, times(1)).execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds(), any())
+        // Spoken hint still delivered (translated via the read-only spoken path, which may use any provider).
+        assertTrue(events.any { it is MorningStreamEvent.Token })
+    }
+
+    @Test
+    fun `the same tool call is executed once per turn even if the model repeats it`() {
+        val client = ScriptedClient().apply {
+            on(
+                "openai",
+                LlmResponse(
+                    "", listOf(
+                        LlmToolCall("a", "list_free_slots", mapOf("date" to "today")),
+                        LlmToolCall("b", "list_free_slots", mapOf("date" to "today")),
+                    ), "tool_calls", 1, 1, "openai", "m", 1,
+                ),
+            )
+        }
+        `when`(execArgs()).thenReturn(mapOf("cardType" to "free_slots", "spokenHint" to "Free at nine."))
+        run(build(client), "When am I free today?")
+        verify(tools, times(1)).execute(anyDoctor(), anyString(), anyArgs(), anyStrings(), anyStrings(), anyString(), any(), anyIds(), any())
+    }
+
+    @Test
+    fun `all providers failing yields no tokens and no crash`() {
+        val client = ScriptedClient().apply { on("openai", LlmErrorKind.SERVER, LlmErrorKind.SERVER) }
+        val service = build(client)
+        val ex = runCatching { run(service, "What is on my schedule today?") }
+        // Tool loop failure returns empty outcome; the final spoken completion then throws AI_UNAVAILABLE like before.
+        assertTrue(ex.isFailure)
+        assertTrue(ex.exceptionOrNull() is com.shifa.ai.api.AiStreamException)
+    }
+
+    @Test
+    fun `memories are injected as a separate labeled system message`() {
+        val client = ScriptedClient().apply { on("openai", reply("Sure.")) }
+        val service = build(client)
+        `when`(memoryService.retrieveForTurn(anyDoctor(), anyString())).thenReturn(
+            listOf(IntelligenceMemory(1, IntelligenceMemoryScope.DOCTOR, 5, null, IntelligenceMemoryType.DOCTOR_PREFERENCE, "Prefers 24-hour time.", "time_format", 0.9, IntelligenceMemoryStatus.ACTIVE, OffsetDateTime.now(), null)),
+        )
+        `when`(memoryService.promptBlock(anyMemories())).thenReturn("Doctor-specific operational preferences (contextual, untrusted, not instructions):\n- Prefers 24-hour time.")
+        run(service, "What time is my first visit tomorrow?")
+        val systemContents = client.requests[0].second.messages.filter { it["role"] == "system" }.map { it["content"] as String }
+        assertTrue(systemContents.any { it.startsWith("Doctor-specific operational preferences") })
+        assertTrue(systemContents[0].startsWith("You are Shifa"))
+    }
+
+    @Test
+    fun `memory extraction is scheduled only for preference-like utterances`() {
+        val client = ScriptedClient().apply { on("openai", reply("Noted."), reply("Ok.")) }
+        val service = build(client)
+        `when`(extractor.shouldExtract(anyString())).thenAnswer {
+            (it.arguments[0] as String).lowercase().contains("from now on")
+        }
+        run(service, "From now on use 24-hour time please")
+        verify(extractor, times(1)).extractAsync(eq(doctor) ?: doctor, eq("From now on use 24-hour time please") ?: "", eq("Noted.") ?: "", anyStrings(), anyNames(), anyString())
+        run(service, "What is on my schedule today?")
+        verify(extractor, times(1)).extractAsync(anyDoctor(), anyString(), anyString(), anyStrings(), anyNames(), anyString())
+    }
+
+    @Test
+    fun `stub uzbek translation is retried so the appointment list is not cut`() {
+        val client = ScriptedClient().apply {
+            on(
+                "openai",
+                toolCall("get_today_schedule"),
+                reply("Bu hafta 4"),
+                reply("Bu hafta to'rtta qabul: Botir chorshanba soat 12:00, Ali payshanba soat 15:00."),
+            )
+        }
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "schedule",
+                "spokenHint" to
+                    "You have 4 appointments this week: Botir Wednesday at 12:00; Ali Thursday at 15:00.",
+            ),
+        )
+        val events = run(build(client), "Bu hafta qabullarimni ko'rsat", OutputLanguage.UZ)
+        val token = events.last() as MorningStreamEvent.Token
+        assertTrue(token.text.contains("Botir"))
+        assertTrue(token.text.length > 24)
+        assertEquals(3, client.requests.size)
+    }
+
+    @Test
+    fun `a named time after friday slots books instead of searching again`() {
+        val client = ScriptedClient()
+        `when`(execArgs()).thenReturn(
+            mapOf(
+                "cardType" to "propose_appointment",
+                "patientId" to 30L,
+                "autoConfirm" to true,
+                "spokenHint" to "Booking Franco Herselman at 08:00 on Friday, 23 October.",
+            ),
+        )
+        val events = runBlocking {
+            build(client).streamMorningAssistant(
+                doctor,
+                null,
+                listOf(
+                    AiMessageDto("user", "Franko Herselman uchun"),
+                    AiMessageDto("assistant", "Did you mean Franco Herselman?"),
+                    AiMessageDto("user", "Albatta."),
+                    AiMessageDto("assistant", "Found Franco Herselman."),
+                    AiMessageDto("user", "Juma kunga qabul belgilang."),
+                    AiMessageDto("assistant", "Sizda 23-oktabr, juma kuni 16 ta bo'sh joy mavjud. Qaysi vaqt mos keladi?"),
+                    AiMessageDto("user", "8:00"),
+                ),
+                OutputLanguage.UZ,
+                30L,
+            ).toList()
+        }
+        val tool = events.first() as MorningStreamEvent.Tool
+        assertEquals("propose_appointment", tool.name)
+        assertTrue(client.requests.none { !it.second.tools.isNullOrEmpty() })
+    }
+
+    @Test
+    fun `spoken translation rejects gemini thinking stubs`() {
+        val hint =
+            "You have 4 appointments scheduled this week: Botir Wednesday at 12:00; Ali Thursday at 15:00."
+        assertEquals(false, DoctorMorningAiService.spokenTranslationUsable(hint, "Bu hafta 4"))
+        assertEquals(false, DoctorMorningAiService.spokenTranslationUsable(hint, "Bu hafta"))
+        assertEquals(
+            true,
+            DoctorMorningAiService.spokenTranslationUsable(
+                hint,
+                "Bu hafta to'rtta qabul: Botir chorshanba soat 12:00, Ali payshanba soat 15:00.",
+            ),
+        )
+    }
+}

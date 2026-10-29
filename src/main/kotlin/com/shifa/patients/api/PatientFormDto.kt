@@ -1,0 +1,56 @@
+package com.shifa.patients.api
+
+import com.shifa.ai.clinicalengine.api.ClinicalChipSelectionDto
+import java.time.LocalDate
+
+data class PatientFormFollowupDto(
+    val date: LocalDate,
+    val clinicalFindings: String,
+    val doctorName: String? = null
+)
+
+data class PatientFormDto(
+    val id: Long? = null,
+    val patientId: Long,
+    val templateId: String,
+    val date: LocalDate,
+    val fullName: String,
+    val gender: String? = null,
+    val address: String? = null,
+    val age: Int? = null,
+    val job: String? = null,
+    val diagnosis: String? = null,
+    val diagnosisCode: String? = null,
+    val diagnosisDisplay: String? = null,
+    val diagnosisSystem: String? = null,
+    val complaints: String? = null,
+    val otherIllnesses: String? = null,
+    val moreDetails: String? = null,
+    val visualCheckup: String? = null,
+
+    // New 025-2 fields
+    val occlusion: String? = null,
+    val oralCavityCondition: String? = null,
+    val xrayLabData: String? = null,
+    val treatment: String? = null,
+    val treatmentResult: String? = null,
+    val recommendations: String? = null,
+    val doctorName: String? = null,
+    val doctorClinic: String? = null,
+    val formNumber: Int? = null,
+
+    val dentalChart: Map<String, String> = emptyMap(),
+    val followups: List<PatientFormFollowupDto> = emptyList(),
+
+    val documentId: Long? = null,
+
+    val signatureRequested: Boolean = false,
+    val patientSignedAt: String? = null,
+    val patientSignatureImageBase64: String? = null,
+    /** Doctor who created this form (owner); server-managed for RAG on 025-2. */
+    val createdByDoctorId: Long? = null,
+    /** Clinical Engine scenario id (hidden). */
+    val clinicalDiseaseId: String? = null,
+    /** Clinical Engine chip selections for restore on edit (hidden). */
+    val clinicalChipSelections: List<ClinicalChipSelectionDto> = emptyList(),
+) 

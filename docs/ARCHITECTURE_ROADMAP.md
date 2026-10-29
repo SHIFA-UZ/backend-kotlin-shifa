@@ -395,6 +395,17 @@ deployment serving. After it is live in production, delete from **both** Railway
 `STRIPE_CONNECT_RETURN_URL`, `PAYMENT_ENABLED_PROVIDERS` (dev), and the stale `PUBLIC_BASE_URL` and
 `SPRING_VARIABLES_ACTIVE` (prod). `GOOGLE_MAPS_API_KEY` stays a variable until its value is confirmed public.
 
+**Phase 5 step 1 is done for every feature at once** (branch `refactor/phase5-move`, 2026-10-29): 436 main and 60 test
+files moved class-for-class into `com.shifa.<feature>.{api,application,domain,infrastructure}` (`shared/` keeps
+`security/`, `config/`, `api/`, `storage/`, `util/`; `payment/` became `payments/`; `clinicalengine/` and
+`intelligence/appointment/`, `ai/llm`, `ai/memory` and `ai/speech` are layered into `appointments/` and `ai/`). Only
+`package`, `import` and fully-qualified references changed (verified by a script that compares every moved file with its
+original ignoring those lines), the OpenAPI snapshot is byte-identical and all 412 tests pass. Placement decisions worth knowing: `SubscriptionTier` stays with `User` in `auth.domain`,
+`SubscriptionTierService` is `payments.application`; `BookingPaymentPolicy` is `appointments.application`,
+`AppointmentPaymentSettlement` is `payments.application`; the AI heuristics (`SymptomMatcher` etc.) are `ai.domain`;
+`AuditService`/`AuditLog` are `admin`; `DoctorBilling` is `payments`; `VisitChargeService` is `clinics`. Steps 2–4 (DTO
+extraction, controllers without repositories, ArchUnit border rules) now follow one feature per PR in the 9.2 order.
+
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),

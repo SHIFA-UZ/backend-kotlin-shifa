@@ -1,43 +1,43 @@
 package com.shifa.devseed
 
-import com.shifa.domain.Appointment
-import com.shifa.domain.Clinic
-import com.shifa.domain.ClinicMembership
-import com.shifa.domain.DoctorLocation
-import com.shifa.domain.DoctorProfile
-import com.shifa.domain.DoctorService
-import com.shifa.domain.DoctorServicePrice
-import com.shifa.domain.Notification
-import com.shifa.domain.PatientDocument
-import com.shifa.domain.PatientDocumentCategory
-import com.shifa.domain.PatientProfile
-import com.shifa.domain.RemoteCareTask
-import com.shifa.domain.Role
-import com.shifa.domain.ServicePaymentType
-import com.shifa.domain.SubscriptionTier
-import com.shifa.domain.TaskCheckIn
-import com.shifa.domain.AdminLevel
-import com.shifa.domain.AdminProfile
-import com.shifa.domain.User
-import com.shifa.domain.UserRole
-import com.shifa.domain.WeeklyScheduleRule
-import com.shifa.repo.AppointmentRepository
-import com.shifa.repo.ClinicMembershipRepository
-import com.shifa.repo.ClinicRepository
-import com.shifa.repo.DoctorLocationRepository
-import com.shifa.repo.DoctorProfileRepository
-import com.shifa.repo.DoctorServicePriceRepository
-import com.shifa.repo.DoctorServiceRepository
-import com.shifa.repo.NotificationRepository
-import com.shifa.repo.PatientDocumentRepository
-import com.shifa.repo.PatientProfileRepository
-import com.shifa.repo.RemoteCareTaskRepository
-import com.shifa.repo.TaskCheckInRepository
-import com.shifa.repo.UserRepository
-import com.shifa.repo.UserRoleRepository
-import com.shifa.repo.WeeklyScheduleRuleRepository
-import com.shifa.service.PatientDocumentStorageService
-import com.shifa.util.PhoneNormalizer
+import com.shifa.appointments.domain.Appointment
+import com.shifa.clinics.domain.Clinic
+import com.shifa.clinics.domain.ClinicMembership
+import com.shifa.doctors.domain.DoctorLocation
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.doctors.domain.DoctorService
+import com.shifa.doctors.domain.DoctorServicePrice
+import com.shifa.notifications.domain.Notification
+import com.shifa.documents.domain.PatientDocument
+import com.shifa.documents.domain.PatientDocumentCategory
+import com.shifa.patients.domain.PatientProfile
+import com.shifa.tasks.domain.RemoteCareTask
+import com.shifa.auth.domain.Role
+import com.shifa.doctors.domain.ServicePaymentType
+import com.shifa.auth.domain.SubscriptionTier
+import com.shifa.tasks.domain.TaskCheckIn
+import com.shifa.admin.domain.AdminLevel
+import com.shifa.admin.domain.AdminProfile
+import com.shifa.auth.domain.User
+import com.shifa.auth.domain.UserRole
+import com.shifa.appointments.domain.WeeklyScheduleRule
+import com.shifa.appointments.infrastructure.AppointmentRepository
+import com.shifa.clinics.infrastructure.ClinicMembershipRepository
+import com.shifa.clinics.infrastructure.ClinicRepository
+import com.shifa.doctors.infrastructure.DoctorLocationRepository
+import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
+import com.shifa.doctors.infrastructure.DoctorServiceRepository
+import com.shifa.notifications.infrastructure.NotificationRepository
+import com.shifa.documents.infrastructure.PatientDocumentRepository
+import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.tasks.infrastructure.RemoteCareTaskRepository
+import com.shifa.tasks.infrastructure.TaskCheckInRepository
+import com.shifa.auth.infrastructure.UserRepository
+import com.shifa.auth.infrastructure.UserRoleRepository
+import com.shifa.appointments.infrastructure.WeeklyScheduleRuleRepository
+import com.shifa.documents.application.PatientDocumentStorageService
+import com.shifa.shared.util.PhoneNormalizer
 import org.slf4j.LoggerFactory
 import org.springframework.boot.ApplicationArguments
 import org.springframework.boot.ApplicationRunner
@@ -86,7 +86,7 @@ class DevSeedRunner(
     private val notifications: NotificationRepository,
     private val passwordEncoder: PasswordEncoder,
     private val documentStorage: PatientDocumentStorageService,
-    private val adminProfiles: com.shifa.repo.AdminProfileRepository,
+    private val adminProfiles: com.shifa.admin.infrastructure.AdminProfileRepository,
     private val environment: Environment,
     @org.springframework.beans.factory.annotation.Value("\${app.dev-seed-admin-emails:}") private val adminEmails: String,
 ) : ApplicationRunner {

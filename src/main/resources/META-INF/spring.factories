@@ -1,1 +1,1 @@
-org.springframework.boot.env.EnvironmentPostProcessor=com.shifa.config.RequiredSecretsEnvironmentPostProcessor
+org.springframework.boot.env.EnvironmentPostProcessor=com.shifa.shared.config.RequiredSecretsEnvironmentPostProcessor
