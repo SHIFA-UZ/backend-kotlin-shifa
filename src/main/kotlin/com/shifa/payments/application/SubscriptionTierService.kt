@@ -4,7 +4,6 @@ import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.auth.domain.SubscriptionTier
 import com.shifa.auth.domain.User
-import com.shifa.auth.infrastructure.UserRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -17,7 +16,7 @@ import org.springframework.web.server.ResponseStatusException
  */
 @Service
 class SubscriptionTierService(
-    private val userRepository: UserRepository
+    private val userRepository: com.shifa.auth.application.Users
 ) {
 
     /**

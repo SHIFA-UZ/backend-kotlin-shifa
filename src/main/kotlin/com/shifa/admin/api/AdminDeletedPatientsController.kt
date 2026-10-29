@@ -1,53 +1,44 @@
 package com.shifa.admin.api
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.shifa.admin.application.AuditService
 import com.shifa.ai.domain.AiDraftNote
+import com.shifa.ai.infrastructure.AiDraftNoteRepository
 import com.shifa.appointments.domain.Appointment
-import com.shifa.patients.domain.PatientProfile
+import com.shifa.appointments.domain.ConsultationNote
 import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
-import com.shifa.admin.infrastructure.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.infrastructure.*
-import com.shifa.clinics.infrastructure.*
-import com.shifa.doctors.infrastructure.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.infrastructure.*
-import com.shifa.payments.infrastructure.*
-import com.shifa.tasks.infrastructure.*
-import com.shifa.shared.security.AdminPrincipal
-import com.shifa.admin.application.AuditService
-import com.shifa.documents.application.PatientDocumentService
-import com.shifa.patients.application.PatientFormService
-import com.shifa.shared.util.PhoneNormalizer
 import com.shifa.documents.api.PatientDocumentDto
+import com.shifa.documents.application.PatientDocumentService
 import com.shifa.patients.api.PatientFormDto
+import com.shifa.patients.application.PatientFormService
+import com.shifa.patients.domain.PatientProfile
+import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.shared.security.AdminPrincipal
+import com.shifa.shared.util.PhoneNormalizer
+import java.security.MessageDigest
+import java.util.UUID
 import org.apache.pdfbox.pdmodel.PDDocument
 import org.apache.pdfbox.pdmodel.PDPage
 import org.apache.pdfbox.pdmodel.PDPageContentStream
 import org.apache.pdfbox.pdmodel.common.PDRectangle
 import org.apache.pdfbox.pdmodel.font.PDType1Font
 import org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName
+import org.slf4j.LoggerFactory
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
-import org.springframework.http.HttpHeaders
 import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.transaction.annotation.Transactional as SpringTransactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.security.MessageDigest
-import java.util.UUID
-import com.fasterxml.jackson.annotation.JsonInclude
-import org.springframework.transaction.annotation.Transactional as SpringTransactional
-import com.shifa.appointments.domain.ConsultationNote
-import org.slf4j.LoggerFactory
 
 @RestController
 @RequestMapping("/api/admin/patients/deleted")
 class AdminDeletedPatientsController(
-    private val users: UserRepository,
+    private val users: com.shifa.auth.application.Users,
     private val patientProfiles: PatientProfileRepository,
     private val appointments: com.shifa.appointments.application.Appointments,
     private val patientDocumentService: PatientDocumentService,

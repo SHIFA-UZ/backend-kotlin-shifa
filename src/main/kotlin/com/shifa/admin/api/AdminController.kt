@@ -1,40 +1,28 @@
 package com.shifa.admin.api
 
-import com.shifa.clinics.domain.ClinicMembership
+import com.shifa.admin.application.AdminCalendarResetService
+import com.shifa.admin.application.AdminClinicService
+import com.shifa.admin.application.AuditService
+import com.shifa.admin.domain.AdminLevel
+import com.shifa.admin.infrastructure.SystemConfigRepository
+import com.shifa.auth.application.UserActivityService
+import com.shifa.auth.application.UserDeletionService
+import com.shifa.auth.application.UserManagementService
+import com.shifa.auth.application.Users
 import com.shifa.auth.domain.SubscriptionTier
 import com.shifa.auth.domain.User
-import com.shifa.admin.infrastructure.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.infrastructure.*
-import com.shifa.clinics.infrastructure.*
-import com.shifa.doctors.infrastructure.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.infrastructure.*
-import com.shifa.payments.infrastructure.*
-import com.shifa.tasks.infrastructure.*
+import com.shifa.clinics.application.InvitationKeyService
+import com.shifa.clinics.domain.ClinicMembership
+import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.payments.application.SubscriptionTierService
 import com.shifa.shared.security.AdminPrincipal
-import com.shifa.admin.application.*
-import com.shifa.ai.application.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.application.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.application.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.application.*
-import com.shifa.clinics.application.*
-import com.shifa.doctors.application.*
-import com.shifa.documents.application.*
-import com.shifa.notifications.application.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.application.*
-import com.shifa.payments.application.*
-import com.shifa.shared.storage.*
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
+import java.time.OffsetDateTime
+import java.util.NoSuchElementException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.web.PageableDefault
@@ -42,9 +30,6 @@ import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import com.shifa.admin.domain.AdminLevel
-import java.time.OffsetDateTime
-import java.util.NoSuchElementException
 
 @RestController
 @RequestMapping("/api/admin")
@@ -54,7 +39,7 @@ class AdminController(
     private val userDeletionService: com.shifa.auth.application.UserDeletionService,
     private val auditService: AuditService,
     private val userActivityService: UserActivityService,
-    private val userRepository: UserRepository,
+    private val userRepository: com.shifa.auth.application.Users,
     private val doctorProfileRepository: DoctorProfileRepository,
     private val patientProfileRepository: PatientProfileRepository,
     private val systemConfigRepository: SystemConfigRepository,

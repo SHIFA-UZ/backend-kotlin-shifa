@@ -1,26 +1,25 @@
 // src/main/kotlin/com/shifa/appointments/api/BookingController.kt
 package com.shifa.appointments.api
 
-import com.shifa.appointments.api.dto.BookReq
 import com.shifa.appointments.api.dto.ApptDto
-
-import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.auth.infrastructure.UserRepository
-import com.shifa.shared.security.DoctorPrincipal
-import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.appointments.api.dto.BookReq
 import com.shifa.appointments.application.DoctorAppointmentBookingService
 import com.shifa.appointments.application.DoctorBookingCommand
+import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import com.shifa.shared.security.DoctorPrincipal
+import java.time.Instant
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
+
 
 @RestController
 @RequestMapping("/api/schedule/book")
 class BookingController(
     private val doctors: DoctorProfileRepository,
-    private val users: UserRepository,
+    private val users: com.shifa.auth.application.Users,
     private val clinicAccess: ClinicAccessService,
     private val bookingService: DoctorAppointmentBookingService,
 ) {

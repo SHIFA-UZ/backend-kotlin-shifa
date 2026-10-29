@@ -1,42 +1,38 @@
 package com.shifa.clinics.api
 
+import com.shifa.appointments.application.Appointments
+import com.shifa.auth.application.Users
+import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.clinics.application.ClinicFinanceAccessService
+import com.shifa.clinics.application.ClinicFinanceAuditService
+import com.shifa.clinics.application.ClinicFinanceLedgerService
+import com.shifa.clinics.application.InstallmentService
+import com.shifa.clinics.application.TreatmentPlanFinanceService
 import com.shifa.clinics.domain.FinancialRecord
 import com.shifa.clinics.domain.InstallmentItem
 import com.shifa.clinics.domain.InstallmentPlan
-import com.shifa.notifications.domain.Notification
 import com.shifa.clinics.domain.TreatmentPlan
 import com.shifa.clinics.domain.TreatmentPlanPayment
-import com.shifa.admin.infrastructure.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.infrastructure.*
-import com.shifa.clinics.infrastructure.*
-import com.shifa.doctors.infrastructure.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.infrastructure.*
-import com.shifa.payments.infrastructure.*
-import com.shifa.tasks.infrastructure.*
-import com.shifa.admin.application.*
-import com.shifa.ai.application.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.application.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.application.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.application.*
-import com.shifa.clinics.application.*
-import com.shifa.doctors.application.*
-import com.shifa.documents.application.*
-import com.shifa.notifications.application.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.application.*
-import com.shifa.payments.application.*
-import com.shifa.shared.storage.*
+import com.shifa.clinics.infrastructure.ClinicFinanceAuditLogRepository
+import com.shifa.clinics.infrastructure.ClinicRepository
+import com.shifa.clinics.infrastructure.FinancialRecordRepository
+import com.shifa.clinics.infrastructure.InstallmentItemRepository
+import com.shifa.clinics.infrastructure.InstallmentPlanRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanPaymentRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanRepository
+import com.shifa.doctors.application.DoctorRevenueShareService
+import com.shifa.notifications.application.NotificationService
+import com.shifa.notifications.domain.Notification
+import com.shifa.patients.infrastructure.PatientProfileRepository
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import java.time.Instant
+import java.time.LocalDate
+import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.http.HttpStatus
@@ -44,10 +40,6 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
-import java.time.LocalDate
-import java.time.OffsetDateTime
-import java.time.ZoneOffset
 
 @RestController
 @RequestMapping("/api/clinics/{clinicId}/finance")
@@ -68,7 +60,7 @@ class ClinicFinanceController(
     private val appts: com.shifa.appointments.application.Appointments,
     private val clinics: ClinicRepository,
     private val patients: PatientProfileRepository,
-    private val users: UserRepository,
+    private val users: com.shifa.auth.application.Users,
     private val auditLogs: ClinicFinanceAuditLogRepository,
     private val notificationService: com.shifa.notifications.application.NotificationService,
 ) {

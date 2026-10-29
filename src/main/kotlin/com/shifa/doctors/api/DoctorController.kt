@@ -1,35 +1,34 @@
 package com.shifa.doctors.api
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.shifa.payments.domain.DoctorBilling
+import com.shifa.admin.application.AdminClinicService
+import com.shifa.appointments.application.ScheduleValidityService
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorSettings
 import com.shifa.doctors.domain.DoctorStartTab
-import com.shifa.notifications.domain.Notification
-import com.shifa.payments.application.DoctorBillingService
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.DoctorSettingsRepository
-import com.shifa.auth.infrastructure.UserRepository
+import com.shifa.notifications.domain.Notification
+import com.shifa.payments.application.DoctorBillingService
+import com.shifa.payments.domain.DoctorBilling
 import com.shifa.shared.security.DoctorPrincipal
-import com.shifa.admin.application.AdminClinicService
-import com.shifa.appointments.application.ScheduleValidityService
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
+import java.text.Normalizer
+import java.time.OffsetDateTime
+import java.util.Locale
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
-import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.multipart.MultipartFile
-import java.text.Normalizer
-import java.time.OffsetDateTime
-import java.util.Locale
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/api/doctors/me")
 class DoctorController(
-    private val users: UserRepository,
+    private val users: com.shifa.auth.application.Users,
     private val doctors: DoctorProfileRepository,
     private val billingRepo: DoctorBillingService,
     private val settingsRepo: DoctorSettingsRepository,

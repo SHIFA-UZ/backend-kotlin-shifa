@@ -1,44 +1,45 @@
 package com.shifa.clinics.api
 
-import com.shifa.notifications.api.NotificationController
 
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.shifa.appointments.application.PatientDaySlotsService
 import com.shifa.appointments.domain.Appointment
-import com.shifa.notifications.domain.Notification
-import com.shifa.clinics.domain.TreatmentPlan
-import com.shifa.clinics.domain.TreatmentPlanLine
-import com.shifa.clinics.domain.TreatmentPlanPayment
-import com.shifa.clinics.domain.TreatmentPlanCatalogItem
-import com.shifa.admin.infrastructure.*
-import com.shifa.ai.infrastructure.*
-import com.shifa.appointments.infrastructure.*
-import com.shifa.auth.infrastructure.*
-import com.shifa.chat.infrastructure.*
-import com.shifa.clinics.infrastructure.*
-import com.shifa.doctors.infrastructure.*
-import com.shifa.notifications.infrastructure.*
-import com.shifa.patients.infrastructure.*
-import com.shifa.payments.infrastructure.*
-import com.shifa.tasks.infrastructure.*
-import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.clinics.application.ClinicAccessService
 import com.shifa.clinics.application.ClinicCatalogService
 import com.shifa.clinics.application.ClinicFinanceLedgerService
-import com.shifa.appointments.application.PatientDaySlotsService
-import com.shifa.clinics.application.TreatmentPlanFulfillmentService
 import com.shifa.clinics.application.TreatmentPlanFinanceService
+import com.shifa.clinics.application.TreatmentPlanFulfillmentService
+import com.shifa.clinics.domain.TreatmentPlan
+import com.shifa.clinics.domain.TreatmentPlanCatalogItem
+import com.shifa.clinics.domain.TreatmentPlanLine
+import com.shifa.clinics.domain.TreatmentPlanPayment
+import com.shifa.clinics.infrastructure.ClinicRepository
+import com.shifa.clinics.infrastructure.InstallmentItemRepository
+import com.shifa.clinics.infrastructure.InstallmentPlanRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanAppointmentLinkRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanCatalogItemRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanLineFulfillmentRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanPaymentRepository
+import com.shifa.clinics.infrastructure.TreatmentPlanRepository
+import com.shifa.doctors.infrastructure.DoctorLocationRepository
+import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import com.shifa.doctors.infrastructure.DoctorServicePriceRepository
+import com.shifa.doctors.infrastructure.DoctorServiceRepository
+import com.shifa.notifications.domain.Notification
+import com.shifa.patients.infrastructure.PatientProfileRepository
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import java.time.Instant
+import java.time.OffsetDateTime
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
-import java.time.Instant
-import java.time.OffsetDateTime
 
 @RestController
 @RequestMapping("/api/treatment-plans")
@@ -60,7 +61,7 @@ class TreatmentPlanController(
     private val appts: com.shifa.appointments.application.Appointments,
     private val installmentPlans: InstallmentPlanRepository,
     private val installmentItems: InstallmentItemRepository,
-    private val users: UserRepository,
+    private val users: com.shifa.auth.application.Users,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val objectMapper: ObjectMapper,
     private val doctorLocations: DoctorLocationRepository,

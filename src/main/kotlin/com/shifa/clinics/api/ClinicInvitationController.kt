@@ -1,14 +1,14 @@
 package com.shifa.clinics.api
 
+import com.shifa.auth.application.Emails
+import com.shifa.clinics.application.ClinicAccessService
+import com.shifa.clinics.application.InvitationKeyService
 import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.clinics.domain.InvitationKey
 import com.shifa.clinics.infrastructure.ClinicRepository
 import com.shifa.clinics.infrastructure.InvitationKeyRepository
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
-import com.shifa.clinics.application.ClinicAccessService
-import com.shifa.auth.infrastructure.EmailSenderService
-import com.shifa.clinics.application.InvitationKeyService
 import jakarta.validation.Valid
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
@@ -29,7 +29,7 @@ class ClinicInvitationController(
     private val clinicAccess: ClinicAccessService,
     private val invitationKeys: InvitationKeyRepository,
     private val invitationKeyService: InvitationKeyService,
-    private val emailSender: EmailSenderService,
+    private val emailSender: Emails,
 ) {
 
     data class CreateInvitationRequest(
