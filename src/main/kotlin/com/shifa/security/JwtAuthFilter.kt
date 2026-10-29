@@ -70,7 +70,7 @@ class JwtAuthFilter(
                     response.status = HttpServletResponse.SC_UNAUTHORIZED
                     response.contentType = "application/json"
                     response.characterEncoding = "UTF-8"
-                    response.writer.write("""{"error":"Session invalid"}""")
+                    response.writer.write(com.shifa.shared.ErrorBodies.filterJson("Session invalid", com.shifa.shared.ErrorCode.SESSION_INVALID))
                     return
                 }
                 val now = OffsetDateTime.now()
@@ -81,7 +81,7 @@ class JwtAuthFilter(
                         response.status = HttpServletResponse.SC_UNAUTHORIZED
                         response.contentType = "application/json"
                         response.characterEncoding = "UTF-8"
-                        response.writer.write("""{"error":"Session expired or signed out"}""")
+                        response.writer.write(com.shifa.shared.ErrorBodies.filterJson("Session expired or signed out", com.shifa.shared.ErrorCode.SESSION_EXPIRED))
                         return
                     }
                 } else {
@@ -91,7 +91,7 @@ class JwtAuthFilter(
                         response.status = HttpServletResponse.SC_UNAUTHORIZED
                         response.contentType = "application/json"
                         response.characterEncoding = "UTF-8"
-                        response.writer.write("""{"error":"Session expired or signed out"}""")
+                        response.writer.write(com.shifa.shared.ErrorBodies.filterJson("Session expired or signed out", com.shifa.shared.ErrorCode.SESSION_EXPIRED))
                         return
                     }
                     sessionValidationCache.putValid(jti, session.expiresAt)
@@ -105,7 +105,7 @@ class JwtAuthFilter(
                         response.status = HttpServletResponse.SC_UNAUTHORIZED
                         response.contentType = "application/json"
                         response.characterEncoding = "UTF-8"
-                        response.writer.write("""{"error":"Invalid token"}""")
+                        response.writer.write(com.shifa.shared.ErrorBodies.filterJson("Invalid token", com.shifa.shared.ErrorCode.TOKEN_INVALID))
                         return
                     }
                 val user = principalResolver.getPrincipalForToken(userIdLong, tokenRole)
@@ -116,7 +116,7 @@ class JwtAuthFilter(
                     response.status = HttpServletResponse.SC_FORBIDDEN
                     response.contentType = "application/json"
                     response.characterEncoding = "UTF-8"
-                    response.writer.write("""{"error":"Account is disabled"}""")
+                    response.writer.write(com.shifa.shared.ErrorBodies.filterJson("Account is disabled", com.shifa.shared.ErrorCode.ACCOUNT_DISABLED))
                     return
                 }
 

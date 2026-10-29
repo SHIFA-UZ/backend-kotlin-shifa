@@ -19,6 +19,7 @@
       "AdminClinicMemberRoleRequest": {
         "properties": {
           "membershipRole": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -30,22 +31,38 @@
       "AdminClinicUpsertRequest": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "currency": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "name": {
+            "minLength": 1,
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeZone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -56,7 +73,10 @@
       "AdminLoginOtpSentResponse": {
         "properties": {
           "emailHint": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "sent": {
             "type": "boolean"
@@ -70,17 +90,29 @@
       "AdminPatientProfileResponse": {
         "properties": {
           "createdAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdByDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "createdByDoctorName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "fullName": {
             "type": "string"
@@ -90,7 +122,10 @@
             "type": "integer"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -102,12 +137,15 @@
       "AdminVerifyLoginOtpRequest": {
         "properties": {
           "code": {
+            "minLength": 1,
             "type": "string"
           },
           "password": {
+            "minLength": 1,
             "type": "string"
           },
           "username": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -128,7 +166,10 @@
           },
           "consultationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -138,18 +179,27 @@
             "type": "integer"
           },
           "icdSuggestionsJson": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "uuid",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "modelVersion": {
             "type": "string"
           },
           "patientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "promptVersion": {
             "type": "string"
@@ -177,6 +227,7 @@
             "type": "string"
           },
           "role": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -190,7 +241,10 @@
         "properties": {
           "appointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "lines": {
             "items": {
@@ -211,17 +265,26 @@
             "type": "integer"
           },
           "briefingText": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "documentCount": {
             "format": "int32",
             "type": "integer"
           },
           "error": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "generatedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "type": "string"
@@ -236,6 +299,9 @@
       },
       "AppointmentDto": {
         "properties": {
+          "alreadySigned": {
+            "type": "boolean"
+          },
           "canCancel": {
             "type": "boolean"
           },
@@ -243,30 +309,58 @@
             "type": "boolean"
           },
           "doctorClinic": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "doctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "doctorName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "doctorPhotoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "doctorProfession": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "documentIds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "array"
           },
           "endAt": {
             "type": "string"
           },
           "holdExpiresAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "isLocked24h": {
             "type": "boolean"
@@ -278,46 +372,95 @@
             "type": "string"
           },
           "locationAddress": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "locationLabel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "payment": {
-            "$ref": "#/components/schemas/PaymentCheckoutDto"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PaymentCheckoutDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "paymentAmountMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "paymentBadge": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paymentCurrency": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paymentStatus": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paymentType": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "reason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "refundRequired": {
             "type": "boolean"
           },
           "serviceId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "serviceTitle": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "signatureRequested": {
+            "type": "boolean"
           },
           "startAt": {
             "type": "string"
@@ -327,13 +470,16 @@
           }
         },
         "required": [
+          "alreadySigned",
           "canCancel",
           "canReschedule",
+          "documentIds",
           "endAt",
           "isLocked24h",
           "isVideoConsultation",
           "location",
           "refundRequired",
+          "signatureRequested",
           "startAt",
           "status"
         ],
@@ -359,10 +505,16 @@
             "type": "string"
           },
           "patientSignedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "reason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "signatureRequested": {
             "type": "boolean"
@@ -389,7 +541,10 @@
       "AppointmentReviewDto": {
         "properties": {
           "comment": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -461,27 +616,42 @@
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "location": {
             "type": "string"
           },
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "locationLabel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "patientName": {
             "type": "string"
           },
           "reason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "startAt": {
             "type": "string"
@@ -502,7 +672,10 @@
       "AskVisitSummaryRequest": {
         "properties": {
           "language": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "question": {
             "type": "string"
@@ -513,6 +686,21 @@
         ],
         "type": "object"
       },
+      "AttachDocumentsRequest": {
+        "properties": {
+          "documentIds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "documentIds"
+        ],
+        "type": "object"
+      },
       "AvailableSlotDto": {
         "properties": {
           "endAt": {
@@ -520,10 +708,16 @@
           },
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "locationLabel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "slotMinutes": {
             "format": "int32",
@@ -543,25 +737,46 @@
       "BillingDto": {
         "properties": {
           "billingEmail": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "billingName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clickMerchantId": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "iban": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paymeMerchantId": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "stripeConnectAccountId": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "taxId": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -573,21 +788,33 @@
           },
           "cancelledAppointmentCount": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "endAt": {
             "type": "string"
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "reason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "resourceDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "startAt": {
             "type": "string"
@@ -611,28 +838,52 @@
               "format": "int64",
               "type": "integer"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "isVideo": {
             "type": "boolean"
           },
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "paymentProvider": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "reason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "rescheduleAppointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "serviceId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "slotMinutes": {
             "format": "int32",
@@ -656,22 +907,37 @@
             "type": "boolean"
           },
           "location": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "reason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "resourceDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "slotMinutes": {
             "format": "int32",
@@ -696,14 +962,23 @@
           },
           "lineId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "slotMinutes": {
             "format": "int32",
@@ -711,6 +986,7 @@
             "type": "integer"
           },
           "startAt": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -724,10 +1000,16 @@
       "CarePartnerSearchHit": {
         "properties": {
           "avatarUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clinic": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "firstName": {
             "type": "string"
@@ -740,13 +1022,22 @@
             "type": "string"
           },
           "locationCity": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationCountry": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "profession": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -773,11 +1064,17 @@
             "type": "string"
           },
           "message": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "originatingAppointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "partnerDoctorId": {
             "format": "int64",
@@ -791,10 +1088,16 @@
             "type": "integer"
           },
           "patientName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "specialtyRequested": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "type": "string"
@@ -803,7 +1106,10 @@
             "type": "string"
           },
           "viewerRole": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -868,7 +1174,10 @@
             "type": "integer"
           },
           "code": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "currency": {
             "type": "string"
@@ -905,9 +1214,13 @@
       "ChangePasswordRequest": {
         "properties": {
           "currentPassword": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "newPassword": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -920,7 +1233,10 @@
         "properties": {
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "slotMinutes": {
             "format": "int32",
@@ -939,10 +1255,16 @@
       "CheckExistingDoctorRequest": {
         "properties": {
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -965,16 +1287,23 @@
       "CheckExistingPatientRequest": {
         "properties": {
           "email": {
+            "format": "email",
+            "minLength": 1,
             "type": "string"
           },
           "firstName": {
+            "minLength": 1,
             "type": "string"
           },
           "lastName": {
+            "minLength": 1,
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -987,16 +1316,25 @@
       "CheckExistingPatientResponse": {
         "properties": {
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "found": {
             "type": "boolean"
           },
           "fullName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "photoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1007,10 +1345,16 @@
       "CheckIdentifierRequest": {
         "properties": {
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -1018,10 +1362,16 @@
       "CheckIdentifierResponse": {
         "properties": {
           "firstName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "lastName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "type": {
             "type": "string"
@@ -1035,33 +1385,51 @@
       "CheckInDto": {
         "properties": {
           "booleanValue": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "completedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
             "type": "integer"
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "numericValue": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "scheduledDate": {
             "type": "string"
           },
           "scheduledTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "type": "string"
           },
           "textValue": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1075,11 +1443,17 @@
         "properties": {
           "action": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "amount": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "click_paydoc_id": {
             "format": "int64",
@@ -1091,7 +1465,10 @@
           },
           "error": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "error_note": {
             "type": "string"
@@ -1124,7 +1501,10 @@
           },
           "error": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "error_note": {
             "type": "string"
@@ -1147,11 +1527,17 @@
         "properties": {
           "action": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "amount": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "click_paydoc_id": {
             "format": "int64",
@@ -1163,7 +1549,10 @@
           },
           "error": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "error_note": {
             "type": "string"
@@ -1192,7 +1581,10 @@
           },
           "error": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "error_note": {
             "type": "string"
@@ -1210,7 +1602,10 @@
       "ClinicDetail": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -1225,7 +1620,10 @@
             "type": "array"
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -1235,7 +1633,10 @@
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeZone": {
             "type": "string"
@@ -1266,11 +1667,17 @@
           },
           "doctorRevenueSharePercent": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "effectiveRevenueSharePercent": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "membershipRole": {
             "type": "string"
@@ -1292,7 +1699,10 @@
         "properties": {
           "defaultDoctorRevenueSharePercent": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -1333,7 +1743,10 @@
       "ClinicPatientRow": {
         "properties": {
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "fullName": {
             "type": "string"
@@ -1343,7 +1756,10 @@
             "type": "integer"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1379,7 +1795,10 @@
       "ClinicRow": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "currency": {
             "type": "string"
@@ -1389,7 +1808,10 @@
             "type": "integer"
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -1399,7 +1821,10 @@
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeZone": {
             "type": "string"
@@ -1586,13 +2011,19 @@
       "ClinicalOcclusionChipDto": {
         "properties": {
           "angleClass": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "chipId": {
             "type": "string"
           },
           "icdHint": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "labels": {
             "$ref": "#/components/schemas/ClinicalLocalizedNameDto"
@@ -1665,7 +2096,10 @@
       "ClinicalSynthesizeRequestDto": {
         "properties": {
           "diseaseId": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locale": {
             "type": "string"
@@ -1709,7 +2143,10 @@
             "type": "array"
           },
           "lastUsedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "names": {
             "$ref": "#/components/schemas/ClinicalLocalizedNameDto"
@@ -1779,7 +2216,10 @@
               "format": "int64",
               "type": "integer"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "appointmentId": {
             "format": "int64",
@@ -1790,7 +2230,10 @@
               "format": "int64",
               "type": "integer"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1801,20 +2244,32 @@
       "CompleteAppointmentRequest": {
         "properties": {
           "awaitingScribe": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "clinicId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "doctorNotes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "visitCharges": {
             "items": {
               "$ref": "#/components/schemas/VisitChargeLineReq"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -1845,13 +2300,26 @@
       "ConfirmDeleteAccountRequest": {
         "properties": {
           "challengeId": {
+            "minLength": 1,
             "type": "string"
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "emailOtp": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "smsOtp": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1872,7 +2340,16 @@
               "PAYME",
               "MANUAL"
             ],
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1911,10 +2388,16 @@
       "ConsultationNoteDto": {
         "properties": {
           "assessment": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "body": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -1924,13 +2407,19 @@
             "type": "integer"
           },
           "plan": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "source": {
             "type": "string"
           },
           "subjective": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -1944,17 +2433,29 @@
         "properties": {
           "aiDraftNoteId": {
             "format": "uuid",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "appointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "assessment": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "body": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
@@ -1965,20 +2466,29 @@
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
             "type": "integer"
           },
           "plan": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "source": {
             "type": "string"
           },
           "subjective": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -2009,9 +2519,14 @@
       "ContactDto": {
         "properties": {
           "email": {
-            "type": "string"
+            "format": "email",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phone": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -2030,11 +2545,17 @@
             "type": "boolean"
           },
           "lastMessage": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "lastMessageAt": {
             "format": "date-time",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "participantId": {
             "format": "int64",
@@ -2044,7 +2565,10 @@
             "type": "string"
           },
           "participantPhotoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "unreadCount": {
             "format": "int32",
@@ -2081,18 +2605,25 @@
       "CreateAdminRequest": {
         "properties": {
           "adminLevel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
+            "minLength": 1,
             "type": "string"
           },
           "firstName": {
+            "minLength": 1,
             "type": "string"
           },
           "lastName": {
+            "minLength": 1,
             "type": "string"
           },
           "password": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -2116,19 +2647,29 @@
           },
           "dueDate": {
             "format": "date",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
             "type": "integer"
           },
           "recordNumber": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "recordType": {
+            "minLength": 1,
             "type": "string"
           },
           "subtotalMinor": {
@@ -2143,7 +2684,10 @@
           },
           "treatmentPlanId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -2165,7 +2709,10 @@
             "type": "string"
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "numInstallments": {
             "format": "int32",
@@ -2176,7 +2723,10 @@
             "items": {
               "$ref": "#/components/schemas/InstallmentItemSpecDto"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "startDate": {
             "format": "date",
@@ -2205,13 +2755,19 @@
       "CreateInvitationRequest": {
         "properties": {
           "email": {
+            "format": "email",
+            "minLength": 1,
             "type": "string"
           },
           "expiresInDays": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "role": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -2231,7 +2787,10 @@
             "type": "string"
           },
           "expiresAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -2252,16 +2811,28 @@
       "CreatePatientForDoctorRequest": {
         "properties": {
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "emailOtp": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "smsOtp": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -2271,42 +2842,67 @@
           "address": {
             "maxLength": 500,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "allergies": {
             "maxLength": 1000,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "birthDate": {
             "maxLength": 10,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "bloodGroup": {
             "maxLength": 10,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "chronicDisease": {
             "maxLength": 1000,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
+            "format": "email",
             "maxLength": 255,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "gender": {
             "maxLength": 20,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "language": {
             "maxLength": 20,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "name": {
             "maxLength": 255,
@@ -2316,18 +2912,27 @@
           "phone": {
             "maxLength": 50,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phones": {
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "photoUrl": {
             "maxLength": 2048,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -2339,27 +2944,42 @@
         "properties": {
           "attendingDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "attendingDoctorIds": {
             "items": {
               "format": "int64",
               "type": "integer"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "clinicId": {
             "format": "int64",
             "type": "integer"
           },
           "dentalPlanDocumentation": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "diagnosis": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
@@ -2367,23 +2987,35 @@
           },
           "paymentReminderDays": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "planKind": {
             "enum": [
               "COMPREHENSIVE",
               "VISIT"
             ],
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "symptoms": {
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "title": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -2396,10 +3028,16 @@
         "properties": {
           "appointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "comment": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "rating": {
             "format": "int32",
@@ -2414,7 +3052,17 @@
       "CreateTaskRequest": {
         "properties": {
           "afternoonTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "appointmentId": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "category": {
             "type": "string"
@@ -2423,36 +3071,63 @@
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "description": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "durationDays": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "endDate": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "eveningTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "inputLabel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "inputType": {
             "type": "string"
           },
           "intervalHours": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "morningTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notesLabel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notesRequired": {
             "type": "boolean"
@@ -2465,7 +3140,10 @@
             "type": "string"
           },
           "startTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "taskName": {
             "type": "string"
@@ -2496,11 +3174,17 @@
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "slotMinutes": {
             "format": "int32",
@@ -2527,16 +3211,32 @@
           "challengeId": {
             "type": "string"
           },
+          "channels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
           "expiresInSeconds": {
             "format": "int32",
             "type": "integer"
           },
+          "maskedEmail": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "maskedPhone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
           "challengeId",
+          "channels",
           "expiresInSeconds"
         ],
         "type": "object"
@@ -2562,10 +3262,16 @@
             "type": "array"
           },
           "deletedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "deletionRequestedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "documents": {
             "items": {
@@ -2606,13 +3312,22 @@
       "DeletedPatientMatchDto": {
         "properties": {
           "deletedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "maskedEmail": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "maskedPhone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "matchedBy": {
             "type": "string"
@@ -2636,14 +3351,23 @@
       "DeletedPatientSearchRequest": {
         "properties": {
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "userId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -2731,17 +3455,26 @@
           },
           "clinicId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "clinicName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "consultationNotes": {
             "format": "int32",
             "type": "integer"
           },
           "dateJoinedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "doctorId": {
             "format": "int64",
@@ -2755,13 +3488,22 @@
             "type": "integer"
           },
           "earlyPartnerContractNumber": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "lastActiveAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "monthlyChargeUsd": {
             "format": "int32",
@@ -2851,12 +3593,18 @@
         "properties": {
           "consultationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "conversationId": {
             "maxLength": 128,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "language": {
             "enum": [
@@ -2870,16 +3618,25 @@
             "items": {
               "$ref": "#/components/schemas/AiMessageDto"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "question": {
             "maxLength": 4000,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -2917,34 +3674,58 @@
       "DoctorDto": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "averageRating": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "biography": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "certificates": {
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "clinic": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clinicMinPriceMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "distanceKm": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "firstName": {
             "type": "string"
@@ -2953,60 +3734,108 @@
             "type": "string"
           },
           "furtherInformation": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "instagram": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "lastName": {
             "type": "string"
           },
           "latitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "locationCity": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationCountry": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationRegion": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationStreetAddress": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "longitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "minPriceCurrency": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "minPriceMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "nextAvailableStartAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "onlineMinPriceMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "photoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "profession": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "reviewCount": {
             "format": "int64",
@@ -3016,19 +3845,28 @@
             "items": {
               "$ref": "#/components/schemas/ServiceDto"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "services": {
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "specializations": {
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "supportsInPerson": {
             "type": "boolean"
@@ -3037,7 +3875,10 @@
             "type": "boolean"
           },
           "telegram": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -3054,11 +3895,17 @@
         "properties": {
           "clinicShareCollectedMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "clinicShareGrossMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "collectedMinor": {
             "format": "int64",
@@ -3073,11 +3920,17 @@
           },
           "doctorShareCollectedMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "doctorShareGrossMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "grossMinor": {
             "format": "int64",
@@ -3089,7 +3942,10 @@
           },
           "revenueSharePercent": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "visitCount": {
             "format": "int32",
@@ -3202,11 +4058,17 @@
         "properties": {
           "monthlyChargeUsd": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "trialPeriodMonths": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -3263,13 +4125,19 @@
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "title": {
             "type": "string"
           },
           "url": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -3329,10 +4197,16 @@
             "type": "boolean"
           },
           "partnerClinic": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "partnerEmail": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "partnerFirstName": {
             "type": "string"
@@ -3344,7 +4218,10 @@
             "type": "string"
           },
           "partnerPhone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "roleBoth": {
             "type": "boolean"
@@ -3380,7 +4257,10 @@
         "properties": {
           "appointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "attachmentCount": {
             "format": "int32",
@@ -3388,45 +4268,81 @@
           },
           "blockId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "blockReason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "briefingStatus": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "endAt": {
             "type": "string"
           },
           "location": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "locationLabel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "patientName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "patientPhotoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "patientSignedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paymentStatus": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "reason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "signatureRequested": {
             "type": "boolean"
@@ -3435,7 +4351,10 @@
             "type": "string"
           },
           "status": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "type": {
             "type": "string"
@@ -3453,7 +4372,10 @@
       "FcmTokenRequest": {
         "properties": {
           "fcmToken": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -3483,19 +4405,31 @@
           },
           "totalClinicShareCollectedMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "totalClinicShareGrossMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "totalDoctorShareCollectedMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "totalDoctorShareGrossMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "totalRevenueMinor": {
             "format": "int64",
@@ -3531,7 +4465,10 @@
           },
           "dueDate": {
             "format": "date",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -3539,10 +4476,16 @@
           },
           "issuedAt": {
             "format": "date-time",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paidMinor": {
             "format": "int64",
@@ -3553,7 +4496,10 @@
             "type": "integer"
           },
           "recordNumber": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "recordType": {
             "type": "string"
@@ -3579,7 +4525,10 @@
           },
           "treatmentPlanId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "uiPaymentStatus": {
             "type": "string"
@@ -3606,25 +4555,44 @@
       "ForgotPasswordResetRequest": {
         "properties": {
           "app": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "emailOtp": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "idToken": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "newPassword": {
+            "minLength": 1,
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "smsOtp": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -3653,14 +4621,20 @@
             "type": "string"
           },
           "dentition": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "discountMinor": {
             "format": "int64",
             "type": "integer"
           },
           "fdi": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "lineId": {
             "format": "int64",
@@ -3704,14 +4678,24 @@
       "GenerateTokenRequest": {
         "properties": {
           "emailTo": {
-            "type": "string"
+            "format": "email",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "expiresInDays": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "purpose": {
             "type": "string"
@@ -3729,10 +4713,16 @@
       "GenerateVisitSummaryRequest": {
         "properties": {
           "force": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "language": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -3741,7 +4731,10 @@
         "properties": {
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "name": {
             "type": "string"
@@ -3764,7 +4757,10 @@
           },
           "confidence": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "isTop": {
             "type": "boolean"
@@ -3798,11 +4794,17 @@
             "type": "integer"
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paidAt": {
             "format": "date-time",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "sequenceNumber": {
             "format": "int32",
@@ -3844,11 +4846,17 @@
             "type": "integer"
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paidAt": {
             "format": "date-time",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
@@ -3869,7 +4877,10 @@
             "type": "integer"
           },
           "treatmentPlanTitle": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -3927,7 +4938,10 @@
             "type": "array"
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "numInstallments": {
             "format": "int32",
@@ -4040,10 +5054,16 @@
             "type": "boolean"
           },
           "emailSentTo": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "expiresAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -4063,11 +5083,17 @@
       "InviteRequest": {
         "properties": {
           "message": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "originatingAppointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "partnerDoctorId": {
             "format": "int64",
@@ -4078,7 +5104,10 @@
             "type": "integer"
           },
           "specialtyRequested": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -4090,7 +5119,10 @@
       "LanguageRequest": {
         "properties": {
           "language": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -4099,11 +5131,17 @@
         "properties": {
           "assignedDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "catalogItemId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "currency": {
             "type": "string"
@@ -4121,10 +5159,20 @@
             "type": "integer"
           },
           "linkedAppointment": {
-            "$ref": "#/components/schemas/AppointmentSummaryDto"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/AppointmentSummaryDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "quantity": {
             "format": "int32",
@@ -4135,7 +5183,10 @@
             "type": "integer"
           },
           "specialtyMetadata": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "type": "string"
@@ -4165,11 +5216,17 @@
         "properties": {
           "assignedDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "catalogItemId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "currency": {
             "type": "string"
@@ -4181,10 +5238,16 @@
           },
           "linkedAppointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "quantity": {
             "format": "int32",
@@ -4196,7 +5259,10 @@
             "type": "integer"
           },
           "specialtyMetadata": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "enum": [
@@ -4206,9 +5272,13 @@
               "COMPLETED",
               "CANCELLED"
             ],
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "title": {
+            "minLength": 1,
             "type": "string"
           },
           "unitPriceMinor": {
@@ -4231,7 +5301,10 @@
         "properties": {
           "appointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "lineId": {
             "format": "int64",
@@ -4246,14 +5319,23 @@
       "LocationDto": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clinic": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "isPrimary": {
             "type": "boolean"
@@ -4263,29 +5345,53 @@
           },
           "latitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "locationCity": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationCountry": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationDistrict": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationPostalCode": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationRegion": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationStreetAddress": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "longitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           }
         },
         "required": [
@@ -4297,9 +5403,11 @@
       "LoginRequest": {
         "properties": {
           "password": {
+            "minLength": 1,
             "type": "string"
           },
           "username": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -4312,7 +5420,10 @@
       "MarkInstallmentPaidRequest": {
         "properties": {
           "memo": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "method": {
             "enum": [
@@ -4335,7 +5446,10 @@
       "MeProfileDto": {
         "properties": {
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "firstName": {
             "type": "string"
@@ -4348,16 +5462,25 @@
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "photoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "role": {
             "type": "string"
           },
           "timeZone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -4376,11 +5499,17 @@
           },
           "doctorRevenueSharePercent": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "effectiveRevenueSharePercent": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -4392,23 +5521,41 @@
         "properties": {
           "duration": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "fileName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "fileSize": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "fileUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "text": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "thumbnailUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -4467,7 +5614,10 @@
       "MyClinicSummary": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "canManageFinanceSettings": {
             "type": "boolean"
@@ -4481,10 +5631,16 @@
           },
           "defaultDoctorRevenueSharePercent": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "isPracticeClinic": {
             "type": "boolean"
@@ -4496,7 +5652,10 @@
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeZone": {
             "type": "string"
@@ -4517,27 +5676,45 @@
         "properties": {
           "appointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "appointmentStartAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
           },
           "documentAccessRequestId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "documentAccessRequestStatus": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "documentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "documentTitle": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -4548,31 +5725,52 @@
           },
           "patientFormId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "patientName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "readAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "requestingDoctorName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "taskId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "title": {
             "type": "string"
           },
           "treatmentPlanId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "type": {
             "type": "string"
@@ -4590,10 +5788,16 @@
       "OnboardRequest": {
         "properties": {
           "refreshUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "returnUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -4622,11 +5826,17 @@
           },
           "averageWaitingMinutes": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "occupancyPercent": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "patientsThisMonth": {
             "format": "int64",
@@ -4673,10 +5883,7 @@
             "type": "integer"
           },
           "sort": {
-            "items": {
-              "$ref": "#/components/schemas/SortObject"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/SortObject"
           },
           "totalElements": {
             "format": "int64",
@@ -4722,10 +5929,7 @@
             "type": "integer"
           },
           "sort": {
-            "items": {
-              "$ref": "#/components/schemas/SortObject"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/SortObject"
           },
           "totalElements": {
             "format": "int64",
@@ -4771,10 +5975,7 @@
             "type": "integer"
           },
           "sort": {
-            "items": {
-              "$ref": "#/components/schemas/SortObject"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/SortObject"
           },
           "totalElements": {
             "format": "int64",
@@ -4820,10 +6021,7 @@
             "type": "integer"
           },
           "sort": {
-            "items": {
-              "$ref": "#/components/schemas/SortObject"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/SortObject"
           },
           "totalElements": {
             "format": "int64",
@@ -4840,9 +6038,7 @@
         "properties": {
           "content": {
             "items": {
-              "additionalProperties": {
-                "type": "object"
-              },
+              "additionalProperties": {},
               "type": "object"
             },
             "type": "array"
@@ -4872,10 +6068,7 @@
             "type": "integer"
           },
           "sort": {
-            "items": {
-              "$ref": "#/components/schemas/SortObject"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/SortObject"
           },
           "totalElements": {
             "format": "int64",
@@ -4921,10 +6114,7 @@
             "type": "integer"
           },
           "sort": {
-            "items": {
-              "$ref": "#/components/schemas/SortObject"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/SortObject"
           },
           "totalElements": {
             "format": "int64",
@@ -4970,10 +6160,7 @@
             "type": "integer"
           },
           "sort": {
-            "items": {
-              "$ref": "#/components/schemas/SortObject"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/SortObject"
           },
           "totalElements": {
             "format": "int64",
@@ -5019,10 +6206,7 @@
             "type": "integer"
           },
           "sort": {
-            "items": {
-              "$ref": "#/components/schemas/SortObject"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/SortObject"
           },
           "totalElements": {
             "format": "int64",
@@ -5074,10 +6258,7 @@
             "type": "boolean"
           },
           "sort": {
-            "items": {
-              "$ref": "#/components/schemas/SortObject"
-            },
-            "type": "array"
+            "$ref": "#/components/schemas/SortObject"
           },
           "unpaged": {
             "type": "boolean"
@@ -5088,35 +6269,59 @@
       "PatchCatalogItemRequest": {
         "properties": {
           "active": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "appliesToAllDoctors": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "assignedDoctorProfileIds": {
             "items": {
               "format": "int64",
               "type": "integer"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "code": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "currency": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "defaultPriceMinor": {
             "format": "int64",
             "minimum": 0,
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "sortOrder": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "title": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -5125,16 +6330,28 @@
         "properties": {
           "dueDate": {
             "format": "date",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "recordNumber": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -5143,13 +6360,22 @@
         "properties": {
           "dueDate": {
             "format": "date",
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -5158,36 +6384,60 @@
         "properties": {
           "attendingDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "attendingDoctorIds": {
             "items": {
               "format": "int64",
               "type": "integer"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "dentalPlanDocumentation": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "diagnosis": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paymentReminderDays": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "symptoms": {
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "title": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -5224,10 +6474,16 @@
             "type": "boolean"
           },
           "location": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "reason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "startAt": {
             "type": "string"
@@ -5249,13 +6505,19 @@
         "properties": {
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "name": {
             "type": "string"
           },
           "photoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5277,12 +6539,18 @@
             "items": {
               "$ref": "#/components/schemas/AiMessageDto"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "question": {
             "maxLength": 4000,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5303,10 +6571,14 @@
             "type": "boolean"
           },
           "preferredStartAt": {
+            "minLength": 1,
             "type": "string"
           },
           "reason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5324,10 +6596,16 @@
               "format": "int64",
               "type": "integer"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "confirmAutoBook": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "language": {
             "enum": [
@@ -5388,13 +6666,26 @@
       },
       "PatientDocumentDto": {
         "properties": {
+          "appointmentId": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "canView": {
             "type": "boolean"
           },
           "category": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "creatorLabel": {
+            "type": "string"
+          },
+          "creatorType": {
             "type": "string"
           },
           "date": {
@@ -5411,39 +6702,62 @@
           "title": {
             "type": "string"
           },
+          "uploadedByPatient": {
+            "type": "boolean"
+          },
           "url": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
           "canView",
           "creatorLabel",
+          "creatorType",
           "date",
           "id",
           "isSharedWithTeam",
-          "title"
+          "title",
+          "uploadedByPatient"
         ],
         "type": "object"
       },
       "PatientDto": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "allergies": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "atRisk": {
             "type": "boolean"
           },
           "birthDate": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "bloodGroup": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "chronicDisease": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clinicalStatus": {
             "type": "string"
@@ -5455,47 +6769,80 @@
             "type": "array"
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "followUpRequired": {
             "type": "boolean"
           },
           "gender": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "hasAccount": {
             "type": "boolean"
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "language": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationCity": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationCountry": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationDistrict": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationPostalCode": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationRegion": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationStreetAddress": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "name": {
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phones": {
             "items": {
@@ -5504,7 +6851,10 @@
             "type": "array"
           },
           "photoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "smsReminderEnabled": {
             "type": "boolean"
@@ -5514,10 +6864,16 @@
             "type": "integer"
           },
           "timeZone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "username": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5536,11 +6892,17 @@
       "PatientFormDto": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "age": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "clinicalChipSelections": {
             "items": {
@@ -5549,14 +6911,23 @@
             "type": "array"
           },
           "clinicalDiseaseId": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "complaints": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdByDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "date": {
             "format": "date",
@@ -5569,26 +6940,47 @@
             "type": "object"
           },
           "diagnosis": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "diagnosisCode": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "diagnosisDisplay": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "diagnosisSystem": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "doctorClinic": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "doctorName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "documentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "followups": {
             "items": {
@@ -5598,45 +6990,78 @@
           },
           "formNumber": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "fullName": {
             "type": "string"
           },
           "gender": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "job": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "moreDetails": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "occlusion": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "oralCavityCondition": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "otherIllnesses": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
             "type": "integer"
           },
           "patientSignatureImageBase64": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "patientSignedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "recommendations": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "signatureRequested": {
             "type": "boolean"
@@ -5645,16 +7070,28 @@
             "type": "string"
           },
           "treatment": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "treatmentResult": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "visualCheckup": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "xrayLabData": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5679,7 +7116,10 @@
             "type": "string"
           },
           "doctorName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5799,7 +7239,10 @@
             "type": "string"
           },
           "diagnosis": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -5826,7 +7269,10 @@
             "type": "integer"
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "owedMinor": {
             "format": "int64",
@@ -5843,7 +7289,10 @@
             "type": "string"
           },
           "title": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "totalMinor": {
             "format": "int64",
@@ -5868,70 +7317,127 @@
       "PatientProfileDto": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "birthDate": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "features": {
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "fullName": {
             "type": "string"
           },
           "gender": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "language": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "latitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "locationCity": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationCountry": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationDistrict": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationPostalCode": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationRegion": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationStreetAddress": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "longitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "photoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "subscriptionTier": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeZone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5942,13 +7448,22 @@
       "PatientProfileExportDto": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "birthDate": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "chronicDisease": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "fullName": {
             "type": "string"
@@ -5958,13 +7473,22 @@
             "type": "integer"
           },
           "language": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "photoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeZone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -5979,7 +7503,10 @@
             "type": "string"
           },
           "expiresAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -6006,15 +7533,24 @@
             "type": "string"
           },
           "doctorName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "doctorProfileId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "financialRecordId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -6022,20 +7558,32 @@
           },
           "linkedAppointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "memo": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "method": {
             "type": "string"
           },
           "patientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "patientName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "recordedAt": {
             "format": "date-time",
@@ -6046,7 +7594,10 @@
             "type": "integer"
           },
           "treatmentPlanTitle": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6090,7 +7641,10 @@
             "type": "string"
           },
           "memo": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "method": {
             "enum": [
@@ -6119,10 +7673,19 @@
             "type": "integer"
           },
           "checkoutUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "currency": {
             "type": "string"
+          },
+          "failureReason": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "gateway": {
             "type": "string"
@@ -6147,10 +7710,16 @@
       "PlanDoctorLocationDto": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clinic": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -6177,10 +7746,16 @@
           },
           "catalogItemId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "code": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "currency": {
             "type": "string"
@@ -6191,18 +7766,30 @@
           },
           "doctorServiceId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "groupId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "groupName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "groupSortOrder": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "key": {
             "type": "string"
@@ -6347,11 +7934,17 @@
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6363,99 +7956,186 @@
       "ProfileDto": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "avatarUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "biography": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "certificates": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clinic": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clinicId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "consultationCurrency": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "consultationPriceMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "dob": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "firstName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "gender": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "instagram": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "lastName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "latitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "locationCity": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationCountry": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationDistrict": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationPostalCode": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationRegion": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationStreetAddress": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "longitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "photoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "profession": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "scheduleValidFrom": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "scheduleValidUntil": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "services": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "smsRemindersAllowed": {
             "type": "boolean"
           },
           "telegram": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeZone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6493,10 +8173,16 @@
       "PublicLocationDto": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "clinic": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -6510,23 +8196,41 @@
           },
           "latitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "locationCity": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationCountry": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationRegion": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationStreetAddress": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "longitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6539,7 +8243,10 @@
       "PutConsultationNotesRequest": {
         "properties": {
           "body": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -6556,14 +8263,23 @@
           },
           "financialRecordId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "linkedAppointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "memo": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "method": {
             "enum": [
@@ -6593,25 +8309,37 @@
       "RegisterClinicStaffRequest": {
         "properties": {
           "email": {
+            "format": "email",
+            "minLength": 1,
             "type": "string"
           },
           "firstName": {
+            "minLength": 1,
             "type": "string"
           },
           "key": {
+            "minLength": 1,
             "type": "string"
           },
           "lastName": {
+            "minLength": 1,
             "type": "string"
           },
           "password": {
+            "minLength": 1,
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeZone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6626,37 +8354,64 @@
       "RegisterPatientRequest": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "birthDate": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "emailOtp": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "firstName": {
+            "minLength": 1,
             "type": "string"
           },
           "gender": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "language": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "lastName": {
+            "minLength": 1,
             "type": "string"
           },
           "password": {
+            "minLength": 1,
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "smsOtp": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6669,25 +8424,37 @@
       "RegisterRequest": {
         "properties": {
           "email": {
+            "format": "email",
+            "minLength": 1,
             "type": "string"
           },
           "firstName": {
+            "minLength": 1,
             "type": "string"
           },
           "key": {
+            "minLength": 1,
             "type": "string"
           },
           "lastName": {
+            "minLength": 1,
             "type": "string"
           },
           "password": {
+            "minLength": 1,
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeZone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6702,20 +8469,29 @@
       "ReviewDto": {
         "properties": {
           "comment": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "patientName": {
             "type": "string"
           },
           "patientPhotoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "rating": {
             "format": "int32",
@@ -6736,7 +8512,10 @@
           },
           "locationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "slotMinutes": {
             "format": "int32",
@@ -6780,10 +8559,15 @@
       "SendEmailOtpRequest": {
         "properties": {
           "email": {
+            "format": "email",
+            "minLength": 1,
             "type": "string"
           },
           "purpose": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6805,9 +8589,13 @@
       "SendForgotPasswordOtpRequest": {
         "properties": {
           "app": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "identifier": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -6834,6 +8622,8 @@
       "SendLoginOtpRequest": {
         "properties": {
           "email": {
+            "format": "email",
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -6847,47 +8637,77 @@
           "attachmentName": {
             "maxLength": 255,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "attachmentUrl": {
             "maxLength": 2048,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "conversationId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "duration": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "fileSize": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "recipientDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "recipientPatientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "text": {
             "maxLength": 10000,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "thumbnailUrl": {
             "maxLength": 2048,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "type": {
             "maxLength": 20,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -6914,13 +8734,20 @@
       "SendSmsOtpRequest": {
         "properties": {
           "fallbackEmail": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phone": {
+            "minLength": 1,
             "type": "string"
           },
           "purpose": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -6934,22 +8761,37 @@
             "type": "boolean"
           },
           "description": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "groupId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "groupName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "groupSortOrder": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "isActive": {
             "type": "boolean"
@@ -6994,11 +8836,17 @@
             "type": "integer"
           },
           "lastSentAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "patientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -7011,7 +8859,10 @@
       "SettingsDto": {
         "properties": {
           "country": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "defaultStartTab": {
             "type": "string"
@@ -7020,7 +8871,10 @@
             "type": "boolean"
           },
           "language": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "twoFA": {
             "type": "boolean"
@@ -7046,20 +8900,14 @@
       },
       "SortObject": {
         "properties": {
-          "ascending": {
+          "empty": {
             "type": "boolean"
           },
-          "direction": {
-            "type": "string"
-          },
-          "ignoreCase": {
+          "sorted": {
             "type": "boolean"
           },
-          "nullHandling": {
-            "type": "string"
-          },
-          "property": {
-            "type": "string"
+          "unsorted": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -7088,7 +8936,10 @@
         "properties": {
           "timeout": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -7097,11 +8948,17 @@
         "properties": {
           "recipientDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "recipientPatientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -7130,21 +8987,33 @@
       "SubmitCheckInRequest": {
         "properties": {
           "booleanValue": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "checkInId": {
             "format": "int64",
             "type": "integer"
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "numericValue": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "textValue": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -7166,13 +9035,19 @@
       "SubscriptionDto": {
         "properties": {
           "currentPeriodEnd": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "gateway": {
             "type": "string"
           },
           "gracePeriodEndsAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -7185,7 +9060,10 @@
             "type": "string"
           },
           "suspendedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -7210,7 +9088,17 @@
       "TaskDto": {
         "properties": {
           "afternoonTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "appointmentId": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "category": {
             "type": "string"
@@ -7222,40 +9110,80 @@
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "description": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "doctorId": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "doctorName": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "durationDays": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "endDate": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "eveningTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
             "type": "integer"
           },
           "inputLabel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "inputType": {
             "type": "string"
           },
           "intervalHours": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "morningTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notesLabel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notesRequired": {
             "type": "boolean"
@@ -7268,16 +9196,29 @@
             "type": "string"
           },
           "patientTimeZone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "progress": {
-            "$ref": "#/components/schemas/TaskProgressDto"
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/TaskProgressDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "startDate": {
             "type": "string"
           },
           "startTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "type": "string"
@@ -7335,7 +9276,10 @@
       "TemplateDto": {
         "properties": {
           "afternoonTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "category": {
             "type": "string"
@@ -7344,35 +9288,59 @@
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "description": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "eveningTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "inputLabel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "inputType": {
             "type": "string"
           },
           "intervalHours": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "morningTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notesLabel": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notesRequired": {
             "type": "boolean"
           },
           "startTime": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "taskName": {
             "type": "string"
@@ -7415,11 +9383,23 @@
               "PAYME",
               "MANUAL"
             ],
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "installmentItemId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "platform": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "treatmentPlanId": {
             "format": "int64",
@@ -7471,7 +9451,10 @@
       "TreatmentPlanDetailDto": {
         "properties": {
           "dentalPlanDocumentation": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "installmentPlans": {
             "items": {
@@ -7500,10 +9483,16 @@
         "properties": {
           "attendingDoctorId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "attendingDoctorName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "attendingDoctors": {
             "items": {
@@ -7516,13 +9505,19 @@
             "type": "integer"
           },
           "createdAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "currency": {
             "type": "string"
           },
           "diagnosis": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -7537,7 +9532,10 @@
             "type": "integer"
           },
           "notes": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "owedMinor": {
             "format": "int64",
@@ -7549,14 +9547,23 @@
           },
           "patientId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "patientName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "paymentReminderDays": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "planKind": {
             "type": "string"
@@ -7574,14 +9581,20 @@
             "type": "array"
           },
           "title": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "totalMinor": {
             "format": "int64",
             "type": "integer"
           },
           "updatedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "visitCount": {
             "format": "int32",
@@ -7610,7 +9623,10 @@
         "properties": {
           "defaultDoctorRevenueSharePercent": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -7619,7 +9635,10 @@
         "properties": {
           "doctorRevenueSharePercent": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -7629,70 +9648,113 @@
           "address": {
             "maxLength": 500,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "allergies": {
             "maxLength": 1000,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "birthDate": {
             "maxLength": 10,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "bloodGroup": {
             "maxLength": 10,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "chronicDisease": {
             "maxLength": 1000,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "email": {
+            "format": "email",
             "maxLength": 255,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "gender": {
             "maxLength": 20,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "language": {
             "maxLength": 20,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "name": {
             "maxLength": 255,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phone": {
             "maxLength": 50,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phones": {
             "items": {
               "type": "string"
             },
-            "type": "array"
+            "type": [
+              "array",
+              "null"
+            ]
           },
           "photoUrl": {
             "maxLength": 2048,
             "minLength": 0,
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "smsReminderEnabled": {
-            "type": "boolean"
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "smsReminderHoursBefore": {
             "format": "int32",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -7700,54 +9762,102 @@
       "UpdateProfileRequest": {
         "properties": {
           "address": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "birthDate": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "firstName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "gender": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "language": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "lastName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "latitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "locationCity": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationCountry": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationDistrict": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationPostalCode": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationRegion": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "locationStreetAddress": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "longitude": {
             "format": "double",
-            "type": "number"
+            "type": [
+              "number",
+              "null"
+            ]
           },
           "photoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "timeZone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "type": "object"
@@ -7755,6 +9865,7 @@
       "UpdateSubscriptionTierRequest": {
         "properties": {
           "tier": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -7794,7 +9905,10 @@
             "type": "integer"
           },
           "code": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "currency": {
             "type": "string"
@@ -7809,6 +9923,7 @@
             "type": "integer"
           },
           "title": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -7843,11 +9958,17 @@
       "UpsertServiceRequest": {
         "properties": {
           "description": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "groupId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "isActive": {
             "type": "boolean"
@@ -7856,7 +9977,10 @@
             "type": "boolean"
           },
           "paymentType": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "prices": {
             "items": {
@@ -7907,13 +10031,19 @@
       "UserResponse": {
         "properties": {
           "createdAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "deviceRegistered": {
             "type": "boolean"
           },
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "emailVerified": {
             "type": "boolean"
@@ -7933,19 +10063,29 @@
             "type": "integer"
           },
           "lastLoginAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "lockedUntil": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "profile": {
-            "additionalProperties": {
-              "type": "object"
-            },
-            "type": "object"
+            "additionalProperties": {},
+            "type": [
+              "object",
+              "null"
+            ]
           },
           "role": {
             "type": "string"
@@ -7969,7 +10109,10 @@
       "UserSearchResultDto": {
         "properties": {
           "email": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "id": {
             "format": "int64",
@@ -7982,10 +10125,16 @@
             "type": "string"
           },
           "phone": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "photoUrl": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -7998,7 +10147,10 @@
       "ValidRangeDto": {
         "properties": {
           "validFrom": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "validUntil": {
             "type": "string"
@@ -8038,9 +10190,12 @@
       "VerifyEmailOtpRequest": {
         "properties": {
           "code": {
+            "minLength": 1,
             "type": "string"
           },
           "email": {
+            "format": "email",
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -8053,6 +10208,7 @@
       "VerifyKeyRequest": {
         "properties": {
           "key": {
+            "minLength": 1,
             "type": "string"
           }
         },
@@ -8065,16 +10221,28 @@
         "properties": {
           "clinicId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "clinicName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "emailSentTo": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "purpose": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "valid": {
             "type": "boolean"
@@ -8092,7 +10260,10 @@
             "type": "integer"
           },
           "roomName": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -8131,7 +10302,10 @@
           },
           "unitPriceMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -8152,7 +10326,10 @@
           },
           "unitPriceMinor": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           }
         },
         "required": [
@@ -8165,16 +10342,25 @@
         "properties": {
           "appointmentId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "committedAt": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "createdAt": {
             "type": "string"
           },
           "dropReason": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "factType": {
             "type": "string"
@@ -8188,17 +10374,26 @@
             "type": "integer"
           },
           "quote": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "reflectionKept": {
             "type": "boolean"
           },
           "remoteTaskId": {
             "format": "int64",
-            "type": "integer"
+            "type": [
+              "integer",
+              "null"
+            ]
           },
           "scheduleHint": {
-            "type": "string"
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "status": {
             "type": "string"
@@ -8224,7 +10419,7 @@
     "title": "OpenAPI definition",
     "version": "v0"
   },
-  "openapi": "3.0.1",
+  "openapi": "3.1.0",
   "paths": {
     "/api/admin/activity-logs": {
       "get": {
@@ -8339,7 +10534,7 @@
     },
     "/api/admin/clinics": {
       "get": {
-        "operationId": "listClinics_1",
+        "operationId": "listClinics",
         "parameters": [
           {
             "in": "query",
@@ -8701,9 +10896,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -8901,9 +11094,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -8945,9 +11136,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -9112,9 +11301,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "additionalProperties": {
-                      "type": "object"
-                    },
+                    "additionalProperties": {},
                     "type": "object"
                   },
                   "type": "array"
@@ -9138,9 +11325,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "additionalProperties": {
-                      "type": "object"
-                    },
+                    "additionalProperties": {},
                     "type": "object"
                   },
                   "type": "array"
@@ -9164,9 +11349,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "additionalProperties": {
-                      "type": "object"
-                    },
+                    "additionalProperties": {},
                     "type": "object"
                   },
                   "type": "array"
@@ -9190,9 +11373,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "additionalProperties": {
-                      "type": "object"
-                    },
+                    "additionalProperties": {},
                     "type": "object"
                   },
                   "type": "array"
@@ -9226,9 +11407,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -9558,9 +11737,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -9592,9 +11769,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -9768,9 +11943,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "additionalProperties": {
-                      "type": "object"
-                    },
+                    "additionalProperties": {},
                     "type": "object"
                   },
                   "type": "array"
@@ -9865,9 +12038,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -9899,9 +12070,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -9933,9 +12102,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -9962,14 +12129,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -10001,9 +12176,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -10024,9 +12197,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -10045,9 +12216,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -10128,14 +12297,22 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "additionalProperties": {},
+                "type": "object"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -10228,9 +12405,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "additionalProperties": {
-                      "type": "object"
-                    },
+                    "additionalProperties": {},
                     "type": "object"
                   },
                   "type": "array"
@@ -10387,9 +12562,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -10451,9 +12624,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -10740,9 +12911,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -10771,9 +12940,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "additionalProperties": {
-                  "type": "object"
-                },
+                "additionalProperties": {},
                 "type": "object"
               }
             }
@@ -12330,9 +14497,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -12393,9 +14558,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -12834,9 +14997,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -12989,9 +15150,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -13496,9 +15655,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -13740,9 +15897,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "additionalProperties": {
-                      "type": "object"
-                    },
+                    "additionalProperties": {},
                     "type": "object"
                   },
                   "type": "array"
@@ -13795,9 +15950,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -14007,7 +16160,7 @@
     },
     "/api/doctors/me/locations/{id}": {
       "delete": {
-        "operationId": "delete_3",
+        "operationId": "delete_2",
         "parameters": [
           {
             "in": "path",
@@ -14189,7 +16342,7 @@
     },
     "/api/doctors/me/service-groups/{groupId}": {
       "delete": {
-        "operationId": "delete_2",
+        "operationId": "delete_1",
         "parameters": [
           {
             "in": "path",
@@ -14303,7 +16456,7 @@
     },
     "/api/doctors/me/services/{serviceId}": {
       "delete": {
-        "operationId": "delete_1",
+        "operationId": "delete",
         "parameters": [
           {
             "in": "path",
@@ -15117,9 +17270,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -15161,9 +17312,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -15204,9 +17353,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -15318,6 +17465,47 @@
         ]
       }
     },
+    "/api/patients/me/appointments/{id}/documents": {
+      "post": {
+        "operationId": "attachDocuments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttachDocumentsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "patient-controller"
+        ]
+      }
+    },
     "/api/patients/me/copilot/book-appointment": {
       "post": {
         "operationId": "bookAppointment",
@@ -15336,9 +17524,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -15369,9 +17555,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -15433,9 +17617,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "additionalProperties": {
-                      "type": "object"
-                    },
+                    "additionalProperties": {},
                     "type": "object"
                   },
                   "type": "array"
@@ -15468,9 +17650,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -15616,9 +17796,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -16353,9 +18531,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -16663,9 +18839,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -16970,6 +19144,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "platform",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -16996,6 +19178,14 @@
           {
             "in": "query",
             "name": "ref",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "platform",
             "required": false,
             "schema": {
               "type": "string"
@@ -17283,7 +19473,7 @@
     },
     "/api/public/clinics": {
       "get": {
-        "operationId": "listClinics",
+        "operationId": "listClinics_1",
         "parameters": [
           {
             "in": "query",
@@ -17455,7 +19645,6 @@
             "name": "radiusKm",
             "required": false,
             "schema": {
-              "default": 50.0,
               "format": "double",
               "type": "number"
             }
@@ -17680,9 +19869,7 @@
               "*/*": {
                 "schema": {
                   "items": {
-                    "additionalProperties": {
-                      "type": "object"
-                    },
+                    "additionalProperties": {},
                     "type": "object"
                   },
                   "type": "array"
@@ -17724,9 +19911,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -17858,7 +20043,7 @@
     },
     "/api/schedule/blocks/{id}": {
       "delete": {
-        "operationId": "delete",
+        "operationId": "delete_3",
         "parameters": [
           {
             "in": "path",
@@ -18404,6 +20589,46 @@
                     "$ref": "#/components/schemas/CheckInDto"
                   },
                   "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "remote-care-task-controller"
+        ]
+      }
+    },
+    "/api/tasks/my-tasks/{taskId}/check-ins/{checkInId}": {
+      "delete": {
+        "operationId": "undoMyCheckIn",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "taskId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "checkInId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckInDto"
                 }
               }
             },
@@ -19422,9 +21647,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -19606,9 +21829,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "object"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }

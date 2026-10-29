@@ -5,6 +5,7 @@ import com.shifa.i18n.SmsOtpFormatting
 import com.shifa.repo.SmsVerificationCodeRepository
 import com.shifa.util.PhoneNormalizer
 import org.slf4j.LoggerFactory
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -38,6 +39,7 @@ class SmsOtpService(
         val message = when (purpose) {
             SmsVerificationCode.PURPOSE_REGISTRATION -> SmsOtpFormatting.registrationOtpBody(code)
             SmsVerificationCode.PURPOSE_FORGOT_PASSWORD -> SmsOtpFormatting.forgotPasswordOtpBody(code)
+            SmsVerificationCode.PURPOSE_ACCOUNT_DELETION -> SmsOtpFormatting.accountDeletionOtpBody(code)
             else -> SmsOtpFormatting.registrationOtpBody(code)
         }
         val result = devSmsService.sendSms(normalized, message)
@@ -81,7 +83,7 @@ class SmsOtpService(
         const val MAX_SMS_SENDS_PER_HOUR = 3
     }
 
-    @Transactional
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     fun verify(phone: String, code: String): Boolean {
         val normalized = PhoneNormalizer.normalize(phone) ?: return false
         val entry = repo.findTopByPhoneAndPurposeAndVerifiedFalseOrderByCreatedAtDesc(
@@ -91,7 +93,8 @@ class SmsOtpService(
         return verifyEntry(entry, code)
     }
 
-    @Transactional
+    /** REQUIRES_NEW: a failed attempt is counted even when the caller's transaction rolls back on the error it throws. */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
     fun verify(phone: String, code: String, purpose: String): Boolean {
         val normalized = PhoneNormalizer.normalize(phone) ?: return false
         val entry = repo.findTopByPhoneAndPurposeAndVerifiedFalseOrderByCreatedAtDesc(normalized, purpose)
@@ -114,6 +117,7 @@ class SmsOtpService(
     }
 
     @Scheduled(fixedRate = 3600000)
+    @SchedulerLock(name = "sms-otp-cleanup", lockAtLeastFor = "PT20S")
     @Transactional
     fun cleanupExpired() {
         repo.deleteExpired(OffsetDateTime.now())

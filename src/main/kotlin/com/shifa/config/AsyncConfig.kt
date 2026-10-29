@@ -16,6 +16,38 @@ class AsyncConfig {
 
     private val log = LoggerFactory.getLogger(javaClass)
 
+    /**
+     * SSE streams (Shifa AI for doctors and patients) run here instead of on unbounded raw threads (roadmap P7):
+     * up to 16 streams at once, no queue (a queued stream would only make the client wait), the 17th is
+     * rejected and the controllers answer 503. The request id travels with the stream so its log lines
+     * stay correlated.
+     */
+    @Bean(name = ["sseTaskExecutor"])
+    fun sseTaskExecutor(): Executor {
+        val executor = ThreadPoolTaskExecutor().apply {
+            corePoolSize = 16
+            maxPoolSize = 16
+            queueCapacity = 0
+            setThreadNamePrefix("sse-")
+            setTaskDecorator { task ->
+                val mdc = org.slf4j.MDC.getCopyOfContextMap()
+                Runnable {
+                    if (mdc != null) org.slf4j.MDC.setContextMap(mdc) else org.slf4j.MDC.clear()
+                    try {
+                        task.run()
+                    } finally {
+                        org.slf4j.MDC.clear()
+                    }
+                }
+            }
+            setWaitForTasksToCompleteOnShutdown(true)
+            setAwaitTerminationSeconds(30)
+        }
+        executor.initialize()
+        log.info("SSE executor initialized: poolSize=16, no queue")
+        return executor
+    }
+
     @Bean(name = ["scribeTaskExecutor"])
     fun scribeTaskExecutor(): Executor {
         val executor = ThreadPoolTaskExecutor().apply {

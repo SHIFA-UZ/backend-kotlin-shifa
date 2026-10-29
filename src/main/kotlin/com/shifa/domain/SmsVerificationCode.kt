@@ -33,6 +33,7 @@ class SmsVerificationCode(
     companion object {
         const val PURPOSE_REGISTRATION = "REGISTRATION"
         const val PURPOSE_FORGOT_PASSWORD = "FORGOT_PASSWORD"
+        const val PURPOSE_ACCOUNT_DELETION = "ACCOUNT_DELETION"
         const val MAX_ATTEMPTS = 5
     }
 

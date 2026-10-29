@@ -91,6 +91,10 @@ class RemoteCareTask(
     @Column(name = "notes_label")
     var notesLabel: String? = null, // e.g., "Additional notes"
 
+    /** The visit this task was assigned from, when any (patient-app ask 14). */
+    @Column(name = "appointment_id")
+    var appointmentId: Long? = null,
+
     // Metadata
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),

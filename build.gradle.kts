@@ -1,12 +1,16 @@
 plugins {
     // Spring Boot + dependency management plugins
-    id("org.springframework.boot") version "3.3.4"
-    id("io.spring.dependency-management") version "1.1.6"
+    id("org.springframework.boot") version "3.5.16"
+    id("io.spring.dependency-management") version "1.1.7"
 
     // Kotlin plugins
-    kotlin("jvm") version "2.0.21"
-    kotlin("plugin.spring") version "2.0.21"
-    kotlin("plugin.jpa") version "2.0.21"
+    kotlin("jvm") version "2.2.21"
+    kotlin("plugin.spring") version "2.2.21"
+    kotlin("plugin.jpa") version "2.2.21"
+
+    // Quality gates (roadmap 1.11): static analysis with a baseline so existing code does not block, coverage floor.
+    id("io.gitlab.arturbosch.detekt") version "1.23.8"
+    jacoco
 }
 
 group = "com.shifa"
@@ -45,7 +49,7 @@ dependencies {
     // implementation("org.springframework.boot:spring-boot-starter-websocket")
 
     // Swagger UI + OpenAPI
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.6.0")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
 
 
     // Testing
@@ -55,11 +59,12 @@ dependencies {
 	
 	//OPEN AI 
 	implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.17.+")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0") // optional
 
     // If you plan to use caching/rate limiting libraries later:
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")  // Cache
+    implementation("net.javacrumbs.shedlock:shedlock-spring:6.6.0")  // One instance runs a scheduled job
+    implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.6.0")
     // SECURITY (NEW): Rate limiting - Bucket4j for DDoS/abuse protection
     implementation("com.bucket4j:bucket4j_jdk17-core:8.16.1")
 
@@ -81,6 +86,53 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+    finalizedBy(tasks.jacocoTestReport)
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    allRules = false
+    // Findings in code that existed before the gate are listed here; new code must be clean. Regenerate with
+    // ./gradlew detektBaseline only when a rule is intentionally relaxed.
+    baseline = file("config/detekt/baseline.xml")
+    config.setFrom(file("config/detekt/detekt.yml"))
+}
+
+// detekt 1.23 is compiled against Kotlin 2.0; it must run with that compiler even though the project uses 2.2.
+configurations.matching { it.name == "detekt" }.configureEach {
+    resolutionStrategy.eachDependency {
+        if (requested.group == "org.jetbrains.kotlin") useVersion("2.0.21")
+    }
+}
+
+jacoco {
+    toolVersion = "0.8.16"
+}
+
+tasks.jacocoTestReport {
+    dependsOn(tasks.test)
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
+}
+
+// Coverage ratchet: the floor is the measured line coverage at the time the gate was added; raise it, never lower it.
+tasks.jacocoTestCoverageVerification {
+    dependsOn(tasks.jacocoTestReport)
+    violationRules {
+        rule {
+            limit {
+                counter = "LINE"
+                value = "COVEREDRATIO"
+                minimum = "0.27".toBigDecimal() // measured 0.283 on 2026-10-29
+            }
+        }
+    }
+}
+
+tasks.check {
+    dependsOn(tasks.jacocoTestCoverageVerification)
 }
 
 java {

@@ -158,7 +158,14 @@ class PatientController(
         val canReschedule: Boolean = false,
         val refundRequired: Boolean = false,
         val payment: PaymentCheckoutDto? = null,
+        /** Live-visit fields (patient-app ask 13). [notes] is an alias of [reason]. */
+        val signatureRequested: Boolean = false,
+        val alreadySigned: Boolean = false,
+        val documentIds: List<Long> = emptyList(),
+        val notes: String? = null,
     )
+
+    data class AttachDocumentsRequest(val documentIds: List<Long>)
 
     data class PaymentCheckoutDto(
         val id: Long,
@@ -197,6 +204,8 @@ class PatientController(
          * Omitted by the current app, which still books first and pays from the appointments screen.
          */
         val paymentProvider: String? = null,
+        /** "app": the gateway return pages redirect back into the patient app (ask 12). */
+        val platform: String? = null,
     )
 
     // -------------------- FCM Token (push notifications) --------------------
@@ -331,7 +340,8 @@ class PatientController(
         } else {
             filtered.filter { it.status !in hidden }
         }
-        return visible.map { toAppointmentDto(it) }
+        val documentIds = patientDocumentService.documentIdsByAppointment(visible.map { it.id })
+        return visible.map { toAppointmentDto(it, documentIds = documentIds[it.id] ?: emptyList()) }
     }
 
     // GET /api/patients/me/appointments/{id} is handled by PatientAppointmentController.getById
@@ -375,6 +385,19 @@ class PatientController(
         )
         val savedNotif = notifications.save(notif)
         fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
+
+        // The patient gets the cancellation in their own list and as a push too (patient-app ask 7).
+        val patientNotif = notifications.save(
+            Notification(
+                patient = profile,
+                doctor = null,
+                title = "Appointment cancelled",
+                message = "Your appointment with Dr. ${doctor.firstName} ${doctor.lastName} was cancelled.".replace("  ", " "),
+                type = Notification.Type.APPOINTMENT_CANCELLED,
+                appointmentId = appointment.id,
+            ),
+        )
+        fcmService.sendPatientNotificationAfterCommit(profile.fcmToken, patientNotif)
 
         return mapOf("message" to "Appointment cancelled successfully")
     }
@@ -582,6 +605,8 @@ class PatientController(
                 }
                 if (old.paymentStatus == Appointment.PaymentStatus.PAID) {
                     old.refundRequired = true
+                } else if (old.paymentStatus == Appointment.PaymentStatus.PENDING) {
+                    paymentService.cancelOpenConsultation(old.id) // close our side of the old checkout (ask 13)
                 }
                 old.status = Appointment.Status.CANCELLED
                 old.holdExpiresAt = null
@@ -597,6 +622,7 @@ class PatientController(
                 userId = principal.user.id ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "User id missing"),
                 appointmentId = saved.id,
                 preferredGateway = provider,
+                returnPlatform = req.platform,
             )
         }
 
@@ -655,6 +681,7 @@ class PatientController(
     private fun toAppointmentDto(
         appt: Appointment,
         payment: PaymentCheckoutDto? = null,
+        documentIds: List<Long> = patientDocumentService.documentIdsByAppointment(listOf(appt.id))[appt.id] ?: emptyList(),
     ): AppointmentDto {
         val locked = BookingPaymentPolicy.isLocked24h(appt.startAt, Instant.now())
         val canChange = BookingPaymentPolicy.canPatientChange(appt.status, locked)
@@ -687,7 +714,28 @@ class PatientController(
             canReschedule = canChange,
             refundRequired = appt.refundRequired,
             payment = payment,
+            signatureRequested = appt.signatureRequested,
+            alreadySigned = appt.patientSignatureImage != null,
+            documentIds = documentIds,
+            notes = appt.reason,
         )
+    }
+
+    /** Attach the patient's own documents to a booked visit (patient-app ask 13). */
+    @PostMapping("/appointments/{id}/documents")
+    @Transactional
+    fun attachDocuments(
+        @AuthenticationPrincipal principal: PatientPrincipal,
+        @PathVariable id: Long,
+        @RequestBody req: AttachDocumentsRequest,
+    ): AppointmentDto {
+        val profile = currentPatientProfile(principal)
+        val patientId = profile.id ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient ID not found")
+        val appointment = appointments.findById(id)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found") }
+        if (appointment.patient.id != patientId) throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
+        patientDocumentService.linkDocumentsToAppointment(patientId, appointment, req.documentIds)
+        return toAppointmentDto(appointment)
     }
 
     // -------------------- Documents Endpoints (patient's own) --------------------

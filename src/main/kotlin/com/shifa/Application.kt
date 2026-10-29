@@ -200,21 +200,7 @@ fun main(args: Array<String>) {
         println("WARNING: Using default localhost connection from application.yml")
     }
 
-    // Firebase (Railway): if no GOOGLE_APPLICATION_CREDENTIALS path, use FIREBASE_SERVICE_ACCOUNT_JSON (raw JSON)
-    if (System.getenv("GOOGLE_APPLICATION_CREDENTIALS").isNullOrBlank()) {
-        val json = System.getenv("FIREBASE_SERVICE_ACCOUNT_JSON")
-        if (!json.isNullOrBlank()) {
-            try {
-                val file = java.io.File.createTempFile("firebase-sa-", ".json")
-                file.deleteOnExit()
-                file.writeText(json)
-                System.setProperty("GOOGLE_APPLICATION_CREDENTIALS", file.absolutePath)
-                println("Firebase: Using FIREBASE_SERVICE_ACCOUNT_JSON from environment (Railway)")
-            } catch (e: Exception) {
-                println("WARNING: Could not write Firebase credentials from FIREBASE_SERVICE_ACCOUNT_JSON: ${e.message}")
-            }
-        }
-    }
-    
+    // Firebase credentials: FcmService and FirebaseAuthService read FIREBASE_SERVICE_ACCOUNT_JSON themselves
+    // (roadmap 2.2); GOOGLE_APPLICATION_CREDENTIALS still works for a local key file.
     runApplication<Application>(*args)
 }

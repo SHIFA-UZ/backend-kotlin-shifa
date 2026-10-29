@@ -62,7 +62,9 @@ class OpenAiResponsesService(
     private val client = OkHttpClient.Builder()
 		.connectTimeout(Duration.ofSeconds(10))
 		.writeTimeout(Duration.ofSeconds(10))
-		.readTimeout(Duration.ZERO) // 🔴 REQUIRED for SSE (infinite stream)
+		// Streaming: the timeout is per read, i.e. the longest allowed silence between two chunks. Two minutes
+		// without a token means the provider stalled; without a limit a stuck stream pins its worker forever.
+		.readTimeout(Duration.ofSeconds(120))
 		.build()
 
     /** Client for non-streaming completion (e.g. briefing) with finite read timeout. */

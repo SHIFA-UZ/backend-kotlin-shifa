@@ -22,6 +22,10 @@ class PublicClinicController(
      * List clinics for onboarding dropdowns (registration, etc.).
      */
     @GetMapping
+    @org.springframework.cache.annotation.Cacheable(
+        cacheNames = [com.shifa.config.CacheConfig.PUBLIC_CLINICS_CACHE],
+        key = "#search ?: ''",
+    )
     fun listClinics(
         @RequestParam(required = false) search: String?,
     ): List<PublicClinicDto> {

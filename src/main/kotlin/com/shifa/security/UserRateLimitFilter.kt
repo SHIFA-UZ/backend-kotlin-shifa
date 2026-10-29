@@ -13,7 +13,8 @@ import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.stereotype.Component
 import org.springframework.web.filter.OncePerRequestFilter
 import java.time.Duration
-import java.util.concurrent.ConcurrentHashMap
+import com.github.benmanes.caffeine.cache.Cache
+import com.github.benmanes.caffeine.cache.Caffeine
 
 /**
  * SECURITY (NEW): Per-user rate limiting for authenticated requests.
@@ -28,7 +29,11 @@ class UserRateLimitFilter(
     override fun getOrder(): Int = 100 // After JwtAuthFilter so SecurityContext is populated
 
     private val log = LoggerFactory.getLogger(UserRateLimitFilter::class.java)
-    private val userBuckets = ConcurrentHashMap<String, Bucket>()
+    private val userBuckets = idleEvictingBuckets()
+
+    /** Buckets of clients idle for an hour are dropped, so the map cannot grow without bound (roadmap 2.6). */
+    private fun idleEvictingBuckets(): Cache<String, Bucket> =
+        Caffeine.newBuilder().expireAfterAccess(Duration.ofHours(1)).maximumSize(100_000).build()
 
     private fun createBucket(requestsPerMin: Int): Bucket {
         val n = requestsPerMin.toLong()
@@ -50,14 +55,14 @@ class UserRateLimitFilter(
         }
         val userId = (auth.principal as UserDetails).username
         val key = "user:$userId"
-        val bucket = userBuckets.getOrPut(key) { createBucket(generalLimitPerMin) }
+        val bucket = userBuckets.get(key) { createBucket(generalLimitPerMin) }
 
         if (!bucket.tryConsume(1)) {
             log.warn("User rate limit exceeded for userId={} path={}", userId, request.requestURI)
             response.status = HttpStatus.TOO_MANY_REQUESTS.value()
             response.contentType = "application/json"
             response.characterEncoding = "UTF-8"
-            response.writer.write("""{"error":"Too many requests. Please try again later."}""")
+            response.writer.write(com.shifa.shared.ErrorBodies.filterJson("Too many requests. Please try again later.", com.shifa.shared.ErrorCode.RATE_LIMITED))
             return
         }
         filterChain.doFilter(request, response)

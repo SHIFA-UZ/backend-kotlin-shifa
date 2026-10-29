@@ -109,7 +109,14 @@ class PatientDocumentService(
             canView = true,
             creatorLabel = creatorLabel,
             category = d.category,
-            isSharedWithTeam = d.isSharedWithTeam
+            isSharedWithTeam = d.isSharedWithTeam,
+            uploadedByPatient = d.uploadedByPatientProfile != null,
+            creatorType = when {
+                d.uploadedByDoctor != null -> "DOCTOR"
+                d.uploadedByPatientProfile != null -> "PATIENT"
+                else -> "UNKNOWN"
+            },
+            appointmentId = d.appointment?.id,
         )
     }
 
@@ -127,7 +134,14 @@ class PatientDocumentService(
             canView = canView,
             creatorLabel = creatorLabel,
             category = d.category,
-            isSharedWithTeam = d.isSharedWithTeam
+            isSharedWithTeam = d.isSharedWithTeam,
+            uploadedByPatient = d.uploadedByPatientProfile != null,
+            creatorType = when {
+                d.uploadedByDoctor != null -> "DOCTOR"
+                d.uploadedByPatientProfile != null -> "PATIENT"
+                else -> "UNKNOWN"
+            },
+            appointmentId = d.appointment?.id,
         )
     }
 
@@ -318,6 +332,13 @@ class PatientDocumentService(
      * Validates ownership and appointment patient match; marks docs team-shared.
      * Returns the number of documents linked.
      */
+    /** Document ids attached to each of [appointmentIds], one projection query (patient-app ask 13). */
+    fun documentIdsByAppointment(appointmentIds: Collection<Long>): Map<Long, List<Long>> {
+        if (appointmentIds.isEmpty()) return emptyMap()
+        return docs.findIdPairsByAppointmentIds(appointmentIds)
+            .groupBy({ (it[0] as Number).toLong() }, { (it[1] as Number).toLong() })
+    }
+
     @Transactional
     fun linkDocumentsToAppointment(
         patientId: Long,
