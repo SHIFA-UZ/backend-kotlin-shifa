@@ -253,4 +253,20 @@ class DocumentAccessService(
 
         return saved
     }
+
+    // ---- The door for other features (roadmap Phase 5 step 4).
+
+    fun grantExists(documentId: Long, doctorId: Long): Boolean = grantRepo.existsByDocument_IdAndDoctor_Id(documentId, doctorId)
+    @Transactional(readOnly = true)
+    fun requestWithDetails(requestId: Long): DocumentAccessRequest? = requestRepo.findWithDetailsById(requestId)
+    @Transactional
+    fun deleteAccessDataForDoctor(doctorId: Long) {
+        requestRepo.deleteAll(requestRepo.findByRequestingDoctor_Id(doctorId))
+        grantRepo.deleteAll(grantRepo.findByDoctor_Id(doctorId))
+    }
+    @Transactional
+    fun deleteAccessDataForPatient(patientId: Long) {
+        requestRepo.deleteAll(requestRepo.findByDocument_Patient_Id(patientId))
+        grantRepo.deleteAll(grantRepo.findByDocument_Patient_Id(patientId))
+    }
 }

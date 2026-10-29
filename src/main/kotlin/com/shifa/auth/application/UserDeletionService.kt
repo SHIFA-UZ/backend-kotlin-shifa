@@ -9,7 +9,6 @@ import com.shifa.auth.infrastructure.*
 import com.shifa.chat.infrastructure.*
 import com.shifa.clinics.infrastructure.*
 import com.shifa.doctors.infrastructure.*
-import com.shifa.documents.infrastructure.*
 import com.shifa.notifications.infrastructure.*
 import com.shifa.patients.infrastructure.*
 import com.shifa.payments.infrastructure.*
@@ -44,10 +43,9 @@ class UserDeletionService(
     private val remoteCareTaskRepository: RemoteCareTaskRepository,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
-    private val patientDocumentRepository: PatientDocumentRepository,
+    private val patientDocumentService: com.shifa.documents.application.PatientDocumentService,
     private val patientFormRepository: PatientFormRepository,
-    private val documentAccessRequestRepository: DocumentAccessRequestRepository,
-    private val documentAccessGrantRepository: DocumentAccessGrantRepository,
+    private val documentAccessService: com.shifa.documents.application.DocumentAccessService,
     private val consultationNoteRepository: ConsultationNoteRepository,
     private val aiDraftNoteRepository: AiDraftNoteRepository,
     private val doctorSettingsRepository: DoctorSettingsRepository,
@@ -100,13 +98,12 @@ class UserDeletionService(
             }
             consultationNoteRepository.findByDoctorId(doctorId).let { consultationNoteRepository.deleteAll(it) }
             aiDraftNoteRepository.findByDoctorId(doctorId).let { aiDraftNoteRepository.deleteAll(it) }
-            documentAccessRequestRepository.findByRequestingDoctor_Id(doctorId).let { documentAccessRequestRepository.deleteAll(it) }
-            documentAccessGrantRepository.findByDoctor_Id(doctorId).let { documentAccessGrantRepository.deleteAll(it) }
+            documentAccessService.deleteAccessDataForDoctor(doctorId)
             doctorSettingsRepository.findByDoctorId(doctorId).ifPresent { doctorSettingsRepository.delete(it) }
             doctorBillingRepository.findByDoctorId(doctorId).ifPresent { doctorBillingRepository.delete(it) }
             // Patient rows may reference this doctor as creator or document uploader; clear FKs before deleting profile.
             patientProfileRepository.clearCreatedByDoctor(doctorId)
-            patientDocumentRepository.clearUploadedByDoctor(doctorId)
+            patientDocumentService.clearUploadedByDoctor(doctorId)
             doctorProfileRepository.delete(doctor)
         }
 
@@ -122,9 +119,8 @@ class UserDeletionService(
                 messageRepository.deleteByConversationIdIn(patientConvs.mapNotNull { it.id })
                 conversationRepository.deleteAll(patientConvs)
             }
-            documentAccessRequestRepository.findByDocument_Patient_Id(patientId).let { documentAccessRequestRepository.deleteAll(it) }
-            documentAccessGrantRepository.findByDocument_Patient_Id(patientId).let { documentAccessGrantRepository.deleteAll(it) }
-            patientDocumentRepository.listForPatient(patientId).let { patientDocumentRepository.deleteAll(it) }
+            documentAccessService.deleteAccessDataForPatient(patientId)
+            patientDocumentService.deleteAllForPatient(patientId)
             patientFormRepository.findByPatientIdOrderByDateDesc(patientId).let { patientFormRepository.deleteAll(it) }
             consultationNoteRepository.findByPatientId(patientId).let { consultationNoteRepository.deleteAll(it) }
             aiDraftNoteRepository.findByPatientId(patientId).let { aiDraftNoteRepository.deleteAll(it) }

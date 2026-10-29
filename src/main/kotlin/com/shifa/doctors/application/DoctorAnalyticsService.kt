@@ -5,7 +5,6 @@ import com.shifa.notifications.application.DoctorSmsBillingService
 import com.shifa.appointments.domain.Appointment
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.documents.infrastructure.PatientDocumentRepository
 import com.shifa.doctors.api.AppointmentTrendPointDto
 import com.shifa.doctors.api.ConsultationTypesDto
 import com.shifa.doctors.api.DoctorAnalyticsOverviewDto
@@ -24,7 +23,7 @@ import java.time.format.DateTimeFormatter
 @Service
 class DoctorAnalyticsService(
     private val appts: AppointmentRepository,
-    private val patientDocs: PatientDocumentRepository,
+    private val patientDocs: com.shifa.documents.application.PatientDocumentService,
     private val doctorSmsBillingService: DoctorSmsBillingService,
 ) {
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE

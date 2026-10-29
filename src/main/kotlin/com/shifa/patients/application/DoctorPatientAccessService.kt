@@ -15,6 +15,15 @@ class DoctorPatientAccessService(
     private val patientsRepo: PatientProfileRepository,
     private val carePartnershipRepo: CarePartnershipRepository,
 ) {
+    /** Strict variant without the care-partnership route: an appointment together, or the doctor created the patient. */
+    fun doctorHasAppointmentOrCreatedPatient(doctorId: Long, patientId: Long): Boolean {
+        if (appointmentRepo.existsByDoctorIdAndPatientId(doctorId, patientId)) return true
+        val patient = patientsRepo.findById(patientId).orElse(null) ?: return false
+        return patient.createdByDoctor?.id == doctorId
+    }
+
+    fun patientExists(patientId: Long): Boolean = patientsRepo.existsById(patientId)
+
     fun doctorMayAccessPatient(doctorId: Long, patientId: Long): Boolean {
         if (appointmentRepo.existsByDoctorIdAndPatientId(doctorId, patientId)) return true
         val patient = patientsRepo.findById(patientId).orElse(null) ?: return false

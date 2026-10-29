@@ -3,7 +3,6 @@ package com.shifa.appointments.api
 
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorReviewRepository
-import com.shifa.documents.infrastructure.PatientDocumentRepository
 import com.shifa.appointments.domain.BookingPaymentPolicy
 import com.shifa.shared.security.PatientPrincipal
 import com.shifa.ai.application.PatientVisitAiSummaryService
@@ -23,7 +22,7 @@ class PatientAppointmentController(
     private val profileMapper: PatientProfileMapper,
     private val reviewRepository: DoctorReviewRepository,
     private val visitSummaryService: PatientVisitAiSummaryService,
-    private val documents: PatientDocumentRepository,
+    private val documents: com.shifa.documents.application.PatientDocumentService,
     private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)

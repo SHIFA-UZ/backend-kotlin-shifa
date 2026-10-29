@@ -19,7 +19,6 @@ import com.shifa.auth.infrastructure.*
 import com.shifa.chat.infrastructure.*
 import com.shifa.clinics.infrastructure.*
 import com.shifa.doctors.infrastructure.*
-import com.shifa.documents.infrastructure.*
 import com.shifa.notifications.infrastructure.*
 import com.shifa.patients.infrastructure.*
 import com.shifa.payments.infrastructure.*

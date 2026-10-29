@@ -1,8 +1,8 @@
 // src/main/kotlin/com/shifa/documents/api/PatientDocumentController.kt
 package com.shifa.documents.api
 
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.appointments.application.AppointmentQueries
+import com.shifa.patients.application.DoctorPatientAccessService
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.clinics.application.ClinicAccessService
@@ -23,8 +23,8 @@ import java.time.LocalDate
 @RequestMapping("/api/patients")
 class PatientDocumentController(
     private val service: PatientDocumentService,
-    private val appointmentRepo: AppointmentRepository,
-    private val patientsRepo: PatientProfileRepository,
+    private val appointments: AppointmentQueries,
+    private val patientAccess: DoctorPatientAccessService,
     private val documentAccessService: DocumentAccessService,
     private val clinicAccess: ClinicAccessService,
 ) {
@@ -43,20 +43,13 @@ class PatientDocumentController(
         else -> throw ResponseStatusException(HttpStatus.FORBIDDEN)
     }
 
-    /** Strict: appointment with this doctor or created by this doctor. */
-    private fun strictDoctorPatientAccess(doctorId: Long, patientId: Long): Boolean {
-        if (appointmentRepo.existsByDoctorIdAndPatientId(doctorId, patientId)) return true
-        val patient = patientsRepo.findById(patientId).orElse(null) ?: return false
-        return patient.createdByDoctor?.id == doctorId
-    }
-
     private fun ensurePatientDocumentAccess(principal: Any, patientId: Long, clinicId: Long?) {
         clinicAccess.assertPracticeActor(principal)
         when (principal) {
             is DoctorPrincipal -> {
                 val doctorId = principal.profile.id
-                if (strictDoctorPatientAccess(doctorId, patientId)) return
-                if (!patientsRepo.findById(patientId).isPresent) {
+                if (patientAccess.doctorHasAppointmentOrCreatedPatient(doctorId, patientId)) return
+                if (!patientAccess.patientExists(patientId)) {
                     throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
                 }
                 if (clinicId != null) {
@@ -101,14 +94,7 @@ class PatientDocumentController(
         val uploadingDoctorId = effectiveDoctorProfileId(principal, clinicId)
         val docDate = date?.let(LocalDate::parse)
         val appointment = appointmentId?.let { id ->
-            val found = appointmentRepo.findById(id).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $id")
-            }
-            if (found.patient.id != patientId) {
-                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment does not belong to this patient")
-            }
-            clinicAccess.assertCanAccessAppointmentResource(principal, found.doctor.id)
-            found
+            appointments.ownedByPatient(id, patientId).also { clinicAccess.assertCanAccessAppointmentResource(principal, it.doctor.id) }
         }
         val dto = service.upload(
             patientId = patientId,

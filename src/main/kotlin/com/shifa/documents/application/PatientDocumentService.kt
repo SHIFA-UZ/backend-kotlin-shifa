@@ -379,4 +379,30 @@ class PatientDocumentService(
 
     fun listForAppointment(appointmentId: Long): List<PatientDocument> =
         docs.findByAppointmentId(appointmentId)
+
+    // ---- The door for other features (roadmap Phase 5 step 4): nothing outside `documents` touches the repository.
+    // Names match the former repository calls on purpose; callers only changed the receiver.
+
+    fun save(document: PatientDocument): PatientDocument = docs.save(document)
+    fun findById(id: Long): java.util.Optional<PatientDocument> = docs.findById(id)
+    fun listForPatient(patientId: Long): List<PatientDocument> = docs.listForPatient(patientId)
+    fun findByAppointmentId(appointmentId: Long): List<PatientDocument> = docs.findByAppointmentId(appointmentId)
+    fun countByAppointmentIds(appointmentIds: Collection<Long>): List<Array<Any>> = docs.countByAppointmentIds(appointmentIds)
+    fun countDocumentsByDoctorPatientsInDateRange(
+        doctorId: Long,
+        apptStart: java.time.Instant,
+        apptEnd: java.time.Instant,
+        docStart: java.time.LocalDate,
+        docEnd: java.time.LocalDate,
+    ): Long = docs.countDocumentsByDoctorPatientsInDateRange(doctorId, apptStart, apptEnd, docStart, docEnd)
+    fun countByUploadedDoctorAndDocumentDateBetween(doctorId: Long, from: java.time.LocalDate, toInclusive: java.time.LocalDate): Long =
+        docs.countByUploadedDoctorAndDocumentDateBetween(doctorId, from, toInclusive)
+    fun countUploadedByDoctorAllTime(doctorId: Long): Long = docs.countUploadedByDoctorAllTime(doctorId)
+    fun listUploadedByDoctorInDocumentDateRange(doctorId: Long, from: java.time.LocalDate, toInclusive: java.time.LocalDate): List<PatientDocument> =
+        docs.listUploadedByDoctorInDocumentDateRange(doctorId, from, toInclusive)
+    @Transactional
+    fun clearUploadedByDoctor(doctorId: Long): Int = docs.clearUploadedByDoctor(doctorId)
+    /** Rows only; the stored files are kept (account deletion keeps today's behaviour). */
+    @Transactional
+    fun deleteAllForPatient(patientId: Long) = docs.deleteAll(docs.listForPatient(patientId))
 }

@@ -41,7 +41,6 @@ class AppointmentBriefingService(
     private val briefingRepo: AppointmentBriefingRepository,
     private val appointmentRepo: AppointmentRepository,
     private val patientDocumentService: PatientDocumentService,
-    private val patientDocumentRepo: com.shifa.documents.infrastructure.PatientDocumentRepository,
     private val documentStorage: PatientDocumentStorageService,
     private val pdfExtraction: PdfTextExtractionService,
     private val openAi: OpenAiResponsesService,
@@ -272,7 +271,7 @@ class AppointmentBriefingService(
                 appointmentId = appointmentId,
                 status = "NONE",
                 briefingText = null,
-                documentCount = patientDocumentRepo.findByAppointmentId(appointmentId).size,
+                documentCount = patientDocumentService.findByAppointmentId(appointmentId).size,
                 generatedAt = null,
                 error = null,
             )
@@ -288,7 +287,7 @@ class AppointmentBriefingService(
         if (appointmentIds.isEmpty()) return emptyMap()
         val briefings = briefingRepo.findByAppointmentIdIn(appointmentIds)
             .associateBy { it.appointment.id }
-        val counts = patientDocumentRepo.countByAppointmentIds(appointmentIds).associate { row ->
+        val counts = patientDocumentService.countByAppointmentIds(appointmentIds).associate { row ->
             val id = (row[0] as Number).toLong()
             val count = (row[1] as Number).toInt()
             id to count

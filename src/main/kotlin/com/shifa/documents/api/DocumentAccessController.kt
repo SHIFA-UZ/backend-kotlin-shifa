@@ -1,85 +1,44 @@
 package com.shifa.documents.api
 
-import com.shifa.documents.domain.DocumentAccessRequest
-import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
-import com.shifa.shared.security.PatientPrincipal
+import com.shifa.documents.api.dto.DocumentAccessRequestDto
 import com.shifa.documents.application.DocumentAccessService
+import com.shifa.documents.domain.DocumentAccessRequest
+import com.shifa.patients.application.CurrentPatientResolver
+import com.shifa.shared.security.DoctorPrincipal
+import com.shifa.shared.security.PatientPrincipal
+import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
-import org.springframework.web.bind.annotation.*
+import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestMapping
+import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
-import org.springframework.http.HttpStatus
 
 @RestController
 @RequestMapping("/api/document-access-requests")
 class DocumentAccessController(
     private val documentAccessService: DocumentAccessService,
-    private val appointmentRepo: AppointmentRepository,
-    private val patientProfiles: PatientProfileRepository
+    private val currentPatient: CurrentPatientResolver,
 ) {
 
-    /**
-     * POST /api/document-access-requests/{requestId}/approve
-     * Called by the document owner (doctor or patient) to approve an access request.
-     */
+    /** Called by the document owner (doctor or patient) to approve an access request. */
     @PostMapping("/{requestId}/approve")
-    fun approve(
-        @PathVariable requestId: Long,
-        @AuthenticationPrincipal principal: Any
-    ): ResponseEntity<DocumentAccessRequestDto> {
-        val (ownerType, ownerId) = resolveOwner(principal)
-            ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, "Not authorized")
-        val request = documentAccessService.approve(requestId, ownerType, ownerId)
-        return ResponseEntity.ok(toDto(request))
+    fun approve(@PathVariable requestId: Long, @AuthenticationPrincipal principal: Any): ResponseEntity<DocumentAccessRequestDto> {
+        val (ownerType, ownerId) = owner(principal)
+        return ResponseEntity.ok(DocumentAccessRequestDto.from(documentAccessService.approve(requestId, ownerType, ownerId)))
     }
 
-    /**
-     * POST /api/document-access-requests/{requestId}/reject
-     * Called by the document owner to reject an access request.
-     */
+    /** Called by the document owner to reject an access request. */
     @PostMapping("/{requestId}/reject")
-    fun reject(
-        @PathVariable requestId: Long,
-        @AuthenticationPrincipal principal: Any
-    ): ResponseEntity<DocumentAccessRequestDto> {
-        val (ownerType, ownerId) = resolveOwner(principal)
-            ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, "Not authorized")
-        val request = documentAccessService.reject(requestId, ownerType, ownerId)
-        return ResponseEntity.ok(toDto(request))
+    fun reject(@PathVariable requestId: Long, @AuthenticationPrincipal principal: Any): ResponseEntity<DocumentAccessRequestDto> {
+        val (ownerType, ownerId) = owner(principal)
+        return ResponseEntity.ok(DocumentAccessRequestDto.from(documentAccessService.reject(requestId, ownerType, ownerId)))
     }
 
-    private fun resolveOwner(principal: Any): Pair<DocumentAccessRequest.OwnerType, Long>? {
-        return when (principal) {
-            is com.shifa.shared.security.DoctorPrincipal -> DocumentAccessRequest.OwnerType.doctor to principal.profile.id
-            is PatientPrincipal -> {
-                val patient = principal.user.phone?.let { patientProfiles.findByPhone(it).orElse(null) }
-                    ?: principal.user.email?.let { patientProfiles.findByEmail(it).orElse(null) }
-                    ?: return null
-                val pid = patient.id ?: return null
-                DocumentAccessRequest.OwnerType.patient to pid
-            }
-            else -> null
-        }
-    }
-
-    private fun toDto(r: DocumentAccessRequest): DocumentAccessRequestDto = DocumentAccessRequestDto(
-        id = r.id,
-        documentId = r.document.id!!,
-        requestingDoctorId = r.requestingDoctor.id,
-        ownerType = r.ownerType.name,
-        ownerId = r.ownerId,
-        status = r.status.name,
-        createdAt = r.createdAt.toString()
-    )
-
-    data class DocumentAccessRequestDto(
-        val id: Long,
-        val documentId: Long,
-        val requestingDoctorId: Long,
-        val ownerType: String,
-        val ownerId: Long,
-        val status: String,
-        val createdAt: String
-    )
+    private fun owner(principal: Any): Pair<DocumentAccessRequest.OwnerType, Long> = when (principal) {
+        is DoctorPrincipal -> DocumentAccessRequest.OwnerType.doctor to principal.profile.id
+        is PatientPrincipal -> currentPatient.find(principal.user)?.id?.let { DocumentAccessRequest.OwnerType.patient to it }
+        else -> null
+    } ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, "Not authorized")
 }

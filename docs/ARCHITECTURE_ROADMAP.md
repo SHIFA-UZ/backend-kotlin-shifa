@@ -427,6 +427,14 @@ controller has no repository left. The ArchUnit baseline for "only notifications
 infrastructure" drops from 166 entries to 0. Reminder jobs and the FCM token cleanup are unchanged. The behavioural items
 for this feature (push texts in the patient's language, one token per device) are separate PRs, as the recipe says.
 
+**Phase 5, `documents` step (branch `refactor/documents-module`):** `PatientDocumentService` and `DocumentAccessService`
+are the doors (pass-through methods named like the former repository calls; eleven callers changed the receiver, account
+deletion calls `deleteAccessDataFor*`/`deleteAllForPatient`/`clearUploadedByDoctor`); both controllers have no repository:
+the strict doctor–patient check and the patient-exists check live in `patients.application.DoctorPatientAccessService`,
+the appointment lookup for an upload in the new `appointments.application.AppointmentQueries`, the access-request DTO in
+`api/dto`, and the patient owner of an access request is resolved by `CurrentPatientResolver`. The documents border rule in
+the ArchUnit baseline drops to 0. Items 5, 6 and 15 for this feature stay separate PRs.
+
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),

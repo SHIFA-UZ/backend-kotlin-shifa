@@ -6,7 +6,6 @@ import com.shifa.notifications.domain.Notification
 import com.shifa.patients.domain.PatientForm
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.documents.domain.PatientDocumentCategory
-import com.shifa.documents.infrastructure.PatientDocumentRepository
 import com.shifa.patients.infrastructure.PatientFormRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.ai.clinicalengine.application.ClinicalSmartPriorityService
@@ -22,7 +21,7 @@ import java.time.Instant
 class PatientFormService(
     private val profiles: PatientProfileRepository,
     private val forms: PatientFormRepository,
-    private val docs: PatientDocumentRepository,
+    private val docs: com.shifa.documents.application.PatientDocumentService,
     private val notificationService: com.shifa.notifications.application.NotificationService,
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
     private val smartPriorityService: ClinicalSmartPriorityService,
