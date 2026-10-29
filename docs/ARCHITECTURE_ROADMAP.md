@@ -375,6 +375,14 @@ That is 13 secrets plus the profile selector and the database references. Everyt
 
 ---
 
+## Status 2026-10-29
+
+Phase 0 is on development except the two enforcement flips; Phase 1 is done except 1.10; Phase 2 items 2.3
+(partly), 2.5, 2.6, 2.8 and the Firebase half of 2.2 are done; Phase 3 steps 3.1–3.3 are done (Boot 3.5.16,
+Kotlin 2.2.21, Gradle 8.14.3); Phase 4 items 4, 5, 7, 8, 9, 12, 13, 14, 15 are implemented additively; P4
+(batch size), P7 (SSE executor), the cache item and the first indexes from Phase 6 are in. The per-step
+record, the open items and why they are open are in `docs/OVERNIGHT_2026-10-29.md`.
+
 ## 4. Phase 0: stop the bleeding (security hotfixes)
 
 **Goal:** close the findings in 1.4 and P1 with the smallest possible diffs, through the current deploy path, before anything else. Each row is one PR. None changes an API shape the apps rely on.
