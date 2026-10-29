@@ -29,7 +29,7 @@ spring:
   data:
     web:
       pageable:
-        # Page JSON stays exactly as the apps read it today (Boot 3.4+ warns that the default may change).
+        # Keep the mode the apps were built against (Boot 3.4+ warns that the default may change to via_dto).
         serialization-mode: direct
 
   flyway:
