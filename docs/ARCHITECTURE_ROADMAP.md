@@ -406,6 +406,19 @@ original ignoring those lines), the OpenAPI snapshot is byte-identical and all 4
 `AuditService`/`AuditLog` are `admin`; `DoctorBilling` is `payments`; `VisitChargeService` is `clinics`. Steps 2–4 (DTO
 extraction, controllers without repositories, ArchUnit border rules) now follow one feature per PR in the 9.2 order.
 
+**Phase 5, `shared` step (branch `refactor/shared-module`):** `patients.application.CurrentPatientResolver` replaces the
+nine private copies (order: `user_id`, then newest exact phone match, then newest exact e-mail match; it lives in
+`patients` rather than `shared` so that `shared` stays feature-free); `shared.PublicUrls` replaces a dozen
+`normalize*Url` copies and every `publicBaseUrl` concatenation; `ArchitectureTest` (ArchUnit, frozen baselines in
+`src/test/resources/archunit-store`) enforces from now on: domain depends on nothing above it, api does not use
+infrastructure, shared does not depend on features, a feature's infrastructure is used only by that feature. Each
+later feature step shrinks the frozen lists; a new violation fails the build. The production check for patients whose
+profile resolves differently by `user_id` than by phone/e-mail is `docs/sql/patient-resolution-check.sql` (run with
+`railway connect Postgres --environment production --ssh < docs/sql/patient-resolution-check.sql`); its result is
+run on production 2026-10-29: 70 patient users, `changed_vs_*` all 0, `lost_vs_any` 0, `multiple_linked` 0,
+`gained_vs_c` 5 (five patients who got 404 on tasks, chat, appointments and notifications resolve from now on). The
+resolver is therefore a pure refactor for 65 users and a fix for 5; no data merge needed.
+
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),

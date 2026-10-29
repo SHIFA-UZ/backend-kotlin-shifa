@@ -2,28 +2,17 @@
 package com.shifa.doctors.application
 
 import com.fasterxml.jackson.databind.ObjectMapper
-import com.shifa.shared.config.AppProperties
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.api.DoctorProfileDto
 import org.springframework.stereotype.Component
 
 @Component
 class DoctorProfileMapper(
-    private val appProps: AppProperties,
-    private val objectMapper: ObjectMapper
+    private val objectMapper: ObjectMapper,
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
-    /** Make avatarUrl absolute using app.publicBaseUrl (e.g., http://localhost:8090). */
-    fun normalizeAvatarUrl(avatarUrl: String?): String? {
-        val trimmed = avatarUrl?.trim()?.replace("\\", "/")
-        if (trimmed.isNullOrEmpty()) return null
-        
-        val isAbsolute = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        if (isAbsolute) return trimmed
-        
-        val base = appProps.publicBaseUrl.removeSuffix("/")
-        val path = trimmed.removePrefix("/")
-        return "$base/$path"
-    }
+    /** Make avatarUrl absolute using app.publicBaseUrl. */
+    fun normalizeAvatarUrl(avatarUrl: String?): String? = publicUrls.absolute(avatarUrl)
 
     private fun parseJsonList(jsonString: String?): List<String>? {
         if (jsonString.isNullOrBlank()) return null
@@ -34,13 +23,7 @@ class DoctorProfileMapper(
         }
     }
 
-    private fun normalizeCertificateUrl(certUrl: String?): String? {
-        if (certUrl.isNullOrBlank()) return null
-        val trimmed = certUrl.trim()
-        val isAbs = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-        return if (isAbs) trimmed
-        else "${appProps.publicBaseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
-    }
+    private fun normalizeCertificateUrl(certUrl: String?): String? = publicUrls.absolute(certUrl)
 
     fun toDto(d: DoctorProfile): DoctorProfileDto {
         val fullName = "${d.firstName} ${d.lastName}".trim()

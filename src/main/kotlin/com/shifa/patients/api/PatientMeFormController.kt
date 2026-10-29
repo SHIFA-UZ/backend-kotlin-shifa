@@ -1,6 +1,5 @@
 package com.shifa.patients.api
 
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.shared.security.PatientPrincipal
 import com.shifa.patients.application.PatientFormService
 import org.springframework.http.HttpStatus
@@ -13,21 +12,10 @@ import org.springframework.web.server.ResponseStatusException
 @RequestMapping("/api/patients/me/forms")
 class PatientMeFormController(
     private val formService: PatientFormService,
-    private val patientProfiles: PatientProfileRepository
+    private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
 
-    private fun currentPatientProfile(principal: PatientPrincipal): com.shifa.patients.domain.PatientProfile {
-        val user = principal.user
-        return patientProfiles.findByUserId(user.id)
-            .orElseGet {
-                user.phone?.let { patientProfiles.findByPhone(it) }?.orElse(null)
-                    ?: user.email?.let { patientProfiles.findByEmail(it) }?.orElse(null)
-            }
-            ?: throw ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Patient profile not found for user ${user.id}"
-            )
-    }
+    private fun currentPatientProfile(principal: PatientPrincipal): com.shifa.patients.domain.PatientProfile = currentPatient.resolve(principal)
 
     data class SubmitSignatureRequest(
         val signatureImageBase64: String

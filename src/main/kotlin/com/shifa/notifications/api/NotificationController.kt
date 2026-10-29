@@ -5,7 +5,6 @@ import com.shifa.documents.domain.DocumentAccessRequest
 import com.shifa.notifications.domain.Notification
 import com.shifa.documents.infrastructure.DocumentAccessRequestRepository
 import com.shifa.notifications.infrastructure.NotificationRepository
-import com.shifa.patients.infrastructure.PatientProfileRepository
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.shared.security.ClinicStaffPrincipal
 import com.shifa.shared.security.DoctorPrincipal
@@ -20,23 +19,12 @@ import java.time.Instant
 @RequestMapping("/api/notifications")
 class NotificationController(
     private val notifications: NotificationRepository,
-    private val patientProfiles: PatientProfileRepository,
     private val documentAccessRequestRepo: DocumentAccessRequestRepository,
     private val appointments: AppointmentRepository,
+    private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
 
-    private fun currentPatientProfile(principal: PatientPrincipal): com.shifa.patients.domain.PatientProfile {
-        val user = principal.user
-        return user.phone?.let { patientProfiles.findByPhone(it) }
-            ?.orElseGet {
-                user.email?.let { patientProfiles.findByEmail(it) }
-                    ?.orElse(null)
-            }
-            ?: throw ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Patient profile not found for user ${user.id}"
-            )
-    }
+    private fun currentPatientProfile(principal: PatientPrincipal): com.shifa.patients.domain.PatientProfile = currentPatient.resolve(principal)
 
     data class NotificationDto(
         val id: Long,

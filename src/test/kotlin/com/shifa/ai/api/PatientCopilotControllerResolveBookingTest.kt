@@ -42,17 +42,17 @@ class PatientCopilotControllerResolveBookingTest {
         return PatientCopilotController(
             aiService = aiService,
             transcriptionService = mock(TranscriptionService::class.java),
-            patientProfiles = patientProfiles,
             doctorProfiles = doctorProfiles,
             reviewRepository = reviewRepo,
             copilotBookingService = booking,
             copilotContextService = mock(PatientCopilotContextService::class.java),
             daySlotsService = daySlots,
-            appProps = AppProperties(),
             objectMapper = jacksonObjectMapper(),
             subscriptionTierService = mock(SubscriptionTierService::class.java),
             uploadGuard = com.shifa.shared.UploadGuard(AppProperties()),
             sseExecutor = java.util.concurrent.Executor { it.run() },
+            currentPatient = com.shifa.patients.application.CurrentPatientResolver(patientProfiles),
+            publicUrls = com.shifa.shared.PublicUrls(AppProperties()),
         )
     }
 
@@ -79,7 +79,7 @@ class PatientCopilotControllerResolveBookingTest {
             profession = "cardiologist"
         )
 
-        `when`(patients.findByUserId(11L)).thenReturn(Optional.of(patient))
+        `when`(patients.findNewestByUserId(11L)).thenReturn(Optional.of(patient))
         `when`(doctors.findById(55L)).thenReturn(Optional.of(doctor))
         `when`(
             ai.resolvePatientBookingIntent(
@@ -140,7 +140,7 @@ class PatientCopilotControllerResolveBookingTest {
             profession = "dermatologist"
         )
 
-        `when`(patients.findByUserId(12L)).thenReturn(Optional.of(patient))
+        `when`(patients.findNewestByUserId(12L)).thenReturn(Optional.of(patient))
         `when`(doctors.findById(66L)).thenReturn(Optional.of(doctor))
         `when`(
             ai.resolvePatientBookingIntent(

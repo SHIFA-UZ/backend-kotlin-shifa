@@ -26,6 +26,7 @@ class PatientTreatmentPlanController(
     private val paymentsRepo: TreatmentPlanPaymentRepository,
     private val installmentPlans: InstallmentPlanRepository,
     private val installmentItems: InstallmentItemRepository,
+    private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
 
     data class PatientPlanLineDto(
@@ -72,11 +73,7 @@ class PatientTreatmentPlanController(
         val installmentPlans: List<PatientInstallmentPlanDto>,
     )
 
-    private fun currentPatient(principal: PatientPrincipal) =
-        principal.user.phone?.let { patientProfiles.findByPhone(it) }
-            ?.orElseGet {
-                principal.user.email?.let { patientProfiles.findByEmail(it) }?.orElse(null)
-            }
+    private fun currentPatient(principal: PatientPrincipal) = currentPatient.resolve(principal)
             ?: patientProfiles.findByUserId(principal.user.id).orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Patient profile not found")
             }

@@ -12,7 +12,7 @@ import java.time.ZoneOffset
 class PatientProfileMapperPhotoTest {
     private val props = AppProperties().apply { publicBaseUrl = "https://api.shifa.uz"; storageRoot = "/tmp" }
     private val signer = FileUrlSigner("a_really_long_random_64+_char_secret_development_only_xxxxxxxx", Clock.fixed(Instant.parse("2026-10-28T12:00:00Z"), ZoneOffset.UTC))
-    private val mapper = PatientProfileMapper(props, signer)
+    private val mapper = PatientProfileMapper(signer, com.shifa.shared.PublicUrls(props))
 
     @Test
     fun `own photo is absolute and signed`() {
@@ -38,7 +38,7 @@ class PatientProfileMapperPhotoTest {
 class PatientProfileMapperPhotoEdgeTest {
     private val props = AppProperties().apply { publicBaseUrl = "https://api.shifa.uz"; storageRoot = "/tmp" }
     private val signer = FileUrlSigner("a_really_long_random_64+_char_secret_development_only_xxxxxxxx", Clock.fixed(Instant.parse("2026-10-28T12:00:00Z"), ZoneOffset.UTC))
-    private val mapper = PatientProfileMapper(props, signer)
+    private val mapper = PatientProfileMapper(signer, com.shifa.shared.PublicUrls(props))
 
     @Test
     fun `empty slug from a non-latin name and encoded names are still the owner's photo`() {

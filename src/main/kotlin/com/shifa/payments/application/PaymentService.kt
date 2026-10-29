@@ -1,6 +1,5 @@
 package com.shifa.payments.application
 
-import com.shifa.shared.config.AppProperties
 import com.shifa.shared.config.ClickProperties
 import com.shifa.shared.config.PaymentProperties
 import com.shifa.shared.config.StripeProperties
@@ -56,12 +55,12 @@ class PaymentService(
     private val clickGateway: ClickGateway,
     private val manualPaymentGateway: ManualPaymentGateway,
     private val clickProperties: ClickProperties,
-    private val appProperties: AppProperties,
     private val paymentProperties: PaymentProperties,
     private val stripeProperties: StripeProperties,
     private val doctorServices: DoctorServiceRepository,
     private val doctorServicePrices: DoctorServicePriceRepository,
     private val settlement: AppointmentPaymentSettlement,
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
     private val log = LoggerFactory.getLogger(PaymentService::class.java)
 
@@ -191,9 +190,9 @@ class PaymentService(
                 description = "Consultation payment for appointment #${appointment.id}",
                 destinationAccountId = destinationAccountId,
                 successUrl =
-                "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef${returnPlatformQuery(returnPlatform)}",
+                publicUrls.absolute("api/payments/checkout/success?ref=$externalRef${returnPlatformQuery(returnPlatform)}")!!,
                 cancelUrl =
-                "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef${returnPlatformQuery(returnPlatform)}"
+                publicUrls.absolute("api/payments/checkout/cancel?ref=$externalRef${returnPlatformQuery(returnPlatform)}")!!
             )
 
         val (usedGateway: PaymentGatewayCode, gatewayResult: GatewayCheckoutResult) =
@@ -357,9 +356,9 @@ class PaymentService(
             },
             destinationAccountId = destinationAccountId,
             successUrl =
-            "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/success?ref=$externalRef${returnPlatformQuery(returnPlatform)}",
+            publicUrls.absolute("api/payments/checkout/success?ref=$externalRef${returnPlatformQuery(returnPlatform)}")!!,
             cancelUrl =
-            "${appProperties.publicBaseUrl.removeSuffix("/")}/api/payments/checkout/cancel?ref=$externalRef${returnPlatformQuery(returnPlatform)}",
+            publicUrls.absolute("api/payments/checkout/cancel?ref=$externalRef${returnPlatformQuery(returnPlatform)}")!!,
         )
         val gatewayResult = try {
             when (usedGateway) {

@@ -1,7 +1,6 @@
 // src/main/kotlin/com/shifa/chat/api/ChatAttachmentController.kt
 package com.shifa.chat.api
 
-import com.shifa.shared.config.AppProperties
 import com.shifa.shared.storage.FileStorage
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
@@ -12,9 +11,9 @@ import java.util.UUID
 @RequestMapping("/api/messages")
 class ChatAttachmentController(
     private val storage: FileStorage,
-    private val appProperties: AppProperties,
     private val signer: com.shifa.shared.security.FileUrlSigner,
     private val uploadGuard: com.shifa.shared.UploadGuard,
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
 
     /**
@@ -41,11 +40,11 @@ class ChatAttachmentController(
             if (thumbnail != null && !thumbnail.isEmpty) {
                 val thumbnailFilename = "thumb_$uniqueFilename"
                 thumbnail.inputStream.use { storage.put("chat-attachments/$thumbnailFilename", it, thumbnail.size, thumbnail.contentType) }
-                thumbnailUrl = signer.sign("${appProperties.publicBaseUrl.removeSuffix("/")}/chat-attachments/$thumbnailFilename")
+                thumbnailUrl = signer.sign(publicUrls.absolute("chat-attachments/$thumbnailFilename")!!)
             }
             
             // Build public URL
-            val publicUrl = signer.sign("${appProperties.publicBaseUrl.removeSuffix("/")}/chat-attachments/$uniqueFilename")
+            val publicUrl = signer.sign(publicUrls.absolute("chat-attachments/$uniqueFilename")!!)
             
             return ResponseEntity.ok(mapOf<String, String>(
                 "url" to publicUrl,

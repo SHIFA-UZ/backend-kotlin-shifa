@@ -37,6 +37,7 @@ class RemoteCareTaskController(
     private val fcmService: FcmService,
     private val subscriptionTierService: SubscriptionTierService,
     private val appointmentRepo: com.shifa.appointments.infrastructure.AppointmentRepository,
+    private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
     private companion object {
         val CHECK_IN_UNDO_WINDOW: Duration = Duration.ofHours(24)
@@ -360,18 +361,7 @@ class RemoteCareTaskController(
 
     // ==================== PATIENT ENDPOINTS ====================
 
-    private fun currentPatientProfile(principal: PatientPrincipal): PatientProfile {
-        val user = principal.user
-        return user.phone?.let { patientRepo.findByPhone(it) }
-            ?.orElseGet {
-                user.email?.let { patientRepo.findByEmail(it) }
-                    ?.orElse(null)
-            }
-            ?: throw ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Patient profile not found for user ${user.id}"
-            )
-    }
+    private fun currentPatientProfile(principal: PatientPrincipal): PatientProfile = currentPatient.resolve(principal)
 
     @GetMapping("/my-tasks")
     @Transactional(readOnly = true)

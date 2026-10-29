@@ -1,6 +1,5 @@
 package com.shifa.payments.application
 
-import com.shifa.shared.config.AppProperties
 import com.shifa.shared.config.StripeProperties
 import com.shifa.payments.domain.DoctorSubscription
 import com.shifa.payments.domain.DoctorSubscriptionStatus
@@ -25,7 +24,7 @@ class SubscriptionService(
     private val planRepository: SubscriptionPlanRepository,
     private val doctorSubscriptionRepository: DoctorSubscriptionRepository,
     private val stripeProperties: StripeProperties,
-    private val appProperties: AppProperties
+    private val publicUrls: com.shifa.shared.PublicUrls,
 ) {
     companion object {
         private const val DEFAULT_GRACE_DAYS: Long = 7
@@ -112,8 +111,8 @@ class SubscriptionService(
                     .setClientReferenceId("doctor_${doctor.id}_${plan.code}")
                     .putMetadata("doctorId", doctor.id.toString())
                     .putMetadata("planCode", plan.code)
-                    .setSuccessUrl("${appProperties.publicBaseUrl.removeSuffix("/")}/doctor/subscription/success")
-                    .setCancelUrl("${appProperties.publicBaseUrl.removeSuffix("/")}/doctor/subscription/cancel")
+                    .setSuccessUrl(publicUrls.absolute("doctor/subscription/success"))
+                    .setCancelUrl(publicUrls.absolute("doctor/subscription/cancel"))
                     .addLineItem(lineItem)
                     .build()
             )

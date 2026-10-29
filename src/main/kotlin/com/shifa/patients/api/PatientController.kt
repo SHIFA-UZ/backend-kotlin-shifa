@@ -38,12 +38,7 @@ import org.springframework.web.server.ResponseStatusException
 import java.time.*
 import java.time.format.DateTimeFormatter
 
-private fun normalizeAvatarUrl(avatarUrl: String?, baseUrl: String): String? {
-    val trimmed = avatarUrl?.trim() ?: return null
-    val isAbs = trimmed.startsWith("http://") || trimmed.startsWith("https://")
-    return if (isAbs) trimmed
-    else "${baseUrl.removeSuffix("/")}/${trimmed.removePrefix("/")}"
-}
+private fun normalizeAvatarUrl(avatarUrl: String?, baseUrl: String): String? = com.shifa.shared.PublicUrls.absolute(baseUrl, avatarUrl)
 
 @RestController
 @RequestMapping("/api/patients/me")
@@ -65,23 +60,12 @@ class PatientController(
     private val paymentService: PaymentService,
     private val paymentProperties: PaymentProperties,
     private val fileUrlSigner: com.shifa.shared.security.FileUrlSigner,
+    private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
 ) {
 
     // -------------------- Helper --------------------
 
-    private fun currentPatientProfile(principal: PatientPrincipal): PatientProfile {
-        val user = principal.user
-        // Prefer by user_id for multi-role (same user as doctor and patient)
-        return patientProfiles.findByUserId(user.id)
-            .orElseGet {
-                user.phone?.let { patientProfiles.findByPhone(it) }?.orElse(null)
-                    ?: user.email?.let { patientProfiles.findByEmail(it) }?.orElse(null)
-            }
-            ?: throw ResponseStatusException(
-                HttpStatus.NOT_FOUND,
-                "Patient profile not found for user ${user.id}"
-            )
-    }
+    private fun currentPatientProfile(principal: PatientPrincipal): PatientProfile = currentPatient.resolve(principal)
 
     // -------------------- DTOs --------------------
 
