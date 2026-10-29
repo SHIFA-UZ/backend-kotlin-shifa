@@ -11,7 +11,6 @@ import com.shifa.clinics.infrastructure.*
 import com.shifa.doctors.infrastructure.*
 import com.shifa.notifications.infrastructure.*
 import com.shifa.patients.infrastructure.*
-import com.shifa.payments.infrastructure.*
 import com.shifa.tasks.infrastructure.*
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
@@ -49,7 +48,7 @@ class UserDeletionService(
     private val consultationNoteRepository: ConsultationNoteRepository,
     private val aiDraftNoteRepository: AiDraftNoteRepository,
     private val doctorSettingsRepository: DoctorSettingsRepository,
-    private val doctorBillingRepository: DoctorBillingRepository,
+    private val doctorBillingService: com.shifa.payments.application.DoctorBillingService,
 ) {
     private val log = LoggerFactory.getLogger(UserDeletionService::class.java)
 
@@ -100,7 +99,7 @@ class UserDeletionService(
             aiDraftNoteRepository.findByDoctorId(doctorId).let { aiDraftNoteRepository.deleteAll(it) }
             documentAccessService.deleteAccessDataForDoctor(doctorId)
             doctorSettingsRepository.findByDoctorId(doctorId).ifPresent { doctorSettingsRepository.delete(it) }
-            doctorBillingRepository.findByDoctorId(doctorId).ifPresent { doctorBillingRepository.delete(it) }
+            doctorBillingService.deleteForDoctor(doctorId)
             // Patient rows may reference this doctor as creator or document uploader; clear FKs before deleting profile.
             patientProfileRepository.clearCreatedByDoctor(doctorId)
             patientDocumentService.clearUploadedByDoctor(doctorId)

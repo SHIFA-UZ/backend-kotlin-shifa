@@ -435,6 +435,12 @@ the appointment lookup for an upload in the new `appointments.application.Appoin
 `api/dto`, and the patient owner of an access request is resolved by `CurrentPatientResolver`. The documents border rule in
 the ArchUnit baseline drops to 0. Items 5, 6 and 15 for this feature stay separate PRs.
 
+**Phase 5, `payments` step (branch `refactor/payments-module`):** `PaymentAdminQueries` holds the admin panel's four read
+models, so `AdminPaymentController` has no repository; `DoctorBillingService` is the door to a doctor's billing details for
+the doctors and auth features; the Click webhook payload classes and the inline request/response DTOs of the payment,
+subscription and Stripe-Connect controllers live in `api/dto`. No behaviour change; the payments border rule drops to 0.
+Item 12 (payment status for the apps) is a separate PR.
+
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),

@@ -2,7 +2,7 @@ package com.shifa.payments.application
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.shared.config.ClickProperties
-import com.shifa.payments.infrastructure.ClickPrepareRequest
+import com.shifa.payments.api.dto.ClickPrepareRequest
 import com.shifa.payments.infrastructure.PaymentEventRepository
 import com.shifa.payments.infrastructure.PaymentRepository
 import org.junit.jupiter.api.Assertions.assertEquals

@@ -1,10 +1,6 @@
 package com.shifa.payments.api
 
-import com.shifa.payments.infrastructure.DoctorSubscriptionRepository
-import com.shifa.payments.infrastructure.PaymentEventRepository
-import com.shifa.payments.domain.PaymentGatewayCode
-import com.shifa.payments.infrastructure.PaymentRepository
-import com.shifa.payments.infrastructure.SubscriptionPlanRepository
+import com.shifa.payments.application.PaymentAdminQueries
 import com.shifa.payments.application.StripeWebhookService
 import com.shifa.shared.security.AdminPrincipal
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -17,15 +13,12 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/admin/payments")
 class AdminPaymentController(
-    private val paymentRepository: PaymentRepository,
-    private val subscriptionPlanRepository: SubscriptionPlanRepository,
-    private val doctorSubscriptionRepository: DoctorSubscriptionRepository,
-    private val paymentEventRepository: PaymentEventRepository,
-    private val stripeWebhookService: StripeWebhookService
+    private val queries: PaymentAdminQueries,
+    private val stripeWebhookService: StripeWebhookService,
 ) {
     @GetMapping("/ledger")
     fun ledger(): List<Map<String, Any?>> =
-        paymentRepository.findAll().sortedByDescending { it.createdAt }.map {
+        queries.ledger().map {
             mapOf(
                 "id" to it.id,
                 "externalRef" to it.externalRef,
@@ -44,7 +37,7 @@ class AdminPaymentController(
 
     @GetMapping("/subscription/plans")
     fun subscriptionPlans(): List<Map<String, Any?>> =
-        subscriptionPlanRepository.findAll().map {
+        queries.subscriptionPlans().map {
             mapOf(
                 "id" to it.id,
                 "code" to it.code,
@@ -58,7 +51,7 @@ class AdminPaymentController(
 
     @GetMapping("/subscription/doctors")
     fun doctorSubscriptions(): List<Map<String, Any?>> =
-        doctorSubscriptionRepository.findAll().sortedByDescending { it.createdAt }.map {
+        queries.doctorSubscriptions().map {
             mapOf(
                 "id" to it.id,
                 "doctorId" to it.doctor.id,
@@ -72,16 +65,8 @@ class AdminPaymentController(
         }
 
     @GetMapping("/webhooks/stripe/failed")
-    fun failedStripeWebhooks(): List<Map<String, Any?>> {
-        val unprocessed = paymentEventRepository
-            .findByGatewayAndProcessedFalseOrderByCreatedAtDesc(PaymentGatewayCode.STRIPE)
-        val failed = paymentEventRepository
-            .findByGatewayAndFailureReasonIsNotNullOrderByCreatedAtDesc(PaymentGatewayCode.STRIPE)
-
-        return (unprocessed + failed)
-            .distinctBy { it.id }
-            .sortedByDescending { it.createdAt }
-            .map {
+    fun failedStripeWebhooks(): List<Map<String, Any?>> =
+        queries.failedStripeWebhooks().map {
                 mapOf(
                     "id" to it.id,
                     "eventId" to it.eventId,
@@ -95,7 +80,6 @@ class AdminPaymentController(
                     "createdAt" to it.createdAt.toString()
                 )
             }
-    }
 
     @PostMapping("/webhooks/stripe/failed/{paymentEventId}/retry")
     fun retryFailedStripeWebhook(

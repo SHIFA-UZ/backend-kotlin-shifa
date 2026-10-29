@@ -1,9 +1,9 @@
 package com.shifa.payments.api
 
-import com.shifa.payments.infrastructure.ClickCompleteRequest
-import com.shifa.payments.infrastructure.ClickCompleteResponse
-import com.shifa.payments.infrastructure.ClickPrepareRequest
-import com.shifa.payments.infrastructure.ClickPrepareResponse
+import com.shifa.payments.api.dto.ClickCompleteRequest
+import com.shifa.payments.api.dto.ClickCompleteResponse
+import com.shifa.payments.api.dto.ClickPrepareRequest
+import com.shifa.payments.api.dto.ClickPrepareResponse
 import com.shifa.payments.application.ClickShopCallbackService
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
