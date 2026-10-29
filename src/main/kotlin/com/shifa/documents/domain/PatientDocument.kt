@@ -1,0 +1,81 @@
+
+// src/main/kotlin/com/shifa/documents/domain/PatientDocument.kt
+package com.shifa.documents.domain
+
+import com.shifa.appointments.domain.Appointment
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.patients.domain.PatientProfile
+
+import jakarta.persistence.*
+import java.time.LocalDate
+
+@Entity
+@Table(name = "patient_documents")
+open class PatientDocument(
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @Column(name = "id", nullable = false)
+    open var id: Long? = null,                                     // ← non-null, default 0L (assigned by DB)
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "patient_id", nullable = false)           // FK to patient_profiles(id)
+    open var patient: PatientProfile? = null,                            // ← non-null
+
+    @Column(name = "title", nullable = false, length = 255)
+    open var title: String = "",                                      // ← non-null
+
+    @Column(name = "date", nullable = false)
+    open var date: LocalDate = LocalDate.now(),                                    // ← non-null
+
+    @Column(name = "file_path", nullable = false, columnDefinition = "text")
+    open var filePath: String = "",                                    // ← non-null
+
+    @Column(name = "is_chat_attachment", nullable = false)
+    open var isChatAttachment: Boolean = false,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "uploaded_by_doctor_id")
+    open var uploadedByDoctor: DoctorProfile? = null,
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "uploaded_by_patient_profile_id")
+    open var uploadedByPatientProfile: PatientProfile? = null,
+
+    /**
+     * Optional uploader-chosen category (e.g. MRI, BLOOD_TEST, FORM_025_2).
+     * Stored as the [PatientDocumentCategory.code] string; null for legacy rows.
+     */
+    @Column(name = "category", columnDefinition = "TEXT")
+    open var category: String? = null,
+
+    /**
+     * When true the document is visible to every doctor that has access to the
+     * patient. Computed at upload time based on uploader role + category, see
+     * PatientDocumentService for the rules.
+     */
+    @Column(name = "is_shared_with_team", nullable = false)
+    open var isSharedWithTeam: Boolean = false,
+
+    /**
+     * Optional link to the appointment this document was attached for
+     * (e.g. patient pre-appointment uploads at booking time).
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "appointment_id")
+    open var appointment: Appointment? = null,
+) {
+    protected constructor() : this(
+        id = null,
+        patient = null,
+        title = "",
+        date = LocalDate.now(),
+        filePath = "",
+        isChatAttachment = false,
+        uploadedByDoctor = null,
+        uploadedByPatientProfile = null,
+        category = null,
+        isSharedWithTeam = false,
+        appointment = null,
+    )
+}

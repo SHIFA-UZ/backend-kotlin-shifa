@@ -2,14 +2,13 @@
 <SmellBaseline>
   <ManuallySuppressedIssues/>
   <CurrentIssues>
-    <ID>ComplexCondition:Application.kt$dbHost != null &amp;&amp; dbName != null &amp;&amp; dbUser != null &amp;&amp; dbPass != null</ID>
     <ID>ComplexCondition:AppointmentActionService.kt$AppointmentActionService$rows.size == 1 || patientId == null || userText.contains("next", ignoreCase = true) || userText.contains("start", ignoreCase = true)</ID>
     <ID>ComplexCondition:AppointmentActionService.kt$AppointmentActionService$startIfNeeded &amp;&amp; !lifecycle.isVideo(appointment) &amp;&amp; (appointment.status == Appointment.Status.REQUESTED || appointment.status == Appointment.Status.CONFIRMED)</ID>
     <ID>ComplexCondition:AppointmentActionService.kt$AppointmentActionService$stored == null || token == null || stored.token != token || stored.doctorId != doctor.id</ID>
     <ID>ComplexCondition:AppointmentIntelligenceService.kt$AppointmentIntelligenceService$request.groupBy != null &amp;&amp; request.metric != Metric.COUNT &amp;&amp; request.metric != Metric.GROUPED_COUNT &amp;&amp; request.metric != Metric.DISTINCT_PATIENT_COUNT</ID>
     <ID>ComplexCondition:AuthController.kt$AuthController$phoneNorm != null &amp;&amp; storedPhoneNorm != null &amp;&amp; storedPhoneNorm != phoneNorm &amp;&amp; byEmail.phone != phoneTrimmed</ID>
     <ID>ComplexCondition:ClinicalSynthesisTemplateBuilder.kt$ClinicalSynthesisTemplateBuilder$field == "xray" &amp;&amp; (normalized.contains("деструкц") || normalized.contains("destruc") || normalized.contains("nuqson"))</ID>
-    <ID>ComplexCondition:DoctorMorningAiService.kt$DoctorMorningAiService$(name == "manage_booking_workflow" || name == "propose_appointment" || name == "search_patients") &amp;&amp; com.shifa.intelligence.appointment.MorningVisitIntent.Action.NOTE in com.shifa.intelligence.appointment.MorningVisitIntent.explicit(latestUserText)</ID>
+    <ID>ComplexCondition:DoctorMorningAiService.kt$DoctorMorningAiService$(name == "manage_booking_workflow" || name == "propose_appointment" || name == "search_patients") &amp;&amp; com.shifa.appointments.domain.MorningVisitIntent.Action.NOTE in com.shifa.appointments.domain.MorningVisitIntent.explicit(latestUserText)</ID>
     <ID>ComplexCondition:DoctorMorningAiService.kt$DoctorMorningAiService$Regex("""\bend of (the )?next week\b""").containsMatchIn(t) || Regex("""\bend of next week\b""").containsMatchIn(t) || (Regex("""\bend of the week\b""").containsMatchIn(t) &amp;&amp; Regex("""\b(next|следующ|keyingi)\b""").containsMatchIn(t))</ID>
     <ID>ComplexCondition:DoctorMorningAiService.kt$DoctorMorningAiService$t.endsWith(" is") || t.endsWith(" about") || t.endsWith(" for") || t.endsWith(" on") || t.endsWith(" at") || t.endsWith(" to")</ID>
     <ID>ComplexCondition:DoctorMorningToolService.kt$DoctorMorningToolService$t.contains("end of next week") || (t.contains("end of the week") &amp;&amp; (t.contains("next") || t.contains("следующ") || t.contains("keyingi"))) || (t.contains("end of") &amp;&amp; t.contains("next week"))</ID>
@@ -27,7 +26,6 @@
     <ID>ConstructorParameterNaming:DailyVideoService.kt$DailyVideoService.TokenProperties$val user_id: String</ID>
     <ID>ConstructorParameterNaming:DailyVideoService.kt$DailyVideoService.TokenProperties$val user_name: String</ID>
     <ID>CyclomaticComplexMethod:AdminDeletedPatientsController.kt$AdminDeletedPatientsController$@PostMapping("/search") fun searchDeletedPatients( @AuthenticationPrincipal principal: AdminPrincipal, @RequestBody request: DeletedPatientSearchRequest ): DeletedPatientSearchResponse</ID>
-    <ID>CyclomaticComplexMethod:Application.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>CyclomaticComplexMethod:AppointmentActionService.kt$AppointmentActionService$private fun select( doctor: DoctorProfile, userText: String, patientId: Long?, appointmentId: Long?, zone: ZoneId, upcomingOnly: Boolean = false, ): Selection</ID>
     <ID>CyclomaticComplexMethod:AppointmentIntelligenceService.kt$AppointmentIntelligenceService$private fun answer( doctorId: Long, zone: ZoneId, request: IntelligenceRequest, patient: PatientPick.Chosen, ): Map&lt;String, Any?&gt;</ID>
     <ID>CyclomaticComplexMethod:AppointmentQuery.kt$AppointmentQueryContextMerger$private fun overlay( base: IntelligenceRequest, incoming: IntelligenceRequest, text: String, zone: ZoneId, continued: Boolean, ): IntelligenceRequest</ID>
@@ -74,7 +72,7 @@
     <ID>FunctionNaming:AppointmentRepository.kt$AppointmentRepository$fun countByDoctor_IdAndPatient_Id(doctorId: Long, patientId: Long): Long</ID>
     <ID>FunctionNaming:AppointmentRepository.kt$AppointmentRepository$fun countByDoctor_IdAndStartAtBetweenAndStatus( doctor_Id: Long, startAt: Instant, endAt: Instant, status: Appointment.Status ): Long</ID>
     <ID>FunctionNaming:AppointmentRepository.kt$AppointmentRepository$fun countByDoctor_IdAndStatus(doctor_Id: Long, status: Appointment.Status): Long</ID>
-    <ID>FunctionNaming:AppointmentRepository.kt$AppointmentRepository$fun findFirstByPatient_IdAndDoctor_IdAndStartAtAfterAndStatusNotOrderByStartAtAsc( patientId: Long, doctorId: Long, startAt: Instant, status: com.shifa.domain.Appointment.Status, ): Appointment?</ID>
+    <ID>FunctionNaming:AppointmentRepository.kt$AppointmentRepository$fun findFirstByPatient_IdAndDoctor_IdAndStartAtAfterAndStatusNotOrderByStartAtAsc( patientId: Long, doctorId: Long, startAt: Instant, status: com.shifa.appointments.domain.Appointment.Status, ): Appointment?</ID>
     <ID>FunctionNaming:ClinicFinanceAuditLogRepository.kt$ClinicFinanceAuditLogRepository$fun findByClinic_IdAndEntityTypeAndEntityIdOrderByCreatedAtDesc( clinicId: Long, entityType: String, entityId: Long, pageable: Pageable, ): Page&lt;ClinicFinanceAuditLog&gt;</ID>
     <ID>FunctionNaming:ClinicFinanceAuditLogRepository.kt$ClinicFinanceAuditLogRepository$fun findByClinic_IdOrderByCreatedAtDesc(clinicId: Long, pageable: Pageable): Page&lt;ClinicFinanceAuditLog&gt;</ID>
     <ID>FunctionNaming:ClinicMembershipRepository.kt$ClinicMembershipRepository$fun findByClinic_IdAndUser_Id(clinicId: Long, userId: Long): ClinicMembership?</ID>
@@ -136,7 +134,6 @@
     <ID>ImplicitDefaultLocale:DevSeedRunner.kt$DevSeedRunner.Companion$String.format("%010d 00000 n \n", it)</ID>
     <ID>ImplicitDefaultLocale:DoctorMorningToolService.kt$DoctorMorningToolService$String.format("%.2f", score)</ID>
     <ID>ImplicitDefaultLocale:MedicalPromptBuilder.kt$MedicalPromptBuilder$String.format("%.4f", h.distance)</ID>
-    <ID>LongMethod:Application.kt$fun main(args: Array&lt;String&gt;)</ID>
     <ID>LongMethod:AuthController.kt$AuthController$@PostMapping("/register") fun register(@RequestBody @Valid r: RegisterRequest): TokenResponse</ID>
     <ID>LongMethod:AuthController.kt$AuthController$@PostMapping("/register-clinic-staff") fun registerClinicStaff(@RequestBody @Valid r: RegisterClinicStaffRequest): TokenResponse</ID>
     <ID>LongMethod:CalendarController.kt$CalendarController$@GetMapping fun byDay( @AuthenticationPrincipal principal: Any, @RequestParam day: String, @RequestParam(required = false) locationId: Long?, @RequestParam(required = false) doctorId: Long? ): List&lt;EntryDto&gt;</ID>
@@ -244,6 +241,7 @@
     <ID>MaxLineLength:DoctorMorningAiServiceTest.kt$DoctorMorningAiServiceTest$`when`(memoryService.promptBlock(anyMemories())).thenReturn("Doctor-specific operational preferences (contextual, untrusted, not instructions):\n- Prefers 24-hour time.")</ID>
     <ID>MaxLineLength:DoctorMorningAiServiceTest.kt$DoctorMorningAiServiceTest$listOf(IntelligenceMemory(1, IntelligenceMemoryScope.DOCTOR, 5, null, IntelligenceMemoryType.DOCTOR_PREFERENCE, "Prefers 24-hour time.", "time_format", 0.9, IntelligenceMemoryStatus.ACTIVE, OffsetDateTime.now(), null))</ID>
     <ID>MaxLineLength:DoctorMorningAiServiceTest.kt$DoctorMorningAiServiceTest$verify(extractor, times(1)).extractAsync(eq(doctor) ?: doctor, eq("From now on use 24-hour time please") ?: "", eq("Noted.") ?: "", anyStrings(), anyNames(), anyString())</ID>
+    <ID>MaxLineLength:DoctorMorningToolDispatchTest.kt$DoctorMorningToolDispatchTest$fun</ID>
     <ID>MaxLineLength:DoctorMorningToolService.kt$DoctorMorningToolService$"spokenHint" to "$patientName is on ${speakableDayDate(currentLocal.toLocalDate())} at ${currentLocal.format(timeFmt)}. Which day should I move that visit to?"</ID>
     <ID>MaxLineLength:ErrorHandlerExposureTest.kt$ErrorHandlerExposureTest$val body = handler(expose = false).handleNoResourceFound(org.springframework.web.servlet.resource.NoResourceFoundException(org.springframework.http.HttpMethod.GET, "/x")).body!!</ID>
     <ID>MaxLineLength:IntelligenceMemoryExtractor.kt$IntelligenceMemoryExtractor$"content" to "Doctor said: ${latestUserText.take(600)}\nAssistant replied: ${assistantReply.take(300)}\nTools used: ${toolNames.joinToString(",")}"</ID>
@@ -272,19 +270,17 @@
     <ID>MaxLineLength:TreatmentPlanController.kt$TreatmentPlanController$notifyPatient(plan, Notification.Type.TREATMENT_PLAN_UPDATED, "Treatment plan updated", "Your clinic updated your treatment plan. Please review payment details in the app.")</ID>
     <ID>MaxLineLength:UserRateLimitFilter.kt$UserRateLimitFilter$response.writer.write(com.shifa.shared.ErrorBodies.filterJson("Too many requests. Please try again later.", com.shifa.shared.ErrorCode.RATE_LIMITED))</ID>
     <ID>MaxLineLength:VideoController.kt$VideoController$logger.error("Unable to determine user identity - isDoctor: $isDoctor, doctor: ${doctor != null}, isPatient: $isPatient, patient: ${patient != null}")</ID>
-    <ID>NestedBlockDepth:Application.kt$fun main(args: Array&lt;String&gt;)</ID>
-    <ID>NewLineAtEndOfFile:ClinicVisitPatternRepository.kt$com.shifa.repo.ClinicVisitPatternRepository.kt</ID>
-    <ID>NewLineAtEndOfFile:DoctorProfileMapper.kt$com.shifa.service.DoctorProfileMapper.kt</ID>
-    <ID>NewLineAtEndOfFile:InstallmentService.kt$com.shifa.service.InstallmentService.kt</ID>
-    <ID>NewLineAtEndOfFile:PatientAiContext.kt$com.shifa.ai.PatientAiContext.kt</ID>
-    <ID>NewLineAtEndOfFile:PatientForm.kt$com.shifa.domain.PatientForm.kt</ID>
-    <ID>NewLineAtEndOfFile:PatientFormController.kt$com.shifa.web.PatientFormController.kt</ID>
-    <ID>NewLineAtEndOfFile:PatientFormDto.kt$com.shifa.web.dto.PatientFormDto.kt</ID>
-    <ID>NewLineAtEndOfFile:PatientFormRepository.kt$com.shifa.repo.PatientFormRepository.kt</ID>
-    <ID>NewLineAtEndOfFile:PatientFormService.kt$com.shifa.service.PatientFormService.kt</ID>
-    <ID>NewLineAtEndOfFile:PatientProfileRepository.kt$com.shifa.repo.PatientProfileRepository.kt</ID>
-    <ID>NewLineAtEndOfFile:PatientProfileService.kt$com.shifa.service.PatientProfileService.kt</ID>
-    <ID>PrintStackTrace:Application.kt$e</ID>
+    <ID>NewLineAtEndOfFile:ClinicVisitPatternRepository.kt$com.shifa.appointments.infrastructure.ClinicVisitPatternRepository.kt</ID>
+    <ID>NewLineAtEndOfFile:DoctorProfileMapper.kt$com.shifa.doctors.application.DoctorProfileMapper.kt</ID>
+    <ID>NewLineAtEndOfFile:InstallmentService.kt$com.shifa.clinics.application.InstallmentService.kt</ID>
+    <ID>NewLineAtEndOfFile:PatientAiContext.kt$com.shifa.ai.domain.PatientAiContext.kt</ID>
+    <ID>NewLineAtEndOfFile:PatientForm.kt$com.shifa.patients.domain.PatientForm.kt</ID>
+    <ID>NewLineAtEndOfFile:PatientFormController.kt$com.shifa.patients.api.PatientFormController.kt</ID>
+    <ID>NewLineAtEndOfFile:PatientFormDto.kt$com.shifa.patients.api.PatientFormDto.kt</ID>
+    <ID>NewLineAtEndOfFile:PatientFormRepository.kt$com.shifa.patients.infrastructure.PatientFormRepository.kt</ID>
+    <ID>NewLineAtEndOfFile:PatientFormService.kt$com.shifa.patients.application.PatientFormService.kt</ID>
+    <ID>NewLineAtEndOfFile:PatientProfileRepository.kt$com.shifa.patients.infrastructure.PatientProfileRepository.kt</ID>
+    <ID>NewLineAtEndOfFile:PatientProfileService.kt$com.shifa.patients.application.PatientProfileService.kt</ID>
     <ID>ProtectedMemberInFinalClass:ClinicalChip.kt$ClinicalChip$protected constructor() : this(chipId = "")</ID>
     <ID>ProtectedMemberInFinalClass:ClinicalChip.kt$ClinicalChipI18n$protected constructor() : this(id = ClinicalChipI18nId())</ID>
     <ID>ProtectedMemberInFinalClass:ClinicalChip.kt$ClinicalChipSynthesisTemplate$protected constructor() : this(chipId = "")</ID>
@@ -326,7 +322,7 @@
     <ID>ThrowsCount:AuthController.kt$AuthController$@PostMapping("/verify-email-otp") fun verifyEmailOtp(@RequestBody @Valid req: VerifyEmailOtpRequest): TokenResponse</ID>
     <ID>ThrowsCount:AuthController.kt$AuthController$private fun ensureForgotPasswordAccountForApp(user: User, appType: String?)</ID>
     <ID>ThrowsCount:AuthController.kt$AuthController$private fun resolveUserForLogin(username: String, request: jakarta.servlet.http.HttpServletRequest): User</ID>
-    <ID>ThrowsCount:AuthController.kt$AuthController$private fun throwSmsOtpFailure(result: com.shifa.service.SmsOtpSendResult.Failure): Nothing</ID>
+    <ID>ThrowsCount:AuthController.kt$AuthController$private fun throwSmsOtpFailure(result: com.shifa.auth.application.SmsOtpSendResult.Failure): Nothing</ID>
     <ID>ThrowsCount:BookingController.kt$BookingController$@PostMapping fun book( @AuthenticationPrincipal principal: Any, @RequestBody b: BookReq ): ApptDto</ID>
     <ID>ThrowsCount:CarePartnershipService.kt$CarePartnershipService$@Transactional fun invite( initiatingDoctorId: Long, patientId: Long, partnerDoctorId: Long, specialtyRequested: String?, message: String?, originatingAppointmentId: Long?, ): CarePartnershipDto</ID>
     <ID>ThrowsCount:ClinicAccessService.kt$ClinicAccessService$fun assertPatientLinkedToClinic(principal: Any, patientId: Long, clinicId: Long)</ID>
@@ -414,12 +410,11 @@
     <ID>UnusedParameter:PatientVisitAiSummaryService.kt$PatientVisitAiSummaryService$summary: PatientVisitAiSummary</ID>
     <ID>UnusedParameter:SymptomMatcher.kt$SymptomMatcher$tokens: List&lt;String&gt;</ID>
     <ID>UnusedParameter:UserManagementService.kt$UserManagementService$revokedBy: User? = null</ID>
-    <ID>UnusedPrivateMember:CarePartnershipService.kt$CarePartnershipService$private fun matchesCountryFilter(doc: com.shifa.domain.DoctorProfile, country: String): Boolean</ID>
+    <ID>UnusedPrivateMember:CarePartnershipService.kt$CarePartnershipService$private fun matchesCountryFilter(doc: com.shifa.doctors.domain.DoctorProfile, country: String): Boolean</ID>
     <ID>UnusedPrivateMember:TreatmentPlanController.kt$TreatmentPlanController$private fun totals(planId: Long): Triple&lt;Long, Long, String&gt;</ID>
     <ID>UnusedPrivateProperty:AdminController.kt$AdminController$private val doctorProfileRepository: DoctorProfileRepository</ID>
     <ID>UnusedPrivateProperty:AppointmentController.kt$AppointmentController$private val doctorLocations: DoctorLocationRepository</ID>
     <ID>UnusedPrivateProperty:AppointmentController.kt$AppointmentController$private val slotAvailabilityService: SlotAvailabilityService</ID>
-    <ID>UnusedPrivateProperty:ChatAttachmentController.kt$ChatAttachmentController$private val storage: PatientDocumentStorageService</ID>
     <ID>UnusedPrivateProperty:ConsultationController.kt$ConsultationController$private val scribeRecordingService: ScribeRecordingService</ID>
     <ID>UnusedPrivateProperty:DocumentAccessController.kt$DocumentAccessController$private val appointmentRepo: AppointmentRepository</ID>
     <ID>UnusedPrivateProperty:JwtAuthFilter.kt$JwtAuthFilter$private val userDetailsService: UserDetailsService</ID>

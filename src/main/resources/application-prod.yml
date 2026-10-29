@@ -32,8 +32,7 @@ logging:
   level:
     root: INFO
     com.shifa: INFO
-    com.shifa.security: WARN
-    com.shifa.web: INFO
+    com.shifa.shared.security: WARN
     org.springframework.security: WARN
     org.hibernate: WARN
     org.apache.tomcat: WARN

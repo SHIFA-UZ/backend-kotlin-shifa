@@ -1,6 +1,6 @@
 package com.shifa.shared
 
-import com.shifa.config.AppProperties
+import com.shifa.shared.config.AppProperties
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Component

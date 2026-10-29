@@ -1,0 +1,146 @@
+package com.shifa.clinics.application
+
+import com.shifa.doctors.domain.DoctorProfile
+import com.shifa.appointments.infrastructure.AppointmentRepository
+import com.shifa.clinics.infrastructure.ClinicMembershipRepository
+import com.shifa.doctors.infrastructure.DoctorProfileRepository
+import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.shared.security.ClinicStaffPrincipal
+import com.shifa.shared.security.DoctorPrincipal
+import org.springframework.http.HttpStatus
+import org.springframework.stereotype.Service
+import org.springframework.web.server.ResponseStatusException
+
+@Service
+class ClinicAccessService(
+    private val doctors: DoctorProfileRepository,
+    private val appointments: AppointmentRepository,
+    private val patients: PatientProfileRepository,
+    private val memberships: ClinicMembershipRepository,
+    private val carePartnerships: com.shifa.patients.infrastructure.CarePartnershipRepository,
+) {
+
+    fun resolveActorDoctorProfile(principal: Any): DoctorProfile? =
+        (principal as? DoctorPrincipal)?.profile
+
+    fun assertPracticeActor(principal: Any) {
+        when (principal) {
+            is DoctorPrincipal, is ClinicStaffPrincipal -> Unit
+            else -> throw ResponseStatusException(HttpStatus.FORBIDDEN)
+        }
+    }
+
+    fun doctorIdsForPatientDirectory(principal: Any): List<Long> {
+        assertPracticeActor(principal)
+        return when (principal) {
+            is DoctorPrincipal -> listOfNotNull(principal.profile.id)
+            is ClinicStaffPrincipal -> {
+                val ids = linkedSetOf<Long>()
+                for (clinicId in principal.clinicIds()) {
+                    ids.addAll(doctors.findAllByPracticeClinic_Id(clinicId).map { it.id })
+                }
+                ids.toList()
+            }
+            else -> emptyList()
+        }
+    }
+
+    fun assertCanViewDoctorCalendar(principal: Any, targetDoctorId: Long) {
+        assertPracticeActor(principal)
+        if (!canViewDoctorCalendar(principal, targetDoctorId)) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Cannot access this doctor's calendar")
+        }
+    }
+
+    fun canViewDoctorCalendar(principal: Any, targetDoctorId: Long): Boolean {
+        val target = doctors.findById(targetDoctorId).orElse(null) ?: return false
+        if (principal is DoctorPrincipal && principal.profile.id == targetDoctorId) return true
+        val clinicId = target.practiceClinic?.id
+            ?: return principal is DoctorPrincipal && principal.profile.id == targetDoctorId
+        return when (principal) {
+            is DoctorPrincipal -> principal.profile.practiceClinic?.id == clinicId
+            is ClinicStaffPrincipal -> principal.clinicIds().contains(clinicId)
+            else -> false
+        }
+    }
+
+    fun assertCanAccessAppointmentResource(principal: Any, appointmentDoctorId: Long) {
+        assertCanViewDoctorCalendar(principal, appointmentDoctorId)
+    }
+
+    fun assertPatientVisible(principal: Any, patientId: Long) {
+        val doctorIds = doctorIdsForPatientDirectory(principal).toSet()
+        if (doctorIds.isEmpty()) throw ResponseStatusException(HttpStatus.FORBIDDEN)
+        val p = patients.findById(patientId).orElse(null)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
+        val createdBy = p.createdByDoctor?.id
+        if (createdBy != null && doctorIds.contains(createdBy)) return
+        val ok = doctorIds.any { appointments.existsByDoctorIdAndPatientId(it, patientId) }
+        if (ok) return
+        val partnershipOk = doctorIds.any {
+            carePartnerships.existsActiveForDoctorAndPatient(it, patientId)
+        }
+        if (!partnershipOk) throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
+    }
+
+    fun resolveBookingActorUserId(principal: Any): Long =
+        when (principal) {
+            is DoctorPrincipal -> principal.profile.user.id
+            is ClinicStaffPrincipal -> principal.user.id
+            else -> throw ResponseStatusException(HttpStatus.UNAUTHORIZED)
+        }
+
+    /** Assign created-by doctor when clinic staff registers a patient (first doctor in clinic). */
+    fun resolveDoctorForPatientCreation(principal: Any): DoctorProfile {
+        resolveActorDoctorProfile(principal)?.let { return it }
+        val staff = principal as? ClinicStaffPrincipal
+            ?: throw ResponseStatusException(HttpStatus.FORBIDDEN)
+        val clinicId = staff.clinicIds().firstOrNull()
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Staff has no clinic")
+        return doctors.findAllByPracticeClinic_Id(clinicId).minByOrNull { it.id!! }
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No doctor in clinic")
+    }
+
+    fun assertPrincipalMayAccessClinic(principal: Any, clinicId: Long) {
+        assertPracticeActor(principal)
+        when (principal) {
+            is DoctorPrincipal -> {
+                val practiceId = principal.profile.practiceClinic?.id
+                val member = memberships.findByUserIdAndClinicIdAndActiveTrue(
+                    principal.profile.user.id,
+                    clinicId,
+                )
+                val ok = practiceId == clinicId || member != null
+                if (!ok) throw ResponseStatusException(HttpStatus.FORBIDDEN)
+            }
+            is ClinicStaffPrincipal -> {
+                if (!principal.clinicIds().contains(clinicId)) throw ResponseStatusException(HttpStatus.FORBIDDEN)
+            }
+            else -> throw ResponseStatusException(HttpStatus.FORBIDDEN)
+        }
+    }
+
+    /**
+     * Patient is linked to [clinicId] if they were created by a practice doctor at that clinic or have a
+     * non-cancelled appointment with such a doctor (same rule as [com.shifa.patients.infrastructure.PatientProfileRepository.findClinicRosterForDoctors]).
+     */
+    fun assertPatientLinkedToClinic(principal: Any, patientId: Long, clinicId: Long) {
+        assertPracticeActor(principal)
+        assertPrincipalMayAccessClinic(principal, clinicId)
+        val clinicDoctorIds = doctors.findAllByPracticeClinic_Id(clinicId).mapNotNull { it.id }
+        if (clinicDoctorIds.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
+        }
+        val p = patients.findById(patientId).orElse(null)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
+        val createdBy = p.createdByDoctor?.id
+        if (createdBy != null && clinicDoctorIds.contains(createdBy)) return
+        if (appointments.existsNonCancelledByPatientIdAndDoctorIds(patientId, clinicDoctorIds)) return
+        throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
+    }
+
+    /** Any practice doctor at [clinicId] (lowest id) for staff document visibility delegation. Caller must already enforce clinic access. */
+    fun delegateDoctorProfileIdForClinic(clinicId: Long): Long =
+        doctors.findAllByPracticeClinic_Id(clinicId).minByOrNull { it.id!! }?.id
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No doctor in clinic")
+}

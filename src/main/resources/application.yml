@@ -70,7 +70,7 @@ logging:
   level:
     root: INFO
     org.springframework.security: DEBUG
-    com.shifa.security.JwtAuthFilter: DEBUG
+    com.shifa.shared.security.JwtAuthFilter: DEBUG
     com.shifa: DEBUG
   pattern:
     # Request id (X-Request-Id response header, shared/RequestIdFilter) next to the level on every line.

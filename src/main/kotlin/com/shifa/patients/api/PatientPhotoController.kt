@@ -1,0 +1,81 @@
+// src/main/kotlin/com/shifa/patients/api/PatientPhotoController.kt
+package com.shifa.patients.api
+
+import com.shifa.shared.config.AppProperties
+import com.shifa.patients.infrastructure.PatientProfileRepository
+import com.shifa.shared.security.PatientPrincipal
+import org.springframework.security.core.annotation.AuthenticationPrincipal
+import org.springframework.web.bind.annotation.*
+import org.springframework.web.multipart.MultipartFile
+import java.text.Normalizer
+import java.util.Locale
+
+@RestController
+@RequestMapping("/api/patients/me/photo")
+class PatientPhotoController(
+    private val patientProfiles: PatientProfileRepository,
+    private val appProps: AppProperties,
+    private val signer: com.shifa.shared.security.FileUrlSigner,
+    private val uploadGuard: com.shifa.shared.UploadGuard,
+    private val storage: com.shifa.shared.storage.FileStorage,
+) {
+
+    data class UploadResp(val photoUrl: String)
+
+    // -------------------- helpers --------------------
+
+    private fun slugifyName(name: String): String {
+        val base = name.lowercase(Locale.getDefault()).trim()
+        val norm = Normalizer.normalize(base, Normalizer.Form.NFD)
+            .replace("\\p{InCombiningDiacriticalMarks}+".toRegex(), "")
+        return norm.replace("[^a-z0-9]+".toRegex(), "-")
+            .replace("[-]{2,}".toRegex(), "-")
+            .trim('-')
+    }
+
+    // -------------------- POST /api/patients/me/photo --------------------
+
+    @PostMapping
+    fun upload(
+        @AuthenticationPrincipal principal: PatientPrincipal,
+        @RequestParam("file") file: MultipartFile
+    ): UploadResp {
+
+        val profile = principal.user.phone?.let { patientProfiles.findByPhone(it) }
+            ?.orElseGet {
+                principal.user.email?.let { patientProfiles.findByEmail(it) }
+                    ?.orElse(null)
+            }
+            ?: throw org.springframework.web.server.ResponseStatusException(
+                org.springframework.http.HttpStatus.NOT_FOUND,
+                "Patient profile not found"
+            )
+
+        uploadGuard.check(com.shifa.shared.UploadPolicy.Kind.IMAGE, file)
+
+        // Build `<name-slug>-<id>.<ext>`
+        val fullName = profile.fullName.ifBlank { "patient" }
+        val slug = slugifyName(fullName)
+
+        val original = file.originalFilename ?: "photo.jpg"
+        val ext = original.substringAfterLast('.', "jpg").lowercase(Locale.getDefault())
+
+        val profileId = profile.id ?: throw org.springframework.web.server.ResponseStatusException(
+            org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR,
+            "Patient profile ID not found"
+        )
+
+        val key = "patients/$slug-$profileId.$ext"
+        file.inputStream.use { storage.put(key, it, file.size, file.contentType) }
+
+        // Persist relative path in DB
+        profile.photoUrl = key
+        patientProfiles.save(profile)
+
+        // Return absolute URL for client
+        val absoluteUrl =
+            signer.sign("${appProps.publicBaseUrl.removeSuffix("/")}/${profile.photoUrl}")
+
+        return UploadResp(photoUrl = absoluteUrl)
+    }
+}

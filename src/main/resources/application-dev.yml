@@ -52,4 +52,4 @@ logging:
   level:
     # Rate-limit diagnostics: the tail (256 chars) of X-Forwarded-For on this filter's own 429s, to notice a header
     # format change. It cannot detect evasion that never produces a 429.
-    com.shifa.security.RateLimitFilter: DEBUG
+    com.shifa.shared.security.RateLimitFilter: DEBUG
