@@ -1,22 +1,24 @@
-# Default/Development configuration — LOCAL ONLY
-# Used when no profile is set (.\gradlew bootRun). Railway sets SPRING_PROFILES_ACTIVE (prod / prod,dev) and DATABASE_URL.
-# On Railway, Application.kt reads DATABASE_URL and sets datasource URL/username/password; this file is not used for DB.
+# Base configuration, identical in every environment (roadmap 3.6).
 #
-# Local Docker: docker-compose maps 5433:5432, so we use port 5433 to avoid clashing with native Postgres on 5432.
-# If you get "password authentication failed for user shifa", set DB_USERNAME/DB_PASSWORD or create user shifa in Postgres.
+# Profiles: no SPRING_PROFILES_ACTIVE means local (application-local.yml, git-ignored, is read if present);
+# Railway development runs prod,dev; Railway production runs prod.
+#
+# Only secrets and what Railway injects (PORT, SPRING_DATASOURCE_*, RAILWAY_GIT_COMMIT_SHA) are environment
+# variables. Everything else is a literal here or in application-prod.yml / application-dev.yml, so the real
+# configuration can be read in one place and changing it is a PR. ConfigPolicyTest fails on any other placeholder.
+# Secrets default to empty here (local: the feature is off or logged); application-prod.yml has no defaults.
 
 spring:
   profiles:
-    # No SPRING_PROFILES_ACTIVE means "local": application-local.yml (gitignored) is read if present.
     default: local
   datasource:
-    url: jdbc:postgresql://localhost:${DB_PORT:5433}/shifa
-    username: ${DB_USERNAME:shifa}
-    password: ${DB_PASSWORD:shifa}
+    # Local Docker (docker-compose maps 5433:5432) and CI. Railway sets SPRING_DATASOURCE_* (application-prod.yml).
+    url: jdbc:postgresql://localhost:5433/shifa
+    username: shifa
+    password: shifa
 
   jpa:
-    # In development, we can use 'update' for convenience
-    # In production, this MUST be 'validate' (see application-prod.yml)
+    # Local convenience only; application-prod.yml sets validate. Flyway owns the schema.
     hibernate:
       ddl-auto: update
     properties:
@@ -37,31 +39,33 @@ spring:
     locations: classpath:db/migration
     validate-on-migrate: true
     validate-migration-naming: true
-  
+
   servlet:
     multipart:
       enabled: true
       max-file-size: 25MB
       max-request-size: 25MB
 
-  # Email (Brevo SMTP) for OTP verification
-  # In development: emails are logged, not sent (unless SMTP credentials are set)
-  # In production: set MAIL_USERNAME and MAIL_PASSWORD env vars with Brevo SMTP credentials
+  # Brevo SMTP for OTP e-mails. The login is an account identifier; the password is the secret.
+  # Without a password (local) e-mails are logged, not sent.
   mail:
-    host: ${MAIL_HOST:smtp-relay.brevo.com}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
+    host: smtp-relay.brevo.com
+    port: 587
+    username: a77ba9001@smtp-brevo.com
     password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
           auth: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
           starttls:
             enable: true
-    from: ${MAIL_FROM:noreply@shifa.health}
-    from-name: ${MAIL_FROM_NAME:Shifa Health}
+    from: noreply@shifa.uz
+    from-name: SHIFA
 
-# Development logging - more verbose
+# Local logging; application-prod.yml quiets it.
 logging:
   level:
     root: INFO
@@ -73,8 +77,8 @@ logging:
     level: "%5p [rid=%X{requestId:-}]"
 
 server:
-  # Use PORT on Railway (or SERVER_PORT), default 8080 for local
-  port: ${PORT:${SERVER_PORT:8080}}
+  # Railway injects PORT.
+  port: ${PORT:8080}
   # Let in-flight requests finish during a deploy (up to the phase timeout below) instead of cutting them
   # at once; long SSE streams can still be cut after that window (roadmap 2.4).
   shutdown: graceful
@@ -85,7 +89,7 @@ spring.lifecycle.timeout-per-shutdown-phase: 30s
 springdoc:
   writer-with-order-by-keys: true
 
-# Actuator: same baseline as prod/qa so /actuator/health/liveness exists for every profile (Docker/Railway).
+# Actuator: /actuator/health/liveness for Railway, /actuator/info for the release workflow.
 management:
   endpoints:
     web:
@@ -105,10 +109,6 @@ management:
 info:
   commit: ${RAILWAY_GIT_COMMIT_SHA:local}
 
-# Development configuration
-# WARNING: These values are for development only!
-# In production, use environment variables (see application-prod.yml)
-# SECURITY (NEW): Rate limiting - auth endpoints stricter, general API reasonable
 app:
   rate-limit:
     auth:
@@ -118,23 +118,22 @@ app:
     # X-Forwarded-For entries appended by proxies we trust (Railway edge = 1). 0 = first entry, which the client controls.
     trusted-proxy-hops: 0
     ai:
-      enabled: ${AI_RATE_LIMIT_ENABLED:true}
-      patient-daily-requests: ${AI_RATE_LIMIT_PATIENT_DAILY:30}
-      doctor-daily-requests: ${AI_RATE_LIMIT_DOCTOR_DAILY:100}
-      patient-burst-per-min: ${AI_RATE_LIMIT_PATIENT_BURST_PER_MIN:10}
-      doctor-burst-per-min: ${AI_RATE_LIMIT_DOCTOR_BURST_PER_MIN:20}
-      timezone: ${AI_RATE_LIMIT_TIMEZONE:Asia/Tashkent}
+      enabled: true
+      patient-daily-requests: 30
+      doctor-daily-requests: 100
+      patient-burst-per-min: 10
+      doctor-burst-per-min: 20
+      timezone: Asia/Tashkent
   jwt:
-    issuer: "shifa"
-    # Development secret - MUST be changed in production!
+    issuer: shifa
+    # Local only. application-prod.yml requires JWT_SECRET; StartupSecretChecks warns below 64 characters.
     secret: "a_really_long_random_64+_char_secret_development_only"
-    accessTokenMinutesDoctor: 43200   # 30 days for doctor app (login once per month)
-    accessTokenMinutesPatient: 525600  # 365 days for patient app
-  # In development: Use separate nginx on 8090 or serve from Spring Boot on 8080
-  # For Railway: Set PUBLIC_BASE_URL to your Railway app URL (same as API)
-  publicBaseUrl: http://localhost:8080  # Changed from 8090 - now served from Spring Boot
+    accessTokenMinutesDoctor: 43200   # 30 days for the doctor app (login once per month)
+    accessTokenMinutesPatient: 525600  # 365 days for the patient app
+  # Files are served from the API's own domain; this is also a CORS origin.
+  publicBaseUrl: http://localhost:8080
   storageRoot: ./public-storage/images
-  transcription-feedback-enabled: ${TRANSCRIPTION_FEEDBACK_ENABLED:false}
+  transcription-feedback-enabled: false
   # Local only: print OTP codes to the log when SMTP is not configured.
   log-otp-codes: true
   # Private file URLs (patient documents, patient photos, chat attachments) carry exp+sig. Log-only until true.
@@ -148,70 +147,67 @@ app:
   # Deterministic test data at startup (devseed/DevSeedRunner). Only application-dev.yml and local overrides turn it on.
   dev-seed: false
 
-# OpenAI configuration
-# In development, these can be set via environment variables
-# In production, they MUST be set via environment variables
 openai:
-  apiKey: ${OPENAI_API_KEY:}    # Set in environment or .env file
-  projectId: ${OPENAI_PROJECT_ID:}
+  apiKey: ${OPENAI_API_KEY:}
+  # Not a credential: names the OpenAI project the key bills to.
+  projectId: proj_8C1hsZRHlyXzKDUc5SeSbKEq
   model: gpt-4o-mini
   # Most capable REST STT: gpt-4o-transcribe (above gpt-4o-mini-transcribe / whisper-1).
-  transcription-model: ${OPENAI_TRANSCRIPTION_MODEL:gpt-4o-transcribe}
-  transcription-send-language-param: ${OPENAI_TRANSCRIPTION_SEND_LANG:true}
-  transcription-medical-cleanup-enabled: ${OPENAI_TRANSCRIPTION_MED_CLEANUP:true}
-  transcription-medical-cleanup-voice-uploads: ${OPENAI_TRANSCRIPTION_MED_CLEANUP_VOICE:false}
+  transcription-model: gpt-4o-transcribe
+  transcription-send-language-param: true
+  transcription-medical-cleanup-enabled: true
+  transcription-medical-cleanup-voice-uploads: false
   transcription-medical-cleanup-min-words: 10
-  transcription-medical-cleanup-model: ${OPENAI_TRANSCRIPTION_MED_CLEANUP_MODEL:gpt-4o-mini}
+  transcription-medical-cleanup-model: gpt-4o-mini
   url: https://api.openai.com/v1/responses
   temperature: 0.2
   maxTokens: 600
   requestTimeoutMs: 15000
   promptVersion: "1"
-  maxRequestsPerMinute: ${OPENAI_GLOBAL_MAX_REQ_PER_MIN:600}
+  maxRequestsPerMinute: 600
   # Most capable REST TTS: gpt-4o-mini-tts (falls back to tts-1-hd / tts-1 if the project lacks access).
-  tts-model: ${OPENAI_TTS_MODEL:gpt-4o-mini-tts}
-  tts-voice: ${OPENAI_TTS_VOICE:sage}
-  tts-speed: ${OPENAI_TTS_SPEED:0.92}
+  tts-model: gpt-4o-mini-tts
+  tts-voice: sage
+  tts-speed: 0.92
 
 # Shifa Intelligence LLM routing (provider-agnostic morning assistant).
-# A provider is used only when it has a non-blank API key. Missing keys are skipped, so
-# OpenAI-only deployments stay OpenAI-only until GEMINI_API_KEY / XAI_API_KEY are set.
-# Set GEMINI_ENABLED=false or XAI_ENABLED=false to keep a key without sending traffic.
+# A provider is used only when it has a non-blank API key, so a deployment without GEMINI_API_KEY / XAI_API_KEY
+# stays OpenAI-only. Set enabled: false to keep a key without sending traffic.
 ai:
   routing:
     enabled: true
     default-provider: openai
-    max-provider-attempts: ${AI_MAX_PROVIDER_ATTEMPTS:2}
-    request-deadline-ms: ${AI_REQUEST_DEADLINE_MS:40000}
-    cooldown-ms: ${AI_PROVIDER_COOLDOWN_MS:60000}
+    max-provider-attempts: 2
+    request-deadline-ms: 40000
+    cooldown-ms: 60000
   providers:
     openai:
       enabled: true
       base-url: https://api.openai.com/v1
       api-key: ${OPENAI_API_KEY:}
-      project-id: ${OPENAI_PROJECT_ID:}
-      chat-model: ${OPENAI_MODEL:gpt-4o-mini}
+      project-id: proj_8C1hsZRHlyXzKDUc5SeSbKEq
+      chat-model: gpt-4o-mini
       timeout-ms: 45000
-      daily-token-budget: ${OPENAI_DAILY_TOKEN_BUDGET:0}
-      monthly-token-budget: ${OPENAI_MONTHLY_TOKEN_BUDGET:0}
+      daily-token-budget: 0
+      monthly-token-budget: 0
     gemini:
-      enabled: ${GEMINI_ENABLED:true}
+      enabled: true
       base-url: https://generativelanguage.googleapis.com/v1beta/openai
       api-key: ${GEMINI_API_KEY:}
       # 2.5-flash 404s for new Gemini keys (legacy access only). 3.8-flash is the
       # current OpenAI-compat example and matches the working Gemini 3.x speech models.
-      chat-model: ${GEMINI_CHAT_MODEL:gemini-3.8-flash}
+      chat-model: gemini-3.8-flash
       timeout-ms: 45000
-      daily-token-budget: ${GEMINI_DAILY_TOKEN_BUDGET:0}
-      monthly-token-budget: ${GEMINI_MONTHLY_TOKEN_BUDGET:0}
+      daily-token-budget: 0
+      monthly-token-budget: 0
     grok:
-      enabled: ${XAI_ENABLED:true}
+      enabled: true
       base-url: https://api.x.ai/v1
       api-key: ${XAI_API_KEY:}
-      chat-model: ${XAI_CHAT_MODEL:grok-3-mini}
+      chat-model: grok-3-mini
       timeout-ms: 45000
-      daily-token-budget: ${XAI_DAILY_TOKEN_BUDGET:0}
-      monthly-token-budget: ${XAI_MONTHLY_TOKEN_BUDGET:0}
+      daily-token-budget: 0
+      monthly-token-budget: 0
   # Ordered provider ids. Ineligible ids (no key / disabled) are skipped automatically.
   routes:
     uz:
@@ -227,22 +223,20 @@ ai:
         - openai
         - grok
   memory:
-    enabled: ${AI_MEMORY_ENABLED:true}
+    enabled: true
     extraction-provider: openai
     max-retrieved: 5
     min-confidence: 0.7
     temporary-ttl-minutes: 120
   speech:
     uzbek-provider: gemini
-    stt-model: ${GEMINI_STT_MODEL:gemini-3.5-transcribe}
-    tts-model: ${GEMINI_TTS_MODEL:gemini-3.8-flash-lite-tts}
-    tts-voice: ${GEMINI_TTS_VOICE:Kore}
+    stt-model: gemini-3.5-transcribe
+    tts-model: gemini-3.8-flash-lite-tts
+    tts-voice: Kore
 
-# Daily.co Video API configuration
-# Get your API key from https://dashboard.daily.co/
-# In production, set DAILY_API_KEY environment variable
+# Daily.co video rooms.
 daily:
-  apiKey: ${DAILY_API_KEY:}    # No default: set it in the environment (.env locally). The old committed key was rotated.
+  apiKey: ${DAILY_API_KEY:}
   apiUrl: https://api.daily.co/v1
 
 # AI Medical Scribe
@@ -256,27 +250,31 @@ scribe:
 stripe:
   secretKey: ${STRIPE_SECRET_KEY:}
   webhookSecret: ${STRIPE_WEBHOOK_SECRET:}
-  connectRefreshUrl: ${STRIPE_CONNECT_REFRESH_URL:http://localhost:8080/settings/billing}
-  connectReturnUrl: ${STRIPE_CONNECT_RETURN_URL:http://localhost:8080/settings/billing}
+  connectRefreshUrl: http://localhost:8080/settings/billing
+  connectReturnUrl: http://localhost:8080/settings/billing
 
-# DevSMS — patient appointment SMS reminders (UZ). Token via env in production (never commit).
-# sender-from must match the alphanumeric name approved in your DevSMS account (not 4546).
+# DevSMS, patient appointment SMS (UZ). Without a token (local, development) no SMS is sent.
+# sender-from must match the alphanumeric name approved in the DevSMS account.
 devsms:
   api-token: ${DEVSMS_API_TOKEN:}
-  base-url: ${DEVSMS_BASE_URL:https://devsms.uz/api}
-  sender-from: ${DEVSMS_SENDER_FROM:SHIFA UZ}
-  price-per-sms-minor: ${DEVSMS_PRICE_PER_SMS_MINOR:500}
-  billing-currency: ${DEVSMS_BILLING_CURRENCY:UZS}
+  base-url: https://devsms.uz/api
+  sender-from: SHIFA.UZ
+  price-per-sms-minor: 500
+  billing-currency: UZS
 
-# Click.uz — video consultation + treatment-plan bill checkout (UZS). Secrets via env in production (never commit).
 payment:
-  enabled-providers: ${PAYMENT_ENABLED_PROVIDERS:CLICK,STRIPE}
-  hold-minutes: ${PAYMENT_HOLD_MINUTES:15}
+  enabled-providers: CLICK,STRIPE
+  hold-minutes: 15
 
+# Click.uz checkout (UZS). The merchant identifiers appear in every public checkout URL; only the key is secret.
 click:
-  enabled: ${CLICK_ENABLED:true}
-  merchant-id: ${CLICK_MERCHANT_ID:0}
-  service-id: ${CLICK_SERVICE_ID:0}
-  merchant-user-id: ${CLICK_MERCHANT_USER_ID:0}
+  enabled: true
+  merchant-id: 64374
+  service-id: 111453
+  merchant-user-id: 91085
   secret-key: ${CLICK_SECRET_KEY:}
-  pay-base-url: ${CLICK_PAY_BASE_URL:https://my.click.uz/services/pay}
+  pay-base-url: https://my.click.uz/services/pay
+
+# Served to every client by /api/public/config, so public by design; restrict it per app/referrer in Google Cloud.
+googleMaps:
+  apiKey: ${GOOGLE_MAPS_API_KEY:}

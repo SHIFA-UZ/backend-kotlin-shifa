@@ -18,7 +18,7 @@ import java.sql.DriverManager
 
 /**
  * Boots the whole application against a real PostgreSQL (the CI service, or a local one on
- * localhost:${DB_PORT:-5433} with the default shifa/shifa credentials) with Flyway applying every
+ * localhost:5433 with the shifa/shifa credentials from application.yml) with Flyway applying every
  * migration and Hibernate validating the entities against the resulting schema.
  *
  * Catches the two outages this codebase is most exposed to: a migration that does not apply, and an

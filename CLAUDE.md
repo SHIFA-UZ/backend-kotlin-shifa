@@ -79,13 +79,12 @@ Three roles — `DOCTOR`, `PATIENT`, `ADMIN`. Users can hold multiple roles. JWT
 
 ## Entry Point
 
-`Application.kt` — handles multiple database connection modes:
-1. GCP Cloud SQL socket factory (via `CLOUD_SQL_INSTANCE`)
-2. Railway `DATABASE_URL` (converts `postgresql://` to JDBC)
-3. Direct JDBC URL
-4. Fallback to individual `PG*` env vars
-
-Also loads `.env` for local dev and writes `FIREBASE_SERVICE_ACCOUNT_JSON` to temp file for Firebase SDK init.
+`Application.kt` is `runApplication` plus the annotations. All configuration is in `application.yml` (same everywhere),
+`application-prod.yml` (Railway, both environments) and `application-dev.yml` (the development overlay, profile `prod,dev`).
+Only secrets and Railway-injected values (`PORT`, `SPRING_DATASOURCE_*` reference variables, `RAILWAY_GIT_COMMIT_SHA`)
+are environment variables; `src/test/kotlin/com/shifa/config/ConfigPolicyTest.kt` fails on any other placeholder and pins
+the production and development values. Local secrets go in the git-ignored `application-local.yml`
+(see `application-local.example.yml`). `FIREBASE_SERVICE_ACCOUNT_JSON` is read by the Firebase services directly.
 
 Annotations: `@EnableConfigurationProperties`, `@EnableScheduling`, `@EnableCaching`.
 
@@ -99,7 +98,7 @@ Production HikariCP: max 20 connections, min 5 idle, 30s connection timeout, 30m
 
 - **Primary:** Railway (Nixpacks builder, `railway.toml`)
 - **Alternative:** GCP Cloud Run (`cloudbuild.yaml`, Dockerfile)
-- **Profiles:** `default` (dev), `prod`, `qa`
+- **Profiles:** none = `local` (reads `application-local.yml`), `prod` (production), `prod,dev` (development)
 - **Health check:** `/actuator/health/liveness` (180s timeout for cold start + migrations)
 - **JVM:** `-Xmx1536m -Xms512m -XX:+UseG1GC -XX:+UseStringDeduplication`
 - **Restart:** on_failure, max 10 retries
@@ -110,7 +109,7 @@ Uploads served from `storageRoot` (default `./public-storage/images`) with 1-hou
 
 ## Key Environment Variables
 
-`DATABASE_URL`, `JWT_SECRET` (64+ chars), `OPENAI_API_KEY`, `OPENAI_PROJECT_ID`, `DAILY_API_KEY`, `DAILY_WEBHOOK_SECRET`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `STORAGE_ROOT`, `APP_PUBLICBASEURL`, `APP_FRONTENDURL`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `GOOGLE_MAPS_API_KEY`. See `README_ENVIRONMENT.md` for full details.
+Secrets only: `SPRING_DATASOURCE_URL`/`USERNAME`/`PASSWORD` (Railway references), `JWT_SECRET` (64+ chars), `OPENAI_API_KEY`, `GEMINI_API_KEY`, `DAILY_API_KEY`, `DAILY_WEBHOOK_SECRET`, `FIREBASE_SERVICE_ACCOUNT_JSON`, `MAIL_PASSWORD`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `CLICK_SECRET_KEY`, `DEVSMS_API_TOKEN`, `GOOGLE_MAPS_API_KEY`, plus `SPRING_PROFILES_ACTIVE`. URLs, model names, limits, merchant ids and the mail sender are literals in the yml files.
 
 ## Background Processing
 

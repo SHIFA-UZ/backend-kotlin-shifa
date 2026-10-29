@@ -12,7 +12,7 @@ import org.springframework.stereotype.Component
  */
 object StartupSecretPolicy {
     /** Profiles where the deployment is real and must not run with placeholder secrets. */
-    private val deployedProfiles = setOf("prod", "dev", "qa")
+    private val deployedProfiles = setOf("prod", "dev")
 
     const val MIN_JWT_SECRET_LENGTH = 64
 

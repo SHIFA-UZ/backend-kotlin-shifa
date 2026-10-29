@@ -13,12 +13,14 @@ class EmailSenderService(
     @Value("\${spring.mail.from:}") private val fromEmail: String,
     @Value("\${spring.mail.from-name:Shifa Health}") private val fromName: String,
     @Value("\${spring.mail.username:}") private val smtpUsername: String,
+    @Value("\${spring.mail.password:}") private val smtpPassword: String,
     /** Explicit opt-in for printing codes when SMTP is unconfigured. True only in the local config file. */
     @Value("\${app.log-otp-codes:false}") private val logOtpCodes: Boolean,
 ) {
     private val log = LoggerFactory.getLogger(EmailSenderService::class.java)
 
-    fun isConfigured(): Boolean = smtpUsername.isNotBlank()
+    /** The login is a yml literal; only the password (MAIL_PASSWORD, or application-local.yml) says whether SMTP is usable. */
+    fun isConfigured(): Boolean = smtpUsername.isNotBlank() && smtpPassword.isNotBlank()
 
     /**
      * Resolve sender: use explicit MAIL_FROM if set, otherwise fall back to MAIL_USERNAME
@@ -30,7 +32,7 @@ class EmailSenderService(
     fun sendOtpEmail(toEmail: String, code: String, purpose: String) {
         if (!isConfigured()) {
             if (logOtpCodes) {
-                log.warn("SMTP not configured — OTP for {} [{}]: {} (set MAIL_USERNAME/MAIL_PASSWORD for real delivery)",
+                log.warn("SMTP not configured — OTP for {} [{}]: {} (set spring.mail.password for real delivery)",
                     toEmail.take(3) + "***", purpose, code)
             } else {
                 log.warn("SMTP not configured — OTP for {} [{}] not sent; codes are only logged with app.log-otp-codes=true",

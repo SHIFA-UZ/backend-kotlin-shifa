@@ -13,7 +13,7 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 @RequestMapping("/api/public/config")
 class ConfigController(
-    @Value("\${GOOGLE_MAPS_API_KEY:}")
+    @Value("\${googleMaps.apiKey:}")
     private val googleMapsApiKey: String,
     private val appProperties: AppProperties
 ) {

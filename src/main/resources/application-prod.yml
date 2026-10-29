@@ -1,17 +1,13 @@
-# Production environment configuration
-# This file uses environment variables for all sensitive data
-# DO NOT commit actual secrets to version control!
+# Railway production (SPRING_PROFILES_ACTIVE=prod); development runs this plus application-dev.yml (prod,dev).
+# Only the differences from application.yml belong here. Every placeholder is a secret or Railway-injected and has
+# no default: a missing variable fails startup with its name in the log, and Railway keeps the previous deployment.
 
 spring:
   datasource:
-    # Railway: DATABASE_URL is set by Railway when you add Postgres. Application.kt (main()) converts it to
-    # JDBC and sets system properties (spring.datasource.url/username/password), which override these values.
-    # So on Railway these entries are never used. They are fallbacks only if DATABASE_URL is missing (e.g. local prod test).
-    url: jdbc:postgresql://localhost:5432/shifa
-    username: ${DB_USERNAME:${PGUSER:}}
-    password: ${DB_PASSWORD:${PGPASSWORD:}}
-    
-    # Connection pooling for better performance
+    # Railway reference variables to the environment's own Postgres service (roadmap 2.2).
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
       # Two instances overlap during a deploy and must fit Railway Postgres together (roadmap 2.8).
       maximum-pool-size: 15
@@ -21,64 +17,32 @@ spring:
       max-lifetime: 1800000
 
   jpa:
-    # In production, NEVER use 'update' - only validate!
-    # Schema changes must go through Flyway migrations
+    # Never 'update' here: schema changes go through Flyway migrations.
     hibernate:
       ddl-auto: validate
     properties:
       hibernate:
-        format_sql: false  # Disable SQL formatting in production
-        show_sql: false     # Disable SQL logging in production
-    open-in-view: false  # Better for production performance
-
-  flyway:
-    enabled: true
-    locations: classpath:db/migration
-    validate-on-migrate: true
-    validate-migration-naming: true
-  
-  servlet:
-    multipart:
-      enabled: true
-      max-file-size: 25MB
-      max-request-size: 25MB
+        format_sql: false
+        show_sql: false
 
   mail:
-    host: ${MAIL_HOST:smtp-relay.brevo.com}
-    port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:}
-    password: ${MAIL_PASSWORD:}
-    properties:
-      mail:
-        smtp:
-          auth: true
-          connectiontimeout: 10000
-          timeout: 10000
-          writetimeout: 10000
-          starttls:
-            enable: true
-    from: ${MAIL_FROM:noreply@shifa.health}
-    from-name: ${MAIL_FROM_NAME:Shifa Health}
+    password: ${MAIL_PASSWORD}
 
-# Logging configuration for production
 logging:
   level:
     root: INFO
     com.shifa: INFO
-    com.shifa.security: WARN  # Disable DEBUG logs from JwtAuthFilter to prevent memory issues
-    com.shifa.web: INFO  # Reduce logging verbosity
-    org.springframework.security: WARN  # Less verbose in production
+    com.shifa.security: WARN
+    com.shifa.web: INFO
+    org.springframework.security: WARN
     org.hibernate: WARN
-    org.apache.tomcat: WARN  # Reduce Tomcat logging
+    org.apache.tomcat: WARN
   # stdout only: Railway captures it; a file inside the container is lost on redeploy and costs disk.
 
 server:
-  # Railway uses PORT environment variable, fallback to SERVER_PORT or 8080
-  port: ${PORT:${SERVER_PORT:8080}}
   tomcat:
     threads:
       max: 100  # I/O-bound on a 15-connection pool; 1 MB stack per thread (roadmap 2.8)
-  # Production security headers
   error:
     include-message: never
     include-stacktrace: never
@@ -90,94 +54,46 @@ springdoc:
   swagger-ui:
     enabled: false
 
-# Actuator configuration for health checks
-management:
-  endpoints:
-    web:
-      exposure:
-        include: health,info
-  endpoint:
-    health:
-      show-details: when-authorized
-  health:
-    probes:
-      enabled: true
-
-# Application-specific configuration
 app:
-  # SECURITY (NEW): Rate limits - auth stricter to prevent brute-force
-  rate-limit:
-    auth:
-      requests-per-minute: ${RATE_LIMIT_AUTH_PER_MIN:10}
-    general:
-      requests-per-minute: ${RATE_LIMIT_GENERAL_PER_MIN:200}
-    ai:
-      enabled: ${AI_RATE_LIMIT_ENABLED:true}
-      patient-daily-requests: ${AI_RATE_LIMIT_PATIENT_DAILY:30}
-      doctor-daily-requests: ${AI_RATE_LIMIT_DOCTOR_DAILY:100}
-      patient-burst-per-min: ${AI_RATE_LIMIT_PATIENT_BURST_PER_MIN:10}
-      doctor-burst-per-min: ${AI_RATE_LIMIT_DOCTOR_BURST_PER_MIN:20}
-      timezone: ${AI_RATE_LIMIT_TIMEZONE:Asia/Tashkent}
   jwt:
-    issuer: ${JWT_ISSUER:shifa}
-    # CRITICAL: Use a strong random secret in production!
-    # Generate with: openssl rand -base64 64
     secret: ${JWT_SECRET}
-    # Doctor app: 30 days (43200 min). Patient app: 365 days (525600 min).
-    accessTokenMinutesDoctor: ${JWT_ACCESS_TOKEN_MINUTES_DOCTOR:43200}
-    accessTokenMinutesPatient: ${JWT_ACCESS_TOKEN_MINUTES_PATIENT:525600}
-  
-  # Public base URL for CORS and file serving
-  # In Railway: Set this to your Railway app URL (e.g., https://your-app.railway.app)
-  # Files will be served from the same domain, so no separate file server needed
-  publicBaseUrl: ${APP_PUBLICBASEURL}
-  
-  # Frontend URL for CORS configuration
-  # In Railway: Set this to your Firebase app URL (e.g., https://shifa-doctor-staging.web.app)
-  # This is used to allow CORS requests from your frontend
-  frontendUrl: ${APP_FRONTENDURL:}
-  
-  # Storage root for uploaded files
-  # In Railway: Use /app/storage/images (mounted volume) or /tmp/storage/images (ephemeral)
-  # For persistent storage, use Railway Volume mounted at /app/storage
-  storageRoot: ${STORAGE_ROOT:/app/storage/images}
-  transcription-feedback-enabled: ${TRANSCRIPTION_FEEDBACK_ENABLED:false}
+  # The domain the patient app's store builds call; also the host of every stored file URL. Changing it is a
+  # separate decision (api.shifa.uz is a second domain of the same service).
+  publicBaseUrl: https://shifa-doc-backend-mvp-production.up.railway.app
+  frontendUrl: https://doctor.shifa.uz
+  # Railway volume mount.
+  storageRoot: /app/storage/images
   # Never print OTP codes in a deployed environment.
   log-otp-codes: false
-  # Deployed: 500 bodies name the exception class only; http is redirected to https behind the edge.
+  # 500 bodies name the exception class only; http is redirected to https behind the edge.
   expose-error-details: false
   enforce-https: true
 
-# OpenAI API configuration
 openai:
   apiKey: ${OPENAI_API_KEY}
-  projectId: ${OPENAI_PROJECT_ID}
-  model: ${OPENAI_MODEL:gpt-4o-mini}
-  transcription-model: ${OPENAI_TRANSCRIPTION_MODEL:gpt-4o-transcribe}
-  transcription-send-language-param: ${OPENAI_TRANSCRIPTION_SEND_LANG:true}
-  transcription-medical-cleanup-enabled: ${OPENAI_TRANSCRIPTION_MED_CLEANUP:true}
-  transcription-medical-cleanup-voice-uploads: ${OPENAI_TRANSCRIPTION_MED_CLEANUP_VOICE:false}
-  transcription-medical-cleanup-min-words: 10
-  transcription-medical-cleanup-model: ${OPENAI_TRANSCRIPTION_MED_CLEANUP_MODEL:gpt-4o-mini}
-  url: ${OPENAI_URL:https://api.openai.com/v1/responses}
-  temperature: ${OPENAI_TEMPERATURE:0.2}
-  maxTokens: ${OPENAI_MAX_TOKENS:600}
-  requestTimeoutMs: ${OPENAI_REQUEST_TIMEOUT_MS:15000}
-  maxRequestsPerMinute: ${OPENAI_GLOBAL_MAX_REQ_PER_MIN:600}
-  tts-model: ${OPENAI_TTS_MODEL:gpt-4o-mini-tts}
-  tts-voice: ${OPENAI_TTS_VOICE:sage}
-  tts-speed: ${OPENAI_TTS_SPEED:0.92}
 
-# Daily.co Video API configuration
-# Get your API key from https://dashboard.daily.co/
-# In production, set DAILY_API_KEY environment variable
+ai:
+  providers:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+
 daily:
   apiKey: ${DAILY_API_KEY}
-  apiUrl: ${DAILY_API_URL:https://api.daily.co/v1}
 
-# Google Maps API configuration
-# Get your API key from https://console.cloud.google.com/google/maps-apis
-# This is exposed to frontend via /api/public/config endpoint
-# In production, set GOOGLE_MAPS_API_KEY environment variable
+scribe:
+  daily-webhook-secret: ${DAILY_WEBHOOK_SECRET}
+
+stripe:
+  secretKey: ${STRIPE_SECRET_KEY}
+  webhookSecret: ${STRIPE_WEBHOOK_SECRET}
+  connectRefreshUrl: https://shifa-doctor-staging.web.app/home
+  connectReturnUrl: https://shifa-doctor-staging.web.app/profile
+
+devsms:
+  api-token: ${DEVSMS_API_TOKEN}
+
+click:
+  secret-key: ${CLICK_SECRET_KEY}
+
 googleMaps:
-  apiKey: ${GOOGLE_MAPS_API_KEY:}
+  apiKey: ${GOOGLE_MAPS_API_KEY}

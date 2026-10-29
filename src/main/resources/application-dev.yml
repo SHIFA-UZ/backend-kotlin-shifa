@@ -2,6 +2,8 @@
 # Activated on top of prod: SPRING_PROFILES_ACTIVE=prod,dev. Only differences from application-prod.yml belong here.
 
 app:
+  publicBaseUrl: https://api-dev.shifa.uz
+
   rate-limit:
     # Verified 2026-10-28 (see ARCHITECTURE_ROADMAP.md, 0.7): Railway's CDN layer REPLACES X-Forwarded-For with
     # "<client>, <cdn node>" and drops anything the client sent, so the first entry (hops 0) is the real client.
@@ -12,6 +14,21 @@ app:
 
   # Test accounts for the app teams: see devseed/DevSeedRunner (seed.doctor1@shifa.dev etc., password Dev12345!).
   dev-seed: true
+
+# No real payments on development: no provider is enabled and the Stripe secrets are not set here.
+payment:
+  enabled-providers: NONE
+
+click:
+  enabled: false
+
+stripe:
+  secretKey: ""
+  webhookSecret: ""
+
+# No SMS from development (no DevSMS token); reminders are logged.
+devsms:
+  api-token: ""
 
 # API docs stay available on dev for the app teams.
 springdoc:
