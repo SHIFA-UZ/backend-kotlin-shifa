@@ -419,6 +419,14 @@ run on production 2026-10-29: 70 patient users, `changed_vs_*` all 0, `lost_vs_a
 `gained_vs_c` 5 (five patients who got 404 on tasks, chat, appointments and notifications resolve from now on). The
 resolver is therefore a pure refactor for 65 users and a fix for 5; no data merge needed.
 
+**Phase 5, `notifications` step (branch `refactor/notifications-module`, stacked on `refactor/shared-module`):**
+`notifications.application.NotificationService` is the one door for the other features (record, push, SMS; method names
+kept from the former repository and gateway calls, so 24 callers only changed the receiver), `NotificationFeed` holds the
+controller's use cases (list with details, unread count, mark read), `NotificationDto` lives in `api/dto`, and the
+controller has no repository left. The ArchUnit baseline for "only notifications depends on notifications
+infrastructure" drops from 166 entries to 0. Reminder jobs and the FCM token cleanup are unchanged. The behavioural items
+for this feature (push texts in the patient's language, one token per device) are separate PRs, as the recipe says.
+
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),

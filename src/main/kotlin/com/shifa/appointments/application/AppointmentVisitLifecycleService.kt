@@ -2,7 +2,6 @@ package com.shifa.appointments.application
 
 import com.shifa.ai.application.AiDraftNoteService
 import com.shifa.ai.application.ClinicalRagIndexingService
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.ai.application.PatientVisitAiSummaryService
 import com.shifa.ai.application.ScribePipelineService
 import com.shifa.ai.application.ScribeRecordingService
@@ -16,7 +15,6 @@ import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.notifications.domain.Notification
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.appointments.infrastructure.ConsultationNoteRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -35,8 +33,7 @@ import java.time.ZoneId
 class AppointmentVisitLifecycleService(
     private val appointments: AppointmentRepository,
     private val consultationNotes: ConsultationNoteRepository,
-    private val notifications: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val aiDraftNoteService: AiDraftNoteService,
     private val appointmentDocumentationService: AppointmentDocumentationService,
     private val visitSummaryService: PatientVisitAiSummaryService,
@@ -266,9 +263,9 @@ class AppointmentVisitLifecycleService(
             type = Notification.Type.SIGNATURE_REQUESTED,
             appointmentId = current.id,
         )
-        val savedNotif = notifications.save(notif)
+        val savedNotif = notificationService.save(notif)
         try {
-            current.patient.fcmToken?.let { fcmService.sendPatientNotification(it, savedNotif) }
+            current.patient.fcmToken?.let { notificationService.sendPatientNotification(it, savedNotif) }
         } catch (e: Exception) {
             log.warn("Signature request saved but push failed for {}: {}", current.id, e.message)
         }

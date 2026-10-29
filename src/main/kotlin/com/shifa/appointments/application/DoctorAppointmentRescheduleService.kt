@@ -1,13 +1,11 @@
 package com.shifa.appointments.application
 
-import com.shifa.notifications.infrastructure.FcmService
 
 import com.shifa.appointments.domain.Appointment
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.notifications.domain.Notification
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorLocationRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.Clock
@@ -26,10 +24,9 @@ data class DoctorRescheduleCommand(
 @Service
 class DoctorAppointmentRescheduleService(
     private val appointments: AppointmentRepository,
-    private val notifications: NotificationRepository,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val doctorLocations: DoctorLocationRepository,
     private val slotAvailabilityService: SlotAvailabilityService,
-    private val fcmService: FcmService,
     private val clock: Clock,
 ) {
     @Transactional
@@ -86,7 +83,7 @@ class DoctorAppointmentRescheduleService(
         appointment.smsReminderSentAt = null
         val saved = appointments.save(appointment)
 
-        val notification = notifications.save(
+        val notification = notificationService.save(
             Notification(
                 patient = saved.patient,
                 title = "Appointment Changed",
@@ -96,7 +93,7 @@ class DoctorAppointmentRescheduleService(
                 appointmentId = saved.id,
             ),
         )
-        saved.patient.fcmToken?.let { fcmService.sendPatientNotification(it, notification) }
+        saved.patient.fcmToken?.let { notificationService.sendPatientNotification(it, notification) }
         return saved
     }
 

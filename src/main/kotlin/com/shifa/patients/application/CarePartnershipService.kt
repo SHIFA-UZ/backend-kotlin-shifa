@@ -1,6 +1,5 @@
 package com.shifa.patients.application
 
-import com.shifa.notifications.infrastructure.FcmService
 
 import com.shifa.patients.domain.CarePartnership
 import com.shifa.patients.domain.CarePartnershipProgressUpdate
@@ -9,7 +8,6 @@ import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.patients.infrastructure.CarePartnershipProgressUpdateRepository
 import com.shifa.patients.infrastructure.CarePartnershipRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.patients.infrastructure.PatientProfileRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
@@ -62,8 +60,7 @@ class CarePartnershipService(
     private val patients: PatientProfileRepository,
     private val appointments: AppointmentRepository,
     private val access: DoctorPatientAccessService,
-    private val notifications: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
 ) {
 
     fun searchPartners(
@@ -333,8 +330,8 @@ class CarePartnershipService(
             message = message,
             type = type,
         )
-        val saved = notifications.save(notif)
-        fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, saved, extraData)
+        val saved = notificationService.save(notif)
+        notificationService.sendDoctorNotificationAfterCommit(doctor.fcmToken, saved, extraData)
     }
 
     /**

@@ -4,7 +4,8 @@ import com.shifa.clinics.domain.Clinic
 import com.shifa.patients.domain.PatientProfile
 import com.shifa.clinics.domain.TreatmentPlan
 import com.shifa.clinics.domain.TreatmentPlanLine
-import com.shifa.notifications.infrastructure.NotificationRepository
+import com.shifa.notifications.application.NotificationService
+import com.shifa.notifications.domain.Notification
 import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanRepository
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -20,8 +21,8 @@ class TreatmentPlanStatusServiceTest {
 
     private val plans = mock(TreatmentPlanRepository::class.java)
     private val linesRepo = mock(TreatmentPlanLineRepository::class.java)
-    private val notifications = mock(NotificationRepository::class.java)
-    private val service = TreatmentPlanStatusService(plans, linesRepo, notifications)
+    private val notificationService = mock(NotificationService::class.java)
+    private val service = TreatmentPlanStatusService(plans, linesRepo, notificationService)
 
     private val clinic = Clinic(id = 1L, name = "Test Clinic")
     private val patient = PatientProfile(id = 10L, fullName = "Jane Doe")
@@ -61,7 +62,7 @@ class TreatmentPlanStatusServiceTest {
 
         assertEquals(TreatmentPlan.Status.ACTIVE, plan.status)
         verify(plans, never()).save(any())
-        verify(notifications, never()).save(any())
+        verify(notificationService, never()).save(anyNotification())
     }
 
     @Test
@@ -79,7 +80,7 @@ class TreatmentPlanStatusServiceTest {
 
         assertEquals(TreatmentPlan.Status.COMPLETED, plan.status)
         verify(plans).save(plan)
-        verify(notifications).save(any())
+        verify(notificationService).save(anyNotification())
     }
 
     @Test
@@ -108,4 +109,8 @@ class TreatmentPlanStatusServiceTest {
         assertEquals(TreatmentPlan.Status.CANCELLED, plan.status)
         verify(plans, never()).save(any())
     }
+
+    private fun anyNotification(): Notification =
+        org.mockito.ArgumentMatchers.any(Notification::class.java)
+            ?: Notification(title = "", message = "", type = Notification.Type.entries.first())
 }

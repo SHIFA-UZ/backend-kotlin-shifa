@@ -26,7 +26,6 @@ import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.clinics.application.ClinicAccessService
 import com.shifa.clinics.application.ClinicCatalogService
 import com.shifa.clinics.application.ClinicFinanceLedgerService
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.appointments.application.PatientDaySlotsService
 import com.shifa.clinics.application.TreatmentPlanFulfillmentService
 import com.shifa.clinics.application.TreatmentPlanFinanceService
@@ -63,8 +62,7 @@ class TreatmentPlanController(
     private val installmentPlans: InstallmentPlanRepository,
     private val installmentItems: InstallmentItemRepository,
     private val users: UserRepository,
-    private val notifications: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val objectMapper: ObjectMapper,
     private val doctorLocations: DoctorLocationRepository,
     private val patientDaySlots: PatientDaySlotsService,
@@ -528,9 +526,9 @@ class TreatmentPlanController(
             type = type,
             treatmentPlanId = plan.id,
         )
-        val saved = notifications.save(n)
+        val saved = notificationService.save(n)
         patient.fcmToken?.let {
-            fcmService.sendPatientNotification(
+            notificationService.sendPatientNotification(
                 it,
                 saved,
                 mapOf("route" to "/bookings/treatment-plan/${plan.id}"),

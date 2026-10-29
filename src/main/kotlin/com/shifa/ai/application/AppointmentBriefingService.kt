@@ -1,6 +1,5 @@
 package com.shifa.ai.application
 
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.ai.infrastructure.OpenAiResponsesService
 import com.shifa.documents.application.PatientDocumentService
 import com.shifa.documents.application.PatientDocumentStorageService
@@ -12,7 +11,6 @@ import com.shifa.notifications.domain.Notification
 import com.shifa.documents.domain.PatientDocument
 import com.shifa.ai.infrastructure.AppointmentBriefingRepository
 import com.shifa.appointments.infrastructure.AppointmentRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.scheduling.annotation.Async
@@ -47,8 +45,7 @@ class AppointmentBriefingService(
     private val documentStorage: PatientDocumentStorageService,
     private val pdfExtraction: PdfTextExtractionService,
     private val openAi: OpenAiResponsesService,
-    private val notifications: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     transactionManager: PlatformTransactionManager,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
@@ -382,7 +379,7 @@ class AppointmentBriefingService(
             type = Notification.Type.APPOINTMENT_BRIEFING_READY,
             appointmentId = appointment.id,
         )
-        val saved = notifications.save(notif)
-        doctor.fcmToken?.let { fcmService.sendDoctorNotification(it, saved) }
+        val saved = notificationService.save(notif)
+        doctor.fcmToken?.let { notificationService.sendDoctorNotification(it, saved) }
     }
 }

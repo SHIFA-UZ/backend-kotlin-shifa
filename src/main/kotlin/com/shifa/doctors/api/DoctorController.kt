@@ -9,10 +9,8 @@ import com.shifa.notifications.domain.Notification
 import com.shifa.payments.infrastructure.DoctorBillingRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.DoctorSettingsRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.shared.security.DoctorPrincipal
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.admin.application.AdminClinicService
 import com.shifa.appointments.application.ScheduleValidityService
 import jakarta.validation.constraints.Email
@@ -36,8 +34,7 @@ class DoctorController(
     private val billingRepo: DoctorBillingRepository,
     private val settingsRepo: DoctorSettingsRepository,
     private val scheduleValidityService: ScheduleValidityService,
-    private val notifications: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val subscriptionTierService: com.shifa.payments.application.SubscriptionTierService,
     private val adminClinicService: AdminClinicService,
     private val fileUrlSigner: com.shifa.shared.security.FileUrlSigner,
@@ -171,9 +168,9 @@ class DoctorController(
             message = "If you see this on your device, doctor FCM is working correctly.",
             type = Notification.Type.GENERAL
         )
-        val saved = notifications.save(notif)
+        val saved = notificationService.save(notif)
         d.fcmToken?.let { token ->
-            fcmService.sendDoctorNotification(token, saved)
+            notificationService.sendDoctorNotification(token, saved)
         }
     }
 

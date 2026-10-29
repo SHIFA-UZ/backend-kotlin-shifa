@@ -1,7 +1,6 @@
 package com.shifa.ai.application
 
 import com.shifa.appointments.application.AppointmentDocumentationService
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.appointments.application.VisitFactService
 
 import com.shifa.ai.domain.OutputLanguage
@@ -9,7 +8,6 @@ import com.shifa.ai.domain.TranscriptPromptLeakStripper
 import com.shifa.notifications.domain.Notification
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import org.slf4j.LoggerFactory
 import org.springframework.scheduling.annotation.Async
 import org.springframework.stereotype.Service
@@ -28,9 +26,8 @@ class ScribePipelineService(
     private val aiDraftNoteService: AiDraftNoteService,
     private val diagnosisSuggestionService: DiagnosisSuggestionService,
     private val appointmentRepository: AppointmentRepository,
-    private val notificationRepository: NotificationRepository,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val doctorProfileRepository: DoctorProfileRepository,
-    private val fcmService: FcmService,
     private val appointmentDocumentationService: AppointmentDocumentationService,
     private val visitSummaryService: PatientVisitAiSummaryService,
     private val visitFactService: VisitFactService,
@@ -297,7 +294,7 @@ class ScribePipelineService(
 
     private fun notifyDoctorScribeReady(doctorId: Long, appointmentId: Long) {
         try {
-            if (notificationRepository.existsByDoctor_IdAndAppointmentIdAndType(
+            if (notificationService.alreadyNotifiedDoctor(
                     doctorId,
                     appointmentId,
                     Notification.Type.AI_SCRIBE_READY,
@@ -316,8 +313,8 @@ class ScribePipelineService(
                 type = Notification.Type.AI_SCRIBE_READY,
                 appointmentId = appointmentId
             )
-            val saved = notificationRepository.save(notif)
-            fcmService.sendDoctorNotification(token, saved)
+            val saved = notificationService.save(notif)
+            notificationService.sendDoctorNotification(token, saved)
             log.info("Sent AI Scribe ready notification to doctor {} for appointment {}", doctorId, appointmentId)
         } catch (e: Exception) {
             log.warn("Could not send scribe-ready notification: {}", e.message)

@@ -1,6 +1,5 @@
 package com.shifa.ai.application
 
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.ai.infrastructure.OpenAiResponsesService
 
 import com.shifa.shared.config.OpenAiProperties
@@ -9,7 +8,7 @@ import com.shifa.patients.domain.PatientProfile
 import com.shifa.ai.domain.PatientVisitAiSummary
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.appointments.infrastructure.ConsultationNoteRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
+import com.shifa.notifications.application.NotificationService
 import com.shifa.ai.infrastructure.PatientVisitAiSummaryRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -23,8 +22,7 @@ class PatientVisitAiSummaryServiceTest {
     private val appointments = mock(AppointmentRepository::class.java)
     private val notes = mock(ConsultationNoteRepository::class.java)
     private val summaries = mock(PatientVisitAiSummaryRepository::class.java)
-    private val notifications = mock(NotificationRepository::class.java)
-    private val fcm = mock(FcmService::class.java)
+    private val notificationService = mock(NotificationService::class.java)
     private val openAi = mock(OpenAiResponsesService::class.java)
     private val startedJobs = AtomicInteger(0)
     private val savedRows = AtomicInteger(0)
@@ -34,8 +32,7 @@ class PatientVisitAiSummaryServiceTest {
         appointments,
         notes,
         summaries,
-        notifications,
-        fcm,
+        notificationService,
         openAi,
         props,
         { startedJobs.incrementAndGet() },

@@ -1,6 +1,5 @@
 package com.shifa.auth.application
 
-import com.shifa.notifications.infrastructure.DevSmsService
 
 import com.shifa.auth.domain.SmsVerificationCode
 import com.shifa.auth.infrastructure.SmsVerificationCodeRepository
@@ -16,7 +15,7 @@ import kotlin.random.Random
 @Service
 class SmsOtpService(
     private val repo: SmsVerificationCodeRepository,
-    private val devSmsService: DevSmsService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
 ) {
     private val log = LoggerFactory.getLogger(SmsOtpService::class.java)
 
@@ -43,7 +42,7 @@ class SmsOtpService(
             SmsVerificationCode.PURPOSE_ACCOUNT_DELETION -> SmsOtpFormatting.accountDeletionOtpBody(code)
             else -> SmsOtpFormatting.registrationOtpBody(code)
         }
-        val result = devSmsService.sendSms(normalized, message)
+        val result = notificationService.sendSms(normalized, message)
         if (!result.success) {
             log.warn("DevSMS OTP send failed for {}***: {}", normalized.take(6), result.errorMessage)
             return SmsOtpSendResult.Failure(

@@ -3,7 +3,6 @@ package com.shifa.clinics.application
 import com.shifa.notifications.domain.Notification
 import com.shifa.clinics.domain.TreatmentPlan
 import com.shifa.clinics.domain.TreatmentPlanLine
-import com.shifa.notifications.infrastructure.NotificationRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanRepository
 import org.springframework.stereotype.Service
@@ -38,7 +37,7 @@ import java.time.OffsetDateTime
 class TreatmentPlanStatusService(
     private val plans: TreatmentPlanRepository,
     private val lines: TreatmentPlanLineRepository,
-    private val notifications: NotificationRepository,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
 ) {
 
     /**
@@ -104,7 +103,7 @@ class TreatmentPlanStatusService(
         // Best-effort patient notification. Failure here must not roll back
         // the status transition (which is the actual user-visible outcome).
         try {
-            notifications.save(
+            notificationService.save(
                 Notification(
                     patient = plan.patient,
                     title = "Treatment plan completed",

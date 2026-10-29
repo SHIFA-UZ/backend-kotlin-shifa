@@ -1,6 +1,5 @@
 package com.shifa.ai.application
 
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.notifications.application.NotificationFormatting
 import com.shifa.appointments.application.PatientDaySlotsService
 
@@ -11,7 +10,6 @@ import com.shifa.patients.domain.PatientProfile
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.doctors.infrastructure.DoctorLocationRepository
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
@@ -22,9 +20,8 @@ import java.time.ZoneId
 class PatientCopilotBookingService(
     private val doctorProfiles: DoctorProfileRepository,
     private val appointments: AppointmentRepository,
-    private val notifications: NotificationRepository,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val doctorLocations: DoctorLocationRepository,
-    private val fcmService: FcmService,
     private val appProps: AppProperties,
     private val patientDaySlotsService: PatientDaySlotsService
 ) {
@@ -172,8 +169,8 @@ class PatientCopilotBookingService(
             type = Notification.Type.APPOINTMENT_BOOKED_BY_PATIENT,
             appointmentId = saved.id
         )
-        val savedNotif = notifications.save(notif)
-        fcmService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
+        val savedNotif = notificationService.save(notif)
+        notificationService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
 
         return BookedAppointmentDto(
             id = saved.id,

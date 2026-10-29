@@ -40,7 +40,7 @@ class UserDeletionService(
     private val scheduleBlockRepository: ScheduleBlockRepository,
     private val scheduleValidityPeriodRepository: ScheduleValidityPeriodRepository,
     private val doctorReviewRepository: DoctorReviewRepository,
-    private val notificationRepository: NotificationRepository,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
     private val remoteCareTaskRepository: RemoteCareTaskRepository,
     private val conversationRepository: ConversationRepository,
     private val messageRepository: MessageRepository,
@@ -91,7 +91,7 @@ class UserDeletionService(
                 scheduleValidityPeriodRepository.deleteAll(it)
             }
             doctorReviewRepository.findByDoctorId(doctorId).let { doctorReviewRepository.deleteAll(it) }
-            notificationRepository.findByDoctor_IdOrderByCreatedAtDesc(doctorId).let { notificationRepository.deleteAll(it) }
+            notificationService.deleteAllForDoctor(doctorId)
             remoteCareTaskRepository.findByDoctorIdOrderByCreatedAtDesc(doctorId).let { remoteCareTaskRepository.deleteAll(it) }
             val doctorConvs = conversationRepository.findByDoctorUserIdOrDoctorParticipantId(userId)
             if (doctorConvs.isNotEmpty()) {
@@ -114,7 +114,7 @@ class UserDeletionService(
         patientProfileRepository.findByUserId(userId).ifPresent { patient ->
             val patientId = patient.id!!
             appointmentRepository.deleteByPatientId(patientId)
-            notificationRepository.findByPatient_IdOrderByCreatedAtDesc(patientId).let { notificationRepository.deleteAll(it) }
+            notificationService.deleteAllForPatient(patientId)
             remoteCareTaskRepository.findByPatientIdOrderByCreatedAtDesc(patientId).let { remoteCareTaskRepository.deleteAll(it) }
             doctorReviewRepository.findByPatientId(patientId).let { doctorReviewRepository.deleteAll(it) }
             val patientConvs = conversationRepository.findByPatientParticipantIdOrderByLastMessageDesc(patientId)

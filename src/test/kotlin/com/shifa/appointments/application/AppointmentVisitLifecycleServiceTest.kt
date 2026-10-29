@@ -2,7 +2,6 @@ package com.shifa.appointments.application
 
 import com.shifa.ai.application.AiDraftNoteService
 import com.shifa.ai.application.ClinicalRagIndexingService
-import com.shifa.notifications.infrastructure.FcmService
 import com.shifa.ai.application.PatientVisitAiSummaryService
 import com.shifa.ai.application.ScribePipelineService
 import com.shifa.ai.application.ScribeRecordingService
@@ -16,7 +15,7 @@ import com.shifa.patients.domain.PatientProfile
 import com.shifa.auth.domain.User
 import com.shifa.appointments.infrastructure.AppointmentRepository
 import com.shifa.appointments.infrastructure.ConsultationNoteRepository
-import com.shifa.notifications.infrastructure.NotificationRepository
+import com.shifa.notifications.application.NotificationService
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
@@ -40,8 +39,7 @@ class AppointmentVisitLifecycleServiceTest {
     private val clock = Clock.fixed(Instant.parse("2026-10-16T10:00:00Z"), ZoneOffset.UTC)
     private val appointments = mock(AppointmentRepository::class.java)
     private val consultationNotes = mock(ConsultationNoteRepository::class.java)
-    private val notifications = mock(NotificationRepository::class.java)
-    private val fcm = mock(FcmService::class.java)
+    private val notificationService = mock(NotificationService::class.java)
     private val drafts = mock(AiDraftNoteService::class.java)
     private val documentation = mock(AppointmentDocumentationService::class.java)
     private val visitSummary = mock(PatientVisitAiSummaryService::class.java)
@@ -73,8 +71,7 @@ class AppointmentVisitLifecycleServiceTest {
         service = AppointmentVisitLifecycleService(
             appointments,
             consultationNotes,
-            notifications,
-            fcm,
+            notificationService,
             drafts,
             documentation,
             visitSummary,
@@ -87,7 +84,7 @@ class AppointmentVisitLifecycleServiceTest {
         )
         `when`(appointments.save(anyAppointment())).thenAnswer { it.arguments[0] }
         `when`(consultationNotes.save(anyNote())).thenAnswer { it.arguments[0] }
-        `when`(notifications.save(anyNotification())).thenAnswer { it.arguments[0] }
+        `when`(notificationService.save(anyNotification())).thenAnswer { it.arguments[0] }
         `when`(recordings.listRecordingsForRoom(org.mockito.ArgumentMatchers.anyString())).thenReturn(emptyList())
         `when`(documentation.statusFor(org.mockito.ArgumentMatchers.anyLong())).thenReturn(
             AppointmentDocumentationService.ScribeStatus("none", false, false),
@@ -164,14 +161,15 @@ class AppointmentVisitLifecycleServiceTest {
 
         service.appendConsultationNote(doctor, visit.id, "Patient reports mild pain.")
         assertFalse(visit.signatureRequested)
-        verifyNoInteractions(notifications)
-        verifyNoInteractions(fcm)
+        verifyNoInteractions(notificationService)
+        verify(notificationService, org.mockito.Mockito.never())
+            .sendPatientNotification(org.mockito.ArgumentMatchers.any(), anyNotification(), org.mockito.ArgumentMatchers.anyMap())
 
         val signed = service.requestSignature(doctor, visit.id)
         assertTrue(signed is AppointmentVisitLifecycleService.Outcome.Ok)
         assertTrue(visit.signatureRequested)
-        verify(notifications).save(anyNotification())
-        verify(fcm).sendPatientNotification(
+        verify(notificationService).save(anyNotification())
+        verify(notificationService).sendPatientNotification(
             org.mockito.ArgumentMatchers.eq("token"),
             anyNotification(),
             org.mockito.ArgumentMatchers.anyMap(),
@@ -302,7 +300,7 @@ class AppointmentVisitLifecycleServiceTest {
         service.requestSignature(doctor, visit.id)
         val second = service.requestSignature(doctor, visit.id) as AppointmentVisitLifecycleService.Outcome.Ok
         assertTrue(second.message!!.contains("already requested"))
-        verify(notifications, times(1)).save(anyNotification())
+        verify(notificationService, times(1)).save(anyNotification())
     }
 
     @Test
@@ -310,7 +308,7 @@ class AppointmentVisitLifecycleServiceTest {
         val visit = visit(start = "2026-10-16T09:00:00Z", status = Appointment.Status.IN_PROGRESS)
         stubFind(visit)
         `when`(
-            fcm.sendPatientNotification(
+            notificationService.sendPatientNotification(
                 org.mockito.ArgumentMatchers.anyString(),
                 anyNotification(),
                 org.mockito.ArgumentMatchers.anyMap(),
@@ -319,7 +317,7 @@ class AppointmentVisitLifecycleServiceTest {
         val result = service.requestSignature(doctor, visit.id)
         assertTrue(result is AppointmentVisitLifecycleService.Outcome.Ok)
         assertTrue(visit.signatureRequested)
-        verify(notifications).save(anyNotification())
+        verify(notificationService).save(anyNotification())
     }
 
     @Test

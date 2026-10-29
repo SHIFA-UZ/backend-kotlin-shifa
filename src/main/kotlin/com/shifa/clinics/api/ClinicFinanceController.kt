@@ -71,8 +71,7 @@ class ClinicFinanceController(
     private val patients: PatientProfileRepository,
     private val users: UserRepository,
     private val auditLogs: ClinicFinanceAuditLogRepository,
-    private val notifications: NotificationRepository,
-    private val fcmService: FcmService,
+    private val notificationService: com.shifa.notifications.application.NotificationService,
 ) {
 
     // --- DTOs ---
@@ -995,9 +994,9 @@ class ClinicFinanceController(
                 type = Notification.Type.INSTALLMENT_SCHEDULE_CREATED,
                 treatmentPlanId = tp.id,
             )
-            val savedNotif = notifications.save(notif)
+            val savedNotif = notificationService.save(notif)
             patient.fcmToken?.let {
-                fcmService.sendPatientNotification(
+                notificationService.sendPatientNotification(
                     it,
                     savedNotif,
                     mapOf("route" to "/bookings/treatment-plan/${tp.id}"),
@@ -1201,9 +1200,9 @@ class ClinicFinanceController(
             treatmentPlanId = tp.id,
             installmentItemId = item.id,
         )
-        val saved = notifications.save(notif)
+        val saved = notificationService.save(notif)
         patient.fcmToken?.let {
-            fcmService.sendPatientNotification(
+            notificationService.sendPatientNotification(
                 it,
                 saved,
                 mapOf("route" to "/bookings/treatment-plan/${tp.id}", "installmentItemId" to item.id.toString()),
