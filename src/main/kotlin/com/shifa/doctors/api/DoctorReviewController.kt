@@ -10,6 +10,10 @@ import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
+import com.shifa.shared.api.Pages
+import org.springframework.data.web.PageableDefault
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Page
 
 
 @RestController
@@ -43,6 +47,13 @@ class DoctorReviewController(
             )
         }
     }
+
+    /** One page of [getReviews], newest first (roadmap P6). */
+    @GetMapping("/page")
+    fun getReviewsPage(
+        @PathVariable doctorId: Long,
+        @org.springdoc.core.annotations.ParameterObject @PageableDefault(size = 20) pageable: Pageable,
+    ): Page<ReviewDto> = Pages.of(getReviews(doctorId), pageable)
 
     /**
      * POST /api/public/doctors/{doctorId}/reviews

@@ -549,6 +549,7 @@ class PublicDoctorController(
      * Get doctor details by ID
      */
     @GetMapping("/{id}")
+    @org.springframework.cache.annotation.Cacheable(cacheNames = [com.shifa.shared.config.CacheConfig.PUBLIC_DOCTOR_CACHE], key = "#id")
     fun getDoctor(@PathVariable id: Long): DoctorDto {
         val doctor = doctorProfiles.findById(id)
             .orElseThrow { org.springframework.web.server.ResponseStatusException(

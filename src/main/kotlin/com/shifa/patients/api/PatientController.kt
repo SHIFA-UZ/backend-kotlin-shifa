@@ -31,6 +31,10 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
+import com.shifa.shared.api.Pages
+import org.springframework.data.web.PageableDefault
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Page
 
 
 
@@ -261,6 +265,16 @@ class PatientController(
         val documentIds = patientDocumentService.documentIdsByAppointment(visible.map { it.id })
         return visible.map { toAppointmentDto(it, documentIds = documentIds[it.id] ?: emptyList()) }
     }
+
+    /** One page of [getAppointments] with the same filters (roadmap P6). */
+    @GetMapping("/appointments/page")
+    fun getAppointmentsPage(
+        @AuthenticationPrincipal principal: PatientPrincipal,
+        @RequestParam(required = false) status: String?,
+        @RequestParam(required = false) startDate: String?,
+        @RequestParam(required = false) endDate: String?,
+        @org.springdoc.core.annotations.ParameterObject @PageableDefault(size = 20) pageable: Pageable,
+    ): Page<AppointmentDto> = Pages.of(getAppointments(principal, status, startDate, endDate), pageable)
 
     // GET /api/patients/me/appointments/{id} is handled by PatientAppointmentController.getById
     // (returns AppointmentSummaryDto with signatureRequested, alreadySigned for details + signing).
@@ -666,6 +680,13 @@ class PatientController(
         val patientId = profile.id ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient ID not found")
         return patientDocumentService.listForPatientSelf(patientId)
     }
+
+    /** One page of [getDocuments] (roadmap P6). */
+    @GetMapping("/documents/page")
+    fun getDocumentsPage(
+        @AuthenticationPrincipal principal: PatientPrincipal,
+        @org.springdoc.core.annotations.ParameterObject @PageableDefault(size = 20) pageable: Pageable,
+    ): Page<PatientDocumentDto> = Pages.of(getDocuments(principal), pageable)
 
     @PostMapping("/documents")
     fun uploadDocument(

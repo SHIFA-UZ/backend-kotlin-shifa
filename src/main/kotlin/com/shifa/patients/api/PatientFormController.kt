@@ -7,6 +7,10 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.server.ResponseStatusException
 import org.springframework.http.HttpStatus
+import com.shifa.shared.api.Pages
+import org.springframework.data.web.PageableDefault
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Page
 
 @RestController
 @RequestMapping("/api/patients")
@@ -22,6 +26,14 @@ class PatientFormController(
         val forms = formService.list(patientId)
         return ResponseEntity.ok(forms)
     }
+
+    /** One page of [listForms] (roadmap P6). */
+    @GetMapping("/{patientId}/forms/page")
+    fun listFormsPage(
+        @PathVariable patientId: Long,
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @org.springdoc.core.annotations.ParameterObject @PageableDefault(size = 20) pageable: Pageable,
+    ): Page<PatientFormDto> = Pages.of(formService.list(patientId), pageable)
 
     @GetMapping("/{patientId}/forms/{formId}")
     fun getForm(

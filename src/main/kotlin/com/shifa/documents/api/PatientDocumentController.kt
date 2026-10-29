@@ -18,6 +18,10 @@ import org.springframework.web.bind.annotation.*
 import org.springframework.web.multipart.MultipartFile
 import org.springframework.web.server.ResponseStatusException
 import java.time.LocalDate
+import com.shifa.shared.api.Pages
+import org.springframework.data.web.PageableDefault
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Page
 
 @RestController
 @RequestMapping("/api/patients")
@@ -76,6 +80,19 @@ class PatientDocumentController(
         ensurePatientDocumentAccess(principal, patientId, clinicId)
         val doctorId = effectiveDoctorProfileId(principal, clinicId)
         return ResponseEntity.ok(service.list(patientId, doctorId))
+    }
+
+    /** One page of [list] (roadmap P6). */
+    @GetMapping("/{patientId}/documents/page")
+    fun listPage(
+        @PathVariable patientId: Long,
+        @AuthenticationPrincipal principal: Any,
+        @RequestParam(name = "clinicId", required = false) clinicId: Long?,
+        @org.springdoc.core.annotations.ParameterObject @PageableDefault(size = 20) pageable: Pageable,
+    ): Page<PatientDocumentDto> {
+        ensurePatientDocumentAccess(principal, patientId, clinicId)
+        val doctorId = effectiveDoctorProfileId(principal, clinicId)
+        return Pages.of(service.list(patientId, doctorId), pageable)
     }
 
     @PostMapping("/{patientId}/documents")

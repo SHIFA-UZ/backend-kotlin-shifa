@@ -13,6 +13,10 @@ import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.server.ResponseStatusException
+import com.shifa.shared.api.Pages
+import org.springframework.data.web.PageableDefault
+import org.springframework.data.domain.Pageable
+import org.springframework.data.domain.Page
 
 @RestController
 @RequestMapping("/api/notifications")
@@ -33,6 +37,13 @@ class NotificationController(
     @GetMapping
     fun getNotifications(@AuthenticationPrincipal principal: Any): List<NotificationDto> =
         owner(principal)?.let { feed.list(it).map(NotificationDto::from) } ?: emptyList()
+
+    /** One page of [getNotifications], newest first (roadmap P6). */
+    @GetMapping("/page")
+    fun getNotificationsPage(
+        @AuthenticationPrincipal principal: Any,
+        @org.springdoc.core.annotations.ParameterObject @PageableDefault(size = 20) pageable: Pageable,
+    ): Page<NotificationDto> = Pages.of(getNotifications(principal), pageable)
 
     @GetMapping("/unread/count")
     fun getUnreadCount(@AuthenticationPrincipal principal: Any): Map<String, Int> =

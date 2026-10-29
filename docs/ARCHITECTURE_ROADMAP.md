@@ -498,6 +498,34 @@ list with 24 parameter combinations, doctor details and locations, both conversa
 and counts) were byte-identical; the mark-read paths were checked row by row. The reminder jobs are left as they are:
 they run off request threads once a minute over a day's rows with indexed existence checks, so their cost does not reach
 users, and a rewrite without tests would be risk for no measurable gain at production's size (10.1).
+**Phase 6, P6 and caches (branch `refactor/phase6`):** six list endpoints that grow with a user's history gained a `/page`
+sibling with the same filters and order, returning Spring's `Page` shape that the admin endpoints already use (0-based
+`page`, `size`, default 20): `GET /api/notifications/page`, `/api/patients/me/appointments/page`,
+`/api/patients/me/documents/page`, `/api/patients/{patientId}/documents/page`, `/api/patients/{patientId}/forms/page`,
+`/api/public/doctors/{doctorId}/reviews/page`. The list endpoints are unchanged, so the apps opt in release by release
+(the per-app notes are in `docs/apps/`); the OpenAPI snapshot grew by the six paths and five `Page*` schemas and nothing
+else changed. `shared.api.Pages` slices the list after it is built: the sibling bounds the response, not the query, and
+database-side paging follows per list when one is measured to be slow (10.1). The other lists are deferred: most are
+bounded by nature (a day's calendar, a clinic's plans), a conversation's messages are not and get their page when the chat
+screens adopt paging. Caches: `GET /api/public/doctors/{id}` is cached for 60 s (`publicDoctor`, next to `professions` and
+`publicClinics`). The "subscription tier per user" cache was not added: `SubscriptionTierService.tierOf` runs no query, it
+reads the tier from the `User` that `PrincipalResolverService` loads once per request (session validity itself is cached
+for 30 s), so the thing worth caching is that per-request user load, which belongs to the auth split in `shared.security`. Pageable requests keep Spring's default
+cap of 2000 rows, above the 500 the doctor app sends.
+**Phase 6, P4, finding (2026-10-29):** P4 as written ("`fetch = FetchType.LAZY` on the 16 implicit-EAGER relations") does
+not work in this codebase yet, for two reasons found while preparing it. First, 66 of the 72 entities are final Kotlin
+classes (no `allopen` for `@Entity`, only `plugin.jpa`), and Hibernate cannot create a lazy proxy for a final class: a
+to-one relation marked `LAZY` whose target is final is loaded eagerly by a second select. Measured on a fresh session:
+`GET /api/public/doctors/2/locations` selects `doctor_locations`, then `doctor_profiles` and `clinics` for the location's
+`@ManyToOne(fetch = LAZY) doctor`. So today's `LAZY` declarations are mostly no-ops and flipping the 16 remaining ones would
+change nothing. Second, the precondition "all read paths of the entity are transactional" does not hold where controllers
+read through the Phase 5 doors: each door call is its own transaction and returns a detached entity, and the controller then
+navigates `appointment.patient`, `notification.doctor` and so on. Making entities `open` (which would activate every
+existing `LAZY` mapping at once) or flipping a relation would therefore throw `LazyInitializationException` in those
+controllers. P4 is re-sequenced: (1) Phase 5 step 3 proper per feature (controllers call transactional use cases that
+return DTOs; the doors disappear), (2) `allOpen { annotation("jakarta.persistence.Entity") }` plus the golden comparison on
+the local database, (3) `LAZY` one entity at a time with a dev soak. `default_batch_fetch_size: 50` (done) already keeps
+the eager fallbacks to one select per batch. Nothing in P4 is therefore in this PR.
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),
