@@ -6,8 +6,8 @@ import com.shifa.ai.domain.LlmRequest
 
 import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
 import okhttp3.OkHttpClient
-import okhttp3.mockwebserver.MockResponse
-import okhttp3.mockwebserver.MockWebServer
+import mockwebserver3.MockResponse
+import mockwebserver3.MockWebServer
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
@@ -42,10 +42,10 @@ class OpenAiCompatibleLlmClientTest {
 
     @AfterEach
     fun tearDown() {
-        server.shutdown()
+        server.close()
     }
 
-    private fun ok(body: String) = MockResponse().setResponseCode(200).setHeader("Content-Type", "application/json").setBody(body)
+    private fun ok(body: String) = MockResponse.Builder().code(200).addHeader("Content-Type", "application/json").body(body).build()
 
     @Test
     fun `builds request and normalizes content, tool calls and usage`() {
@@ -77,10 +77,10 @@ class OpenAiCompatibleLlmClientTest {
         assertEquals("test", resp.providerId)
 
         val recorded = server.takeRequest()
-        assertEquals("/v1/chat/completions", recorded.path)
-        assertEquals("Bearer sk-secret", recorded.getHeader("Authorization"))
-        assertEquals("proj", recorded.getHeader("OpenAI-Project"))
-        val sent = mapper.readTree(recorded.body.readUtf8())
+        assertEquals("/v1/chat/completions", recorded.target)
+        assertEquals("Bearer sk-secret", recorded.headers["Authorization"])
+        assertEquals("proj", recorded.headers["OpenAI-Project"])
+        val sent = mapper.readTree(recorded.body!!.utf8())
         assertEquals("m1", sent.path("model").asText())
         assertEquals(false, sent.path("stream").asBoolean())
         assertEquals("auto", sent.path("tool_choice").asText())
@@ -115,27 +115,27 @@ class OpenAiCompatibleLlmClientTest {
 
     @Test
     fun `classifies rate limit vs quota exhaustion`() {
-        server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"message":"Rate limit reached"}}"""))
+        server.enqueue(MockResponse(code = 429, body = """{"error":{"message":"Rate limit reached"}}"""))
         val rl = assertThrows<LlmException> { client.complete(LlmRequest(messages = emptyList()), provider) }
         assertEquals(LlmErrorKind.RATE_LIMITED, rl.kind)
 
-        server.enqueue(MockResponse().setResponseCode(429).setBody("""{"error":{"type":"insufficient_quota","message":"You exceeded your current quota"}}"""))
+        server.enqueue(MockResponse(code = 429, body = """{"error":{"type":"insufficient_quota","message":"You exceeded your current quota"}}"""))
         val q = assertThrows<LlmException> { client.complete(LlmRequest(messages = emptyList()), provider) }
         assertEquals(LlmErrorKind.QUOTA_EXHAUSTED, q.kind)
     }
 
     @Test
     fun `classifies auth, unsupported tools, invalid request, server error`() {
-        server.enqueue(MockResponse().setResponseCode(401).setBody("{}"))
+        server.enqueue(MockResponse(code = 401, body = "{}"))
         assertEquals(LlmErrorKind.AUTH, assertThrows<LlmException> { client.complete(LlmRequest(messages = emptyList()), provider) }.kind)
 
-        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"tools[0].function.parameters invalid"}}"""))
+        server.enqueue(MockResponse(code = 400, body = """{"error":{"message":"tools[0].function.parameters invalid"}}"""))
         assertEquals(LlmErrorKind.UNSUPPORTED_TOOLS, assertThrows<LlmException> { client.complete(LlmRequest(messages = emptyList()), provider) }.kind)
 
-        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":{"message":"messages must not be empty"}}"""))
+        server.enqueue(MockResponse(code = 400, body = """{"error":{"message":"messages must not be empty"}}"""))
         assertEquals(LlmErrorKind.INVALID_REQUEST, assertThrows<LlmException> { client.complete(LlmRequest(messages = emptyList()), provider) }.kind)
 
-        server.enqueue(MockResponse().setResponseCode(503).setBody("upstream"))
+        server.enqueue(MockResponse(code = 503, body = "upstream"))
         assertEquals(LlmErrorKind.SERVER, assertThrows<LlmException> { client.complete(LlmRequest(messages = emptyList()), provider) }.kind)
     }
 
@@ -144,7 +144,7 @@ class OpenAiCompatibleLlmClientTest {
         server.enqueue(ok("not json"))
         assertEquals(LlmErrorKind.MALFORMED, assertThrows<LlmException> { client.complete(LlmRequest(messages = emptyList()), provider) }.kind)
 
-        server.enqueue(ok("""{"choices":[]}""").setBodyDelay(3, TimeUnit.SECONDS))
+        server.enqueue(ok("""{"choices":[]}""").newBuilder().bodyDelay(3, TimeUnit.SECONDS).build())
         val t = assertThrows<LlmException> { client.complete(LlmRequest(messages = emptyList()), provider.copy(timeoutMs = 300)) }
         assertEquals(LlmErrorKind.TIMEOUT, t.kind)
     }
@@ -165,7 +165,7 @@ class OpenAiCompatibleLlmClientTest {
             LlmRequest(messages = emptyList(), tools = listOf(mapOf("x" to 1)), jsonObject = true),
             provider.copy(parallelToolCalls = false),
         )
-        val sent = mapper.readTree(server.takeRequest().body.readUtf8())
+        val sent = mapper.readTree(server.takeRequest().body!!.utf8())
         assertEquals("json_object", sent.path("response_format").path("type").asText())
         assertEquals(false, sent.path("parallel_tool_calls").asBoolean())
     }
@@ -177,7 +177,7 @@ class OpenAiCompatibleLlmClientTest {
             LlmRequest(messages = emptyList(), maxTokens = 120),
             provider.copy(id = "gemini"),
         )
-        val sent = mapper.readTree(server.takeRequest().body.readUtf8())
+        val sent = mapper.readTree(server.takeRequest().body!!.utf8())
         assertEquals("low", sent.path("reasoning_effort").asText())
         assertEquals(632, sent.path("max_tokens").asInt())
         assertTrue(sent.get("reasoning_effort") != null)
