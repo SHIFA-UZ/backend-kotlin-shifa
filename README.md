@@ -14,7 +14,7 @@ working in this repository are in `CLAUDE.md`.
 | Language | Kotlin 2.4.21 / Java 21 |
 | Framework | Spring Boot 4.1.2 (Spring Security 7, Spring Data JPA, Actuator) |
 | Database | PostgreSQL (16 locally, 17 on Railway) with `pgvector` (clinical RAG) and `pg_trgm` (ICD-10 search) |
-| Migrations | Flyway, 121 migrations in `src/main/resources/db/migration/` (`V1` to `V121`) |
+| Migrations | Flyway, 122 migrations in `src/main/resources/db/migration/` (`V1` to `V122`) |
 | Auth | JWT (JJWT) bound to a server-side session (`jti`), Firebase phone OTP, e-mail and SMS OTP, BCrypt |
 | AI | OpenAI, Gemini and Grok behind one `LlmProviderRegistry`; OpenAI embeddings for RAG; Whisper and Gemini speech; PDFBox |
 | Video | Daily.co rooms, tokens and recording webhooks |
@@ -71,6 +71,7 @@ development environment) the database gets deterministic test data: three doctor
 
 - Health: `http://localhost:8080/actuator/health` (`/liveness` and `/readiness` groups)
 - Build info: `http://localhost:8080/actuator/info`
+- Admin health page: `http://localhost:8080/admin-metrics/` (admin sign-in with the e-mailed code; polls `GET /api/admin/metrics`: build, JVM, database, record counts and request counters)
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 - OpenAPI: `http://localhost:8080/v3/api-docs`
 

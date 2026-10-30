@@ -48,6 +48,7 @@ class ApplicationContextTest {
     lateinit var mockMvc: MockMvc
 
     @Autowired lateinit var objectMapper: tools.jackson.databind.ObjectMapper
+    @Autowired lateinit var metricsService: com.shifa.admin.application.MetricsService
 
     @Test
     fun `context loads, migrations apply and entities match the schema`() {
@@ -137,4 +138,18 @@ class ApplicationContextTest {
     }
 
     data class LenientDto(val id: Long?, val label: String, val isPrimary: Boolean = false, val tags: List<String> = emptyList())
+
+    /** The admin metrics read runs every query against the real schema; the route is ADMIN only; the page is public. */
+    @Test
+    fun `admin metrics snapshot reads the database, and only admins may ask for it`() {
+        val m = metricsService.snapshot()
+        assertTrue((m.database.schemaVersion ?: 0) >= 121, "schema version ${m.database.schemaVersion}")
+        assertTrue(m.database.tables.isNotEmpty())
+        assertTrue(m.database.sizeBytes > 0)
+        assertTrue(m.jvm.heapMaxMb > 0)
+        assertTrue(m.app.uptimeSeconds >= 0)
+
+        mockMvc.perform(get("/api/admin/metrics")).andExpect(status().isUnauthorized)
+        mockMvc.perform(get("/admin-metrics/index.html")).andExpect(status().isOk)
+    }
 }

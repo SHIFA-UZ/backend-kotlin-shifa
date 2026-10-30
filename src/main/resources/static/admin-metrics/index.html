@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shifa Backend Health</title>
+<meta name="robots" content="noindex">
+<style>
+  /* Operations board: one column of cards, numbers first, bars for every breakdown. */
+  :root {
+    --bg: #f4f7f6; --panel: #ffffff; --fg: #15201d; --muted: #5d6b67; --line: #d9e2df;
+    --accent: #0a7f6b; --accent-2: #2b6cb0; --ok: #1f7a4d; --warn: #8a5a12; --bad: #b42318; --bar: #cfe3de;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0f1614; --panel: #17201d; --fg: #e8efec; --muted: #9bb0aa; --line: #2a3733; --accent: #3fb59a; --accent-2: #6ea8e8; --ok: #4cc38a; --warn: #e3b341; --bad: #f1707a; --bar: #22312d; color-scheme: dark; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); font-variant-numeric: tabular-nums; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 20px; }
+  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: baseline; justify-content: space-between; }
+  h1 { font-size: 24px; font-weight: 600; margin: 0; }
+  h2 { font-size: 16px; font-weight: 600; margin: 0 0 8px; }
+  h3 { font-size: 14px; font-weight: 600; margin: 0 0 6px; color: var(--muted); }
+  .muted { color: var(--muted); }
+  .small { font-size: 12px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 14px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 14px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
+  .big { font-size: 26px; font-weight: 600; line-height: 1.1; }
+  .label { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .pill { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); }
+  .pill.ok { color: var(--ok); border-color: currentColor; }
+  .pill.bad { color: var(--bad); border-color: currentColor; }
+  .bars { display: grid; gap: 6px; }
+  .bar { display: grid; grid-template-columns: minmax(7rem, 40%) 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
+  .bar .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bar .track { height: 10px; background: var(--bar); border-radius: 5px; overflow: hidden; }
+  .bar .fill { height: 100%; background: var(--accent); border-radius: 5px; }
+  .bar .fill.alt { background: var(--accent-2); }
+  .bar .fill.bad { background: var(--bad); }
+  .bar .val { white-space: nowrap; color: var(--muted); }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 0; }
+  .kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; }
+  form { display: grid; gap: 10px; max-width: 24rem; }
+  input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); width: 100%; }
+  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
+  button.quiet { background: transparent; color: var(--fg); border-color: var(--line); }
+  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+  .error { color: var(--bad); }
+  [hidden] { display: none !important; }
+  @media (prefers-reduced-motion: no-preference) { .bar .fill { transition: width .4s ease-out; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Shifa Backend Health</h1>
+      <div class="muted small" id="where">—</div>
+    </div>
+    <div class="small muted" id="status-line">
+      <span id="health" class="pill">—</span>
+      <span id="refreshed"></span>
+      <button class="quiet" id="refresh" type="button" hidden>Refresh now</button>
+      <button class="quiet" id="logout" type="button" hidden>Sign out</button>
+    </div>
+  </header>
+
+  <section class="card" id="login">
+    <h2>Admin sign-in</h2>
+    <p class="muted small">Two steps, as in the admin panel: your password, then the six-digit code sent to your email. The token stays in this tab only.</p>
+    <form id="login-form" method="post" action="#">
+      <input id="username" name="username" placeholder="Email or username" autocomplete="username" required>
+      <input id="password" name="password" type="password" placeholder="Password" autocomplete="current-password" required>
+      <input id="code" name="code" placeholder="Six-digit code from your email" inputmode="numeric" autocomplete="one-time-code" hidden>
+      <div style="display:flex; gap:8px; flex-wrap:wrap"><button type="submit" id="submit">Send code</button><button type="button" class="quiet" id="start-over">Start over</button></div>
+      <div class="small error" id="login-error" hidden></div>
+    </form>
+  </section>
+
+  <div id="board" hidden>
+    <section>
+      <h2>Service</h2>
+      <div class="tiles">
+        <div class="card"><div class="big" id="uptime">—</div><div class="label">uptime</div></div>
+        <div class="card"><div class="big" id="commit">—</div><div class="label">commit</div></div>
+        <div class="card"><div class="big" id="boot">—</div><div class="label">Spring Boot</div></div>
+        <div class="card"><div class="big" id="java">—</div><div class="label">Java</div></div>
+        <div class="card"><div class="big" id="heap">—</div><div class="label">heap used / max</div></div>
+        <div class="card"><div class="big" id="nonheap">—</div><div class="label">non-heap used</div></div>
+        <div class="card"><div class="big" id="threads">—</div><div class="label">live threads</div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2 style="margin-top:20px">Database</h2>
+      <div class="tiles">
+        <div class="card"><div class="big" id="dbsize">—</div><div class="label">database size</div></div>
+        <div class="card"><div class="big" id="schema">—</div><div class="label" id="schema-label">schema version</div></div>
+        <div class="card"><div class="big" id="pool">—</div><div class="label">pool active + idle / max</div></div>
+        <div class="card"><div class="big" id="pending">—</div><div class="label">threads waiting for a connection</div></div>
+        <div class="card"><div class="big" id="server-conns">—</div><div class="label">server connections active + idle</div></div>
+        <div class="card"><div class="big" id="pg">—</div><div class="label">PostgreSQL</div></div>
+      </div>
+      <div class="grid" style="margin-top:14px">
+        <div class="card"><h3>Largest tables (size with indexes, row counts are PostgreSQL estimates)</h3><div class="bars" id="tables"></div></div>
+        <div class="card"><h3>Appointments by status</h3><div class="bars" id="appointments"></div></div>
+        <div class="card"><h3>Payments by status and gateway</h3><div class="bars" id="payments"></div></div>
+        <div class="card"><h3>Users by role</h3><div class="bars" id="roles"></div></div>
+        <div class="card"><h3>Appointments created per day, last 30 days</h3><div class="bars" id="daily"></div></div>
+        <div class="card">
+          <h3>Records</h3>
+          <dl class="kv">
+            <dt>Notifications unread / total</dt><dd id="notifications">—</dd>
+            <dt>Active sessions</dt><dd id="sessions">—</dd>
+            <dt>Last migration</dt><dd id="migration">—</dd>
+          </dl>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 style="margin-top:20px">Requests since start</h2>
+      <div class="tiles">
+        <div class="card"><div class="big" id="req">—</div><div class="label">requests</div></div>
+        <div class="card"><div class="big" id="req5xx">—</div><div class="label">answered 5xx</div></div>
+        <div class="card"><div class="big" id="req-since">—</div><div class="label">counting since (UTC)</div></div>
+      </div>
+      <div class="card" style="margin-top:14px"><h3>Busiest routes since start: requests, average ms and the slowest of the last minutes; red where a 5xx was answered</h3><div class="bars" id="routes"></div></div>
+    </section>
+  </div>
+</div>
+
+<script src="app.js" defer></script>
+</body>
+</html>

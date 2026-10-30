@@ -11,7 +11,7 @@ Shifa Doctor Backend MVP — a medical platform backend connecting doctors and p
 - **Language:** Kotlin 2.4.21, Java 21
 - **Framework:** Spring Boot 4.1.2 with Spring Security 7 (Jackson 3 for the API; springdoc 3 still needs the Jackson 2 Kotlin module, see `build.gradle.kts`)
 - **Database:** PostgreSQL (16 locally, 17 on Railway) with `pgvector` and `pg_trgm`, Spring Data JPA (Hibernate 7.4), HikariCP
-- **Migrations:** Flyway 12.4.0 (121 migrations in `src/main/resources/db/migration/`, latest V121)
+- **Migrations:** Flyway 12.4.0 (122 migrations in `src/main/resources/db/migration/`, latest V122)
 - **Auth:** JWT (JJWT 0.13.0) with session binding (JTI), Firebase phone OTP for patients, BCrypt passwords
 - **AI:** OpenAI, Gemini and Grok behind `LlmProviderRegistry` (OkHttp), OpenAI embeddings for RAG, Whisper and Gemini speech, Apache PDFBox 3.0.3
 - **Video:** Daily.co integration with webhook recording
@@ -86,10 +86,11 @@ Four roles — `DOCTOR`, `PATIENT`, `ADMIN`, `CLINIC_STAFF`. Users can hold mult
 - `/api/patients/**`, `/api/appointments/**`, `/api/calendar/**`, `/api/messages/**`, `/api/clinics/**`, `/api/treatment-plans/**` → DOCTOR or CLINIC_STAFF; `/api/schedule/**` reads, booking and blocks for both, other schedule mutations DOCTOR only
 - Fallback: `anyRequest().authenticated()` (any signed-in user), so every new route gets an explicit rule
 - `/api/notifications/**`, `/api/ai/**`, `/api/video/**` → any authenticated user
-- `/api/admin/**` → ADMIN only
+- `/api/admin/**` → ADMIN only (`GET /api/admin/metrics` is the operations read behind the `/admin-metrics/` page)
 - `/api/public/**` (except `POST .../reviews`, authenticated), `/api/webhooks/**`, the public `/api/auth/*` endpoints → no auth
 - `/actuator/health/**`, `GET /actuator/info`, `/swagger-ui/**`, `/v3/api-docs/**` → no auth
 - Static files: `/doctors/**`, `/patients/**`, `/patientdocuments/**`, `/certificates/**`, `/chat-attachments/**` → no auth, signed URLs (`/photos/**` was removed)
+- `/admin-metrics/**` → no auth: the static admin health page (`src/main/resources/static/admin-metrics/index.html`), which signs in with the admin e-mail second factor and polls `GET /api/admin/metrics` every 30 s
 
 ## Entry Point
 
@@ -270,7 +271,7 @@ These rules apply to ALL code written in this project. Follow them strictly.
 ### Database & Migrations
 
 - **Always** create a new Flyway migration for schema changes — never modify existing migrations.
-- Migration naming: `V{next_number}__{description}.sql` (double underscore, snake_case description). Check `ls src/main/resources/db/migration | sort -V | tail -1` (V121 at the time of writing).
+- Migration naming: `V{next_number}__{description}.sql` (double underscore, snake_case description). Check `ls src/main/resources/db/migration | sort -V | tail -1` (V122 at the time of writing).
 - **Never** use `hibernate.ddl-auto: create` or `create-drop` — Flyway is the single source of truth.
 - Include `IF NOT EXISTS` / `IF EXISTS` guards in migrations for idempotency where appropriate.
 - Seed data goes in dedicated seed migrations (e.g., `V3__seed.sql`, `V19__seed_doctor_reviews.sql`, `V53__seed_icd10_codes.sql`).

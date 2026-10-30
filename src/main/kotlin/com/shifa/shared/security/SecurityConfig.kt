@@ -98,6 +98,8 @@ class SecurityConfig(
                 
                 // Allow public access to static resources (images, etc.)
                 it.requestMatchers("/doctors/**", "/patients/**", "/patientdocuments/**", "/certificates/**", "/chat-attachments/**").permitAll()
+                // The admin metrics dashboard page itself; its data comes from /api/admin/metrics (ADMIN).
+                it.requestMatchers("/admin-metrics/**").permitAll()
                 
                 // Chat attachment upload requires authentication
                 it.requestMatchers("/api/messages/upload-attachment").authenticated()

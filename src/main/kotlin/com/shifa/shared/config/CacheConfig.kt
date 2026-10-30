@@ -16,6 +16,8 @@ class CacheConfig {
         const val PUBLIC_CLINICS_CACHE = "publicClinics"
         /** `GET /api/public/doctors/{id}`: the same profile is opened by many patients; 60 s staleness accepted (Phase 6). */
         const val PUBLIC_DOCTOR_CACHE = "publicDoctor"
+        /** `GET /api/admin/metrics`: every open admin health page polls it, one database read per 15 s is enough. */
+        const val ADMIN_METRICS_CACHE = "adminMetrics"
     }
 
     @Bean
@@ -30,6 +32,10 @@ class CacheConfig {
         manager.registerCustomCache(PROFESSIONS_CACHE, referenceLists.build())
         manager.registerCustomCache(PUBLIC_CLINICS_CACHE, referenceLists.build())
         manager.registerCustomCache(PUBLIC_DOCTOR_CACHE, referenceLists.build())
+        manager.registerCustomCache(
+            ADMIN_METRICS_CACHE,
+            Caffeine.newBuilder().expireAfterWrite(Duration.ofSeconds(15)).maximumSize(1).build(),
+        )
         return manager
     }
 }
