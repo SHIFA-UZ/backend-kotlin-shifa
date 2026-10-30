@@ -85,10 +85,11 @@ class ConfigPolicyTest {
         val env = environment("prod", "dev", secrets = railwaySecrets - developmentDoesNotSet)
         assertEquals("https://api-dev.shifa.uz", env.getProperty("app.publicBaseUrl"))
         assertEquals("https://doctor.shifa.uz", env.getProperty("app.frontendUrl"))
-        assertEquals("NONE", env.getProperty("payment.enabled-providers"))
-        assertEquals("false", env.getProperty("click.enabled"))
-        assertEquals("", env.getProperty("stripe.secretKey"))
-        assertEquals("", env.getProperty("stripe.webhookSecret"))
+        // Payments run on development with the production providers and their Railway secrets (2026-10-30).
+        assertEquals("CLICK,STRIPE", env.getProperty("payment.enabled-providers"))
+        assertEquals("true", env.getProperty("click.enabled"))
+        assertEquals("k", env.getProperty("stripe.secretKey"))
+        assertEquals("k", env.getProperty("stripe.webhookSecret"))
         assertEquals("", env.getProperty("devsms.api-token"))
         assertEquals("true", env.getProperty("app.dev-seed"))
         assertEquals("true", env.getProperty("springdoc.api-docs.enabled"))
@@ -141,7 +142,7 @@ class ConfigPolicyTest {
         return env
     }
 
-    private val developmentDoesNotSet = setOf("STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET", "DEVSMS_API_TOKEN")
+    private val developmentDoesNotSet = setOf("DEVSMS_API_TOKEN")
 
     private val railwaySecrets: Map<String, Any> = mapOf(
         "SPRING_DATASOURCE_URL" to "jdbc:postgresql://db:5432/railway",

@@ -286,13 +286,16 @@ class PatientController(
         @PathVariable id: Long
     ): Map<String, String> {
         val profile = currentPatientProfile(principal)
-        val appointment = appointments.findById(id)
+        // The same row lock as the payment settlement: a payment landing right now is seen as PAID below (refund),
+        // never overwritten by a stale unpaid read.
+        val appointment = appointments.findByIdForUpdate(id)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found") }
 
         if (appointment.patient.id != profile.id) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Access denied")
         }
-        if (BookingPaymentPolicy.isLocked24h(appointment.startAt, Instant.now())) {
+        val locked = BookingPaymentPolicy.isLocked24h(appointment.startAt, Instant.now())
+        if (!BookingPaymentPolicy.canPatientCancel(appointment.status, appointment.paymentStatus, locked) && locked) {
             throw ResponseStatusException(HttpStatus.CONFLICT, BookingPaymentPolicy.LOCKED_24H)
         }
         if (appointment.paymentStatus == Appointment.PaymentStatus.PAID) {
@@ -617,6 +620,7 @@ class PatientController(
     ): AppointmentDto {
         val locked = BookingPaymentPolicy.isLocked24h(appt.startAt, Instant.now())
         val canChange = BookingPaymentPolicy.canPatientChange(appt.status, locked)
+        val canCancel = BookingPaymentPolicy.canPatientCancel(appt.status, appt.paymentStatus, locked)
         return AppointmentDto(
             id = appt.id,
             doctorId = appt.doctor.id,
@@ -642,7 +646,7 @@ class PatientController(
             serviceId = appt.serviceId,
             serviceTitle = appt.serviceTitle,
             isLocked24h = locked,
-            canCancel = canChange,
+            canCancel = canCancel,
             canReschedule = canChange,
             refundRequired = appt.refundRequired,
             payment = payment,

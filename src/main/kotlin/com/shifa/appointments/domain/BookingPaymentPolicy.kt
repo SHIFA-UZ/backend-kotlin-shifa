@@ -43,6 +43,15 @@ object BookingPaymentPolicy {
             status == Appointment.Status.PENDING_PAYMENT
     }
 
+    /**
+     * Cancelling follows [canPatientChange], except that an unpaid hold (PENDING_PAYMENT, not PAID) can always be
+     * released: the patient who closes the checkout should not be stuck with a booking for the next 15 minutes
+     * just because the visit is within 24 hours.
+     */
+    fun canPatientCancel(status: Appointment.Status, paymentStatus: Appointment.PaymentStatus, locked: Boolean): Boolean =
+        (status == Appointment.Status.PENDING_PAYMENT && paymentStatus != Appointment.PaymentStatus.PAID) ||
+            canPatientChange(status, locked)
+
     fun readyProviders(
         configured: List<PaymentGatewayCode>,
         clickReady: Boolean,
