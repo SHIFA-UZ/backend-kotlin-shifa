@@ -76,11 +76,6 @@ data class ClinicalSynthesizeRequestDto(
     val selections: List<ClinicalChipSelectionDto>,
 )
 
-data class ClinicalSynthesizeFieldResultDto(
-    val field: String,
-    val text: String,
-)
-
 data class ClinicalSynthesizeResponseDto(
     val fields: Map<String, String>,
 )

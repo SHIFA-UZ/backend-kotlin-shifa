@@ -49,21 +49,21 @@ java -jar build/libs/app.jar
 | Package | Files | Purpose |
 |---------|-------|---------|
 | `admin/` | 20 | Admin panel API, admin profiles, audit log, system config. |
-| `ai/` | 114 | All AI: doctor AI, patient co-pilot, briefings, scribe, transcription, RAG, ICD-10, LLM routing and clients, intelligence memory, speech, `clinicalengine/` (its own four layers). |
+| `ai/` | 109 | All AI: doctor AI, patient co-pilot, briefings, scribe, transcription, RAG, ICD-10, LLM routing and clients, intelligence memory, speech, `clinicalengine/` (its own four layers). |
 | `appointments/` | 74 | Booking, calendar, schedule rules and blocks, visits, consultation notes, video (Daily), the morning-assistant appointment intelligence. |
 | `auth/` | 39 | Login, OTP (SMS and e-mail), sessions, users and roles, account deletion. |
 | `chat/` | 12 | Conversations, messages, attachments. |
 | `clinics/` | 65 | Clinics, memberships, invitations, finance ledger, treatment plans, installments. |
 | `devseed/` | 1 | Deterministic development data (`app.dev-seed`). |
-| `doctors/` | 59 | Doctor profiles, services and prices, locations, reviews, analytics, professions, public listing. |
+| `doctors/` | 58 | Doctor profiles, services and prices, locations, reviews, analytics, professions, public listing. |
 | `documents/` | 15 | Patient documents, access grants and requests, document storage service. |
 | `notifications/` | 20 | Notifications, FCM push, SMS provider, reminders. |
 | `patients/` | 34 | Patient profiles, forms, prophylaxis, care partnerships, doctor-patient access. |
-| `payments/` | 40 | Checkout, gateways (Click, Stripe, manual), webhooks, subscriptions, doctor billing. |
+| `payments/` | 38 | Checkout, gateways (Click, Stripe, manual), webhooks, subscriptions, doctor billing. |
 | `shared/` | 54 | Cross-cutting: `security/` (JWT chain, rate limits, principals), `config/`, `api/` (error handler, request id, file serving), `storage/`, `util/`, error codes, upload policy. |
 | `tasks/` | 8 | Remote-care tasks and check-ins. |
 
-**Total: 556 Kotlin source files, 88 test files (2026-10-30).** Regenerate with `find src/main/kotlin -name '*.kt' | wc -l`.
+**Total: 548 Kotlin source files, 88 test files (2026-10-30).** Regenerate with `find src/main/kotlin -name '*.kt' | wc -l`.
 
 ### Auth Model
 

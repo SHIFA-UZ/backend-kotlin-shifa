@@ -23,12 +23,6 @@ enum class PaymentStatus {
     REFUNDED
 }
 
-enum class RefundStatus {
-    PENDING,
-    SUCCEEDED,
-    FAILED
-}
-
 enum class SubscriptionInterval {
     MONTH,
     YEAR

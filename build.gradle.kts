@@ -33,24 +33,18 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("org.postgresql:postgresql:42.7.4")
 
-    // We’ll enable Flyway migrations in Step 2	
-	// ⬇️ Use the DB-specific module (Flyway split support out of core)
+    // Flyway (the Postgres support lives in its own module since Flyway 10)
     implementation("org.flywaydb:flyway-core:11.18.0")
     implementation("org.flywaydb:flyway-database-postgresql:11.18.0")
-	
-	
-    // --- NEW: Security + JWT ---
+
+    // Security + JWT
     implementation("org.springframework.boot:spring-boot-starter-security")
     implementation("io.jsonwebtoken:jjwt-api:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-impl:0.12.6")
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
-    // Optional later: WebSocket
-    // implementation("org.springframework.boot:spring-boot-starter-websocket")
-
     // Swagger UI + OpenAPI
     implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
-
 
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
@@ -58,16 +52,16 @@ dependencies {
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
     // Fake OpenAI-compatible endpoints for LLM client tests (same vendor as the runtime OkHttp client).
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
-	
-	//OPEN AI 
-	implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0") // optional
 
-    // If you plan to use caching/rate limiting libraries later:
-    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")  // Cache
-    implementation("net.javacrumbs.shedlock:shedlock-spring:6.6.0")  // One instance runs a scheduled job
+    // HTTP client for OpenAI, Daily, Click and FCM calls; coroutines for the AI streaming paths
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+
+    // Caffeine caches (CacheConfig) and ShedLock so one instance runs each data-changing scheduled job
+    implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
+    implementation("net.javacrumbs.shedlock:shedlock-spring:6.6.0")
     implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.6.0")
-    // SECURITY (NEW): Rate limiting - Bucket4j for DDoS/abuse protection
+    // Rate limiting (IP, per-user and AI buckets)
     implementation("com.bucket4j:bucket4j_jdk17-core:8.16.1")
 
     // Firebase Admin SDK - verify ID tokens (phone OTP doctor login)
