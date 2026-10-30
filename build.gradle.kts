@@ -31,7 +31,7 @@ dependencies {
     // Data JPA + Postgres driver
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-cache")
-    implementation("org.postgresql:postgresql:42.7.4")
+    implementation("org.postgresql:postgresql:42.7.14")
 
     // Flyway (the Postgres support lives in its own module since Flyway 10)
     implementation("org.flywaydb:flyway-core:11.18.0")
