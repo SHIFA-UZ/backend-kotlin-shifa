@@ -3,6 +3,7 @@ package com.shifa.doctors.api
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.shifa.appointments.application.PatientDaySlotsService
+import com.shifa.doctors.application.PublicDoctorCatalog
 import com.shifa.doctors.api.dto.DoctorListResponse
 import com.shifa.doctors.api.dto.PublicLocationDto
 import com.shifa.doctors.api.dto.ServicePriceDto
@@ -17,12 +18,8 @@ import org.springframework.web.bind.annotation.*
 @RequestMapping("/api/public/doctors")
 class PublicDoctorController(
     private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
-    private val reviewRepository: com.shifa.doctors.application.DoctorReviews,
     private val doctorLocations: com.shifa.doctors.application.DoctorLocations,
-    private val doctorServices: com.shifa.doctors.application.DoctorServices,
-    private val doctorServicePrices: com.shifa.doctors.application.DoctorServicePrices,
-    private val weeklyScheduleRules: com.shifa.appointments.application.WeeklyScheduleRules,
-    private val dateSpecificScheduleRules: com.shifa.appointments.application.DateSpecificScheduleRules,
+    private val catalog: com.shifa.doctors.application.PublicDoctorCatalog,
     private val daySlotsService: PatientDaySlotsService,
     private val objectMapper: ObjectMapper,
     private val publicUrls: com.shifa.shared.PublicUrls,
@@ -155,17 +152,19 @@ class PublicDoctorController(
         } else {
             doctorProfiles.findAllByUserEnabled()
         }
+        // One query per concern for the whole candidate set instead of several per doctor (roadmap P5).
+        val listing = catalog.listing(doctors.mapNotNull { it.id })
 
         if (!clinic.isNullOrBlank()) {
             doctors = doctors.filter { it.clinic?.equals(clinic, ignoreCase = true) == true }
         }
 
         if (!region.isNullOrBlank()) {
-            doctors = doctors.filter { doc -> matchesRegionFilter(doc, region) }
+            doctors = doctors.filter { doc -> matchesRegionFilter(doc, region, listing) }
         }
 
         if (!country.isNullOrBlank()) {
-            doctors = doctors.filter { doc -> matchesCountryFilter(doc, country) }
+            doctors = doctors.filter { doc -> matchesCountryFilter(doc, country, listing) }
         }
 
         if (verifiedOnly == true) {
@@ -183,7 +182,7 @@ class PublicDoctorController(
             } else {
                 null
             }
-            val enrichment = enrichDoctorLight(doc)
+            val enrichment = enrichDoctorLight(doc, listing)
             Triple(doc, distance, enrichment)
         }
 
@@ -201,7 +200,7 @@ class PublicDoctorController(
 
         if (minRating != null) {
             filtered = filtered.filter { (doc, _, _) ->
-                (reviewRepository.findAverageRatingByDoctorId(doc.id!!) ?: 0.0) >= minRating
+                (listing.averageRating(doc.id!!) ?: 0.0) >= minRating
             }
         }
 
@@ -253,7 +252,7 @@ class PublicDoctorController(
             }
             "rating" -> {
                 working.sortedByDescending { (doc, _, _) ->
-                    reviewRepository.findAverageRatingByDoctorId(doc.id!!) ?: 0.0
+                    listing.averageRating(doc.id!!) ?: 0.0
                 }
             }
             "availability" -> {
@@ -275,7 +274,7 @@ class PublicDoctorController(
             }
             "reviews" -> {
                 working.sortedByDescending { (doc, _, _) ->
-                    reviewRepository.countByDoctorId(doc.id!!)
+                    listing.reviewCount(doc.id!!)
                 }
             }
             else -> working
@@ -300,7 +299,7 @@ class PublicDoctorController(
         }
 
         val doctorDtos = pageWithAvailability.map { (doc, distance, enrichment) ->
-            toDoctorDto(doc, distance, enrichment)
+            toDoctorDto(doc, distance, enrichment, listing)
         }
 
         return DoctorListResponse(
@@ -311,7 +310,7 @@ class PublicDoctorController(
         )
     }
 
-    private fun matchesCountryFilter(doc: DoctorProfile, country: String): Boolean {
+    private fun matchesCountryFilter(doc: DoctorProfile, country: String, listing: PublicDoctorCatalog.Listing): Boolean {
         val filter = country.trim().lowercase()
         if (filter.isEmpty()) return true
 
@@ -333,7 +332,7 @@ class PublicDoctorController(
             if (fieldMatches(doc.locationCountry, germanyKeys)) return true
             if (fieldMatches(doc.locationCity, germanCities)) return true
             if (fieldMatches(doc.locationRegion, setOf("berlin", "bavaria", "bayern"))) return true
-            val locs = doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(doc.id!!)
+            val locs = listing.locations(doc.id!!)
             return locs.any { loc ->
                 fieldMatches(loc.locationCountry, germanyKeys) ||
                     fieldMatches(loc.locationCity, germanCities)
@@ -354,7 +353,7 @@ class PublicDoctorController(
             fieldMatches(doc.locationRegion, setOf(filter))
     }
 
-    private fun matchesRegionFilter(doc: DoctorProfile, region: String): Boolean {
+    private fun matchesRegionFilter(doc: DoctorProfile, region: String, listing: PublicDoctorCatalog.Listing): Boolean {
         val needles = regionMatchKeys(region)
         if (needles.isEmpty()) return true
 
@@ -366,7 +365,7 @@ class PublicDoctorController(
 
         if (fieldMatches(doc.locationRegion) || fieldMatches(doc.locationCity)) return true
 
-        val locations = doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(doc.id!!)
+        val locations = listing.locations(doc.id!!)
         return locations.any { loc ->
             fieldMatches(loc.locationRegion) || fieldMatches(loc.locationCity)
         }
@@ -412,12 +411,12 @@ class PublicDoctorController(
         private const val LIST_AVAILABILITY_LOOKAHEAD_DAYS = 21
     }
 
-    private fun enrichDoctorLight(doc: DoctorProfile): DoctorEnrichment {
+    private fun enrichDoctorLight(doc: DoctorProfile, listing: PublicDoctorCatalog.Listing): DoctorEnrichment {
         val doctorId = doc.id!!
-        val activeServices = doctorServices.findByDoctorIdAndIsActiveTrueOrderByCreatedAtAsc(doctorId)
+        val activeServices = listing.activeServices(doctorId)
         val supportsOnline = activeServices.isNotEmpty()
-        val supportsInPerson = hasPhysicalPresence(doc) && hasSchedule(doctorId)
-        val priceSummary = computePriceSummary(activeServices)
+        val supportsInPerson = hasPhysicalPresence(doc, listing) && listing.hasSchedule(doctorId)
+        val priceSummary = computePriceSummary(activeServices, listing)
         return DoctorEnrichment(
             supportsOnline = supportsOnline,
             supportsInPerson = supportsInPerson,
@@ -426,8 +425,8 @@ class PublicDoctorController(
         )
     }
 
-    private fun enrichDoctor(doc: DoctorProfile, fromInstant: Instant): DoctorEnrichment {
-        val light = enrichDoctorLight(doc)
+    private fun enrichDoctor(doc: DoctorProfile, fromInstant: Instant, listing: PublicDoctorCatalog.Listing): DoctorEnrichment {
+        val light = enrichDoctorLight(doc, listing)
         val nextAvailable = daySlotsService.nextAvailableStartAt(
             doc,
             fromInstant,
@@ -436,9 +435,9 @@ class PublicDoctorController(
         return light.copy(nextAvailableStartAt = nextAvailable)
     }
 
-    private fun hasPhysicalPresence(doc: DoctorProfile): Boolean {
+    private fun hasPhysicalPresence(doc: DoctorProfile, listing: PublicDoctorCatalog.Listing): Boolean {
         val doctorId = doc.id ?: return false
-        if (doctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(doctorId).isNotEmpty()) return true
+        if (listing.locations(doctorId).isNotEmpty()) return true
         return doc.latitude != null ||
             doc.longitude != null ||
             !doc.locationCity.isNullOrBlank() ||
@@ -446,12 +445,7 @@ class PublicDoctorController(
             !doc.address.isNullOrBlank()
     }
 
-    private fun hasSchedule(doctorId: Long): Boolean {
-        return weeklyScheduleRules.findByDoctorId(doctorId).isNotEmpty() ||
-            dateSpecificScheduleRules.findByDoctorId(doctorId).isNotEmpty()
-    }
-
-    private fun computePriceSummary(activeServices: List<DoctorService>): PriceSummary {
+    private fun computePriceSummary(activeServices: List<DoctorService>, listing: PublicDoctorCatalog.Listing): PriceSummary {
         var minPrice: Long? = null
         var minCurrency: String? = null
         var onlineMin: Long? = null
@@ -459,7 +453,7 @@ class PublicDoctorController(
 
         for (service in activeServices) {
             if (service.isFreeConsultation) continue
-            val prices = doctorServicePrices.findByService_IdOrderByCurrencyAsc(service.id)
+            val prices = listing.prices(service.id)
             for (price in prices) {
                 val amount = price.amountMinor
                 if (minPrice == null || amount < minPrice) {
@@ -502,11 +496,12 @@ class PublicDoctorController(
     private fun toDoctorDto(
         doc: DoctorProfile,
         distanceKm: Double?,
-        enrichment: DoctorEnrichment
+        enrichment: DoctorEnrichment,
+        listing: PublicDoctorCatalog.Listing,
     ): DoctorDto {
         val doctorId = doc.id!!
-        val avgRating = reviewRepository.findAverageRatingByDoctorId(doctorId)
-        val reviewCount = reviewRepository.countByDoctorId(doctorId)
+        val avgRating = listing.averageRating(doctorId)
+        val reviewCount = listing.reviewCount(doctorId)
         val certList = parseJsonList(doc.certificates)
         val normalizedCerts: List<String>? = certList?.mapNotNull { normalizeCertificateUrl(it) }
         val prices = enrichment.priceSummary
@@ -526,7 +521,7 @@ class PublicDoctorController(
             reviewCount = reviewCount,
             biography = doc.biography,
             services = parseJsonList(doc.services),
-            serviceItems = mapServiceItems(doctorId),
+            serviceItems = mapServiceItems(doctorId, listing),
             certificates = normalizedCerts,
             telegram = doc.telegram,
             instagram = doc.instagram,
@@ -554,6 +549,7 @@ class PublicDoctorController(
      * Get doctor details by ID
      */
     @GetMapping("/{id}")
+    @org.springframework.cache.annotation.Cacheable(cacheNames = [com.shifa.shared.config.CacheConfig.PUBLIC_DOCTOR_CACHE], key = "#id")
     fun getDoctor(@PathVariable id: Long): DoctorDto {
         val doctor = doctorProfiles.findById(id)
             .orElseThrow { org.springframework.web.server.ResponseStatusException(
@@ -568,18 +564,19 @@ class PublicDoctorController(
             )
         }
 
-        val enrichment = enrichDoctor(doctor, Instant.now())
-        return toDoctorDto(doctor, distanceKm = null, enrichment = enrichment)
+        val listing = catalog.listing(listOf(id))
+        val enrichment = enrichDoctor(doctor, Instant.now(), listing)
+        return toDoctorDto(doctor, distanceKm = null, enrichment = enrichment, listing = listing)
     }
 
-    private fun mapServiceItems(doctorId: Long): List<ServiceDto> {
-        val list = doctorServices.findByDoctorIdAndIsActiveTrueOrderByCreatedAtAsc(doctorId)
+    private fun mapServiceItems(doctorId: Long, listing: PublicDoctorCatalog.Listing): List<ServiceDto> {
+        val list = listing.activeServices(doctorId)
         return list.sortedWith(
             compareBy<DoctorService> { it.group?.sortOrder ?: Int.MAX_VALUE }
                 .thenBy { it.group?.id ?: Long.MAX_VALUE }
                 .thenBy { it.createdAt }
         ).map { s ->
-            val priceItems = doctorServicePrices.findByService_IdOrderByCurrencyAsc(s.id).map {
+            val priceItems = listing.prices(s.id).map {
                 ServicePriceDto(
                     amountMinor = it.amountMinor,
                     currency = it.currency,

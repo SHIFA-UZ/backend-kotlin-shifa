@@ -469,6 +469,88 @@ that called `appointments.findById(...)` still does, through a same-named door; 
 land. The step-5 items (auth split, P5 rewrites for doctor search and the conversation list, the `EXCLUDE` constraint,
 item 14, the AI split, `admin_audit_log`, items 1/2/5/6/12/13/15) are separate PRs as the recipe says.
 
+**Phase 6, P3 (branch `refactor/phase6-transactions`):** `ArchitectureTest.applicationServicesAreTransactional` (frozen)
+requires every `@Service` in an `application` package that uses infrastructure classes to be `@Transactional` on the class
+or on each public method. 94 read methods got `@Transactional(readOnly = true)`, 11 write methods `@Transactional` (among
+them `ScheduleValidityService`, whose reads migrate legacy validity periods on first use, and `PatientDaySlotsService`,
+which calls it and therefore must not be read-only), and 28 pure helpers plus 2 properties (`lineTotal`, `isVideo`, `toDto`,
+`validatePercent`, ...) became `internal`: they need no transaction and the rule does not count them (Kotlin mangles the
+JVM name). Spring sets the JDBC connection read-only for `readOnly = true`, so Postgres rejects a write reached from such
+a method; the plan was checked for writes reachable through private helpers and through other application services.
+The frozen list keeps 358 entries on purpose: the 49 Phase 5 doors (repository mirrors, transactional through Spring
+Data, gone with step 3 proper) and the methods that call external gateways or manage their own transactions (AI
+generation and RAG indexing, OTP sending, speech, `ClinicFinanceAuditService.log` with its REQUIRES_NEW template,
+`IntelligenceBookingWorkflowService.confirm`/`confirmReschedule`, which record the FAILED outcome after a rolled-back
+booking). Pre-existing read-only methods that reach a write through another service (`MessageService.listConversations`
+→ `findOrCreateConversation`, `DoctorMorningToolService.listFreeSlots` → `ScheduleValidityService`) are untouched and
+belong to the P5 rewrites.
+**Phase 6, P5 (branch `refactor/phase6`):** the three read paths with per-row queries now load their data with one query
+per concern and keep the same JSON. `GET /api/public/doctors` and `/api/public/doctors/{id}`: `PublicDoctorCatalog.listing`
+loads active services (with group), prices (with location), locations, schedule presence and review aggregates for the
+whole candidate set (six queries instead of roughly ten per doctor), and the controller's filters, sorts and DTO mapping
+read from it unchanged. `MessageService.listConversations`/`listConversationsForPatient`: newest message per conversation
+(correlated `MAX(createdAt)`; on equal timestamps, which were undefined before, the later id wins), grouped unread counts
+and one doctor-profile batch (three queries instead of three per conversation); `markAsRead`/`markAsReadForPatient` are
+`@Modifying` updates with the former row predicates. `NotificationFeed.list` batches the document-access requests and
+appointments it shows, `unreadCount` is a count query, `markAllRead` a bulk update with one timestamp. Proof: the old and
+the new jar were run against the same local database (seeded, plus reviews and chat messages) and 46 responses (doctor
+list with 24 parameter combinations, doctor details and locations, both conversation lists and details, notification lists
+and counts) were byte-identical; the mark-read paths were checked row by row. The reminder jobs are left as they are:
+they run off request threads once a minute over a day's rows with indexed existence checks, so their cost does not reach
+users, and a rewrite without tests would be risk for no measurable gain at production's size (10.1).
+**Phase 6, P6 and caches (branch `refactor/phase6`):** six list endpoints that grow with a user's history gained a `/page`
+sibling with the same filters and order, returning Spring's `Page` shape that the admin endpoints already use (0-based
+`page`, `size`, default 20): `GET /api/notifications/page`, `/api/patients/me/appointments/page`,
+`/api/patients/me/documents/page`, `/api/patients/{patientId}/documents/page`, `/api/patients/{patientId}/forms/page`,
+`/api/public/doctors/{doctorId}/reviews/page`. The list endpoints are unchanged, so the apps opt in release by release
+(the per-app notes are in `docs/apps/`); the OpenAPI snapshot grew by the six paths and five `Page*` schemas and nothing
+else changed. `shared.api.Pages` slices the list after it is built: the sibling bounds the response, not the query, and
+database-side paging follows per list when one is measured to be slow (10.1). The other lists are deferred: most are
+bounded by nature (a day's calendar, a clinic's plans), a conversation's messages are not and get their page when the chat
+screens adopt paging. Caches: `GET /api/public/doctors/{id}` is cached for 60 s (`publicDoctor`, next to `professions` and
+`publicClinics`). The "subscription tier per user" cache was not added: `SubscriptionTierService.tierOf` runs no query, it
+reads the tier from the `User` that `PrincipalResolverService` loads once per request (session validity itself is cached
+for 30 s), so the thing worth caching is that per-request user load, which belongs to the auth split in `shared.security`. Pageable requests keep Spring's default
+cap of 2000 rows, above the 500 the doctor app sends.
+**Phase 6, P4, finding (2026-10-29):** P4 as written ("`fetch = FetchType.LAZY` on the 16 implicit-EAGER relations") does
+not work in this codebase yet, for two reasons found while preparing it. First, 64 of the 70 entity classes are final Kotlin
+classes (no `allopen` for `@Entity`, only `plugin.jpa`), and Hibernate cannot create a lazy proxy for a final class: a
+to-one relation marked `LAZY` whose target is final is loaded eagerly by a second select. Measured on a fresh session:
+`GET /api/public/doctors/2/locations` selects `doctor_locations`, then `doctor_profiles` and `clinics` for the location's
+`@ManyToOne(fetch = LAZY) doctor`. So today's `LAZY` declarations are mostly no-ops and flipping the 16 remaining ones would
+change nothing. Second, the precondition "all read paths of the entity are transactional" does not hold where controllers
+read through the Phase 5 doors: each door call is its own transaction and returns a detached entity, and the controller then
+navigates `appointment.patient`, `notification.doctor` and so on. Making entities `open` (which would activate every
+existing `LAZY` mapping at once) or flipping a relation would therefore throw `LazyInitializationException` in those
+controllers. P4 is re-sequenced: (1) Phase 5 step 3 proper per feature (controllers call transactional use cases that
+return DTOs; the doors disappear), (2) `allOpen { annotation("jakarta.persistence.Entity") }` plus the golden comparison on
+the local database, (3) `LAZY` one entity at a time with a dev soak. `default_batch_fetch_size: 50` (done) already keeps
+the eager fallbacks to one select per batch. Nothing in P4 is therefore in this PR.
+**Phase 6, indexes (2026-10-29):** the indexes the plan expected exist (`appointments(doctor_id, start_at)`,
+`payments(appointment_id)`, and from V120 `notifications(patient_id, created_at)`, `notifications(doctor_id, created_at)`,
+`messages(conversation_id, created_at)`). The planned `pg_stat_statements` review cannot run on development: the Railway
+Postgres image has `plpgsql`, `pg_trgm` and `vector` only, and the seeded database is too small for the planner to prefer
+indexes at all (`pg_stat_user_tables` on 2026-10-29: `doctor_profiles` 8602 sequential scans over 4 rows; the only
+tables scanned every minute with no rows are the reminder jobs' `treatment_plans` and `patient_prophylaxis_settings`,
+which is the jobs' polling, not a missing index). No index is unused except the ICD-10 trigram and RAG vector indexes,
+which serve features nobody has used on development yet. The review is re-planned for production data: enable
+`pg_stat_statements` there (a `shared_preload_libraries` change, so a database restart, done with you), run it for a week
+after the first release, then add indexes `CONCURRENTLY` as separate migrations.
+**Plan audit 2026-10-30 (branch `refactor/phase6`):** every row above was checked against the code; the full table is
+`docs/PLAN_AUDIT_2026-10-30.md`. The three findings that change the plan: (1) the "golden response tests" that 0.1, 1.4,
+1.10, 3.4, P4, P5 and section 13 rely on were never built, only the OpenAPI snapshot and the `ddl-auto: validate`
+context test exist, and Phase 6 proved its rewrites with a manual old-jar/new-jar comparison instead; (2) P4 is
+re-sequenced (see the P4 finding); (3) the scorecard mechanisms route-coverage test, schema baseline, PR template, PII
+log filter, `findAll` allow-list test, ktlint, Flyway version in `/actuator/info` and `dependency-review-action`
+(declined, needs GitHub Advanced Security) do not exist and are open. Rows that are only partly done as written: 0.1
+(`create-patient-for-doctor` still in `JwtAuthFilter.shouldNotFilter`), 0.8 (UUID names only for chat attachments),
+1.11, 1.12, 2.1, 2.3, 2.4 (the readiness group has no DB indicator yet), 2.5 (reminder SMS/FCM still inside the
+transaction), 3.3 (Gradle 9, configuration cache), and Phase 4 items 4, 6, 8, 9, 12, 13, 14 (details in the audit).
+Section 1 is the 2026-10-27 snapshot and is stale; the current facts are in `README.md`. Running the patient app
+against this branch found one contract gap: a token whose signature does not verify gets Spring's default 403 instead
+of the API's 401, so the apps would not log out after a `JWT_SECRET` rotation (fix in `JwtAuthFilter`, small PR); and
+the seed doctors had no schedule validity period, so nothing was bookable on development (fixed in `DevSeedRunner` on
+this branch). Per-app notes: `docs/apps/patient-app.md`, `docs/apps/doctor-app.md`.
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),
@@ -667,7 +749,7 @@ Answer these when you can; nothing in Phase 0 or the first half of Phase 1 depen
 - **Q1. Answered 2026-10-27:** `shifa-backend-qa` (environment `QA`) and `shifa-backend-sheroziy` exist but contain no services. Nothing uses the `qa` profile; it is deleted in 1.5. Proposal: delete both empty projects on your "go".
 - **Q2. Answered 2026-10-27:** a 2 GB volume is mounted at `/app/storage` with daily backups. No action.
 - **Q3. Answered 2026-10-27: Railway only.** Done 2026-10-29 on the repo side: runbooks, `cloudbuild.yaml`, the Cloud SQL dependency and code path, and the `*.run.app` CORS origin removed; the owner deleted the Cloud Build trigger. Still to delete in Google Cloud: the `shifa` Cloud Run service in europe-west1 and any Cloud SQL instance or Artifact Registry repository the exploration created.
-- **Q4. Answered 2026-10-27: share the production Firebase project now; separate in Phase 2, once development is stable.** The backend uses Firebase Admin for two things only: verifying the phone-OTP ID tokens the doctor app sends at login and password reset, and sending FCM pushes. A development backend sharing the project can only push to tokens registered in the development database, which come from debug builds, so real users are not reachable from dev. Separation is worth it later for three reasons: test phone numbers for OTP without SMS cost, push testing that cannot touch a tester's production install on the same phone, and a dev service-account key that can be revoked without affecting production. The separation steps are in `PREPARATION_CHECKLIST.md` 3.3.
+- **Q4. Answered 2026-10-27: share the production Firebase project now; separate in Phase 2, once development is stable.** The backend uses Firebase Admin for two things only: verifying the phone-OTP ID tokens the doctor app sends at login and password reset, and sending FCM pushes. A development backend sharing the project can only push to tokens registered in the development database, which come from debug builds, so real users are not reachable from dev. Separation is worth it later for three reasons: test phone numbers for OTP without SMS cost, push testing that cannot touch a tester's production install on the same phone, and a dev service-account key that can be revoked without affecting production. The separation steps are in `docs/PREPARATION_CHECKLIST.md` 3.3.
 - **Q5. Answered 2026-10-27: add `api.shifa.uz` (production) and `api-dev.shifa.uz` (development), keep the Railway hostnames alive until every app build has moved.** Today's hostnames: backend `https://shifa-doc-backend-mvp-production.up.railway.app` (hardcoded in the patient app and in the doctor app's build), doctor web `https://doctor.shifa.uz`, admin panel `https://admin.shifa.uz`, doctor web's Firebase hosting `https://shifa-doctor-staging.web.app`. Sequence:
   1. **Done 2026-10-28:** `api.shifa.uz` added to the production service; Railway's CNAME target is `7vnksdyz.up.railway.app`. **Railway requires two DNS records per custom domain:** the CNAME and a TXT ownership record (`_railway-verify.<label>` = `railway-verify=<token>`); without the TXT the certificate stays in "validating ownership" forever. The generated `*.up.railway.app` domain stays; both serve the same service.
   2. **Done 2026-10-28:** both records in the `shifa.uz` zone at ahost.cloud (cPanel Zone Editor). Same later for `api-dev` → the development service. Note: the zone lists a dead nameserver `ns3.ahost.cloud`, locked in cPanel; a ticket to ahost is the only way to remove it.
@@ -681,7 +763,7 @@ Answer these when you can; nothing in Phase 0 or the first half of Phase 1 depen
 - **Q9. Answered:** see 0.1. Patient KMP 1.2.3; doctor web `1.0.0+3` = `main`.
 - **Q10. Answered: keep it.** S3 is accepted risk; PR 0.5 only adds a result limit.
 - **Q11.** Data retention: should anything ever be deleted or archived (read notifications older than a year, expired OTP rows, AI usage counters, rolled payment events)? The plan deletes nothing until you decide; the scalability scorecard only records growth.
-- **Q12. Answered: 30 days for doctors, 365 for patients, for now.** `CLAUDE.md` is corrected in the next docs PR.
+- **Q12. Answered: 30 days for doctors, 365 for patients, for now.** `CLAUDE.md` was corrected on `refactor/phase6` (2026-10-30).
 - **Backups:** you declined the weekly 90-day schedule for now; daily with 6-day retention stays.
 
 ---

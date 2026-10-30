@@ -154,6 +154,7 @@ class ClinicWorkspaceService(
                 membershipRole == ClinicMembership.MembershipRole.CLINIC_ADMIN.name,
         )
 
+    @Transactional(readOnly = true)
     fun getOverviewStats(principal: Any, clinicId: Long): OverviewStats {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         val c = clinics.findById(clinicId).orElseThrow {
@@ -184,6 +185,7 @@ class ClinicWorkspaceService(
         )
     }
 
+    @Transactional(readOnly = true)
     fun listMembers(principal: Any, clinicId: Long): List<AdminClinicService.ClinicDoctorDto> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         return adminClinicService.getDetail(clinicId).doctors
@@ -240,6 +242,7 @@ class ClinicWorkspaceService(
         )
     }
 
+    @Transactional(readOnly = true)
     fun listPatients(principal: Any, clinicId: Long, q: String?, pageable: Pageable): Page<ClinicPatientRow> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         val clinicDoctorProfiles = doctors.findAllByPracticeClinic_Id(clinicId)
@@ -264,6 +267,7 @@ class ClinicWorkspaceService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun listPatientAppointments(principal: Any, clinicId: Long, patientId: Long): List<ClinicPatientAppointmentRow> {
         clinicAccess.assertPatientLinkedToClinic(principal, patientId, clinicId)
         val doctorIds = doctors.findAllByPracticeClinic_Id(clinicId).mapNotNull { it.id }.toSet()

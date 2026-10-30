@@ -5,6 +5,7 @@ import com.shifa.ai.infrastructure.Icd10CodeRepository
 import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import java.text.Normalizer
+import org.springframework.transaction.annotation.Transactional
 
 data class Icd10SearchResult(
     val code: String,
@@ -81,6 +82,7 @@ class Icd10Service(
     }
 
     @Cacheable(cacheNames = [CacheConfig.ICD10_SEARCH_CACHE], key = "#qRaw + ':' + #limit")
+    @Transactional(readOnly = true)
     fun searchByQuery(qRaw: String, limit: Int = 20): List<Icd10SearchResult> {
         val q = qRaw.trim()
         if (q.isEmpty()) return emptyList()

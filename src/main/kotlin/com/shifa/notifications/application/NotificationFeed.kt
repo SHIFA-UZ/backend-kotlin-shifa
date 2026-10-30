@@ -1,5 +1,7 @@
 package com.shifa.notifications.application
 
+import com.shifa.appointments.domain.Appointment
+import com.shifa.documents.domain.DocumentAccessRequest
 import com.shifa.notifications.domain.Notification
 import com.shifa.notifications.infrastructure.NotificationRepository
 import java.time.Instant
@@ -30,11 +32,20 @@ class NotificationFeed(
         data class Patient(val patientId: Long) : Owner
     }
 
+    /** The feed with its details, loaded with one query per referenced record type instead of two per notification (roadmap P5). */
     @Transactional(readOnly = true)
-    fun list(owner: Owner): List<NotificationDetails> = all(owner).map(::details)
+    fun list(owner: Owner): List<NotificationDetails> {
+        val all = all(owner)
+        val requests = documentAccess.requestsWithDetails(all.mapNotNull { it.documentAccessRequestId })
+        val appointments = appointments.findAllById(all.mapNotNull { it.appointmentId }.toSet()).associateBy { it.id }
+        return all.map { details(it, requests[it.documentAccessRequestId], appointments[it.appointmentId]) }
+    }
 
     @Transactional(readOnly = true)
-    fun unreadCount(owner: Owner): Int = all(owner).count { !it.isRead() }
+    fun unreadCount(owner: Owner): Int = when (owner) {
+        is Owner.Doctor -> notifications.countByDoctor_IdAndReadAtIsNull(owner.doctorId)
+        is Owner.Patient -> notifications.countByPatient_IdAndReadAtIsNull(owner.patientId)
+    }.toInt()
 
     /** [owner] is null for principals without a feed (clinic staff): the lookup still happens first, so 404 precedes 403. */
     @Transactional
@@ -53,10 +64,11 @@ class NotificationFeed(
 
     @Transactional
     fun markAllRead(owner: Owner) {
-        val unread = all(owner).filter { !it.isRead() }
         val now = Instant.now()
-        unread.forEach { it.readAt = now }
-        notifications.saveAll(unread)
+        when (owner) {
+            is Owner.Doctor -> notifications.markAllReadForDoctor(owner.doctorId, now)
+            is Owner.Patient -> notifications.markAllReadForPatient(owner.patientId, now)
+        }
     }
 
     private fun all(owner: Owner): List<Notification> = when (owner) {
@@ -64,10 +76,8 @@ class NotificationFeed(
         is Owner.Patient -> notifications.findByPatient_IdOrderByCreatedAtDesc(owner.patientId)
     }
 
-    private fun details(n: Notification): NotificationDetails {
+    private fun details(n: Notification, request: DocumentAccessRequest?, appointment: Appointment?): NotificationDetails {
         // Fetch-joined: open-in-view is off, so lazy associations cannot be read here otherwise.
-        val request = n.documentAccessRequestId?.let { documentAccess.requestWithDetails(it) }
-        val appointment = n.appointmentId?.let { appointments.findById(it).orElse(null) }
         val patientName = request?.document?.patient?.fullName
             ?: appointment?.patient?.fullName
             ?: (if (n.type == Notification.Type.APPOINTMENT_BOOKED_BY_PATIENT) n.patient?.fullName else null)

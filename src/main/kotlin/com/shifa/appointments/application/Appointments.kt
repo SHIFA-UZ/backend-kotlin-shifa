@@ -6,6 +6,7 @@ import java.time.Instant
 import java.util.Optional
 import org.springframework.data.domain.Pageable
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * The feature's door to Appointment records for its controllers and for other features (roadmap Phase 5 step 4):
@@ -53,4 +54,6 @@ class Appointments(private val repo: AppointmentRepository) {
     fun findById(id: Long): Optional<Appointment> = repo.findById(id)
     fun flush() = repo.flush()
     fun save(entity: Appointment): Appointment = repo.save(entity)
+    @Transactional(readOnly = true)
+    fun findAllById(ids: Iterable<Long>): List<Appointment> = repo.findAllById(ids)
 }

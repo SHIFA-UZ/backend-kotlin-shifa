@@ -183,7 +183,6 @@
     <ID>MaxLineLength:AdminCalendarResetService.kt$AdminCalendarResetService$"RESET_DOCTOR_CALENDAR: Completed for doctorId={}. Deleted: appointments={}, weeklyRules={}, dateSpecificRules={}, blocks={}, validityPeriods={}. Cleared validFrom/validUntil."</ID>
     <ID>MaxLineLength:AppointmentActionService.kt$AppointmentActionService$" ${alreadyCancelled.size} ${if (alreadyCancelled.size == 1) "is" else "are"} already cancelled, including $who ${local.format(dayFmt)} at ${local.format(timeFmt)}."</ID>
     <ID>MaxLineLength:AppointmentActionService.kt$AppointmentActionService$"spokenHint" to "I can cancel ${previewRows.size} upcoming ${if (previewRows.size == 1) "visit" else "visits"}: $names$more.$skippedNote Say yes to cancel them. Nothing has been cancelled yet."</ID>
-    <ID>MaxLineLength:AppointmentController.kt$AppointmentController.ConsultationNoteDto$/** Consultation notes for this appointment (e.g. saved Shifa AI drafts). Shown in appointment documentation with "From Shifa AI" badge when source == AI_DRAFT. */</ID>
     <ID>MaxLineLength:AppointmentIntelligenceService.kt$AppointmentIntelligenceService$"Cancellation rate for visits scheduled $label, excluding future visits, is ${percent(numerator, denominator)} percent ($numerator of $denominator). Visits that have not happened yet are left out. ${AppointmentIntelligenceLimits.CANCEL_TIME}"</ID>
     <ID>MaxLineLength:AppointmentIntelligenceService.kt$AppointmentIntelligenceService$"Cancellation rate is cancelled visits divided by all visits with a scheduled start in the period and before now. Future visits are excluded. ${AppointmentIntelligenceLimits.CANCEL_TIME}"</ID>
     <ID>MaxLineLength:AppointmentIntelligenceService.kt$AppointmentIntelligenceService$return "You ${verbFor(range)} $total $noun scheduled ${range.label}$who, of which $confirmed were confirmed and $requested are awaiting confirmation.$extraSentence$cancelNote"</ID>
@@ -203,8 +202,6 @@
     <ID>MaxLineLength:DevSeedRunner.kt$DevSeedRunner$documents.save(PatientDocument(patient = patient1, title = "ECG from previous clinic", date = today.minusDays(30), filePath = ecg.filePathRelative, uploadedByPatientProfile = patient1, category = PatientDocumentCategory.ECG.code))</ID>
     <ID>MaxLineLength:DevSeedRunner.kt$DevSeedRunner$log.warn("Dev seed done: 3 doctors, 1 staff, 5 patients, ${statusPlan.size + 2} appointments, 2 documents, 2 tasks, ${Notification.Type.entries.size * 2} notifications")</ID>
     <ID>MaxLineLength:DevSeedRunner.kt$DevSeedRunner$memberships.save(ClinicMembership(clinic = clinic, user = user, membershipRole = if (n == 1) ClinicMembership.MembershipRole.OWNER else ClinicMembership.MembershipRole.DOCTOR, doctorProfile = doctor))</ID>
-    <ID>MaxLineLength:DevSeedRunner.kt$DevSeedRunner$notifications.save(Notification(doctor = doctor1, title = title, message = "Seed notification: $title", type = type, appointmentId = seededAppointments[0].id, taskId = bloodPressure.id))</ID>
-    <ID>MaxLineLength:DevSeedRunner.kt$DevSeedRunner$notifications.save(Notification(patient = patient1, title = title, message = "Seed notification: $title", type = type, appointmentId = seededAppointments[0].id, taskId = bloodPressure.id))</ID>
     <ID>MaxLineLength:DevSeedRunner.kt$DevSeedRunner$rules.save(WeeklyScheduleRule(doctor = doctor, location = location, weekday = weekday, startTime = LocalTime.of(9, 0), endTime = LocalTime.of(17, 0), slotMinutes = 30))</ID>
     <ID>MaxLineLength:DevSeedRunner.kt$DevSeedRunner$services.save(DoctorService(doctor = doctor, title = "Free first consultation", isFreeConsultation = true, paymentType = ServicePaymentType.PAY_LATER))</ID>
     <ID>MaxLineLength:DevSeedRunner.kt$DevSeedRunner$users.save(User(email = patientEmail(n), phone = phone, passwordHash = hash, role = Role.PATIENT, subscriptionTier = if (n == 1) SubscriptionTier.PREMIUM else SubscriptionTier.PRO))</ID>
@@ -325,10 +322,10 @@
     <ID>ThrowsCount:AuthController.kt$AuthController$private fun throwSmsOtpFailure(result: com.shifa.auth.application.SmsOtpSendResult.Failure): Nothing</ID>
     <ID>ThrowsCount:BookingController.kt$BookingController$@PostMapping fun book( @AuthenticationPrincipal principal: Any, @RequestBody b: BookReq ): ApptDto</ID>
     <ID>ThrowsCount:CarePartnershipService.kt$CarePartnershipService$@Transactional fun invite( initiatingDoctorId: Long, patientId: Long, partnerDoctorId: Long, specialtyRequested: String?, message: String?, originatingAppointmentId: Long?, ): CarePartnershipDto</ID>
-    <ID>ThrowsCount:ClinicAccessService.kt$ClinicAccessService$fun assertPatientLinkedToClinic(principal: Any, patientId: Long, clinicId: Long)</ID>
-    <ID>ThrowsCount:ClinicAccessService.kt$ClinicAccessService$fun assertPatientVisible(principal: Any, patientId: Long)</ID>
-    <ID>ThrowsCount:ClinicAccessService.kt$ClinicAccessService$fun assertPrincipalMayAccessClinic(principal: Any, clinicId: Long)</ID>
-    <ID>ThrowsCount:ClinicAccessService.kt$ClinicAccessService$fun resolveDoctorForPatientCreation(principal: Any): DoctorProfile</ID>
+    <ID>ThrowsCount:ClinicAccessService.kt$ClinicAccessService$@Transactional(readOnly = true) fun assertPatientLinkedToClinic(principal: Any, patientId: Long, clinicId: Long)</ID>
+    <ID>ThrowsCount:ClinicAccessService.kt$ClinicAccessService$@Transactional(readOnly = true) fun assertPatientVisible(principal: Any, patientId: Long)</ID>
+    <ID>ThrowsCount:ClinicAccessService.kt$ClinicAccessService$@Transactional(readOnly = true) fun assertPrincipalMayAccessClinic(principal: Any, clinicId: Long)</ID>
+    <ID>ThrowsCount:ClinicAccessService.kt$ClinicAccessService$@Transactional(readOnly = true) fun resolveDoctorForPatientCreation(principal: Any): DoctorProfile</ID>
     <ID>ThrowsCount:ClinicFinanceController.kt$ClinicFinanceController$@PatchMapping("/installment-items/{itemId}") @Transactional fun patchInstallmentItem( @AuthenticationPrincipal principal: Any, @PathVariable clinicId: Long, @PathVariable itemId: Long, @RequestBody body: PatchInstallmentItemRequest, ): InstallmentItemDto</ID>
     <ID>ThrowsCount:ClinicFinanceController.kt$ClinicFinanceController$@PostMapping("/installment-items/{itemId}/mark-paid") @Transactional fun markInstallmentItemPaid( @AuthenticationPrincipal principal: Any, @PathVariable clinicId: Long, @PathVariable itemId: Long, @RequestBody @Valid body: MarkInstallmentPaidRequest, ): InstallmentItemDto</ID>
     <ID>ThrowsCount:ClinicFinanceController.kt$ClinicFinanceController$@PostMapping("/installment-plans") @Transactional fun createInstallmentPlan( @AuthenticationPrincipal principal: Any, @PathVariable clinicId: Long, @RequestBody @Valid req: CreateInstallmentRequest, ): InstallmentPlanDto</ID>
@@ -414,7 +411,6 @@
     <ID>UnusedPrivateMember:TreatmentPlanController.kt$TreatmentPlanController$private fun totals(planId: Long): Triple&lt;Long, Long, String&gt;</ID>
     <ID>UnusedPrivateProperty:AppointmentController.kt$AppointmentController$private val slotAvailabilityService: SlotAvailabilityService</ID>
     <ID>UnusedPrivateProperty:ConsultationController.kt$ConsultationController$private val scribeRecordingService: ScribeRecordingService</ID>
-    <ID>UnusedPrivateProperty:DocumentAccessController.kt$DocumentAccessController$private val appointmentRepo: AppointmentRepository</ID>
     <ID>UnusedPrivateProperty:JwtAuthFilter.kt$JwtAuthFilter$private val userDetailsService: UserDetailsService</ID>
     <ID>UnusedPrivateProperty:RedFlagEngine.kt$RedFlagEngine$val lower = trimmed.lowercase()</ID>
     <ID>UnusedPrivateProperty:SymptomMatcher.kt$SymptomMatcher$private const val NEGATION_WINDOW = 5</ID>

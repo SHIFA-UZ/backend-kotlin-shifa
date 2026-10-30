@@ -7,6 +7,7 @@ import com.shifa.shared.security.DoctorPrincipal
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class ClinicAccessService(
@@ -17,16 +18,17 @@ class ClinicAccessService(
     private val carePartnerships: com.shifa.patients.application.CarePartnerships,
 ) {
 
-    fun resolveActorDoctorProfile(principal: Any): DoctorProfile? =
+    internal fun resolveActorDoctorProfile(principal: Any): DoctorProfile? =
         (principal as? DoctorPrincipal)?.profile
 
-    fun assertPracticeActor(principal: Any) {
+    internal fun assertPracticeActor(principal: Any) {
         when (principal) {
             is DoctorPrincipal, is ClinicStaffPrincipal -> Unit
             else -> throw ResponseStatusException(HttpStatus.FORBIDDEN)
         }
     }
 
+    @Transactional(readOnly = true)
     fun doctorIdsForPatientDirectory(principal: Any): List<Long> {
         assertPracticeActor(principal)
         return when (principal) {
@@ -42,6 +44,7 @@ class ClinicAccessService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun assertCanViewDoctorCalendar(principal: Any, targetDoctorId: Long) {
         assertPracticeActor(principal)
         if (!canViewDoctorCalendar(principal, targetDoctorId)) {
@@ -49,6 +52,7 @@ class ClinicAccessService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun canViewDoctorCalendar(principal: Any, targetDoctorId: Long): Boolean {
         val target = doctors.findById(targetDoctorId).orElse(null) ?: return false
         if (principal is DoctorPrincipal && principal.profile.id == targetDoctorId) return true
@@ -61,10 +65,12 @@ class ClinicAccessService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun assertCanAccessAppointmentResource(principal: Any, appointmentDoctorId: Long) {
         assertCanViewDoctorCalendar(principal, appointmentDoctorId)
     }
 
+    @Transactional(readOnly = true)
     fun assertPatientVisible(principal: Any, patientId: Long) {
         val doctorIds = doctorIdsForPatientDirectory(principal).toSet()
         if (doctorIds.isEmpty()) throw ResponseStatusException(HttpStatus.FORBIDDEN)
@@ -80,7 +86,7 @@ class ClinicAccessService(
         if (!partnershipOk) throw ResponseStatusException(HttpStatus.NOT_FOUND, "Patient not found")
     }
 
-    fun resolveBookingActorUserId(principal: Any): Long =
+    internal fun resolveBookingActorUserId(principal: Any): Long =
         when (principal) {
             is DoctorPrincipal -> principal.profile.user.id
             is ClinicStaffPrincipal -> principal.user.id
@@ -88,6 +94,7 @@ class ClinicAccessService(
         }
 
     /** Assign created-by doctor when clinic staff registers a patient (first doctor in clinic). */
+    @Transactional(readOnly = true)
     fun resolveDoctorForPatientCreation(principal: Any): DoctorProfile {
         resolveActorDoctorProfile(principal)?.let { return it }
         val staff = principal as? ClinicStaffPrincipal
@@ -98,6 +105,7 @@ class ClinicAccessService(
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No doctor in clinic")
     }
 
+    @Transactional(readOnly = true)
     fun assertPrincipalMayAccessClinic(principal: Any, clinicId: Long) {
         assertPracticeActor(principal)
         when (principal) {
@@ -121,6 +129,7 @@ class ClinicAccessService(
      * Patient is linked to [clinicId] if they were created by a practice doctor at that clinic or have a
      * non-cancelled appointment with such a doctor (same rule as [com.shifa.patients.infrastructure.PatientProfileRepository.findClinicRosterForDoctors]).
      */
+    @Transactional(readOnly = true)
     fun assertPatientLinkedToClinic(principal: Any, patientId: Long, clinicId: Long) {
         assertPracticeActor(principal)
         assertPrincipalMayAccessClinic(principal, clinicId)
@@ -137,6 +146,7 @@ class ClinicAccessService(
     }
 
     /** Any practice doctor at [clinicId] (lowest id) for staff document visibility delegation. Caller must already enforce clinic access. */
+    @Transactional(readOnly = true)
     fun delegateDoctorProfileIdForClinic(clinicId: Long): Long =
         doctors.findAllByPracticeClinic_Id(clinicId).minByOrNull { it.id!! }?.id
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "No doctor in clinic")

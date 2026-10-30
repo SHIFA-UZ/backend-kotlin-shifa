@@ -11,4 +11,8 @@ interface DoctorLocationRepository : JpaRepository<DoctorLocation, Long> {
     fun findByDoctorIdAndIsPrimaryTrue(doctorId: Long): Optional<DoctorLocation>
 
     fun countByDoctorId(doctorId: Long): Long
+
+    /** Locations of several doctors in one query (public listing), primary first like the per-doctor variant. */
+    @Suppress("FunctionNaming")
+    fun findByDoctor_IdInOrderByIsPrimaryDescIdAsc(doctorIds: Collection<Long>): List<DoctorLocation>
 }

@@ -7,6 +7,7 @@ import com.shifa.shared.security.DoctorPrincipal
 import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.web.server.ResponseStatusException
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class ClinicFinanceAccessService(
@@ -22,6 +23,7 @@ class ClinicFinanceAccessService(
         NONE
     }
 
+    @Transactional(readOnly = true)
     fun resolveFinanceAccessLevel(principal: Any, clinicId: Long): FinanceAccessLevel {
         val role = resolveMembershipRole(principal, clinicId) ?: return FinanceAccessLevel.NONE
         return when (role) {
@@ -32,6 +34,7 @@ class ClinicFinanceAccessService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun assertCanViewFinance(principal: Any, clinicId: Long) {
         val level = resolveFinanceAccessLevel(principal, clinicId)
         if (level == FinanceAccessLevel.NONE) {
@@ -43,6 +46,7 @@ class ClinicFinanceAccessService(
      * Payments, installment creation, and non-void invoice updates for a specific patient.
      * Clinic admins / receptionists: clinic-wide. Doctors / nurses: only visible patients.
      */
+    @Transactional(readOnly = true)
     fun assertCanManagePatientFinance(principal: Any, clinicId: Long, patientId: Long) {
         assertCanViewFinance(principal, clinicId)
         when (resolveFinanceAccessLevel(principal, clinicId)) {
@@ -55,6 +59,7 @@ class ClinicFinanceAccessService(
     /**
      * null = full clinic visibility (admin/receptionist); non-null = restrict to these patient IDs.
      */
+    @Transactional(readOnly = true)
     fun financeReadPatientIdFilter(principal: Any, clinicId: Long): Set<Long>? {
         assertCanViewFinance(principal, clinicId)
         return when (resolveFinanceAccessLevel(principal, clinicId)) {
@@ -67,6 +72,7 @@ class ClinicFinanceAccessService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun assertCanVoidRecords(principal: Any, clinicId: Long) {
         val level = resolveFinanceAccessLevel(principal, clinicId)
         if (level != FinanceAccessLevel.FULL) {
@@ -74,6 +80,7 @@ class ClinicFinanceAccessService(
         }
     }
 
+    @Transactional(readOnly = true)
     fun assertCanManageFinanceSettings(principal: Any, clinicId: Long) {
         val role = resolveMembershipRole(principal, clinicId)
             ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, "No clinic membership")

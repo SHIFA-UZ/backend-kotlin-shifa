@@ -6,6 +6,7 @@ import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import com.shifa.clinics.infrastructure.TreatmentPlanPaymentRepository
 import org.springframework.stereotype.Service
 import java.time.Instant
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class ClinicFinanceLedgerService(
@@ -13,21 +14,22 @@ class ClinicFinanceLedgerService(
     private val paymentsRepo: TreatmentPlanPaymentRepository,
 ) {
 
-    fun lineTotal(line: TreatmentPlanLine): Long =
+    internal fun lineTotal(line: TreatmentPlanLine): Long =
         (line.unitPriceMinor * line.quantity - line.discountMinor).coerceAtLeast(0)
 
     /** Sum of all line totals on a plan — used as the denominator for payment allocation. */
+    @Transactional(readOnly = true)
     fun planTotalMinor(planId: Long): Long =
         linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(planId)
             .sumOf { lineTotal(it) }
             .coerceAtLeast(0L)
 
     /** Resolve which doctor earns credit for a charge line. */
-    fun earningDoctorId(line: TreatmentPlanLine): Long? =
+    internal fun earningDoctorId(line: TreatmentPlanLine): Long? =
         line.assignedDoctor?.id ?: line.linkedAppointment?.doctor?.id
 
     /** UI label: UNPAID | PARTIAL | PAID | NONE — proportional allocation of plan payments across visit lines. */
-    fun visitPaymentStatus(visitTotal: Long, planPaid: Long, planTotal: Long): String {
+    internal fun visitPaymentStatus(visitTotal: Long, planPaid: Long, planTotal: Long): String {
         if (visitTotal <= 0L) return "NONE"
         val denom = planTotal.coerceAtLeast(1L)
         val allocated = (planPaid * visitTotal) / denom
@@ -38,7 +40,7 @@ class ClinicFinanceLedgerService(
         }
     }
 
-    fun planSimplePaymentStatus(planTotal: Long, planPaid: Long): String {
+    internal fun planSimplePaymentStatus(planTotal: Long, planPaid: Long): String {
         if (planTotal <= 0L) return "NONE"
         return when {
             planPaid <= 0L -> "UNPAID"
@@ -52,7 +54,7 @@ class ClinicFinanceLedgerService(
      * Payments with no appointment link remain in a pool and split across visits proportionally by [visitTotal] / plan total
      * (legacy / wizard "plan-wide" payments).
      */
-    fun appointmentAttributedPaidMinorFromAllocations(
+    internal fun appointmentAttributedPaidMinorFromAllocations(
         appointmentId: Long,
         visitTotal: Long,
         planTotalMinor: Long,
@@ -71,7 +73,7 @@ class ClinicFinanceLedgerService(
     }
 
     /** Per-visit collected amount, capped at [visitTotal]. */
-    fun appointmentCollectedMinor(
+    internal fun appointmentCollectedMinor(
         appointmentId: Long,
         visitTotal: Long,
         planTotalMinor: Long,
@@ -87,7 +89,7 @@ class ClinicFinanceLedgerService(
         return raw.coerceAtMost(visitTotal)
     }
 
-    fun appointmentAttributedPaidMinorFromPayments(
+    internal fun appointmentAttributedPaidMinorFromPayments(
         appointmentId: Long,
         visitTotal: Long,
         planTotalMinor: Long,
@@ -105,6 +107,7 @@ class ClinicFinanceLedgerService(
     }
 
     /** Gross/collected/status for one visit — shared by appointment ledger rows and visit aggregations. */
+    @Transactional(readOnly = true)
     fun visitLedgerFinance(
         appointmentId: Long,
         lines: List<TreatmentPlanLine>,
@@ -127,6 +130,7 @@ class ClinicFinanceLedgerService(
     }
 
     /** Month-scoped dashboard KPIs derived from visit-level gross/collected totals. */
+    @Transactional(readOnly = true)
     fun monthScopedDashboardMetrics(
         clinicId: Long,
         from: Instant,
@@ -188,6 +192,7 @@ class ClinicFinanceLedgerService(
      * Per-visit gross/collected totals using the same allocation rules as the appointment ledger.
      * Optional [from] / [toExclusive] filter on appointment.startAt (visit date).
      */
+    @Transactional(readOnly = true)
     fun visitFinanceTotals(
         clinicId: Long,
         from: Instant?,
@@ -219,6 +224,7 @@ class ClinicFinanceLedgerService(
      * lines linked to an appointment. [from] / [toExclusive] filter on **appointment.startAt**
      * (visit date); when both are null, all qualifying visits for the clinic are included.
      */
+    @Transactional(readOnly = true)
     fun doctorEarnings(
         clinicId: Long,
         from: Instant?,
@@ -260,6 +266,7 @@ class ClinicFinanceLedgerService(
     }
 
     /** Validates that per-doctor totals reconcile with per-visit totals for the same scope. */
+    @Transactional(readOnly = true)
     fun doctorEarningsReconcileWithVisitTotals(
         clinicId: Long,
         from: Instant?,

@@ -114,14 +114,17 @@ class AiDraftNoteService(
         log.info("AiDraftNote discarded: draftId={}, doctorId={}", draftId, doctorId)
     }
 
+    @Transactional(readOnly = true)
     fun getDraftById(draftId: UUID): AiDraftNote? = draftRepo.findById(draftId).orElse(null)
 
+    @Transactional(readOnly = true)
     fun hasActiveScribeDraft(appointmentId: Long, label: String): Boolean {
         return draftRepo.findByConsultationId(appointmentId).any { draft ->
             draft.aiLabel == label && draft.status != AiDraftNote.Status.DISCARDED
         }
     }
 
+    @Transactional(readOnly = true)
     fun hasGeneratedScribeDraft(appointmentId: Long, label: String): Boolean {
         return draftRepo.findByConsultationIdAndStatusOrderByCreatedAtDesc(
             appointmentId,
@@ -185,6 +188,7 @@ class AiDraftNoteService(
         )
     }
 
+    @Transactional(readOnly = true)
     fun intelligenceDictation(doctorId: Long, appointmentId: Long): AiDraftNote? =
         draftRepo.findByConsultationIdAndStatusOrderByCreatedAtDesc(
             appointmentId,

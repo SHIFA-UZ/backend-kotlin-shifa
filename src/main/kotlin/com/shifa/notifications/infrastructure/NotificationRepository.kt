@@ -41,4 +41,23 @@ interface NotificationRepository : JpaRepository<Notification, Long> {
         installmentItemId: Long,
         type: Notification.Type
     ): Boolean
+
+    @Suppress("FunctionNaming")
+    fun countByDoctor_IdAndReadAtIsNull(doctorId: Long): Long
+    @Suppress("FunctionNaming")
+    fun countByPatient_IdAndReadAtIsNull(patientId: Long): Long
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE Notification n SET n.readAt = :now WHERE n.doctor.id = :doctorId AND n.readAt IS NULL")
+    fun markAllReadForDoctor(
+        @org.springframework.data.repository.query.Param("doctorId") doctorId: Long,
+        @org.springframework.data.repository.query.Param("now") now: java.time.Instant,
+    ): Int
+
+    @org.springframework.data.jpa.repository.Modifying
+    @org.springframework.data.jpa.repository.Query("UPDATE Notification n SET n.readAt = :now WHERE n.patient.id = :patientId AND n.readAt IS NULL")
+    fun markAllReadForPatient(
+        @org.springframework.data.repository.query.Param("patientId") patientId: Long,
+        @org.springframework.data.repository.query.Param("now") now: java.time.Instant,
+    ): Int
 }

@@ -60,6 +60,7 @@ class EarlyPartnerContractService(
         return toDto(contract, newAllocation = true)
     }
 
+    @Transactional(readOnly = true)
     fun contractNumbersByDoctorIds(doctorIds: Collection<Long>): Map<Long, String> {
         if (doctorIds.isEmpty()) return emptyMap()
         return earlyPartnerContractRepository.findByDoctorProfileIdIn(doctorIds)

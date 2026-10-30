@@ -26,11 +26,13 @@ class DoctorSmsBillingService(
     private val doctorProfileRepository: com.shifa.doctors.application.DoctorProfiles,
     private val devSmsProperties: DevSmsProperties,
 ) {
-    val pricePerSmsMinor: Long get() = devSmsProperties.pricePerSmsMinor
-    val currency: String get() = devSmsProperties.billingCurrency
+    internal val pricePerSmsMinor: Long get() = devSmsProperties.pricePerSmsMinor
+    internal val currency: String get() = devSmsProperties.billingCurrency
 
+    @Transactional(readOnly = true)
     fun isSmsAllowed(doctor: DoctorProfile): Boolean = doctor.smsRemindersAllowed
 
+    @Transactional(readOnly = true)
     fun isSmsAllowed(doctorId: Long): Boolean =
         doctorProfileRepository.findById(doctorId).map { it.smsRemindersAllowed }.orElse(false)
 
@@ -55,6 +57,7 @@ class DoctorSmsBillingService(
         )
     }
 
+    @Transactional(readOnly = true)
     fun summaryForDoctor(doctorId: Long, from: LocalDate?, toInclusive: LocalDate?): DoctorSmsUsageSummary {
         val (count, sum) = if (from != null && toInclusive != null) {
             val start = from.atStartOfDay(ZoneOffset.UTC).toInstant()
@@ -73,6 +76,7 @@ class DoctorSmsBillingService(
         )
     }
 
+    @Transactional(readOnly = true)
     fun aggregateMapForWindow(window: AdminDoctorActivityService.BoundedWindow?): Map<Long, Pair<Long, Long>> {
         val rows = if (window != null) {
             doctorSmsUsageRepository.aggregateByDoctorBetween(

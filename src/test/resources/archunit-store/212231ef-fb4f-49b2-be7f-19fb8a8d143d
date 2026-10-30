@@ -1,0 +1,358 @@
+com.shifa.admin.application.AdminProfiles.findByUserId(long) is public and not @Transactional
+com.shifa.admin.application.AdminProfiles.findUserIdsBySearch(java.lang.String) is public and not @Transactional
+com.shifa.admin.application.AdminProfiles.save(com.shifa.admin.domain.AdminProfile) is public and not @Transactional
+com.shifa.admin.application.SystemConfigs.findAll() is public and not @Transactional
+com.shifa.admin.application.SystemConfigs.findAll(org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.admin.application.SystemConfigs.findAll(org.springframework.data.domain.Sort) is public and not @Transactional
+com.shifa.admin.application.SystemConfigs.findByKey(java.lang.String) is public and not @Transactional
+com.shifa.admin.application.SystemConfigs.findByKeyForUpdate(java.lang.String) is public and not @Transactional
+com.shifa.admin.application.SystemConfigs.save(com.shifa.admin.domain.SystemConfig) is public and not @Transactional
+com.shifa.ai.application.AiDraftNotes.countByDoctorAllTime(long) is public and not @Transactional
+com.shifa.ai.application.AiDraftNotes.countByDoctorInDateRange(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.ai.application.AiDraftNotes.deleteAll() is public and not @Transactional
+com.shifa.ai.application.AiDraftNotes.deleteAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.ai.application.AiDraftNotes.findByConsultationIdAndStatusOrderByCreatedAtDesc(long, com.shifa.ai.domain.AiDraftNote$Status) is public and not @Transactional
+com.shifa.ai.application.AiDraftNotes.findByDoctorId(long) is public and not @Transactional
+com.shifa.ai.application.AiDraftNotes.findByPatientId(long) is public and not @Transactional
+com.shifa.ai.application.AiDraftNotes.findMaxCreatedAtByDoctorId(long) is public and not @Transactional
+com.shifa.ai.application.AiUsageCounters.findMaxUsageDate(long, com.shifa.auth.domain.Role) is public and not @Transactional
+com.shifa.ai.application.AiUsageCounters.sumRequestCountAllTimeForUser(long, com.shifa.auth.domain.Role) is public and not @Transactional
+com.shifa.ai.application.AiUsageCounters.sumRequestCountByUserAndUsageDateBetween(long, com.shifa.auth.domain.Role, java.time.LocalDate, java.time.LocalDate) is public and not @Transactional
+com.shifa.ai.application.AiUsageCounters.sumRequestCountGroupedByUsageDate(long, com.shifa.auth.domain.Role, java.time.LocalDate, java.time.LocalDate) is public and not @Transactional
+com.shifa.ai.application.AppointmentBriefingService.generate(long) is public and not @Transactional
+com.shifa.ai.application.AppointmentBriefingService.generateAsync(long) is public and not @Transactional
+com.shifa.ai.application.ClinicalRagIndexingService.deleteChunksForPatientForm(long) is public and not @Transactional
+com.shifa.ai.application.ClinicalRagIndexingService.reindexAllForPatient(long) is public and not @Transactional
+com.shifa.ai.application.ClinicalRagIndexingService.reindexAppointmentDentalDocumentation(long) is public and not @Transactional
+com.shifa.ai.application.ClinicalRagIndexingService.reindexConsultationNote(long) is public and not @Transactional
+com.shifa.ai.application.ClinicalRagIndexingService.reindexPatientForm(long) is public and not @Transactional
+com.shifa.ai.application.ClinicalRagRetrievalService.buildRetrievalSystemPrompt(long, java.lang.Long, java.lang.String) is public and not @Transactional
+com.shifa.ai.application.DiagnosisSuggestionService.suggestFromText(java.lang.String) is public and not @Transactional
+com.shifa.ai.application.DoctorMorningAiService.streamMorningAssistant(com.shifa.doctors.domain.DoctorProfile, com.shifa.ai.domain.PatientAiContext, java.util.List, com.shifa.ai.domain.OutputLanguage, java.lang.Long, java.lang.String) is public and not @Transactional
+com.shifa.ai.application.IntelligenceMemoryService.persistCandidates(com.shifa.doctors.domain.DoctorProfile, java.util.List, java.lang.String, java.util.Collection) is public and not @Transactional
+com.shifa.ai.application.IntelligenceMemoryService.retrieveForTurn(com.shifa.doctors.domain.DoctorProfile, java.lang.String) is public and not @Transactional
+com.shifa.ai.application.PatientBriefingService.generateBriefing(long, long, java.lang.String) is public and not @Transactional
+com.shifa.ai.application.TextToSpeechService.speak(java.lang.String, com.shifa.ai.domain.OutputLanguage) is public and not @Transactional
+com.shifa.ai.application.TranscriptionService.transcribe(java.nio.file.Path, java.lang.String, com.shifa.ai.application.TranscriptionPurpose) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countByDoctorIdAndStartAtBetween(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countByDoctorIdsAndStartAtBetween(java.util.Collection, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countByDoctor_Id(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countByDoctor_IdAndStartAtBetweenAndStatus(long, java.time.Instant, java.time.Instant, com.shifa.appointments.domain.Appointment$Status) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countByDoctor_IdAndStatus(long, com.shifa.appointments.domain.Appointment$Status) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countDistinctPatientsByDoctor(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countDistinctPatientsByDoctorIdAndStartAtBetween(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countDistinctPatientsByDoctorIdsAndStartAtBetween(java.util.Collection, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countFutureByDoctorAndLocation(long, long, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countInPersonByDoctorIdAndStartAtBetween(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countNewPatientsToday(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countVideoAllTime(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.countVideoByDoctorIdAndStartAtBetween(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.deleteByDoctorId(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.deleteByPatientId(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.existsByDoctorIdAndPatientId(long, long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.existsNonCancelledByPatientIdAndDoctorIds(long, java.util.Collection) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findAppointmentsForSmsReminder(java.time.Instant, java.time.Instant, int) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findAppointmentsStartingBetween(java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findByDoctorIdAndStartAtBetween(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findById(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findByIdForUpdate(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findByIdWithDoctorAndPatient(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findByPatientId(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findByPatientIdAndDateRange(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findByPatientIdAndDoctorIdOrderByStartAtDesc(long, long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findByPatientIdWithDoctorForExport(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findCompletedForPatientAmongDoctors(long, java.util.Collection, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findExpiredPaymentHolds(java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findFirstByPatient_IdAndDoctor_IdAndStartAtAfterAndStatusNotOrderByStartAtAsc(long, long, java.time.Instant, com.shifa.appointments.domain.Appointment$Status) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findForDay(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findMaxStartAtByDoctorId(long) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findMostVisitedPatients(long, java.time.Instant, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findOverlapping(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findOverlappingForPatient(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.findPendingPaymentVideoAppointmentsStartingBetween(java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.Appointments.flush() is public and not @Transactional
+com.shifa.appointments.application.Appointments.save(com.shifa.appointments.domain.Appointment) is public and not @Transactional
+com.shifa.appointments.application.ClinicVisitPatterns.findByDoctorIdOrderByOccurrenceCountDesc(long) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.countByDoctorAllTime(long) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.countByDoctorInDateRange(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.deleteAll() is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.deleteAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.findByAppointmentIdOrderByCreatedAtAsc(long) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.findByDoctorId(long) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.findByDoctorIdAndPatientIdOrderByCreatedAtDesc(long, long) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.findById(long) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.findByPatientId(long) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.findFirstByAppointmentIdOrderByCreatedAtDesc(long) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.findMaxCreatedAtByDoctorId(long) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.listByDoctorCreatedBetween(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.ConsultationNotes.save(com.shifa.appointments.domain.ConsultationNote) is public and not @Transactional
+com.shifa.appointments.application.DateSpecificScheduleRules.delete(com.shifa.appointments.domain.DateSpecificScheduleRule) is public and not @Transactional
+com.shifa.appointments.application.DateSpecificScheduleRules.deleteByDoctorId(long) is public and not @Transactional
+com.shifa.appointments.application.DateSpecificScheduleRules.findByDoctorId(long) is public and not @Transactional
+com.shifa.appointments.application.DateSpecificScheduleRules.findByDoctorIdAndDate(long, java.time.LocalDate) is public and not @Transactional
+com.shifa.appointments.application.DateSpecificScheduleRules.findByDoctorIdAndLocationId(long, long) is public and not @Transactional
+com.shifa.appointments.application.DateSpecificScheduleRules.findById(long) is public and not @Transactional
+com.shifa.appointments.application.DateSpecificScheduleRules.findOverlappingWithDateRange(long, java.time.LocalDate, java.time.LocalDate) is public and not @Transactional
+com.shifa.appointments.application.DateSpecificScheduleRules.save(com.shifa.appointments.domain.DateSpecificScheduleRule) is public and not @Transactional
+com.shifa.appointments.application.IntelligenceBookingWorkflowService.confirm(com.shifa.doctors.domain.DoctorProfile, java.lang.String) is public and not @Transactional
+com.shifa.appointments.application.IntelligenceBookingWorkflowService.confirmReschedule(com.shifa.doctors.domain.DoctorProfile, java.lang.String) is public and not @Transactional
+com.shifa.appointments.application.PatientVisitFacts.findByAppointmentIdAndStatus(long, com.shifa.appointments.domain.PatientVisitFact$Status) is public and not @Transactional
+com.shifa.appointments.application.PatientVisitFacts.findCommittedTimeline(long, long) is public and not @Transactional
+com.shifa.appointments.application.ScheduleBlocks.delete(com.shifa.appointments.domain.ScheduleBlock) is public and not @Transactional
+com.shifa.appointments.application.ScheduleBlocks.deleteByDoctorId(long) is public and not @Transactional
+com.shifa.appointments.application.ScheduleBlocks.findById(long) is public and not @Transactional
+com.shifa.appointments.application.ScheduleBlocks.findOverlapping(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.appointments.application.ScheduleValidityPeriods.deleteAll() is public and not @Transactional
+com.shifa.appointments.application.ScheduleValidityPeriods.deleteAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.appointments.application.ScheduleValidityPeriods.findByDoctorIdOrderByValidFromAsc(long) is public and not @Transactional
+com.shifa.appointments.application.ScheduleValidityPeriods.save(com.shifa.appointments.domain.ScheduleValidityPeriod) is public and not @Transactional
+com.shifa.appointments.application.WeeklyScheduleRules.deleteAll() is public and not @Transactional
+com.shifa.appointments.application.WeeklyScheduleRules.deleteAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.appointments.application.WeeklyScheduleRules.deleteByDoctorId(long) is public and not @Transactional
+com.shifa.appointments.application.WeeklyScheduleRules.deleteByDoctorIdAndLocationId(long, long) is public and not @Transactional
+com.shifa.appointments.application.WeeklyScheduleRules.findByDoctorId(long) is public and not @Transactional
+com.shifa.appointments.application.WeeklyScheduleRules.findByDoctorIdAndLocationId(long, long) is public and not @Transactional
+com.shifa.appointments.application.WeeklyScheduleRules.flush() is public and not @Transactional
+com.shifa.appointments.application.WeeklyScheduleRules.save(com.shifa.appointments.domain.WeeklyScheduleRule) is public and not @Transactional
+com.shifa.auth.application.AccountDeleteChallenges.findByChallengeId(java.util.UUID) is public and not @Transactional
+com.shifa.auth.application.AccountDeleteChallenges.save(com.shifa.auth.domain.AccountDeleteChallenge) is public and not @Transactional
+com.shifa.auth.application.EmailOtpService.sendCode(java.lang.String, java.lang.String) is public and not @Transactional
+com.shifa.auth.application.Emails.sendClinicStaffInvitationEmail(java.lang.String, java.lang.String, java.lang.String, java.lang.String) is public and not @Transactional
+com.shifa.auth.application.SmsOtpService.sendCode(java.lang.String, java.lang.String) is public and not @Transactional
+com.shifa.auth.application.UserRoles.existsByUserIdAndRole(long, com.shifa.auth.domain.Role) is public and not @Transactional
+com.shifa.auth.application.UserRoles.findByUserId(long) is public and not @Transactional
+com.shifa.auth.application.UserRoles.save(com.shifa.auth.domain.UserRole) is public and not @Transactional
+com.shifa.auth.application.UserSessions.save(com.shifa.auth.domain.UserSession) is public and not @Transactional
+com.shifa.auth.application.Users.count() is public and not @Transactional
+com.shifa.auth.application.Users.countByRole(com.shifa.auth.domain.Role) is public and not @Transactional
+com.shifa.auth.application.Users.countByRoleAndEnabled(com.shifa.auth.domain.Role, boolean) is public and not @Transactional
+com.shifa.auth.application.Users.findAllById(java.lang.Iterable) is public and not @Transactional
+com.shifa.auth.application.Users.findByEmail(java.lang.String) is public and not @Transactional
+com.shifa.auth.application.Users.findByEmailIgnoreCase(java.lang.String) is public and not @Transactional
+com.shifa.auth.application.Users.findByEmailOriginalHashAndAccountStatus(java.lang.String, com.shifa.auth.domain.User$AccountStatus) is public and not @Transactional
+com.shifa.auth.application.Users.findById(long) is public and not @Transactional
+com.shifa.auth.application.Users.findByPhone(java.lang.String) is public and not @Transactional
+com.shifa.auth.application.Users.findByPhoneOriginalHashAndAccountStatus(java.lang.String, com.shifa.auth.domain.User$AccountStatus) is public and not @Transactional
+com.shifa.auth.application.Users.findByRole(com.shifa.auth.domain.Role, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.auth.application.Users.findByUsername(java.lang.String) is public and not @Transactional
+com.shifa.auth.application.Users.findUserIdsBySearch(java.lang.String, com.shifa.auth.domain.Role, java.lang.Boolean) is public and not @Transactional
+com.shifa.auth.application.Users.save(com.shifa.auth.domain.User) is public and not @Transactional
+com.shifa.auth.application.Users.searchByRoleAndQuery(long, com.shifa.auth.domain.Role, java.lang.String, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.chat.application.Conversations.deleteAll() is public and not @Transactional
+com.shifa.chat.application.Conversations.deleteAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.chat.application.Conversations.findByDoctorUserIdOrDoctorParticipantId(long) is public and not @Transactional
+com.shifa.chat.application.Conversations.findByPatientParticipantIdOrderByLastMessageDesc(long) is public and not @Transactional
+com.shifa.chat.application.Messages.deleteByConversationIdIn(java.util.List) is public and not @Transactional
+com.shifa.chat.application.Messages.findByConversationIdOrderByCreatedAtAsc(long) is public and not @Transactional
+com.shifa.clinics.application.ClinicFinanceAuditLogs.findByClinic_IdAndEntityTypeAndEntityIdOrderByCreatedAtDesc(long, java.lang.String, long, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.ClinicFinanceAuditLogs.findByClinic_IdOrderByCreatedAtDesc(long, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.ClinicFinanceAuditService.log(com.shifa.clinics.domain.Clinic, com.shifa.auth.domain.User, java.lang.String, java.lang.String, java.lang.Long, java.lang.String) is public and not @Transactional
+com.shifa.clinics.application.ClinicMemberships.findByClinicIdAndActiveTrue(long) is public and not @Transactional
+com.shifa.clinics.application.ClinicMemberships.findByClinic_IdAndUser_Id(long, long) is public and not @Transactional
+com.shifa.clinics.application.ClinicMemberships.findByDoctorProfile_IdAndActiveTrue(long) is public and not @Transactional
+com.shifa.clinics.application.ClinicMemberships.findByUserIdAndActiveTrue(long) is public and not @Transactional
+com.shifa.clinics.application.ClinicMemberships.save(com.shifa.clinics.domain.ClinicMembership) is public and not @Transactional
+com.shifa.clinics.application.Clinics.existsById(long) is public and not @Transactional
+com.shifa.clinics.application.Clinics.findAll() is public and not @Transactional
+com.shifa.clinics.application.Clinics.findAll(org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.Clinics.findAll(org.springframework.data.domain.Sort) is public and not @Transactional
+com.shifa.clinics.application.Clinics.findById(long) is public and not @Transactional
+com.shifa.clinics.application.Clinics.save(com.shifa.clinics.domain.Clinic) is public and not @Transactional
+com.shifa.clinics.application.FinancialRecords.findByClinicIdAndStatusInAndRemainingMinorGreaterThanZero(long, java.util.List) is public and not @Transactional
+com.shifa.clinics.application.FinancialRecords.findByClinic_IdAndPatient_IdInOrderByCreatedAtDesc(long, java.util.Collection, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.FinancialRecords.findByClinic_IdAndStatus(long, com.shifa.clinics.domain.FinancialRecord$Status, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.FinancialRecords.findByClinic_IdAndStatusAndPatient_IdInOrderByCreatedAtDesc(long, com.shifa.clinics.domain.FinancialRecord$Status, java.util.Collection, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.FinancialRecords.findByClinic_IdOrderByCreatedAtDesc(long, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.FinancialRecords.findById(long) is public and not @Transactional
+com.shifa.clinics.application.FinancialRecords.save(com.shifa.clinics.domain.FinancialRecord) is public and not @Transactional
+com.shifa.clinics.application.InstallmentItems.findActiveByClinic(long) is public and not @Transactional
+com.shifa.clinics.application.InstallmentItems.findAllPendingDueOn(java.time.LocalDate) is public and not @Transactional
+com.shifa.clinics.application.InstallmentItems.findById(long) is public and not @Transactional
+com.shifa.clinics.application.InstallmentItems.findByInstallmentPlan_IdOrderBySequenceNumberAsc(long) is public and not @Transactional
+com.shifa.clinics.application.InstallmentItems.findOverdueByClinic(long, java.time.LocalDate) is public and not @Transactional
+com.shifa.clinics.application.InstallmentItems.findOverdueNeedingRemind(java.time.OffsetDateTime) is public and not @Transactional
+com.shifa.clinics.application.InstallmentItems.findUnpaidByTreatmentPlan(long, java.util.List) is public and not @Transactional
+com.shifa.clinics.application.InstallmentItems.save(com.shifa.clinics.domain.InstallmentItem) is public and not @Transactional
+com.shifa.clinics.application.InstallmentPlans.findById(long) is public and not @Transactional
+com.shifa.clinics.application.InstallmentPlans.findByTreatmentPlan_IdOrderByCreatedAtDesc(long) is public and not @Transactional
+com.shifa.clinics.application.InvitationKeys.findByClinic_IdAndPurpose(long, java.lang.String) is public and not @Transactional
+com.shifa.clinics.application.InvitationKeys.findById(long) is public and not @Transactional
+com.shifa.clinics.application.InvitationKeys.findByIdAndClinic_Id(long, long) is public and not @Transactional
+com.shifa.clinics.application.InvitationKeys.findByKeyCode(java.lang.String) is public and not @Transactional
+com.shifa.clinics.application.InvitationKeys.nullifyConsumedByUserId(long) is public and not @Transactional
+com.shifa.clinics.application.InvitationKeys.nullifyCreatedByUserId(long) is public and not @Transactional
+com.shifa.clinics.application.InvitationKeys.save(com.shifa.clinics.domain.InvitationKey) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanAppointmentLinks.findPlanIdAndTitleByAppointmentId(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanCatalogItems.findByClinic_IdOrderByActiveDescSortOrderAscIdAsc(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanCatalogItems.findById(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanCatalogItems.save(com.shifa.clinics.domain.TreatmentPlanCatalogItem) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLineFulfillments.findLineIdsByAppointmentId(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.countDistinctLinkedAppointmentsByPlanId(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.countDistinctLinkedAppointmentsGrouped(java.util.Collection) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.delete(com.shifa.clinics.domain.TreatmentPlanLine) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.findById(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.findByLinkedAppointment_Id(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.findByPlan_IdOrderBySortOrderAscIdAsc(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.findDistinctLinkedAppointmentIdsForClinic(long, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.findDistinctLinkedAppointmentIdsForClinicAndPatients(long, java.util.List, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.findDistinctLinkedAppointmentIdsForClinicAndPatientsInRange(long, java.util.List, java.time.Instant, java.time.Instant, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.findDistinctLinkedAppointmentIdsForClinicInRange(long, java.time.Instant, java.time.Instant, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.findLinkedAppointmentLinesForPlan(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanLines.save(com.shifa.clinics.domain.TreatmentPlanLine) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanPayments.findByClinicAndPlanStatuses(long, java.util.List, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanPayments.findByClinicAndPlanStatusesAndPatientIds(long, java.util.List, java.util.Collection, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanPayments.findByPlanIdsOrderByRecordedAtAsc(java.util.Collection) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanPayments.findByPlan_IdOrderByRecordedAtAsc(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlanPayments.save(com.shifa.clinics.domain.TreatmentPlanPayment) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlans.countByAttendingDoctorAllTime(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlans.countByAttendingDoctorInDateRange(long, java.time.OffsetDateTime, java.time.OffsetDateTime) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlans.findActivePlansEligibleForPaymentReminder(java.util.List, java.time.OffsetDateTime) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlans.findByClinic_IdAndPatient_IdOrderByCreatedAtDesc(long, long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlans.findByClinic_IdOrderByUpdatedAtDescIdDesc(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlans.findById(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlans.findMaxUpdatedAtByAttendingDoctorId(long) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlans.listByAttendingDoctorCreatedBetween(long, java.time.OffsetDateTime, java.time.OffsetDateTime) is public and not @Transactional
+com.shifa.clinics.application.TreatmentPlans.save(com.shifa.clinics.domain.TreatmentPlan) is public and not @Transactional
+com.shifa.doctors.application.DoctorLocations.delete(com.shifa.doctors.domain.DoctorLocation) is public and not @Transactional
+com.shifa.doctors.application.DoctorLocations.findByDoctorIdAndIsPrimaryTrue(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorLocations.findByDoctorIdOrderByIsPrimaryDescIdAsc(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorLocations.findById(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorLocations.save(com.shifa.doctors.domain.DoctorLocation) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.countWithDeviceRegistered() is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.delete(com.shifa.doctors.domain.DoctorProfile) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findAllByPracticeClinic_Id(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findAllByUserEnabled() is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findAllForAdminActivitySearch(java.lang.String) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findByFcmToken(java.lang.String) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findById(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findByIdForUpdate(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findByUserId(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findByUserIdInWithPracticeClinic(java.util.Collection) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findByUserIdWithPracticeClinic(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findPartnerSearchCandidates(long, java.lang.String, java.lang.String, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findUserIdsBySearch(java.lang.String) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.findUserIdsWithDeviceRegistered() is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.save(com.shifa.doctors.domain.DoctorProfile) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.saveAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.searchByQuery(java.lang.String) is public and not @Transactional
+com.shifa.doctors.application.DoctorProfiles.searchWithFilters(java.lang.String, java.lang.String) is public and not @Transactional
+com.shifa.doctors.application.DoctorReviews.countByDoctorId(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorReviews.deleteAll() is public and not @Transactional
+com.shifa.doctors.application.DoctorReviews.deleteAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.doctors.application.DoctorReviews.findAverageRatingByDoctorId(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorReviews.findByAppointmentId(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorReviews.findByDoctorId(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorReviews.findByDoctorIdOrderByCreatedAtDesc(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorReviews.findByPatientId(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorReviews.save(com.shifa.doctors.domain.DoctorReview) is public and not @Transactional
+com.shifa.doctors.application.DoctorServiceGroups.delete(com.shifa.doctors.domain.DoctorServiceGroup) is public and not @Transactional
+com.shifa.doctors.application.DoctorServiceGroups.findByDoctorIdOrderBySortOrderAscIdAsc(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorServiceGroups.findById(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorServiceGroups.save(com.shifa.doctors.domain.DoctorServiceGroup) is public and not @Transactional
+com.shifa.doctors.application.DoctorServicePrices.deleteByService_Id(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorServicePrices.findByService_IdOrderByCurrencyAsc(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorServicePrices.flush() is public and not @Transactional
+com.shifa.doctors.application.DoctorServicePrices.save(com.shifa.doctors.domain.DoctorServicePrice) is public and not @Transactional
+com.shifa.doctors.application.DoctorServices.delete(com.shifa.doctors.domain.DoctorService) is public and not @Transactional
+com.shifa.doctors.application.DoctorServices.findAllBySourceCatalogItem_Id(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorServices.findByDoctorIdAndIsActiveTrueOrderByCreatedAtAsc(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorServices.findByDoctorIdOrderByCreatedAtAsc(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorServices.findByDoctor_IdAndSourceCatalogItem_Id(long, long) is public and not @Transactional
+com.shifa.doctors.application.DoctorServices.findById(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorServices.save(com.shifa.doctors.domain.DoctorService) is public and not @Transactional
+com.shifa.doctors.application.DoctorSettingsDoor.delete(com.shifa.doctors.domain.DoctorSettings) is public and not @Transactional
+com.shifa.doctors.application.DoctorSettingsDoor.findByDoctorId(long) is public and not @Transactional
+com.shifa.doctors.application.DoctorSettingsDoor.save(com.shifa.doctors.domain.DoctorSettings) is public and not @Transactional
+com.shifa.doctors.application.Professions.findById(long) is public and not @Transactional
+com.shifa.doctors.application.Professions.findByIsActiveTrueOrderByCategoryAscDisplayOrderAsc() is public and not @Transactional
+com.shifa.doctors.application.Professions.searchProfessions(java.lang.String) is public and not @Transactional
+com.shifa.documents.application.DocumentAccessService.grantExists(long, long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.countByAppointmentIds(java.util.Collection) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.countByUploadedDoctorAndDocumentDateBetween(long, java.time.LocalDate, java.time.LocalDate) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.countDocumentsByDoctorPatientsInDateRange(long, java.time.Instant, java.time.Instant, java.time.LocalDate, java.time.LocalDate) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.countUploadedByDoctorAllTime(long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.deleteByPatient(long, long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.documentIdsByAppointment(java.util.Collection) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.findByAppointmentId(long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.findById(long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.getDocumentResourceForDoctor(long, long, long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.list(long, long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.listDocumentsWithAccess(long, long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.listForAppointment(long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.listForPatient(long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.listForPatientSelf(long) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.listUploadedByDoctorInDocumentDateRange(long, java.time.LocalDate, java.time.LocalDate) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.save(com.shifa.documents.domain.PatientDocument) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.updateFile(long, long, org.springframework.web.multipart.MultipartFile) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.upload(long, long, org.springframework.web.multipart.MultipartFile, java.lang.String, java.time.LocalDate, boolean, java.lang.String, com.shifa.appointments.domain.Appointment) is public and not @Transactional
+com.shifa.documents.application.PatientDocumentService.uploadByPatient(long, org.springframework.web.multipart.MultipartFile, java.lang.String, java.time.LocalDate, boolean, java.lang.String) is public and not @Transactional
+com.shifa.notifications.application.NotificationService.alreadyNotifiedDoctor(long, long, com.shifa.notifications.domain.Notification$Type) is public and not @Transactional
+com.shifa.notifications.application.NotificationService.alreadyNotifiedPatient(long, long, com.shifa.notifications.domain.Notification$Type) is public and not @Transactional
+com.shifa.notifications.application.NotificationService.findById(long) is public and not @Transactional
+com.shifa.notifications.application.NotificationService.flush() is public and not @Transactional
+com.shifa.notifications.application.NotificationService.isSmsConfigured() is public and not @Transactional
+com.shifa.notifications.application.NotificationService.save(com.shifa.notifications.domain.Notification) is public and not @Transactional
+com.shifa.notifications.application.NotificationService.saveAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.notifications.application.NotificationService.sendDoctorNotification(java.lang.String, com.shifa.notifications.domain.Notification, java.util.Map) is public and not @Transactional
+com.shifa.notifications.application.NotificationService.sendDoctorNotificationAfterCommit(java.lang.String, com.shifa.notifications.domain.Notification, java.util.Map) is public and not @Transactional
+com.shifa.notifications.application.NotificationService.sendPatientNotification(java.lang.String, com.shifa.notifications.domain.Notification, java.util.Map) is public and not @Transactional
+com.shifa.notifications.application.NotificationService.sendPatientNotificationAfterCommit(java.lang.String, com.shifa.notifications.domain.Notification, java.util.Map) is public and not @Transactional
+com.shifa.notifications.application.NotificationService.sendSms(java.lang.String, java.lang.String) is public and not @Transactional
+com.shifa.patients.application.CarePartnerships.existsActiveForDoctorAndPatient(long, long) is public and not @Transactional
+com.shifa.patients.application.PatientForms.countByCreatedByDoctorAllTime(long) is public and not @Transactional
+com.shifa.patients.application.PatientForms.countByCreatedByDoctorInDateRange(long, java.time.OffsetDateTime, java.time.OffsetDateTime) is public and not @Transactional
+com.shifa.patients.application.PatientForms.deleteAll() is public and not @Transactional
+com.shifa.patients.application.PatientForms.deleteAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.patients.application.PatientForms.findById(long) is public and not @Transactional
+com.shifa.patients.application.PatientForms.findByPatientIdAndTemplateIdOrderByDateDesc(long, java.lang.String) is public and not @Transactional
+com.shifa.patients.application.PatientForms.findByPatientIdOrderByDateDesc(long) is public and not @Transactional
+com.shifa.patients.application.PatientForms.findMaxCreatedAtByDoctor(long) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.clearCreatedByDoctor(long) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.count() is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.countAppUsersWithoutDevice() is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.countByCreatedByDoctor_Id(long) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.countByUserIsNotNull() is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.countByUserIsNull() is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.countCreatedByDoctorInDateRange(long, java.time.OffsetDateTime, java.time.OffsetDateTime) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.countWithDeviceRegistered() is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.delete(com.shifa.patients.domain.PatientProfile) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findAll() is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findAll(org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findAll(org.springframework.data.domain.Sort) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findByEmail(java.lang.String) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findByFcmToken(java.lang.String) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findById(long) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findByIdWithUser(long) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findByPhone(java.lang.String) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findByPhoneNormalized(java.lang.String) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findByUserId(long) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findClinicRosterForDoctors(java.util.Collection, java.lang.String, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findClinicRosterScopedToDoctor(long, java.lang.String, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findUserIdsBySearch(java.lang.String) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findUserIdsWithDeviceRegistered() is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findVisiblePatientIdsLinkedToDoctors(java.util.Collection) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.findWithoutAppAccount(java.lang.String, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.save(com.shifa.patients.domain.PatientProfile) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.saveAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.patients.application.PatientProfiles.searchByQuery(java.lang.String, org.springframework.data.domain.Pageable) is public and not @Transactional
+com.shifa.patients.application.PatientProphylaxisSettings.findAllByEnabledTrue() is public and not @Transactional
+com.shifa.patients.application.PatientProphylaxisSettings.findByPatient_IdAndClinic_Id(long, long) is public and not @Transactional
+com.shifa.patients.application.PatientProphylaxisSettings.findEnabledPatientIdsIn(java.util.Collection) is public and not @Transactional
+com.shifa.patients.application.PatientProphylaxisSettings.save(com.shifa.patients.domain.PatientProphylaxisSetting) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.countByDoctorAllTime(long) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.countByDoctorInDateRange(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.deleteAll() is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.deleteAll(java.lang.Iterable) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.findActiveTaskPatientIdsIn(java.util.Collection, com.shifa.tasks.domain.RemoteCareTask$Status) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.findByDoctorIdAndStatus(long, com.shifa.tasks.domain.RemoteCareTask$Status) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.findByDoctorIdOrderByCreatedAtDesc(long) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.findById(long) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.findByPatientIdAndStatus(long, com.shifa.tasks.domain.RemoteCareTask$Status) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.findByPatientIdOrderByCreatedAtDesc(long) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.findMaxUpdatedAtByDoctorId(long) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.listByDoctorCreatedBetween(long, java.time.Instant, java.time.Instant) is public and not @Transactional
+com.shifa.tasks.application.RemoteCareTasks.save(com.shifa.tasks.domain.RemoteCareTask) is public and not @Transactional
+com.shifa.tasks.application.TaskCheckIns.findById(long) is public and not @Transactional
+com.shifa.tasks.application.TaskCheckIns.findByTaskIdOrderByScheduledDateAscScheduledTimeAsc(long) is public and not @Transactional
+com.shifa.tasks.application.TaskCheckIns.findPendingForReminderWithTaskAndPatientInDateRange(java.time.LocalDate, java.time.LocalDate) is public and not @Transactional
+com.shifa.tasks.application.TaskCheckIns.save(com.shifa.tasks.domain.TaskCheckIn) is public and not @Transactional

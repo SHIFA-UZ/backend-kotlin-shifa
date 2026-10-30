@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * Computes available appointment slots for a patient-facing doctor day view.
@@ -42,6 +43,7 @@ class PatientDaySlotsService(
      * Appointments across all locations are considered when detecting conflicts, since a doctor
      * cannot be at two physical places at the same time.
      */
+    @Transactional
     fun availableSlotsForDay(
         doctor: DoctorProfile,
         localDate: LocalDate,
@@ -131,6 +133,7 @@ class PatientDaySlotsService(
      *
      * Prefetches schedule rules, appointments, and blocks once per doctor to avoid N×day DB round-trips.
      */
+    @Transactional
     fun nextAvailableStartAt(
         doctor: DoctorProfile,
         fromInstant: Instant,

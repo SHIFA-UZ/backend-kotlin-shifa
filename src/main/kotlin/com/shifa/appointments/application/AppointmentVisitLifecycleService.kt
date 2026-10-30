@@ -63,10 +63,10 @@ class AppointmentVisitLifecycleService(
         val hasScribeNote: Boolean,
     )
 
-    fun isVideo(appointment: Appointment): Boolean =
+    internal fun isVideo(appointment: Appointment): Boolean =
         appointment.location.lowercase().contains("video")
 
-    fun zoneOf(doctor: DoctorProfile): ZoneId =
+    internal fun zoneOf(doctor: DoctorProfile): ZoneId =
         try {
             ZoneId.of(doctor.timeZone.ifBlank { "Asia/Tashkent" })
         } catch (_: Exception) {
@@ -91,7 +91,7 @@ class AppointmentVisitLifecycleService(
         return appointments.save(current)
     }
 
-    fun canStartNonVideo(appointment: Appointment, doctor: DoctorProfile): String? {
+    internal fun canStartNonVideo(appointment: Appointment, doctor: DoctorProfile): String? {
         if (appointment.doctor.id != doctor.id) return "I could not find that visit."
         if (isVideo(appointment)) {
             return "Video visits start when you join the call. I can open that visit for you."
@@ -370,6 +370,7 @@ class AppointmentVisitLifecycleService(
         return NoteOutcome(saved, appointment, appended = true)
     }
 
+    @Transactional(readOnly = true)
     fun consultationNoteText(doctorId: Long, appointmentId: Long): String =
         consultationNotes.findByAppointmentIdOrderByCreatedAtAsc(appointmentId)
             .lastOrNull { it.doctorId == doctorId }
@@ -416,7 +417,7 @@ class AppointmentVisitLifecycleService(
         clinicalRagIndexingService.reindexAppointmentDentalDocumentation(appointment.id)
     }
 
-    fun openPayloadFields(appointment: Appointment, zone: ZoneId): Map<String, Any?> {
+    internal fun openPayloadFields(appointment: Appointment, zone: ZoneId): Map<String, Any?> {
         val localStart = appointment.startAt.atZone(zone)
         val localEnd = appointment.endAt.atZone(zone)
         val video = isVideo(appointment)

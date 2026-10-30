@@ -11,6 +11,7 @@ import com.shifa.ai.infrastructure.OpenAiEmbeddingService
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import java.time.OffsetDateTime
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * Retrieval, prompt formatting, persistence (with supersede/dedup) and lifecycle for Intelligence memory.
@@ -28,7 +29,7 @@ class IntelligenceMemoryService(
 
     private val preferenceTypes = setOf(IntelligenceMemoryType.DOCTOR_PREFERENCE, IntelligenceMemoryType.WORKFLOW_PREFERENCE)
 
-    fun enabled(): Boolean = props.memory.enabled
+    internal fun enabled(): Boolean = props.memory.enabled
 
     private fun clinicIdOf(doctor: DoctorProfile): Long? = runCatching { doctor.practiceClinic?.id }.getOrNull()
 
@@ -57,7 +58,7 @@ class IntelligenceMemoryService(
     }
 
     /** Bounded, labeled block. Content is data, not instructions. */
-    fun promptBlock(memories: List<IntelligenceMemory>): String? {
+    internal fun promptBlock(memories: List<IntelligenceMemory>): String? {
         if (memories.isEmpty()) return null
         val lines = memories.joinToString("\n") { "- " + it.content.replace("\n", " ").trim() }
         return """
@@ -129,9 +130,12 @@ class IntelligenceMemoryService(
         return stored
     }
 
+    @Transactional(readOnly = true)
     fun list(doctor: DoctorProfile): List<IntelligenceMemory> = repo.listActive(doctor.id, clinicIdOf(doctor))
 
+    @Transactional
     fun delete(doctor: DoctorProfile, id: Long): Boolean = repo.deleteOwned(doctor.id, id) > 0
 
+    @Transactional
     fun deleteAll(doctor: DoctorProfile): Int = repo.deleteAllOwned(doctor.id)
 }

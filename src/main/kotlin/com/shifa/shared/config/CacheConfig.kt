@@ -14,6 +14,8 @@ class CacheConfig {
         /** Public reference lists read on every app start; 60 s staleness after an admin edit is accepted (Phase 6). */
         const val PROFESSIONS_CACHE = "professions"
         const val PUBLIC_CLINICS_CACHE = "publicClinics"
+        /** `GET /api/public/doctors/{id}`: the same profile is opened by many patients; 60 s staleness accepted (Phase 6). */
+        const val PUBLIC_DOCTOR_CACHE = "publicDoctor"
     }
 
     @Bean
@@ -27,6 +29,7 @@ class CacheConfig {
         val referenceLists = Caffeine.newBuilder().expireAfterWrite(Duration.ofSeconds(60)).maximumSize(500)
         manager.registerCustomCache(PROFESSIONS_CACHE, referenceLists.build())
         manager.registerCustomCache(PUBLIC_CLINICS_CACHE, referenceLists.build())
+        manager.registerCustomCache(PUBLIC_DOCTOR_CACHE, referenceLists.build())
         return manager
     }
 }

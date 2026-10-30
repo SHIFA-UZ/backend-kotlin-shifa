@@ -61,6 +61,7 @@ class CarePartnershipService(
     private val notificationService: com.shifa.notifications.application.NotificationService,
 ) {
 
+    @Transactional(readOnly = true)
     fun searchPartners(
         actorDoctorId: Long,
         country: String?,

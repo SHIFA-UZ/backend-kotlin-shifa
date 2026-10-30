@@ -30,6 +30,17 @@ interface DocumentAccessRequestRepository : JpaRepository<DocumentAccessRequest,
     )
     fun findWithDetailsById(id: Long): DocumentAccessRequest?
 
+    @Query(
+        """
+        select r from DocumentAccessRequest r
+        join fetch r.document d
+        left join fetch d.patient
+        join fetch r.requestingDoctor
+        where r.id in :ids
+        """,
+    )
+    fun findWithDetailsByIdIn(ids: Collection<Long>): List<DocumentAccessRequest>
+
     fun findByRequestingDoctor_Id(doctorId: Long): List<DocumentAccessRequest>
     fun findByDocument_Patient_Id(patientId: Long): List<DocumentAccessRequest>
 }

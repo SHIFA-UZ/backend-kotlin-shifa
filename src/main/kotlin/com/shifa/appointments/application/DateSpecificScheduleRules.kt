@@ -5,6 +5,7 @@ import com.shifa.appointments.infrastructure.DateSpecificScheduleRuleRepository
 import java.time.LocalDate
 import java.util.Optional
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * The feature's door to DateSpecificScheduleRule records for its controllers and for other features (roadmap Phase 5 step 4):
@@ -22,4 +23,6 @@ class DateSpecificScheduleRules(private val repo: DateSpecificScheduleRuleReposi
     fun delete(entity: DateSpecificScheduleRule) = repo.delete(entity)
     fun findById(id: Long): Optional<DateSpecificScheduleRule> = repo.findById(id)
     fun save(entity: DateSpecificScheduleRule): DateSpecificScheduleRule = repo.save(entity)
+    @Transactional(readOnly = true)
+    fun findDoctorIdsWithRules(doctorIds: Collection<Long>): List<Long> = repo.findDoctorIdsWithRules(doctorIds)
 }

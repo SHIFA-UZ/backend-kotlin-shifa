@@ -1,6 +1,7 @@
 #
-#Thu Oct 29 11:03:59 CET 2026
+#Thu Oct 29 22:54:56 CET 2026
 api\ classes\ do\ not\ depend\ on\ infrastructure\ classes=3c2d328d-89ca-46eb-a51a-f59ae16716b8
+application\ services\ that\ use\ infrastructure\ classes\ are\ transactional\ (class-level\ or\ every\ public\ method)=212231ef-fb4f-49b2-be7f-19fb8a8d143d
 domain\ classes\ depend\ on\ no\ api,\ application,\ infrastructure\ or\ Spring\ web\ class=41fe02ba-c6cc-4aa0-8ef2-584fea1da465
 only\ the\ admin\ feature\ depends\ on\ admin\ infrastructure\ classes=ff4e1023-a466-4874-b7b8-1a399109ba52
 only\ the\ ai\ feature\ depends\ on\ ai\ infrastructure\ classes=2ad1edbb-de8e-4fa8-9452-1f22577a9610

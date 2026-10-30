@@ -2,6 +2,7 @@ package com.shifa.ai.clinicalengine.application
 
 import com.shifa.ai.clinicalengine.infrastructure.ClinicalDentalToothKeyRepository
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 @Service
 class DentalChartKeyValidator(
@@ -14,6 +15,7 @@ class DentalChartKeyValidator(
     @Volatile
     private var allowedFdi: Set<String>? = null
 
+    @Transactional(readOnly = true)
     fun sanitizeDentalChart(raw: Map<String, String>?): Map<String, String> {
         if (raw.isNullOrEmpty()) return emptyMap()
         val allowed = loadAllowedFdi()
@@ -31,6 +33,7 @@ class DentalChartKeyValidator(
         return out
     }
 
+    @Transactional(readOnly = true)
     fun isValidFdiKey(key: String): Boolean = loadAllowedFdi().contains(key)
 
     private fun loadAllowedFdi(): Set<String> {
