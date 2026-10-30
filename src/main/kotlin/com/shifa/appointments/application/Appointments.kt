@@ -2,6 +2,7 @@ package com.shifa.appointments.application
 
 import com.shifa.appointments.domain.Appointment
 import com.shifa.appointments.infrastructure.AppointmentRepository
+import jakarta.persistence.EntityManager
 import java.time.Instant
 import java.util.Optional
 import org.springframework.data.domain.Pageable
@@ -15,9 +16,16 @@ import org.springframework.transaction.annotation.Transactional
  */
 @Service
 @Suppress("FunctionNaming", "FunctionParameterNaming", "MaxLineLength", "TooManyFunctions")
-class Appointments(private val repo: AppointmentRepository) {
+class Appointments(private val repo: AppointmentRepository, private val entityManager: EntityManager) {
     fun findByIdWithDoctorAndPatient(id: Long): Optional<Appointment> = repo.findByIdWithDoctorAndPatient(id)
-    fun findByIdForUpdate(id: Long): Optional<Appointment> = repo.findByIdForUpdate(id)
+
+    /**
+     * Row lock, then the row as it is now. A locking query hands back the instance already in the persistence
+     * context unchanged (a payment's eagerly loaded appointment, for one), so the state is re-read under the lock;
+     * otherwise a cancellation committed a moment earlier would be overwritten.
+     */
+    fun findByIdForUpdate(id: Long): Optional<Appointment> =
+        repo.findByIdForUpdate(id).map { it.also { apt -> if (entityManager.contains(apt)) entityManager.refresh(apt) } }
     fun deleteByDoctorId(doctorId: Long): Int = repo.deleteByDoctorId(doctorId)
     fun deleteByPatientId(patientId: Long): Int = repo.deleteByPatientId(patientId)
     fun findOverlapping(doctorId: Long, start: Instant, end: Instant): List<Appointment> = repo.findOverlapping(doctorId, start, end)

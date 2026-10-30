@@ -64,6 +64,16 @@ class BookingPaymentPolicyTest {
     }
 
     @Test
+    fun `an unpaid hold can be cancelled inside the 24 hour lock, a paid or confirmed visit cannot`() {
+        val pending = Appointment.Status.PENDING_PAYMENT
+        assertTrue(BookingPaymentPolicy.canPatientCancel(pending, Appointment.PaymentStatus.PENDING, locked = true))
+        assertTrue(BookingPaymentPolicy.canPatientCancel(pending, Appointment.PaymentStatus.FAILED, locked = true))
+        assertFalse(BookingPaymentPolicy.canPatientCancel(pending, Appointment.PaymentStatus.PAID, locked = true))
+        assertFalse(BookingPaymentPolicy.canPatientCancel(Appointment.Status.CONFIRMED, Appointment.PaymentStatus.NOT_REQUIRED, locked = true))
+        assertTrue(BookingPaymentPolicy.canPatientCancel(Appointment.Status.CONFIRMED, Appointment.PaymentStatus.NOT_REQUIRED, locked = false))
+    }
+
+    @Test
     fun `one ready provider is a single method and two are a choice`() {
         val both = BookingPaymentPolicy.readyProviders(
             listOf(PaymentGatewayCode.CLICK, PaymentGatewayCode.STRIPE),

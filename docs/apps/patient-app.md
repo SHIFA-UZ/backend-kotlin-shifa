@@ -89,3 +89,13 @@ local backend on the emulator.
 Login, profile, FCM token, documents, chat, notifications, public doctors, reviews, locations, payments methods,
 video token, co-pilot streaming: request and response shapes are identical to the previous backend (the Phase 6 change
 set was verified response-by-response against the previous build).
+
+## 7. Production fixes (2026-10-30, `fix/prod-payments-and-inbox`)
+
+- A patient can cancel an **unpaid** `PENDING_PAYMENT` visit inside the 24 h lock (`canCancel` is true for it); the
+  app releases the held booking with B5 whenever the payment page closes without PAID. The lock keeps protecting
+  confirmed and paid visits.
+- Development runs payments with the production providers: `application-dev.yml` no longer disables them, so
+  `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `CLICK_SECRET_KEY` must be set on the development service (startup
+  names any missing one). Click's prepare/complete callbacks and Stripe's webhook endpoint are registered per URL at
+  the providers, so a payment only completes on development once those point at `https://api-dev.shifa.uz` too.
