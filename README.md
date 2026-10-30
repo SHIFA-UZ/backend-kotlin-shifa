@@ -1,4 +1,4 @@
-# Shifa Doctor Backend
+# Shifa Backend
 
 Medical platform backend for the Shifa patient app (Kotlin Multiplatform) and the Shifa doctor, clinic and admin web app
 (Flutter). Kotlin + Spring Boot, PostgreSQL, deployed on Railway. One REST API under `/api/` is the only contract between
