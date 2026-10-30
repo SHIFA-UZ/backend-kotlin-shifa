@@ -1,6 +1,6 @@
 package com.shifa.appointments.api
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import com.shifa.shared.config.ScribeProperties
 import com.shifa.appointments.infrastructure.DailyWebhookSignature
 import com.shifa.ai.application.ScribePipelineService

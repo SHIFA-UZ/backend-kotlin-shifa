@@ -4,7 +4,7 @@ import com.shifa.ai.domain.LlmErrorKind
 import com.shifa.ai.domain.LlmException
 import com.shifa.ai.domain.LlmRequest
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import okhttp3.OkHttpClient
 import mockwebserver3.MockResponse
 import mockwebserver3.MockWebServer

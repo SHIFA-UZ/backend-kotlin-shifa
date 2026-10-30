@@ -1,8 +1,8 @@
 // src/main/kotlin/com/shifa/appointments/api/AppointmentController.kt
 package com.shifa.appointments.api
 
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.ObjectMapper
 import com.shifa.ai.application.ClinicalRagIndexingService
 import com.shifa.ai.application.ScribePipelineService
 import com.shifa.ai.domain.AiDraftNote

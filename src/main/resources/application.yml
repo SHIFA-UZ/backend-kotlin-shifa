@@ -28,6 +28,11 @@ spring:
         default_batch_fetch_size: 50
     open-in-view: false  # same as prod, so lazy-loading mistakes show up locally
 
+  jackson:
+    # Boot 4 no longer discovers Jackson modules on the classpath; this restores the Kotlin module (data classes,
+    # `isX` property names kept as written, non-null properties required in the OpenAPI contract).
+    find-and-add-modules: true
+
   data:
     web:
       pageable:
@@ -98,9 +103,8 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-  health:
-    probes:
-      enabled: true
+      probes:
+        enabled: true
   info:
     env:
       enabled: true

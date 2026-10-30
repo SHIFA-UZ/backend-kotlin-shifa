@@ -1,7 +1,7 @@
 package com.shifa.ai.application
 
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.shared.config.DailyProperties
 import com.shifa.shared.config.ScribeProperties
 import org.slf4j.LoggerFactory

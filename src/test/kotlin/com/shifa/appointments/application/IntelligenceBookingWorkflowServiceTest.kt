@@ -4,7 +4,8 @@ import com.shifa.appointments.domain.BookingWorkflowStatus
 import com.shifa.appointments.domain.IntelligenceBookingWorkflow
 import com.shifa.appointments.infrastructure.IntelligenceBookingWorkflowRepository
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.appointments.domain.Appointment
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.patients.domain.PatientProfile
@@ -38,7 +39,7 @@ class IntelligenceBookingWorkflowServiceTest {
         repository,
         booking,
         reschedule,
-        ObjectMapper().findAndRegisterModules(),
+        jacksonObjectMapper(),
         Clock.fixed(now, ZoneOffset.UTC),
     )
     private val doctor = DoctorProfile(

@@ -1,6 +1,6 @@
 package com.shifa.appointments.infrastructure
 
-import com.fasterxml.jackson.databind.JsonNode
+import tools.jackson.databind.JsonNode
 import java.nio.charset.StandardCharsets
 import java.security.MessageDigest
 import java.time.Instant

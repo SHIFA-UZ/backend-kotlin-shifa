@@ -1,7 +1,7 @@
 package com.shifa.ai.infrastructure
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.shared.config.OpenAiProperties
 import com.shifa.ai.api.AiStreamException
 import okhttp3.MediaType.Companion.toMediaType

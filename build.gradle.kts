@@ -1,6 +1,6 @@
 plugins {
     // Spring Boot + dependency management plugins
-    id("org.springframework.boot") version "3.5.16"
+    id("org.springframework.boot") version "4.1.2"
     id("io.spring.dependency-management") version "1.1.7"
 
     // Kotlin plugins
@@ -23,10 +23,10 @@ repositories {
 
 dependencies {
     // Core web stack
-    implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
+    implementation("tools.jackson.module:jackson-module-kotlin")
 
     // Data JPA + Postgres driver
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
@@ -34,8 +34,8 @@ dependencies {
     implementation("org.postgresql:postgresql:42.7.14")
 
     // Flyway (the Postgres support lives in its own module since Flyway 10)
-    implementation("org.flywaydb:flyway-core:11.18.0")
-    implementation("org.flywaydb:flyway-database-postgresql:11.18.0")
+    implementation("org.flywaydb:flyway-core:12.4.0")
+    implementation("org.flywaydb:flyway-database-postgresql:12.4.0")
 
     // Security + JWT
     implementation("org.springframework.boot:spring-boot-starter-security")
@@ -44,10 +44,15 @@ dependencies {
     runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.13.0")
 
     // Swagger UI + OpenAPI
-    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.17")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.2.0")
+    // springdoc 3 still introspects models with Jackson 2 and enables its Kotlin support only when the Jackson 2 Kotlin
+    // module is present. Without it the contract would rename `isX` properties to `x` and drop every `required` list.
+    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
 
     // Testing
     testImplementation("org.springframework.boot:spring-boot-starter-test")
+    // Boot 4 ships @WebMvcTest / @AutoConfigureMockMvc in their own starter.
+    testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     // Feature-border rules with frozen baselines (src/test/kotlin/com/shifa/ArchitectureTest.kt)
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
     // Fake OpenAI-compatible endpoints for LLM client tests (same vendor as the runtime OkHttp client).
@@ -59,8 +64,8 @@ dependencies {
 
     // Caffeine caches (CacheConfig) and ShedLock so one instance runs each data-changing scheduled job
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
-    implementation("net.javacrumbs.shedlock:shedlock-spring:6.6.0")
-    implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:6.6.0")
+    implementation("net.javacrumbs.shedlock:shedlock-spring:7.10.1")
+    implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.10.1")
     // Rate limiting (IP, per-user and AI buckets)
     implementation("com.bucket4j:bucket4j_jdk17-core:8.16.1")
 

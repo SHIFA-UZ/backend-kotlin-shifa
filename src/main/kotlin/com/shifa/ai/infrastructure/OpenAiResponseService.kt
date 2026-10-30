@@ -7,14 +7,14 @@ import com.shifa.ai.application.PatientCopilotToolService
 import com.shifa.ai.domain.PatientAiContext
 import com.shifa.ai.domain.PatientCopilotPromptBuilder
 import com.shifa.ai.domain.RedFlagEngine
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.readValue
 import com.shifa.ai.domain.MedicalPromptBuilder
 import com.shifa.ai.domain.OutputLanguage
 import com.shifa.shared.config.OpenAiProperties
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.patients.domain.PatientProfile
-import com.fasterxml.jackson.databind.JsonNode
+import tools.jackson.databind.JsonNode
 import com.shifa.ai.api.AiStreamException
 import com.shifa.ai.api.AiMessageDto
 import com.shifa.ai.api.PatientBookingIntentResolution

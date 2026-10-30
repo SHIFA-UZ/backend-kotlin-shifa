@@ -1,7 +1,7 @@
 
 package com.shifa.doctors.application
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.api.DoctorProfileDto
 import org.springframework.stereotype.Component

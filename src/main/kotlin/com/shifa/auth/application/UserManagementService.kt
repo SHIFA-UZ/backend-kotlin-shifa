@@ -48,7 +48,7 @@ class UserManagementService(
         }
         val user = User(
             email = email.trim().lowercase(),
-            passwordHash = passwordEncoder.encode(password),
+            passwordHash = passwordEncoder.encode(password)!!,
             role = Role.ADMIN,
             enabled = true
         )
@@ -257,7 +257,7 @@ class UserManagementService(
         val user = getUserById(userId)
         // Generate temporary password (8-12 chars, alphanumeric)
         val tempPassword = generateTemporaryPassword()
-        user.passwordHash = passwordEncoder.encode(tempPassword)
+        user.passwordHash = passwordEncoder.encode(tempPassword)!!
         userRepository.save(user)
         return tempPassword
     }

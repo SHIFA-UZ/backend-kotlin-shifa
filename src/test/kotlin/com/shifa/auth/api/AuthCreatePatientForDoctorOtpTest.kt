@@ -32,11 +32,12 @@ import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
-import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.FilterType
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.web.servlet.MockMvc
@@ -65,27 +66,28 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
     ]
 )
 @AutoConfigureMockMvc(addFilters = false)
+@Import(com.shifa.shared.config.CacheConfig::class) // Boot 4's @WebMvcTest slice no longer brings a CacheManager for @EnableCaching
 class AuthCreatePatientForDoctorOtpTest {
 
     @Autowired
     lateinit var mockMvc: MockMvc
 
-    @MockBean lateinit var users: Users
-    @MockBean lateinit var invites: InvitationKeys
-    @MockBean lateinit var doctors: DoctorProfiles
-    @MockBean lateinit var patients: PatientProfiles
-    @MockBean lateinit var userSessions: UserSessions
-    @MockBean lateinit var encoder: PasswordEncoder
-    @MockBean lateinit var jwt: JwtService
-    @MockBean lateinit var userActivityService: UserActivityService
-    @MockBean lateinit var userManagementService: UserManagementService
-    @MockBean lateinit var userRoles: UserRoles
-    @MockBean lateinit var firebaseAuthService: FirebaseAuthService
-    @MockBean lateinit var emailOtpService: EmailOtpService
-    @MockBean lateinit var smsOtpService: SmsOtpService
-    @MockBean lateinit var clinicMemberships: ClinicMemberships
-    @MockBean lateinit var clinics: Clinics
-    @MockBean lateinit var principalResolverService: PrincipalResolverService
+    @MockitoBean lateinit var users: Users
+    @MockitoBean lateinit var invites: InvitationKeys
+    @MockitoBean lateinit var doctors: DoctorProfiles
+    @MockitoBean lateinit var patients: PatientProfiles
+    @MockitoBean lateinit var userSessions: UserSessions
+    @MockitoBean lateinit var encoder: PasswordEncoder
+    @MockitoBean lateinit var jwt: JwtService
+    @MockitoBean lateinit var userActivityService: UserActivityService
+    @MockitoBean lateinit var userManagementService: UserManagementService
+    @MockitoBean lateinit var userRoles: UserRoles
+    @MockitoBean lateinit var firebaseAuthService: FirebaseAuthService
+    @MockitoBean lateinit var emailOtpService: EmailOtpService
+    @MockitoBean lateinit var smsOtpService: SmsOtpService
+    @MockitoBean lateinit var clinicMemberships: ClinicMemberships
+    @MockitoBean lateinit var clinics: Clinics
+    @MockitoBean lateinit var principalResolverService: PrincipalResolverService
 
     private val doctorPhone = "+998901234567"
     private val doctorEmail = "doctor@example.com"

@@ -6,8 +6,8 @@ import com.shifa.appointments.infrastructure.IntelligenceBookingWorkflowReposito
 import com.shifa.appointments.domain.PendingPatientCandidate
 import com.shifa.appointments.domain.PendingQuestionType
 
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.ObjectMapper
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.appointments.domain.Appointment
 import org.springframework.stereotype.Service

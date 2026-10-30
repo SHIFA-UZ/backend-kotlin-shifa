@@ -2,7 +2,7 @@ package com.shifa.ai.application
 
 import com.shifa.ai.infrastructure.SimpleRateLimiter
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.ai.domain.MedicalPromptBuilder
 import com.shifa.ai.domain.OutputLanguage
 import com.shifa.ai.domain.PatientAiContext

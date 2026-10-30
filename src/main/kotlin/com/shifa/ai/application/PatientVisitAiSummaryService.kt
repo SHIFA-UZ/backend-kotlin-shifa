@@ -1,6 +1,6 @@
 package com.shifa.ai.application
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.ai.domain.PatientVisitAiSummary
 import com.shifa.ai.infrastructure.OpenAiResponsesService
 import com.shifa.ai.infrastructure.PatientVisitAiSummaryRepository

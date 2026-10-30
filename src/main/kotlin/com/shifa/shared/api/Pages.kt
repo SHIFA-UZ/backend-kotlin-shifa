@@ -11,7 +11,7 @@ import org.springframework.data.domain.Pageable
  * the query; a `sort` parameter is ignored. Database-side paging follows per list when one is measured to be slow.
  */
 object Pages {
-    fun <T> of(all: List<T>, pageable: Pageable): Page<T> {
+    fun <T : Any> of(all: List<T>, pageable: Pageable): Page<T> {
         if (pageable.isUnpaged) return PageImpl(all, pageable, all.size.toLong())
         val from = minOf(pageable.offset, all.size.toLong())
         val to = minOf(from + pageable.pageSize.toLong(), all.size.toLong())

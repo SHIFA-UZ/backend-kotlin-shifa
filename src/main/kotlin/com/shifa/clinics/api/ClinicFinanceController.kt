@@ -381,7 +381,7 @@ class ClinicFinanceController(
                 }
             }
             patientFilter.isEmpty() ->
-                org.springframework.data.domain.PageImpl(emptyList(), pageable, 0)
+                org.springframework.data.domain.PageImpl<FinancialRecord>(emptyList(), pageable, 0)
             else -> {
                 val pids = patientFilter.toList()
                 if (status != null) {

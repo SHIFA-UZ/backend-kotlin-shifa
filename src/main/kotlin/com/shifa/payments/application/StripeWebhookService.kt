@@ -1,7 +1,7 @@
 package com.shifa.payments.application
 
 import com.shifa.shared.config.StripeProperties
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import com.shifa.payments.domain.PaymentEvent
 import com.shifa.payments.domain.PaymentGatewayCode
 import com.shifa.payments.infrastructure.PaymentEventRepository

@@ -1,7 +1,8 @@
 package com.shifa.appointments.infrastructure
 
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Component
 import org.springframework.transaction.annotation.Transactional
@@ -25,7 +26,7 @@ data class PendingCancellation(
 class PendingAppointmentActionStore(
     private val clock: Clock,
     private val jdbc: JdbcTemplate? = null,
-    private val objectMapper: ObjectMapper = ObjectMapper().findAndRegisterModules(),
+    private val objectMapper: ObjectMapper = jacksonObjectMapper(),
 ) {
     private val testFallback = ConcurrentHashMap<Pair<Long, String>, PendingCancellation>()
 

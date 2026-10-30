@@ -3,8 +3,8 @@ package com.shifa.notifications.infrastructure
 import com.shifa.notifications.domain.DevSmsSendResult
 
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.shared.config.DevSmsProperties
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient

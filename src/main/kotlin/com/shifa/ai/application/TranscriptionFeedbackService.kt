@@ -1,6 +1,6 @@
 package com.shifa.ai.application
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.shared.storage.FileStorage
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service

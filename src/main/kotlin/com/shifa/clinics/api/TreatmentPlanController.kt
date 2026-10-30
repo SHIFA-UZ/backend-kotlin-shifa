@@ -1,7 +1,7 @@
 package com.shifa.clinics.api
 
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.ObjectMapper
 import com.shifa.appointments.application.PatientDaySlotsService
 import com.shifa.appointments.domain.Appointment
 import com.shifa.clinics.api.dto.AppendLinesRequest
