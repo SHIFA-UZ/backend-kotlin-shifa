@@ -51,10 +51,10 @@ dependencies {
     // Feature-border rules with frozen baselines (src/test/kotlin/com/shifa/ArchitectureTest.kt)
     testImplementation("com.tngtech.archunit:archunit-junit5:1.5.1")
     // Fake OpenAI-compatible endpoints for LLM client tests (same vendor as the runtime OkHttp client).
-    testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    testImplementation("com.squareup.okhttp3:mockwebserver:5.5.1")
 
     // HTTP client for OpenAI, Daily, Click and FCM calls; coroutines for the AI streaming paths
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.1")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
 
     // Caffeine caches (CacheConfig) and ShedLock so one instance runs each data-changing scheduled job
