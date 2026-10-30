@@ -1,11 +1,15 @@
 package com.shifa.shared.security
 
 import com.shifa.auth.infrastructure.UserSessionRepository
+import com.shifa.shared.ErrorCode
+import io.jsonwebtoken.ExpiredJwtException
+import io.jsonwebtoken.JwtException
 import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.slf4j.LoggerFactory
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
+import org.springframework.security.core.AuthenticationException
 import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.security.core.userdetails.UserDetailsService
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource
@@ -132,7 +136,15 @@ class JwtAuthFilter(
                 // Only log at trace level in production to prevent memory issues
                 log.trace("JWT Filter: Authentication set successfully for user: $userId with roles: ${user.authorities}")
             }.onFailure {
-                log.warn("JWT validation failed for ${request.servletPath}: ${it.message}", it)
+                // Only credential problems are swallowed; anything else (database down, bug) must surface as a 500.
+                if (it !is JwtException && it !is IllegalArgumentException && it !is AuthenticationException) throw it
+                // Unparsable, tampered or expired token: continue unauthenticated so public routes still work, and
+                // tell ApiAuthenticationEntryPoint why, so a protected route answers 401 with the API body.
+                log.warn("JWT validation failed for ${request.servletPath}: ${it.message}")
+                request.setAttribute(
+                    ApiAuthenticationEntryPoint.TOKEN_FAILURE_ATTRIBUTE,
+                    if (it is ExpiredJwtException) ErrorCode.SESSION_EXPIRED else ErrorCode.TOKEN_INVALID,
+                )
             }
         }
         // Removed debug logs for missing headers - too verbose and causes memory issues

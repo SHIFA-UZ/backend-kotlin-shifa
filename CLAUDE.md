@@ -241,6 +241,9 @@ These rules apply to ALL code written in this project. Follow them strictly.
   - `MethodArgumentNotValidException` → 400 with field errors map
   - `IllegalArgumentException` → 400
   - `AccessDeniedException` → 403
+  - Unauthenticated request to a protected route → 401 with `code` `UNAUTHORIZED`, `TOKEN_INVALID` or `SESSION_EXPIRED`
+    (`ApiAuthenticationEntryPoint`; `JwtAuthFilter` records why a bearer token was rejected). Public routes ignore a
+    token that no longer parses.
   - `ResponseStatusException` → pass-through status code
   - `Exception` (catch-all) → 500 (generic "Internal server error" in prod, actual message in dev)
 - `AiStreamException(code, message)` — custom exception for AI/SSE streaming errors (rate limits, safety blocks, provider failures).

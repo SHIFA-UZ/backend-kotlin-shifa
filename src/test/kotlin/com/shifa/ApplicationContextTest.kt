@@ -12,6 +12,9 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
+import org.springframework.http.MediaType
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.content
+import org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath
 import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
 import java.io.File
 import java.sql.DriverManager
@@ -63,6 +66,27 @@ class ApplicationContextTest {
             "docs/api/openapi.json is stale. Run './gradlew test --tests com.shifa.ApplicationContextTest' with a database, " +
                 "copy build/openapi.json over docs/api/openapi.json (CI uploads it as the openapi artifact) and commit.",
         )
+    }
+
+    /**
+     * Session handling the apps rely on: every rejected or missing token on a protected route is a 401 with the API
+     * body (the apps sign out on 401), while a stale token on a public route does not break the public call.
+     */
+    @Test
+    fun `unauthenticated requests get 401 with the API body, public routes ignore a stale token`() {
+        val stale = "Bearer eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiI3IiwianRpIjoieCJ9.invalidsignature"
+
+        mockMvc.perform(get("/api/patients/me/profile").header("Authorization", stale))
+            .andExpect(status().isUnauthorized)
+            .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_JSON))
+            .andExpect(jsonPath("$.code").value("TOKEN_INVALID"))
+
+        mockMvc.perform(get("/api/patients/me/profile"))
+            .andExpect(status().isUnauthorized)
+            .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+
+        mockMvc.perform(get("/api/public/doctors").header("Authorization", stale))
+            .andExpect(status().isOk)
     }
 
     companion object {
