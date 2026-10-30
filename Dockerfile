@@ -1,7 +1,8 @@
-# Build stage
-FROM gradle:8.5-jdk21 AS build
+# Build stage: the Gradle wrapper (gradle/wrapper/gradle-wrapper.properties, the version CI uses), not an image's own
+# Gradle. The Spring Boot 4 plugin needs Gradle 8.14+, and the gradle:8.5 image failed the build after the upgrade.
+FROM eclipse-temurin:21-jdk AS build
 WORKDIR /app
-COPY build.gradle.kts settings.gradle.kts gradle.properties ./
+COPY gradlew build.gradle.kts settings.gradle.kts gradle.properties ./
 COPY gradle ./gradle
 COPY src ./src
 # gradle.properties sets -Xmx2g for Gradle and the Kotlin compiler daemon.
@@ -9,7 +10,7 @@ COPY src ./src
 # PatientFormDto's large default constructor.
 # bootJar only: tests, detekt and the coverage floor run in CI (ci.yml). `build` here would need config/detekt
 # in the image and fails without it.
-RUN gradle clean bootJar --no-daemon
+RUN ./gradlew clean bootJar --no-daemon
 
 # Runtime stage
 FROM eclipse-temurin:21-jre-alpine
