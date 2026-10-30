@@ -108,7 +108,7 @@ class DevSeedRunner(
                 DoctorProfile(
                     user = user, firstName = name.first, lastName = name.second, profession = name.third,
                     clinic = clinic.name, address = clinic.address, locationCity = "Tashkent", locationCountry = "Uzbekistan",
-                    practiceClinic = clinic, consultationPriceMinor = 150_000L * n, consultationCurrency = "UZS",
+                    practiceClinic = clinic, consultationPriceMinor = SOM * 150_000L * n, consultationCurrency = "UZS",
                     biography = "Seed doctor $n for the development environment.",
                 ),
             )
@@ -120,9 +120,9 @@ class DevSeedRunner(
             validityPeriods.save(validityPeriodFor(doctor))
             services.save(DoctorService(doctor = doctor, title = "Free first consultation", isFreeConsultation = true, paymentType = ServicePaymentType.PAY_LATER))
             val payLater = services.save(DoctorService(doctor = doctor, title = "Follow-up visit", paymentType = ServicePaymentType.PAY_LATER))
-            prices.save(DoctorServicePrice(service = payLater, location = location, amountMinor = 100_000L * n, currency = "UZS"))
+            prices.save(DoctorServicePrice(service = payLater, location = location, amountMinor = SOM * 100_000L * n, currency = "UZS"))
             val payNow = services.save(DoctorService(doctor = doctor, title = "Consultation", paymentType = ServicePaymentType.PAY_NOW))
-            prices.save(DoctorServicePrice(service = payNow, location = location, amountMinor = 150_000L * n, currency = "UZS"))
+            prices.save(DoctorServicePrice(service = payNow, location = location, amountMinor = SOM * 150_000L * n, currency = "UZS"))
             Triple(doctor, location, payNow)
         }
         val staff = users.save(User(email = "seed.staff@shifa.dev", phone = "+998900000300", passwordHash = hash, role = Role.CLINIC_STAFF, staffFirstName = "Nilufar", staffLastName = "Abdullaeva"))
@@ -170,7 +170,7 @@ class DevSeedRunner(
                     location = if (video) "Video Consultation" else location1.label, locationRef = if (video) null else location1,
                     isVideoConsultation = video, reason = "Seed: ${status.name.lowercase().replace('_', ' ')}", status = status,
                     serviceId = consultation.id, serviceTitle = consultation.title, paymentType = ServicePaymentType.PAY_NOW,
-                    paymentAmountMinor = 150_000L, paymentCurrency = "UZS",
+                    paymentAmountMinor = SOM * 150_000L, paymentCurrency = "UZS",
                     paymentStatus = when (status) {
                         Appointment.Status.COMPLETED, Appointment.Status.CONFIRMED -> Appointment.PaymentStatus.PAID
                         Appointment.Status.PENDING_PAYMENT -> Appointment.PaymentStatus.PENDING
@@ -252,6 +252,9 @@ class DevSeedRunner(
 
     companion object {
         const val PASSWORD = "Dev12345!"
+
+        /** Amounts are minor units (tiyin): a price of 150 000 so'm is 15 000 000, which also clears Stripe's 50-cent minimum. */
+        const val SOM = 100L
 
         /** A minimal one-page PDF showing [text], so seeded documents open in the apps. */
         fun pdf(text: String): ByteArray {
