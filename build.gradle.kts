@@ -6,7 +6,9 @@ plugins {
     // Kotlin plugins
     kotlin("jvm") version "2.4.21"
     kotlin("plugin.spring") version "2.4.21"
-    kotlin("plugin.jpa") version "2.4.21"
+    // Not plugin.jpa: since Kotlin 2.4 it also opens every @Entity, which lets Hibernate proxy to-one relations that
+    // these final entities load eagerly today (LazyInitializationException outside a transaction otherwise).
+    kotlin("plugin.noarg") version "2.4.21"
 
     // Quality gates (roadmap 1.11): static analysis with a baseline so existing code does not block, coverage floor.
     id("io.gitlab.arturbosch.detekt") version "1.23.8"
@@ -33,7 +35,9 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-cache")
     implementation("org.postgresql:postgresql:42.7.14")
 
-    // Flyway (the Postgres support lives in its own module since Flyway 10)
+    // Flyway (the Postgres support lives in its own module since Flyway 10). Boot 4 runs Flyway only through its own
+    // starter; with flyway-core alone the migrations are silently skipped.
+    implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-core:12.4.0")
     implementation("org.flywaydb:flyway-database-postgresql:12.4.0")
 
@@ -145,6 +149,13 @@ java {
 
 kotlin {
     jvmToolchain(21)
+}
+
+// The no-arg constructors Hibernate needs, exactly what the JPA preset generated.
+noArg {
+    annotation("jakarta.persistence.Entity")
+    annotation("jakarta.persistence.Embeddable")
+    annotation("jakarta.persistence.MappedSuperclass")
 }
 
 // Produce one deterministic boot jar name for deployments.
