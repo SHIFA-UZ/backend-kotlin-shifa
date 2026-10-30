@@ -57,10 +57,3 @@ data class IntelligenceBookingWorkflow(
     val version: Long,
     val expiresAt: Instant,
 )
-
-data class BookingWorkflowUpdate(
-    val turnType: BookingTurnType,
-    val patientName: String? = null,
-    val dateExpression: String? = null,
-    val time: String? = null,
-)

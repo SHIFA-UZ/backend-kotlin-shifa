@@ -69,7 +69,7 @@ Results: 5 appointments with duplicate open checkouts (13 surplus rows; fixed by
 This session's permission system blocks me from reading the production database directly, which is the right default. The queries are saved as `docs/sql/prod-baseline-readonly.sql` (every statement is a `SELECT` or `SHOW`). Run them yourself from this session; the Railway CLI injects the connection details, nothing is typed or stored:
 
 ```
-! cd backend-kotlin-shifa && railway run -s Postgres -e staging sh -c '/opt/homebrew/opt/libpq/bin/psql "host=$RAILWAY_TCP_PROXY_DOMAIN port=$RAILWAY_TCP_PROXY_PORT user=$PGUSER dbname=$PGDATABASE sslmode=require" -X -q -f docs/sql/prod-baseline-readonly.sql'
+! cd backend-kotlin-shifa && railway connect Postgres --environment production --ssh < docs/sql/prod-baseline-readonly.sql
 ```
 
 The output lands in the chat and I read it from there. The queries, for reference:

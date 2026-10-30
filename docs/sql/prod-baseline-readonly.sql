@@ -1,6 +1,6 @@
 -- Read-only baseline queries for the production database (roadmap Phase 0 / scorecard).
 -- Every statement is a SELECT or SHOW. Run with:
---   railway run -s Postgres -e staging sh -c '/opt/homebrew/opt/libpq/bin/psql "host=$RAILWAY_TCP_PROXY_DOMAIN port=$RAILWAY_TCP_PROXY_PORT user=$PGUSER dbname=$PGDATABASE sslmode=require" -X -q -f docs/sql/prod-baseline-readonly.sql'
+--   railway connect Postgres --environment production --ssh < docs/sql/prod-baseline-readonly.sql
 \echo === Q-A duplicate open checkouts
 SELECT appointment_id, count(*) AS open_payments, array_agg(id ORDER BY created_at) AS payment_ids
 FROM payments WHERE status IN ('PENDING','AUTHORIZED') AND appointment_id IS NOT NULL

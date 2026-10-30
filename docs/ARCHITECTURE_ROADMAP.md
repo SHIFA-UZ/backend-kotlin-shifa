@@ -548,7 +548,8 @@ log filter, `findAll` allow-list test, ktlint, Flyway version in `/actuator/info
 transaction), 3.3 (Gradle 9, configuration cache), and Phase 4 items 4, 6, 8, 9, 12, 13, 14 (details in the audit).
 Section 1 is the 2026-10-27 snapshot and is stale; the current facts are in `README.md`. Running the patient app
 against this branch found one contract gap: a token whose signature does not verify gets Spring's default 403 instead
-of the API's 401, so the apps would not log out after a `JWT_SECRET` rotation (fix in `JwtAuthFilter`, small PR); and
+of the API's 401, so the apps would not log out after a `JWT_SECRET` rotation (fixed in `JwtAuthFilter` in the cleanup
+PR that followed, together with the removal of dead code); and
 the seed doctors had no schedule validity period, so nothing was bookable on development (fixed in `DevSeedRunner` on
 this branch). Per-app notes: `docs/apps/patient-app.md`, `docs/apps/doctor-app.md`.
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next

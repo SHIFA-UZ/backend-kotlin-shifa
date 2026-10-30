@@ -29,12 +29,14 @@ Everything else the doctor app lists (calendar day, schedule rules, conversation
 catalog items) is bounded by nature and stays as it is. The `for-assignment` directory loop (pages of 500) is unchanged
 and still works; Spring's default cap of 2000 rows per page applies.
 
-## 2. Session errors: 403 versus 401
+## 2. Session errors are always 401 now
 
-Same as the patient app: the backend returns 401 for expired or revoked sessions (the app logs out), but a token whose
-signature no longer verifies (after a `JWT_SECRET` rotation) produces Spring's default 403 with a non-API body. Until
-the backend returns 401 for that case (recommended fix, `docs/PLAN_AUDIT_2026-10-30.md` §9), the app should treat a
-403 on its first profile call after start-up as "session invalid" and clear the token instead of showing an error.
+The backend returns 401 with the API body for every token it cannot accept: expired or revoked sessions as before, and
+since the cleanup PR that followed Phase 6 also tokens that do not parse or whose signature no longer verifies (after a
+`JWT_SECRET` rotation; `code` `TOKEN_INVALID` or `SESSION_EXPIRED`). The app's existing "401 means sign out" handling
+covers it. A request without a token to a protected route is also a 401 now (`code` `UNAUTHORIZED`) instead of a 403;
+public routes (professions, public doctors) ignore a token that no longer parses or verifies and keep answering 200 (a
+revoked session is still 401 everywhere, as before).
 
 ## 3. API host
 

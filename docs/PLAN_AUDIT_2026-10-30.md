@@ -159,6 +159,10 @@ picker and a completed booking all worked; the backend logged no error for any a
   `JWT_SECRET` rotation every signed-in user would therefore see "Something went wrong" on every screen instead of being
   logged out. Backend fix: return 401 with the API body for an unparsable token (`JwtAuthFilter`, the `runCatching`
   failure branch). Roadmap 3.6 says rotating `JWT_SECRET` logs every user out; today it does not.
+  **Fixed in the cleanup PR after Phase 6**: `SecurityConfig` now has an `ApiAuthenticationEntryPoint`, so every
+  unauthenticated request to a protected route is a 401 with the API body (`TOKEN_INVALID`, `SESSION_EXPIRED` or
+  `UNAUTHORIZED` without a token); public routes ignore a token that no longer parses. `JwtAuthFilterTest` and
+  `ApplicationContextTest` pin it.
 - **Seed doctors had no bookable slots** on development and locally: weekly rules exist but `ScheduleValidityService`
   requires a validity period. Fixed on this branch (`DevSeedRunner` adds one per seed doctor, also on already seeded
   environments), so booking can be tested on development after the next deploy.

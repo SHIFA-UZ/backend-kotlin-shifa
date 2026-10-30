@@ -112,7 +112,6 @@
     <ID>FunctionNaming:PatientProphylaxisSettingRepository.kt$PatientProphylaxisSettingRepository$fun findByPatient_IdAndClinic_Id(patientId: Long, clinicId: Long): PatientProphylaxisSetting?</ID>
     <ID>FunctionNaming:PaymentRepository.kt$PaymentRepository$fun findByAppointment_IdAndStatusInOrderByCreatedAtDesc(appointmentId: Long, statuses: Collection&lt;PaymentStatus&gt;): List&lt;Payment&gt;</ID>
     <ID>FunctionNaming:PaymentRepository.kt$PaymentRepository$fun findFirstByAppointment_IdAndStatusOrderByCreatedAtDesc(appointmentId: Long, status: PaymentStatus): Payment?</ID>
-    <ID>FunctionNaming:RefundRepository.kt$RefundRepository$fun findByPayment_Id(paymentId: Long): List&lt;Refund&gt;</ID>
     <ID>FunctionNaming:TreatmentPlanAppointmentLinkRepository.kt$TreatmentPlanAppointmentLinkRepository$fun findByAppointment_Id(appointmentId: Long): List&lt;TreatmentPlanAppointmentLink&gt;</ID>
     <ID>FunctionNaming:TreatmentPlanAppointmentLinkRepository.kt$TreatmentPlanAppointmentLinkRepository$fun findByPlan_IdAndAppointment_Id(planId: Long, appointmentId: Long): TreatmentPlanAppointmentLink?</ID>
     <ID>FunctionNaming:TreatmentPlanCatalogItemDoctorRepository.kt$TreatmentPlanCatalogItemDoctorRepository$fun deleteByCatalogItem_Id(catalogItemId: Long): Long</ID>

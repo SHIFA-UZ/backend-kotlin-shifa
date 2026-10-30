@@ -182,17 +182,17 @@ flowchart TB
 | Feature | Files | What it owns |
 |---------|------:|--------------|
 | `admin/` | 20 | Admin panel API, admin profiles, audit log, system config, deleted-patient export |
-| `ai/` | 114 | Doctor AI and morning assistant, patient co-pilot, briefings, scribe, transcription, clinical RAG, ICD-10, LLM routing and clients, intelligence memory, speech, `clinicalengine/` (its own four layers) |
+| `ai/` | 109 | Doctor AI and morning assistant, patient co-pilot, briefings, scribe, transcription, clinical RAG, ICD-10, LLM routing and clients, intelligence memory, speech, `clinicalengine/` (its own four layers) |
 | `appointments/` | 74 | Booking, calendar, schedule rules, blocks and validity periods, visits, consultation notes, video (Daily), appointment intelligence, visit facts |
 | `auth/` | 39 | Login, registration, OTP (SMS and e-mail), sessions, users and roles, account deletion |
 | `chat/` | 12 | Conversations, messages, attachments |
 | `clinics/` | 65 | Clinics, memberships, invitations, finance ledger and audit, treatment plans, installments, visit charges |
 | `devseed/` | 1 | Deterministic development data (`app.dev-seed`) |
-| `doctors/` | 59 | Doctor profiles, services and prices, locations, reviews, analytics, professions, public directory |
+| `doctors/` | 58 | Doctor profiles, services and prices, locations, reviews, analytics, professions, public directory |
 | `documents/` | 15 | Patient documents, access grants and requests, document storage |
 | `notifications/` | 20 | Notification feed, FCM push, SMS, reminder jobs, SMS billing |
 | `patients/` | 34 | Patient profiles, forms, prophylaxis, care partnerships, doctor-patient access, `CurrentPatientResolver` |
-| `payments/` | 40 | Checkout, gateways (Click, Stripe, manual), webhooks, subscriptions and tiers, doctor billing |
+| `payments/` | 38 | Checkout, gateways (Click, Stripe, manual), webhooks, subscriptions and tiers, doctor billing |
 | `shared/` | 54 | Security filter chain and principals, config, error handling, request id, file serving, storage, `PublicUrls`, upload policy |
 | `tasks/` | 8 | Remote-care tasks and check-ins |
 

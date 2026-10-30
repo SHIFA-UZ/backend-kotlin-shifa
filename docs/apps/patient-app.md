@@ -44,14 +44,16 @@ days) when the seed doctor had no slots, and 7 times when he had. The doctor DTO
 21 days when `includeNextAvailable=true` is sent. Use it to pick the first date to show and to say "no availability in
 the next month" without any probing; only the chosen day needs an `available` call.
 
-## 3. Handle 403 like 401 for session errors (until the backend changes)
+## 3. Session errors are always 401 now
 
-The app logs out on 401. The backend answers 401 for expired and revoked sessions, but a token whose signature does not
-verify (after a `JWT_SECRET` rotation on the server) is ignored and the request ends in Spring's default **403** with a
-non-API body (`{"status":403,"error":"Forbidden",...}`). The app then shows "Something went wrong" on every screen and
-never logs out. Two options: the backend returns 401 with the API error shape for unparsable tokens (recommended, listed
-in `docs/PLAN_AUDIT_2026-10-30.md` §9), or the app treats a 403 on `/patients/me/profile` at start-up as "session
-invalid" and clears the token.
+The app logs out on 401. Before the cleanup PR that followed Phase 6, a token whose signature did not verify (after a
+`JWT_SECRET` rotation on the server) ended in Spring's default **403** with a non-API body, so the app showed
+"Something went wrong" on every screen and never logged out. `JwtAuthFilter` now answers every unparsable, tampered or
+expired token with 401 and the API body (`code` `TOKEN_INVALID`, or `SESSION_EXPIRED` when only the expiry passed).
+A request without any token to a protected route is also a 401 now (`code` `UNAUTHORIZED`) instead of a 403. Public
+routes such as `GET /public/doctors` ignore a token that no longer parses or verifies and keep answering 200 (a
+revoked session is still 401 everywhere, as before). Nothing to change in the app, as long
+as it keeps treating 401 as "sign out".
 
 ## 4. API reference (`docs/kmp-spec/15-api-reference.md`) is stale in places
 

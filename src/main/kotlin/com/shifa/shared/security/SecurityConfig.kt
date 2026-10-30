@@ -25,6 +25,7 @@ class SecurityConfig(
     private val rateLimitFilter: RateLimitFilter,
     private val userRateLimitFilter: UserRateLimitFilter,
     private val securityHeadersFilter: SecurityHeadersFilter,
+    private val authenticationEntryPoint: ApiAuthenticationEntryPoint,
     private val appProps: com.shifa.shared.config.AppProperties
 ) {
     private val log = LoggerFactory.getLogger(SecurityConfig::class.java)
@@ -45,6 +46,8 @@ class SecurityConfig(
             .sessionManagement {
                 it.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             }
+            // Unauthenticated request to a protected route: 401 with the API body (default would be a 403 page)
+            .exceptionHandling { it.authenticationEntryPoint(authenticationEntryPoint) }
 
             // --- Auth rules ---
             .authorizeHttpRequests {
