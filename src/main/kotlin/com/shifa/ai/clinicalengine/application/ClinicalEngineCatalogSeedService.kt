@@ -1,7 +1,7 @@
 package com.shifa.ai.clinicalengine.application
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.databind.ObjectMapper
 import com.shifa.ai.clinicalengine.domain.*
 import com.shifa.ai.clinicalengine.infrastructure.*
 import org.slf4j.LoggerFactory
@@ -66,7 +66,7 @@ class ClinicalEngineCatalogSeedService(
         var chipSort = 0
         for (diseaseNode in root["diseases"]) {
             val names = diseaseNode["names"]
-            val icdCodes = diseaseNode["icd_codes"].map { it.asText() }
+            val icdCodes = diseaseNode["icd_codes"].values().map { it.asText() }
             val diseaseId = diseaseNode["disease_id"].asText()
             diseases.save(
                 ClinicalDisease(
@@ -85,7 +85,7 @@ class ClinicalEngineCatalogSeedService(
             for (chipNode in diseaseNode["chips"]) {
                 val chipId = chipNode["chip_id"].asText()
                 val field = chipNode["field"].asText()
-                val variables = chipNode["variables"]?.map { it.asText() } ?: emptyList()
+                val variables = chipNode["variables"]?.values()?.map { it.asText() } ?: emptyList()
                 val labels = chipNode["labels"]
                 chips.save(
                     ClinicalChip(
@@ -132,7 +132,7 @@ class ClinicalEngineCatalogSeedService(
                     chipId = chipNode["chip_id"].asText(),
                     angleClass = chipNode["angle_class"]?.takeIf { !it.isNull }?.asText(),
                     icdHint = chipNode["icd_hint"]?.asText(),
-                    variables = chipNode["variables"]?.map { it.asText() } ?: emptyList(),
+                    variables = chipNode["variables"]?.values()?.map { it.asText() } ?: emptyList(),
                     priority = chipNode["priority"]?.asInt() ?: 50,
                     labelRu = labels["ru"].asText(),
                     labelUz = labels["uz"].asText(),
@@ -163,7 +163,7 @@ class ClinicalEngineCatalogSeedService(
                     templateType = type,
                     fieldName = node["field"].asText(),
                     priority = node["priority"]?.asInt() ?: 50,
-                    correlates = node["correlates"]?.map { it.asText() } ?: emptyList(),
+                    correlates = node["correlates"]?.values()?.map { it.asText() } ?: emptyList(),
                     labelRu = labels["ru"].asText(),
                     labelUz = labels["uz"].asText(),
                     labelEn = labels["en"].asText(),

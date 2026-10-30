@@ -1,8 +1,8 @@
 package com.shifa.ai.application
 
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.readValue
 import com.shifa.ai.domain.OutputLanguage
 import com.shifa.ai.domain.TranscriptPromptLeakStripper
 import com.shifa.shared.config.OpenAiProperties

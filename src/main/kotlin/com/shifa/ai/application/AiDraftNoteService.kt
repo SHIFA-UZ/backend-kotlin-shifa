@@ -1,7 +1,7 @@
 package com.shifa.ai.application
 
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.ai.domain.AiDraftNote
 import com.shifa.ai.domain.AiResponseLabelGenerator
 import com.shifa.ai.domain.StructuredNoteParser

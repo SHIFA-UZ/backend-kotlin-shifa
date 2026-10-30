@@ -1,6 +1,6 @@
 package com.shifa.ai.api
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import com.shifa.ai.application.PatientCopilotBookingService
 import com.shifa.ai.application.PatientCopilotContextService
 import com.shifa.ai.application.TranscriptionPurpose

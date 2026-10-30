@@ -81,8 +81,8 @@ and 0.8's "UUID file names" exist only for chat attachments.
 | 3.1 Boot 3.5.16 | done | DONE | `build.gradle.kts:3` | none |
 | 3.2 Kotlin 2.2.21 | done | DONE | `build.gradle.kts:7` | no `allOpen` for `@Entity` (see P4 finding) |
 | 3.3 Gradle 8.14, then 9.x, config cache | done | PARTIAL | wrapper 8.14.3 | Gradle 9 and configuration cache not done |
-| 3.4 Boot 4.1 | open | NOT DONE | | planned |
-| 3.5 Kotlin 2.4, libraries current | open | NOT DONE | stripe-java 30.1.0, firebase-admin 9.4.0, OkHttp 4.12.0 unchanged | planned |
+| 3.4 Boot 4.1 | open | DONE 2026-10-30 | `build.gradle.kts:3` (4.1.2), branch `chore/dependency-updates` | Jackson 3 for the API, Jackson 2 Kotlin module kept for springdoc 3 |
+| 3.5 Kotlin 2.4, libraries current | open | PARTIAL 2026-10-30 | Kotlin 2.4.21, OkHttp 5.5.1, JJWT 0.13.0, PostgreSQL 42.7.14, Flyway 12.4.0, springdoc 3.2.0, ShedLock 7.10.1 | stripe-java, firebase-admin, Bucket4j, Caffeine, pdfbox left to Dependabot |
 | 3.6 remove Cloud SQL / Cloud Run | done | DONE | no socket factory, no `cloudbuild.yaml` | none |
 
 ## 6. Phase 4 (patient app list)

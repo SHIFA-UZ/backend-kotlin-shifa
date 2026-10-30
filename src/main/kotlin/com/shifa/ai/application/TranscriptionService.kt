@@ -1,9 +1,9 @@
 package com.shifa.ai.application
 
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
-import com.fasterxml.jackson.module.kotlin.readValue
+import tools.jackson.databind.JsonNode
+import tools.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.readValue
 import com.shifa.ai.domain.MedicalBiasPrompt
 import com.shifa.ai.domain.TranscriptPromptLeakStripper
 import com.shifa.ai.infrastructure.GeminiSpeechClient

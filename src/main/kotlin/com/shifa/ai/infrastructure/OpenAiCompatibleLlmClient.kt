@@ -6,8 +6,8 @@ import com.shifa.ai.domain.LlmRequest
 import com.shifa.ai.domain.LlmResponse
 import com.shifa.ai.domain.LlmToolCall
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request

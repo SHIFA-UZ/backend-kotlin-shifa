@@ -23,7 +23,7 @@ class TextToSpeechService(
     private val geminiSpeech: GeminiSpeechClient? = null,
 ) {
     private val log = LoggerFactory.getLogger(javaClass)
-    private val mapper = com.fasterxml.jackson.module.kotlin.jacksonObjectMapper()
+    private val mapper = tools.jackson.module.kotlin.jacksonObjectMapper()
     private val client = OkHttpClient.Builder()
         .connectTimeout(Duration.ofSeconds(8))
         .writeTimeout(Duration.ofSeconds(8))

@@ -8,11 +8,11 @@ Shifa Doctor Backend MVP — a medical platform backend connecting doctors and p
 
 ## Tech Stack
 
-- **Language:** Kotlin 2.2.21, Java 21
-- **Framework:** Spring Boot 3.5.16 with Spring Security
-- **Database:** PostgreSQL (16 locally, 17 on Railway) with `pgvector` and `pg_trgm`, Spring Data JPA (Hibernate 6.6), HikariCP
-- **Migrations:** Flyway 11.18.0 (121 migrations in `src/main/resources/db/migration/`, latest V121)
-- **Auth:** JWT (JJWT 0.12.6) with session binding (JTI), Firebase phone OTP for patients, BCrypt passwords
+- **Language:** Kotlin 2.4.21, Java 21
+- **Framework:** Spring Boot 4.1.2 with Spring Security 7 (Jackson 3 for the API; springdoc 3 still needs the Jackson 2 Kotlin module, see `build.gradle.kts`)
+- **Database:** PostgreSQL (16 locally, 17 on Railway) with `pgvector` and `pg_trgm`, Spring Data JPA (Hibernate 7.4), HikariCP
+- **Migrations:** Flyway 12.4.0 (121 migrations in `src/main/resources/db/migration/`, latest V121)
+- **Auth:** JWT (JJWT 0.13.0) with session binding (JTI), Firebase phone OTP for patients, BCrypt passwords
 - **AI:** OpenAI, Gemini and Grok behind `LlmProviderRegistry` (OkHttp), OpenAI embeddings for RAG, Whisper and Gemini speech, Apache PDFBox 3.0.3
 - **Video:** Daily.co integration with webhook recording
 - **Caching:** Caffeine 3.1.8 (`icd10Search` 5 min; `professions`, `publicClinics`, `publicDoctor` 60 s; session validity 30 s; rate-limit buckets)

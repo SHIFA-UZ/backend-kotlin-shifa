@@ -1,6 +1,6 @@
 package com.shifa.admin.api
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import com.shifa.admin.api.dto.AiDraftNoteExportDto
 import com.shifa.admin.api.dto.AppointmentExportDto
 import com.shifa.admin.api.dto.ConsultationNoteExportDto

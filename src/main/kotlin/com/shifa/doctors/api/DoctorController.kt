@@ -1,6 +1,6 @@
 package com.shifa.doctors.api
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import com.shifa.admin.application.AdminClinicService
 import com.shifa.appointments.application.ScheduleValidityService
 import com.shifa.doctors.api.dto.BillingDto

@@ -1,6 +1,6 @@
 package com.shifa.ai.infrastructure
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import java.sql.Timestamp
 import java.time.Clock
 import java.time.Duration

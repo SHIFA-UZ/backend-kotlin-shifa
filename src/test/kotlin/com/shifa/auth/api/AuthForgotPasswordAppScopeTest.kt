@@ -35,11 +35,12 @@ import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.`when`
 import org.mockito.Mockito.verifyNoInteractions
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest
-import org.springframework.boot.test.mock.mockito.MockBean
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.context.annotation.ComponentScan
 import org.springframework.context.annotation.FilterType
+import org.springframework.context.annotation.Import
 import org.springframework.http.MediaType
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.test.web.servlet.MockMvc
@@ -62,57 +63,58 @@ import org.springframework.test.web.servlet.result.MockMvcResultMatchers.status
     ]
 )
 @AutoConfigureMockMvc(addFilters = false)
+@Import(com.shifa.shared.config.CacheConfig::class) // Boot 4's @WebMvcTest slice no longer brings a CacheManager for @EnableCaching
 class AuthForgotPasswordAppScopeTest {
 
     @Autowired
     lateinit var mockMvc: MockMvc
 
-    @MockBean
+    @MockitoBean
     lateinit var users: Users
 
-    @MockBean
+    @MockitoBean
     lateinit var invites: InvitationKeys
 
-    @MockBean
+    @MockitoBean
     lateinit var doctors: DoctorProfiles
 
-    @MockBean
+    @MockitoBean
     lateinit var patients: PatientProfiles
 
-    @MockBean
+    @MockitoBean
     lateinit var userSessions: UserSessions
 
-    @MockBean
+    @MockitoBean
     lateinit var encoder: PasswordEncoder
 
-    @MockBean
+    @MockitoBean
     lateinit var jwt: JwtService
 
-    @MockBean
+    @MockitoBean
     lateinit var userActivityService: UserActivityService
 
-    @MockBean
+    @MockitoBean
     lateinit var userManagementService: UserManagementService
 
-    @MockBean
+    @MockitoBean
     lateinit var userRoles: UserRoles
 
-    @MockBean
+    @MockitoBean
     lateinit var firebaseAuthService: FirebaseAuthService
 
-    @MockBean
+    @MockitoBean
     lateinit var emailOtpService: EmailOtpService
 
-    @MockBean
+    @MockitoBean
     lateinit var smsOtpService: SmsOtpService
 
-    @MockBean
+    @MockitoBean
     lateinit var clinicMemberships: ClinicMemberships
 
-    @MockBean
+    @MockitoBean
     lateinit var clinics: Clinics
 
-    @MockBean
+    @MockitoBean
     lateinit var principalResolverService: PrincipalResolverService
 
     @Test

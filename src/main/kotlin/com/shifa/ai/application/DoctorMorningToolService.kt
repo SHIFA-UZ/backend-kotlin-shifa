@@ -1,7 +1,7 @@
 package com.shifa.ai.application
 
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.core.type.TypeReference
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.ai.infrastructure.IntelligenceToolReferenceService
 import com.shifa.appointments.application.AppointmentActionService
 import com.shifa.appointments.application.AppointmentIntelligenceService

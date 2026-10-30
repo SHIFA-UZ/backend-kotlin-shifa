@@ -3,7 +3,7 @@ package com.shifa.ai.application
 import com.shifa.ai.domain.IntelligenceMemoryCandidate
 import com.shifa.ai.domain.IntelligenceMemoryType
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.ai.infrastructure.LlmClient
 import com.shifa.ai.domain.LlmPurpose
 import com.shifa.ai.domain.LlmRequest

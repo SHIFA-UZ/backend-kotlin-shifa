@@ -1,7 +1,7 @@
 package com.shifa.ai.api
 
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.ai.application.PatientCopilotBookingService
 import com.shifa.ai.application.PatientCopilotContextService
 import com.shifa.ai.application.TranscriptionService

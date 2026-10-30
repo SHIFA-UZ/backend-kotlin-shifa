@@ -7,8 +7,8 @@ import com.shifa.ai.application.ScribePipelineService
 import com.shifa.ai.application.ScribeRecordingService
 import com.shifa.clinics.application.TreatmentPlanStatusService
 
-import com.fasterxml.jackson.core.type.TypeReference
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.core.type.TypeReference
+import tools.jackson.databind.ObjectMapper
 import com.shifa.appointments.domain.Appointment
 import com.shifa.appointments.domain.ConsultationNote
 import com.shifa.doctors.domain.DoctorProfile

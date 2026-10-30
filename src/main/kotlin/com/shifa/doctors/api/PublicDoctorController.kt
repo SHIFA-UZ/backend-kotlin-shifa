@@ -1,7 +1,7 @@
 // src/main/kotlin/com/shifa/doctors/api/PublicDoctorController.kt
 package com.shifa.doctors.api
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import com.shifa.appointments.application.PatientDaySlotsService
 import com.shifa.doctors.application.PublicDoctorCatalog
 import com.shifa.doctors.api.dto.DoctorListResponse

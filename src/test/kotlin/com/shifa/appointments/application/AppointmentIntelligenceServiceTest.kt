@@ -16,7 +16,7 @@ import com.shifa.appointments.domain.PaymentSnapshot
 import com.shifa.appointments.domain.Presentation
 import com.shifa.appointments.domain.Shape
 
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.auth.domain.User
 import org.junit.jupiter.api.Assertions.assertEquals

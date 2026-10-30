@@ -28,6 +28,19 @@ spring:
         default_batch_fetch_size: 50
     open-in-view: false  # same as prod, so lazy-loading mistakes show up locally
 
+  jackson:
+    # Jackson 3 changed these defaults; the values below keep the request and response behaviour the apps were built
+    # against on Jackson 2 (see ApplicationContextTest). The Kotlin module is configured in shared/config/JacksonConfig.kt.
+    deserialization:
+      fail-on-null-for-primitives: false
+      fail-on-trailing-tokens: false
+    mapper:
+      sort-properties-alphabetically: false
+      fix-field-name-upper-case-prefix: false
+      default-view-inclusion: true
+      use-getters-as-setters: true
+      allow-final-fields-as-mutators: true
+
   data:
     web:
       pageable:
@@ -98,9 +111,8 @@ management:
   endpoint:
     health:
       show-details: when-authorized
-  health:
-    probes:
-      enabled: true
+      probes:
+        enabled: true
   info:
     env:
       enabled: true

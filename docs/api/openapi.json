@@ -9166,10 +9166,7 @@
         "properties": {
           "timeout": {
             "format": "int64",
-            "type": [
-              "integer",
-              "null"
-            ]
+            "type": "integer"
           }
         },
         "type": "object"

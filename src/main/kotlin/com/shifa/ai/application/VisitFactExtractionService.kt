@@ -1,8 +1,8 @@
 package com.shifa.ai.application
 
 
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.module.kotlin.jacksonObjectMapper
+import tools.jackson.databind.JsonNode
+import tools.jackson.module.kotlin.jacksonObjectMapper
 import com.shifa.ai.domain.OutputLanguage
 import com.shifa.ai.domain.TranscriptPromptLeakStripper
 import com.shifa.shared.config.OpenAiProperties

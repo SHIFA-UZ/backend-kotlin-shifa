@@ -1,6 +1,6 @@
 package com.shifa.payments.application
 
-import com.fasterxml.jackson.databind.ObjectMapper
+import tools.jackson.databind.ObjectMapper
 import com.shifa.shared.config.ClickProperties
 import com.shifa.payments.api.dto.ClickPrepareRequest
 import com.shifa.payments.infrastructure.PaymentEventRepository

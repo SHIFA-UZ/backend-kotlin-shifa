@@ -1,14 +1,19 @@
 package com.shifa
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import com.fasterxml.jackson.databind.node.ObjectNode
+import tools.jackson.core.util.DefaultIndenter
+import tools.jackson.core.util.DefaultPrettyPrinter
+import tools.jackson.core.util.Separators
+import tools.jackson.databind.ObjectMapper
+import tools.jackson.databind.cfg.JsonNodeFeature
+import tools.jackson.databind.node.ObjectNode
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.fail
 import org.springframework.beans.factory.annotation.Autowired
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
 import org.springframework.boot.test.context.SpringBootTest
 import org.springframework.test.web.servlet.MockMvc
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
@@ -42,6 +47,8 @@ class ApplicationContextTest {
     @Autowired
     lateinit var mockMvc: MockMvc
 
+    @Autowired lateinit var objectMapper: tools.jackson.databind.ObjectMapper
+
     @Test
     fun `context loads, migrations apply and entities match the schema`() {
         // Reaching this point is the assertion: the context started with ddl-auto=validate.
@@ -59,7 +66,13 @@ class ApplicationContextTest {
         val mapper = ObjectMapper()
         val actual = (mapper.readTree(body) as ObjectNode).apply { remove("servers") } // host-dependent
         val expected = mapper.readTree(File("docs/api/openapi.json"))
-        File("build/openapi.json").writeText(mapper.writerWithDefaultPrettyPrinter().writeValueAsString(actual) + "\n")
+        // Same layout as the committed file (sorted keys, "key": value, one element per line) so the diff shows only changes.
+        val separators = Separators.createDefaultInstance().withObjectNameValueSpacing(Separators.Spacing.AFTER)
+            .withObjectEmptySeparator("").withArrayEmptySeparator("")
+        val layout = DefaultPrettyPrinter(separators)
+            .withArrayIndenter(DefaultIndenter.SYSTEM_LINEFEED_INSTANCE)
+        val writer = mapper.writer().with(JsonNodeFeature.WRITE_PROPERTIES_SORTED).with(layout)
+        File("build/openapi.json").writeText(writer.writeValueAsString(actual) + "\n")
         assertEquals(
             expected,
             actual,
@@ -107,4 +120,21 @@ class ApplicationContextTest {
             assumeTrue(reason == null, reason)
         }
     }
+
+    /**
+     * Jackson 3 (Boot 4) changed defaults that would have turned requests the apps send today into 400s or reordered
+     * response keys; application.yml and JacksonConfig keep the Jackson 2 behaviour. A null for a non-null Boolean
+     * becomes false, a null inside a list is accepted, trailing content is ignored and keys keep declaration order.
+     */
+    @Test
+    fun `jackson keeps the request leniency and key order of the Jackson 2 contract`() {
+        val parsed = objectMapper.readValue(
+            """{"id":null,"label":"Clinic","isPrimary":null,"tags":["a",null]} trailing""",
+            LenientDto::class.java,
+        )
+        assertEquals(LenientDto(null, "Clinic", false, listOf("a", null as String?) as List<String>), parsed)
+        assertTrue(objectMapper.writeValueAsString(LenientDto(1, "x")).startsWith("""{"id":1,"label":"x","isPrimary":false"""))
+    }
+
+    data class LenientDto(val id: Long?, val label: String, val isPrimary: Boolean = false, val tags: List<String> = emptyList())
 }

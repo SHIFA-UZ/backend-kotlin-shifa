@@ -41,7 +41,7 @@ class PatientAccountService(
 
         val user = User(
             username = username,
-            passwordHash = passwordEncoder.encode(oneTimePassword),
+            passwordHash = passwordEncoder.encode(oneTimePassword)!!,
             role = Role.PATIENT,
             forcePasswordReset = true,
             email = patient.email?.trim()?.takeIf { it.isNotEmpty() },

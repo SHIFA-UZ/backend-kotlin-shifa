@@ -641,7 +641,7 @@ class AuthController(
                 }
             }
             existingUser.role = Role.DOCTOR
-            existingUser.passwordHash = encoder.encode(r.password)
+            existingUser.passwordHash = encoder.encode(r.password)!!
             if (existingUser.email.isNullOrBlank()) {
                 existingUser.email = emailTrimmed
             }
@@ -665,7 +665,7 @@ class AuthController(
                 User(
                     email = emailTrimmed,
                     phone = phoneNorm,
-                    passwordHash = encoder.encode(r.password),
+                    passwordHash = encoder.encode(r.password)!!,
                     role = Role.DOCTOR
                 )
             ).also { newUser ->
@@ -797,7 +797,7 @@ class AuthController(
             if (!userRoles.existsByUserIdAndRole(existingUser.id, Role.CLINIC_STAFF)) {
                 userRoles.save(com.shifa.auth.domain.UserRole(user = existingUser, role = Role.CLINIC_STAFF))
             }
-            existingUser.passwordHash = encoder.encode(r.password)
+            existingUser.passwordHash = encoder.encode(r.password)!!
             if (existingUser.email.isNullOrBlank()) {
                 existingUser.email = emailTrimmed
             }
@@ -820,7 +820,7 @@ class AuthController(
                 User(
                     email = emailTrimmed,
                     phone = phoneNorm,
-                    passwordHash = encoder.encode(r.password),
+                    passwordHash = encoder.encode(r.password)!!,
                     role = Role.CLINIC_STAFF,
                 ),
             ).also { newUser ->
@@ -1162,7 +1162,7 @@ class AuthController(
             User(
                 email = emailTrimmed,
                 phone = phoneNormalized,
-                passwordHash = encoder.encode(r.password),
+                passwordHash = encoder.encode(r.password)!!,
                 role = Role.PATIENT,
                 emailVerified = emailTrimmed != null,
             )
@@ -1316,7 +1316,7 @@ class AuthController(
                 else -> throw ResponseStatusException(HttpStatus.FORBIDDEN, "No doctor, patient, or admin account found")
             }
         }
-        user.passwordHash = encoder.encode(r.newPassword)
+        user.passwordHash = encoder.encode(r.newPassword)!!
         user.forcePasswordReset = false
         // Clear lockout so the next login can use the new password immediately
         // (reset already proves ownership via OTP / Firebase token).
@@ -1357,7 +1357,7 @@ class AuthController(
             }
         }
 
-        user.passwordHash = encoder.encode(r.newPassword)
+        user.passwordHash = encoder.encode(r.newPassword)!!
         user.forcePasswordReset = false
         users.save(user)
 

@@ -3,6 +3,10 @@
 # no default: a missing variable fails startup with its name in the log, and Railway keeps the previous deployment.
 
 spring:
+  web:
+    error:
+      include-message: never
+      include-stacktrace: never
   datasource:
     # Railway reference variables to the environment's own Postgres service (roadmap 2.2).
     url: ${SPRING_DATASOURCE_URL}
@@ -42,9 +46,6 @@ server:
   tomcat:
     threads:
       max: 100  # I/O-bound on a 15-connection pool; 1 MB stack per thread (roadmap 2.8)
-  error:
-    include-message: never
-    include-stacktrace: never
 
 # API docs are served by the development environment only (https://api-dev.shifa.uz/v3/api-docs).
 springdoc:

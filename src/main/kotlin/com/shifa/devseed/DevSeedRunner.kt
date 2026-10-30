@@ -86,7 +86,7 @@ class DevSeedRunner(
             log.error("app.dev-seed=true on a production profile: refusing to seed")
             return
         }
-        val hash = passwordEncoder.encode(PASSWORD)
+        val hash = passwordEncoder.encode(PASSWORD)!!
         seedAdmins(hash)
         if (users.findByEmail(doctorEmail(1)).isPresent) {
             ensureValidityPeriods()

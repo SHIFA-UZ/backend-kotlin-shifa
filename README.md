@@ -11,8 +11,8 @@ working in this repository are in `CLAUDE.md`.
 
 | Layer | Technology |
 |-------|-----------|
-| Language | Kotlin 2.2.21 / Java 21 |
-| Framework | Spring Boot 3.5.16 (Spring Security, Spring Data JPA, Actuator) |
+| Language | Kotlin 2.4.21 / Java 21 |
+| Framework | Spring Boot 4.1.2 (Spring Security 7, Spring Data JPA, Actuator) |
 | Database | PostgreSQL (16 locally, 17 on Railway) with `pgvector` (clinical RAG) and `pg_trgm` (ICD-10 search) |
 | Migrations | Flyway, 121 migrations in `src/main/resources/db/migration/` (`V1` to `V121`) |
 | Auth | JWT (JJWT) bound to a server-side session (`jti`), Firebase phone OTP, e-mail and SMS OTP, BCrypt |
