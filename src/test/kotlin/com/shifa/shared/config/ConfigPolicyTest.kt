@@ -75,7 +75,8 @@ class ConfigPolicyTest {
         assertEquals("validate", env.getProperty("spring.jpa.hibernate.ddl-auto"))
         assertEquals("false", env.getProperty("app.dev-seed"))
         assertEquals("false", env.getProperty("springdoc.api-docs.enabled"))
-        assertEquals("false", env.getProperty("app.storage.s3.enabled"))
+        assertEquals("true", env.getProperty("app.storage.s3.enabled"))
+        assertEquals("shifa-uploads-test", env.getProperty("app.storage.s3.bucket"))
         assertEquals("secret-from-railway", env.getProperty("app.jwt.secret"))
         assertEquals("jdbc:postgresql://db:5432/railway", env.getProperty("spring.datasource.url"))
     }
@@ -113,6 +114,8 @@ class ConfigPolicyTest {
                 "SPRING_DATASOURCE_URL", "SPRING_DATASOURCE_USERNAME", "SPRING_DATASOURCE_PASSWORD", "JWT_SECRET",
                 "MAIL_PASSWORD", "OPENAI_API_KEY", "DAILY_API_KEY", "DAILY_WEBHOOK_SECRET", "STRIPE_SECRET_KEY",
                 "STRIPE_WEBHOOK_SECRET", "CLICK_SECRET_KEY", "DEVSMS_API_TOKEN", "GOOGLE_MAPS_API_KEY",
+                // the bucket reference variables: production must not start without its uploads bucket
+                "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY",
             ),
             missing,
         )

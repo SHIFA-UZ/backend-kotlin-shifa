@@ -555,12 +555,16 @@ this branch). Per-app notes: `docs/apps/patient-app.md`, `docs/apps/doctor-app.m
 2.7 is implemented on development (branch `refactor/object-storage`): Railway bucket `shifa-uploads` (region iad, next
 to the service), `shared/storage/FileStorage` with local and S3 backends, `StoredFileController` serving the five
 prefixes unchanged, `POST /api/admin/storage/migrate` copying the volume into the bucket (idempotent, size-verified),
-reads falling back to the volume meanwhile. Production steps, in order: (1) `railway bucket create shifa-uploads
---region iad --environment production`; (2) the three reference variables on production (`S3_BUCKET=${{shifa-uploads.BUCKET}}`,
-`S3_ACCESS_KEY=${{shifa-uploads.ACCESS_KEY_ID}}`, `S3_SECRET_KEY=${{shifa-uploads.SECRET_ACCESS_KEY}}`, with
-`--skip-deploys`); (3) a PR moving the `app.storage.s3` block from application-dev.yml to application-prod.yml;
-(4) after the release, an admin runs the migration until it reports zero copied and zero failed; (5) a week of zero
-fallback reads later, unmount the volume. Object storage costs $0.015 per GB-month; bucket egress is free.
+reads falling back to the volume meanwhile. Production steps, in order: (1) done 2026-10-31: production bucket
+`shifa-uploads-prod`, region iad (bucket names are unique per project, and the CLI ignores the name argument on
+create, so it was created and then renamed); (2) done 2026-10-31: the three reference variables on production
+(`S3_BUCKET=${{shifa-uploads-prod.BUCKET}}`, `S3_ACCESS_KEY=${{shifa-uploads-prod.ACCESS_KEY_ID}}`,
+`S3_SECRET_KEY=${{shifa-uploads-prod.SECRET_ACCESS_KEY}}`, set with `--skip-deploys`); (3) the `app.storage.s3` block
+lives in application-prod.yml since 2026-10-31 (branch `chore/prod-object-storage`), so both environments write to
+their own bucket and production refuses to start without the three variables (the health check then keeps the old
+deployment serving); (4) after the release, an admin runs the migration until it reports zero copied and zero failed;
+(5) a week of zero fallback reads later, unmount the volume. Object storage costs $0.015 per GB-month; bucket egress
+is free.
 
 ## 4. Phase 0: stop the bleeding (security hotfixes)
 
