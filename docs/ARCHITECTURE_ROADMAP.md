@@ -375,6 +375,35 @@ That is 13 secrets plus the profile selector and the database references. Everyt
 
 ---
 
+## Status 2026-10-31: first production release
+
+Production (`api.shifa.uz`, branch `production`) runs main `f38d090` since 19:09 UTC, released with the "Release to
+production" workflow: everything from Phase 0 to Phase 6, Boot 4, the payment fixes and the storage change in one
+step, 134 commits after the previous build (3201e80, 2026-10-20). Done the same day, before the release: deploy
+settings 1.13 on production, bucket `shifa-uploads-prod` with its reference variables, the S3 block in
+application-prod.yml, the doctor app checked against this backend (`docs/apps/doctor-app.md`) with its host switched
+to `api.shifa.uz`.
+
+**Incident, ~15 minutes of downtime.** The first deployment refused to start: the `SPRING_DATASOURCE_*` reference
+variables from 2.2 had only ever been set on development. The health check failed as designed, but a service with a
+volume has no zero-downtime deploy on Railway (the volume can be attached to one container, so the old one is stopped
+first), so nothing kept serving until the variables were set and the redeploy passed. Two consequences: (a) before
+every release, confirm the variable *names* on production match development; (b) the volume must go (2.7 steps 4 and
+5 below), which is what gives future deploys an old build that keeps serving.
+
+**After the release, done:** post-release checks (zero errors at startup, migrations to V122, public lists, paged
+routes, files served from the volume fallback, patient sign-in); the non-secret variables deleted from both
+environments (1.10 complete; `GOOGLE_MAPS_API_KEY` stays); admin `sheroziy.saidkhodjaev@code.berlin` added as
+SUPER_ADMIN; the seeded `admin@shifa.local` **disabled, not deleted**: it owns 47 audit-log rows, 69 activity rows
+and 12 invitation keys, and deleting it would mean deleting or re-attributing that history. Leave it disabled.
+
+**Still open:** (1) 2.7 step 4, the storage migration (`POST /api/admin/storage/migrate` as an admin until it reports
+zero copied and zero failed), then step 5, unmount the volume after a week of zero fallback reads; (2) the live
+doctor and admin web builds still call the old Railway host until `web-flutter-doctor/build/web` is deployed to
+Firebase Hosting (a CLI login of the project owner, or a deploy workflow with a service account); (3) the 0.2/0.8
+enforcement flips after a week of clean production logs, earliest 2026-11-07; (4) a patient app store release so the
+2026-10-30/31 app fixes reach users; (5) deferred by decision: Daily key rotation, a Stripe webhook for api-dev.
+
 ## Status 2026-10-29
 
 Phase 0 is on development except the two enforcement flips; Phase 1 is done except 1.10; Phase 2 items 2.3
