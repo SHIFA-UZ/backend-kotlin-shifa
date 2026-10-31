@@ -452,7 +452,10 @@ class PatientController(
         val legacyNeedsPayment = kind == BookingPaymentPolicy.Kind.LEGACY && paymentAmountMinor != null
         val provider = if (kind == BookingPaymentPolicy.Kind.PAY_NOW) {
             try {
-                BookingPaymentPolicy.chooseProvider(req.paymentProvider, paymentService.enabledConsultationProviders())
+                BookingPaymentPolicy.chooseProvider(
+                    req.paymentProvider,
+                    BookingPaymentPolicy.providersFor(paymentCurrency ?: "UZS", paymentService.enabledConsultationProviders()),
+                )
             } catch (ex: IllegalArgumentException) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, ex.message)
             }
@@ -460,12 +463,6 @@ class PatientController(
             null
         }
         val holdPayNow = kind == BookingPaymentPolicy.Kind.PAY_NOW && provider != null
-        if (holdPayNow && !paymentCurrency.equals("UZS", ignoreCase = true)) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Online payment is available in UZS only (currency=$paymentCurrency).",
-            )
-        }
 
         val appointment = Appointment(
             doctor = doctor,

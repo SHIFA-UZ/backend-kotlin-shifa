@@ -74,6 +74,22 @@ class BookingPaymentPolicyTest {
     }
 
     @Test
+    fun `click charges so'm only and stripe every listed currency`() {
+        val both = listOf(PaymentGatewayCode.CLICK, PaymentGatewayCode.STRIPE)
+        assertEquals(both, BookingPaymentPolicy.providersFor("UZS", both))
+        assertEquals(both, BookingPaymentPolicy.providersFor(" uzs ", both))
+        assertEquals(listOf(PaymentGatewayCode.STRIPE), BookingPaymentPolicy.providersFor("USD", both))
+        assertEquals(listOf(PaymentGatewayCode.STRIPE), BookingPaymentPolicy.providersFor("EUR", both))
+        assertEquals(listOf(PaymentGatewayCode.STRIPE), BookingPaymentPolicy.providersFor("RUB", both))
+        assertEquals(emptyList<PaymentGatewayCode>(), BookingPaymentPolicy.providersFor("GBP", both))
+        assertEquals(emptyList<PaymentGatewayCode>(), BookingPaymentPolicy.providersFor("USD", listOf(PaymentGatewayCode.CLICK)))
+        assertThrows(IllegalArgumentException::class.java) {
+            BookingPaymentPolicy.chooseProvider("CLICK", BookingPaymentPolicy.providersFor("USD", both))
+        }
+        assertEquals("Online payment is not available in GBP.", BookingPaymentPolicy.onlinePaymentUnavailable("gbp"))
+    }
+
+    @Test
     fun `one ready provider is a single method and two are a choice`() {
         val both = BookingPaymentPolicy.readyProviders(
             listOf(PaymentGatewayCode.CLICK, PaymentGatewayCode.STRIPE),
