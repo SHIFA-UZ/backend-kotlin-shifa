@@ -153,6 +153,8 @@ class ApplicationContextTest {
 
         mockMvc.perform(get("/api/admin/metrics")).andExpect(status().isUnauthorized)
         mockMvc.perform(get("/admin-metrics/index.html")).andExpect(status().isOk)
+        mockMvc.perform(get("/admin-metrics/app.js")).andExpect(status().isOk)
+        mockMvc.perform(get("/api/admin/storage/migrate")).andExpect(status().isUnauthorized)
     }
 
     /**
