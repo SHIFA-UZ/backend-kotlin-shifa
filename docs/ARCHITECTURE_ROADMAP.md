@@ -402,7 +402,7 @@ zero copied and zero failed), then step 5, unmount the volume after a week of ze
 doctor and admin web builds still call the old Railway host until `web-flutter-doctor/build/web` is deployed to
 Firebase Hosting (a CLI login of the project owner, or a deploy workflow with a service account); (3) the 0.2/0.8
 enforcement flips after a week of clean production logs, earliest 2026-11-07; (4) a patient app store release so the
-2026-10-30/31 app fixes reach users; (5) deferred by decision: Daily key rotation, a Stripe webhook for api-dev.
+2026-10-30/31 app fixes reach users; (5) deferred by decision on 2026-10-31 to about 2026-12-01: Daily key rotation (checklist 1.4) and a Stripe webhook endpoint for api-dev (until then Stripe payments on development cannot be confirmed by webhook).
 
 ## Status 2026-10-29
 
