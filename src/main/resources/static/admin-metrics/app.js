@@ -89,6 +89,7 @@
   const signOut = (message) => {
     token = null; try { sessionStorage.removeItem('shifa.admin.token'); } catch (e) { /* storage blocked */ }
     clearInterval(timer); timer = null;
+    clearInterval(storageTimer); storageTimer = null;
     $('board').hidden = true; $('login').hidden = false; $('refresh').hidden = true; $('logout').hidden = true;
     resetLogin();
     $('login-error').className = 'small error';
@@ -113,9 +114,52 @@
 
   const tick = () => { if (document.hidden) return; load(); setHealth(); };
 
+  // Volume-to-bucket copy (POST /api/admin/storage/migrate starts it, GET reports progress). Polls every 5 s while running.
+  let storageTimer = null;
+  const renderStorage = (st) => {
+    const when = (t) => (t ? new Date(t).toLocaleTimeString() : '');
+    const run = st.state === 'running';
+    const text = `${st.state}${st.dryRun ? ' (dry run)' : ''} · scanned ${fmt.format(st.scanned)} · copied ${fmt.format(st.copied)} · skipped ${fmt.format(st.skipped)} · conflicts ${fmt.format(st.conflicts)} · failed ${fmt.format(st.failed)} · ${bytes(st.bytes)}` +
+      (st.startedAt ? ` · started ${when(st.startedAt)}` : '') + (st.finishedAt ? ` · finished ${when(st.finishedAt)}` : '');
+    $('storage-status').textContent = text;
+    $('storage-status').className = 'small ' + (st.state === 'failed' || st.failed > 0 ? 'error' : st.state === 'done' ? 'ok' : '');
+    $('storage-start').disabled = run; $('storage-dry').disabled = run;
+    $('storage-error').hidden = !st.lastError; $('storage-error').textContent = st.lastError || '';
+    clearInterval(storageTimer); storageTimer = run ? setInterval(() => loadStorage(), 5000) : null;
+  };
+  let storageBusy = false;
+  const storageCall = async (method, query) => {
+    if (!token || storageBusy) return;
+    storageBusy = true;
+    if (method === 'POST') { $('storage-start').disabled = true; $('storage-dry').disabled = true; }
+    try {
+      const r = await fetch(api + '/api/admin/storage/migrate' + (query || ''), { method, headers: { Authorization: 'Bearer ' + token } });
+      if (!token) return; // signed out while the request was in flight
+      if (r.status === 401 || r.status === 403) return signOut('Session ended. Sign in again.');
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        $('storage-error').textContent = j.message || `HTTP ${r.status}`; $('storage-error').hidden = false;
+        $('storage-start').disabled = false; $('storage-dry').disabled = false;
+        return;
+      }
+      renderStorage(j);
+    } catch (e) {
+      if (!token) return;
+      $('storage-error').textContent = 'Storage status unreachable'; $('storage-error').hidden = false;
+      $('storage-start').disabled = false; $('storage-dry').disabled = false;
+    } finally {
+      storageBusy = false;
+    }
+  };
+  const loadStorage = () => storageCall('GET');
+  $('storage-start').addEventListener('click', () => storageCall('POST'));
+  $('storage-dry').addEventListener('click', () => storageCall('POST', '?dryRun=true'));
+  $('storage-refresh').addEventListener('click', loadStorage);
+
   const start = () => {
     $('login').hidden = true; $('board').hidden = false; $('refresh').hidden = false; $('logout').hidden = false;
     tick();
+    loadStorage();
     clearInterval(timer); timer = setInterval(tick, POLL_MS);
   };
 

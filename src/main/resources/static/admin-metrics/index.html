@@ -129,6 +129,20 @@
       </div>
       <div class="card" style="margin-top:14px"><h3>Busiest routes since start: requests, average ms and the slowest of the last minutes; red where a 5xx was answered</h3><div class="bars" id="routes"></div></div>
     </section>
+
+    <section>
+      <h2 style="margin-top:20px">Uploads: volume to bucket</h2>
+      <div class="card">
+        <p class="small muted">Copies every file on the volume into the bucket (size-verified, files already there are skipped). Safe to repeat: run it until a pass reports 0 copied and 0 failed, then the volume can be unmounted.</p>
+        <div class="small" id="storage-status">—</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px">
+          <button type="button" id="storage-start">Start copy</button>
+          <button type="button" class="quiet" id="storage-dry">Dry run</button>
+          <button type="button" class="quiet" id="storage-refresh">Refresh status</button>
+        </div>
+        <div class="small error" id="storage-error" hidden></div>
+      </div>
+    </section>
   </div>
 </div>
 
