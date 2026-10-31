@@ -3,6 +3,9 @@ package com.shifa.shared.api
 
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
+import org.springframework.core.MethodParameter
+import org.springframework.web.bind.MissingServletRequestParameterException
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 
 class ErrorHandlerExposureTest {
     private fun handler(expose: Boolean) = ErrorHandler(exposeErrorDetails = expose)
@@ -41,4 +44,23 @@ class ErrorHandlerExposureTest {
         assertEquals("boom", body["message"])
         assertEquals("IllegalStateException", body["exceptionClass"])
     }
+
+    @Test
+    fun `missing and unconvertible parameters are 400 with the parameter name`() {
+        val missing = handler(false).handleMissingParameter(MissingServletRequestParameterException("day", "String"))
+        assertEquals(400, missing.statusCode.value())
+        assertEquals("Missing required parameter 'day'", missing.body!!["message"])
+        assertEquals("VALIDATION", missing.body!!["code"])
+
+        val mismatch = handler(false).handleTypeMismatch(
+            MethodArgumentTypeMismatchException("abc", Long::class.java, "id", idParameter(), IllegalArgumentException("abc")),
+        )
+        assertEquals(400, mismatch.statusCode.value())
+        assertEquals("Invalid value for parameter 'id'", mismatch.body!!["message"])
+    }
+
+    @Suppress("UNUSED_PARAMETER")
+    fun sample(id: String) = Unit
+
+    private fun idParameter() = MethodParameter(ErrorHandlerExposureTest::class.java.getMethod("sample", String::class.java), 0)
 }
