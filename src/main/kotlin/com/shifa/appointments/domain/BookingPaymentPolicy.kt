@@ -65,6 +65,24 @@ object BookingPaymentPolicy {
             }
         }.distinct()
 
+    /** The currencies the doctor app offers; Stripe checks out all of them, Click takes so'm only. */
+    val STRIPE_CURRENCIES = setOf("UZS", "USD", "EUR", "RUB")
+
+    /** The ready providers that can charge a price in [currency]: Click for UZS, Stripe for every listed currency. */
+    fun providersFor(currency: String, ready: List<PaymentGatewayCode>): List<PaymentGatewayCode> {
+        val code = currency.trim().uppercase()
+        return ready.filter {
+            when (it) {
+                PaymentGatewayCode.CLICK -> code == "UZS"
+                PaymentGatewayCode.STRIPE -> code in STRIPE_CURRENCIES
+                else -> false
+            }
+        }
+    }
+
+    fun onlinePaymentUnavailable(currency: String): String =
+        "Online payment is not available in ${currency.trim().uppercase()}."
+
     /**
      * Null keeps the current two-step checkout (book, then POST /payments/consultation/checkout)
      * so the existing app can pay later from the appointments list.

@@ -99,3 +99,15 @@ set was verified response-by-response against the previous build).
   `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` and `CLICK_SECRET_KEY` must be set on the development service (startup
   names any missing one). Click's prepare/complete callbacks and Stripe's webhook endpoint are registered per URL at
   the providers, so a payment only completes on development once those point at `https://api-dev.shifa.uz` too.
+
+## 8. Online payment in other currencies (2026-10-31, `feature/stripe-foreign-currency`)
+
+- A doctor may price a service in UZS, USD, EUR or RUB (the doctor app's list). `GET /payments/methods` lists the
+  providers that can charge that currency: Click and Stripe for UZS, Stripe alone for USD, EUR and RUB; an unlisted
+  currency, or Stripe not configured, is `400 Online payment is not available in <CUR>.`
+- B3 with `paymentProvider` accepts any provider the methods call listed for that service; `CLICK` for a non-UZS
+  price is `400 Provider not enabled`. The legacy two-step checkout and the treatment-plan bill route non-UZS to
+  Stripe whatever the caller preferred. Stripe applies its own minimum (about 50 US cents) and answers
+  `400 Stripe checkout creation failed: … amount_too_small` below it.
+- The patient app shows whatever providers come back, so it needed no change for this.
+

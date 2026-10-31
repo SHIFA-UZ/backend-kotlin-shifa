@@ -146,11 +146,8 @@ class PaymentService(
             ?: appointment.doctor.consultationPriceMinor
             ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Doctor consultation price is not configured")
         val currency = (appointment.paymentCurrency ?: appointment.doctor.consultationCurrency ?: "UZS").uppercase()
-        if (currency != "UZS") {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Online video consultation checkout is available in UZS only (payment currency=$currency)."
-            )
+        if (BookingPaymentPolicy.providersFor(currency, enabledConsultationProviders()).isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, BookingPaymentPolicy.onlinePaymentUnavailable(currency))
         }
 
         val externalRef = UUID.randomUUID().toString().replace("-", "")
@@ -248,19 +245,18 @@ class PaymentService(
 
         val totals = financeService.planLiveTotals(plan.id)
         val currency = totals.currency.uppercase()
-        if (currency != "UZS") {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Online bill payment is available in UZS only (currency=$currency).",
-            )
+        val providers = BookingPaymentPolicy.providersFor(currency, enabledConsultationProviders())
+        if (providers.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, BookingPaymentPolicy.onlinePaymentUnavailable(currency))
         }
         if (totals.remainingMinor <= 0L) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Nothing owed on this treatment plan")
         }
 
-        val usedGateway = when (preferredGateway) {
-            PaymentGatewayCode.STRIPE,
-            PaymentGatewayCode.PAYME -> PaymentGatewayCode.STRIPE
+        // Click takes so'm only; any other currency goes to Stripe whatever the caller preferred.
+        val usedGateway = when {
+            preferredGateway == PaymentGatewayCode.STRIPE || preferredGateway == PaymentGatewayCode.PAYME -> PaymentGatewayCode.STRIPE
+            PaymentGatewayCode.CLICK !in providers -> PaymentGatewayCode.STRIPE
             else -> PaymentGatewayCode.CLICK
         }
         if (usedGateway == PaymentGatewayCode.CLICK) {
@@ -291,10 +287,10 @@ class PaymentService(
                 InstallmentItem.Status.OVERDUE -> Unit
             }
             val itemCurrency = installment.currency.uppercase()
-            if (itemCurrency != "UZS") {
+            if (itemCurrency != currency) {
                 throw ResponseStatusException(
                     HttpStatus.BAD_REQUEST,
-                    "Online bill payment is available in UZS only (currency=$itemCurrency).",
+                    "Installment currency $itemCurrency differs from the plan's $currency.",
                 )
             }
             amountMinor = minOf(installment.amountMinor, totals.remainingMinor).coerceAtLeast(0)
@@ -479,6 +475,17 @@ class PaymentService(
         fun stripe(): Pair<PaymentGatewayCode, GatewayCheckoutResult> =
             PaymentGatewayCode.STRIPE to stripeGateway.createCheckout(req)
 
+        // Click takes so'm only: a price in another currency goes to Stripe whatever the caller preferred.
+        if (!req.currency.equals("UZS", ignoreCase = true) && preferred != PaymentGatewayCode.MANUAL) {
+            log.info(
+                "Consultation checkout gateway=STRIPE (currency {}) appointmentId={} externalRef={}",
+                req.currency,
+                appointmentId,
+                req.externalRef,
+            )
+            return stripe()
+        }
+
         return when (preferred) {
             PaymentGatewayCode.STRIPE,
             PaymentGatewayCode.PAYME -> {
@@ -526,7 +533,7 @@ class PaymentService(
         req: GatewayCheckoutRequest,
         appointmentId: Long
     ): Pair<PaymentGatewayCode, GatewayCheckoutResult> {
-        val skipReason = clickSkipReason()
+        val skipReason = clickSkipReason() ?: "Click takes UZS only".takeIf { !req.currency.equals("UZS", ignoreCase = true) }
         if (skipReason != null) {
             log.info(
                 "Consultation checkout skipping Click ({}) — using Stripe appointmentId={} externalRef={}",
@@ -683,13 +690,11 @@ class PaymentService(
             doctorServicePrices.findByService_IdOrderByCurrencyAsc(service.id),
             locationId,
         ) ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Selected service has no price configured")
-        if (!price.currency.equals("UZS", ignoreCase = true)) {
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "Online payment is available in UZS only (currency=${price.currency}).",
-            )
+        val providers = BookingPaymentPolicy.providersFor(price.currency, enabledConsultationProviders())
+        if (providers.isEmpty()) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, BookingPaymentPolicy.onlinePaymentUnavailable(price.currency))
         }
-        return enabledConsultationProviders().map {
+        return providers.map {
             PaymentMethodQuote(provider = it.name, amountMinor = price.amountMinor, currency = price.currency.uppercase())
         }
     }
