@@ -375,6 +375,53 @@ That is 13 secrets plus the profile selector and the database references. Everyt
 
 ---
 
+## Status 2026-10-31: first production release
+
+Production (`api.shifa.uz`, branch `production`) runs main `f38d090` since 19:09 UTC, released with the "Release to
+production" workflow: everything from Phase 0 to Phase 6, Boot 4, the payment fixes and the storage change in one
+step, 134 commits after the previous build (3201e80, 2026-10-20). Done the same day, before the release: deploy
+settings 1.13 on production, bucket `shifa-uploads-prod` with its reference variables, the S3 block in
+application-prod.yml, the doctor app checked against this backend (`docs/apps/doctor-app.md`) with its host switched
+to `api.shifa.uz`.
+
+**Incident, ~15 minutes of downtime.** The first deployment refused to start: the `SPRING_DATASOURCE_*` reference
+variables from 2.2 had only ever been set on development. The health check failed as designed, but a service with a
+volume has no zero-downtime deploy on Railway (the volume can be attached to one container, so the old one is stopped
+first), so nothing kept serving until the variables were set and the redeploy passed. Two consequences: (a) before
+every release, confirm the variable *names* on production match development; (b) the volume must go (2.7 steps 4 and
+5 below), which is what gives future deploys an old build that keeps serving.
+
+**After the release, done:** post-release checks (zero errors at startup, migrations to V122, public lists, paged
+routes, files served from the volume fallback, patient sign-in); the non-secret variables deleted from both
+environments (1.10 complete; `GOOGLE_MAPS_API_KEY` stays); admin `sheroziy.saidkhodjaev@code.berlin` added as
+SUPER_ADMIN; the seeded `admin@shifa.local` **disabled, not deleted**: it owns 47 audit-log rows, 69 activity rows
+and 12 invitation keys, and deleting it would mean deleting or re-attributing that history. Leave it disabled.
+
+**Done later the same day:** the doctor and admin web builds (`doctor.shifa.uz`, `admin.shifa.uz`) are deployed with
+`api.shifa.uz` by the new `web-flutter-doctor/.github/workflows/deploy_web.yml` on every merge to `main` (service-account
+secret `FIREBASE_SERVICE_ACCOUNT`); a development-facing doctor/admin web site was considered and declined (the KMP
+rewrite replaces the doctor app); the storage migration got a button on the admin health page (`/admin-metrics/`).
+
+**Still open, in this order:** (1) 2.7 step 4, run the storage migration from the admin health page until it reports
+zero copied and zero failed, then step 5, unmount the volume after a week of zero fallback reads (this is what gives
+production a gap-free deploy); (2) a patient app store release so the 2026-10-30/31 app fixes reach users (owner,
+2026-10-31); (3) deferred by decision on 2026-10-31 to about 2026-12-01: Daily key rotation (checklist 1.4) and a
+Stripe webhook endpoint for api-dev (until then Stripe payments on development cannot be confirmed by webhook).
+
+**Backlog, deferred by decision on 2026-10-31 (no date; revisit with the KMP migration planning):**
+- the 0.2/0.8 enforcement flips (signed file URLs and the upload allow-list are still log-only; flip after a week
+  of clean production logs, the week started with the release);
+- 2.5: reminder SMS and push sends still run inside the job's transaction (mark-then-send or an outbox);
+- 2.4: the readiness health group has no database indicator; cold-start time to be measured first;
+- 1.4: golden response tests were never built, the OpenAPI snapshot is the only contract check (worth having before
+  the KMP migration leans on the contract);
+- audit items 6 and 9: three hand-built absolute URLs (`MessageService`, `AuthController` check-existing-patient,
+  `CarePartnershipService`) and three copies of `parseJsonList`;
+- `JWT_SECRET` is 40 characters (64 recommended); rotating it signs every user out, patients included, so it is a
+  scheduled decision, not a quick fix;
+- 3.3: Gradle 9 and the configuration cache; remaining library bumps via Dependabot;
+- patient-app items 1 and 2: push texts in the patient's language, one push token per device.
+
 ## Status 2026-10-29
 
 Phase 0 is on development except the two enforcement flips; Phase 1 is done except 1.10; Phase 2 items 2.3

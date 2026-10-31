@@ -20,7 +20,7 @@ Shifa Doctor Backend MVP — a medical platform backend connecting doctors and p
 - **Job locking:** ShedLock on every `@Scheduled` job that changes data
 - **Quality:** detekt (baseline), JaCoCo, ArchUnit (`ArchitectureTest`), OpenAPI snapshot test
 - **Email:** Brevo SMTP (OTP delivery)
-- **API Docs:** springdoc-openapi 2.8.17 (Swagger UI at `/swagger-ui/`, off in production)
+- **API Docs:** springdoc-openapi 3.2.0 (Swagger UI at `/swagger-ui/`, off in production); the contract snapshot is `docs/api/openapi.json`
 - **Build:** Gradle 8.14.3 (Kotlin DSL), output: `build/libs/app.jar`; Dockerfile for Railway
 
 ## Common Commands
@@ -185,18 +185,18 @@ These rules apply to ALL code written in this project. Follow them strictly.
 - **`companion object`** — use for constants (e.g., `CacheConfig.ICD10_SEARCH_CACHE`, `EmailVerificationCode.PURPOSE_*`) and factory methods. Never for mutable state.
 - **Logging** — use SLF4J via `LoggerFactory.getLogger(ClassName::class.java)`. Name the field `log` (preferred) consistently in new code.
 
-### Controllers (`web/`)
+### Controllers (`<feature>/api/`)
 
 - Annotate with `@RestController` and `@RequestMapping("/api/{resource}")`.
 - Inject the authenticated principal via `@AuthenticationPrincipal principal: DoctorPrincipal` (or `PatientPrincipal`, `AdminPrincipal`). For role-agnostic endpoints, use `UserDetails`.
-- DTOs are typically inline `data class` definitions within the controller file. Move to `web/dto/` only when reused across multiple controllers.
+- Request and response DTOs are `data class`es in `<feature>/api/dto/`; a controller never exposes an entity.
 - Use `@RequestBody @Valid` for request validation. Add `@field:NotBlank`, `@field:Size`, `@field:Email` on DTO fields.
 - Throw `ResponseStatusException(HttpStatus.XXX, "message")` for HTTP errors.
 - Return plain objects/lists from controller methods (Spring auto-wraps as 200 JSON). Use `ResponseEntity<T>` only when you need explicit status control (e.g., `ResponseEntity.noContent().build()` for 204).
 - Use `@PageableDefault(size = 50)` for paginated endpoints (adjust size per use case — e.g., assignment lists may use 500).
 - Keep controllers thin — delegate all business logic to services.
 
-### Services (`service/`)
+### Services (`<feature>/application/`)
 
 - Annotate with `@Service` for business logic services. Use `@Component` for mappers, schedulers, filters, and infrastructure beans.
 - Annotate write methods with `@Transactional`. Annotate read-only methods with `@Transactional(readOnly = true)` — this enables Hibernate flush-mode optimizations.
@@ -208,7 +208,7 @@ These rules apply to ALL code written in this project. Follow them strictly.
 - Services may call other services via constructor injection — keep the dependency graph acyclic.
 - Name mapper classes explicitly: `DoctorProfileMapper`, `PatientProfileMapper` (annotated with `@Component`).
 
-### Repositories (`repo/`)
+### Repositories (`<feature>/infrastructure/`)
 
 - Extend `JpaRepository<Entity, Long>`.
 - Prefer JPQL `@Query` for complex queries, derived method names for simple ones, native SQL (`nativeQuery = true`) only when JPQL cannot express the query (e.g., `LIMIT 1`, window functions, `NOT EXISTS` subqueries).
@@ -218,7 +218,7 @@ These rules apply to ALL code written in this project. Follow them strictly.
 - Name methods: `findBy{Field}`, `findFirst{Field}`, `findAll{Criterion}`, `countBy{Field}`, `existsBy{Field}`.
 - For complex queries requiring `EntityManager` directly (e.g., dynamic search with optional filters), use the custom repository pattern: `{Entity}RepositoryCustom` interface + `{Entity}RepositoryImpl` class (see `UserRepositoryCustom`/`UserRepositoryImpl`).
 
-### Entities (`domain/`)
+### Entities (`<feature>/domain/`)
 
 - `@Id @GeneratedValue(strategy = GenerationType.IDENTITY)` — auto-increment `Long` IDs (default `0` or `null` depending on entity style).
 - `@Enumerated(EnumType.STRING)` — store enums as strings, never ordinals. Nested enums in entities are fine (e.g., `Appointment.Status`, `Message.MessageType`).
@@ -280,7 +280,7 @@ These rules apply to ALL code written in this project. Follow them strictly.
 ### Testing
 
 - Use `@WebMvcTest(controllers = [XController::class])` for controller unit tests with `MockMvc`.
-- Use `@MockBean` for service/repository dependencies in controller tests.
+- Use `@MockitoBean` (Boot 4) for service dependencies in controller tests; a controller test mocks the feature's `application` services, never repositories.
 - Use `@AutoConfigureMockMvc(addFilters = false)` to bypass security filters in unit tests.
 - Test framework: JUnit 5 + Mockito + Hamcrest matchers.
 - Test files go in `src/test/kotlin/com/shifa/` mirroring the main source structure.
