@@ -718,8 +718,9 @@ class DoctorMorningToolService(
         )
     }
 
+    // The slot lookups may migrate a legacy schedule (ScheduleValidityService writes), so they are read-write.
     /** Free/open bookable times for a day — not the booked appointment list. */
-    @Transactional(readOnly = true)
+    @Transactional
     fun listFreeSlots(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
         val zone = zoneOf(doctor)
         val date = resolveDateArg(args["date"] as? String, zone) ?: LocalDate.now(clock.withZone(zone))
@@ -1127,7 +1128,7 @@ class DoctorMorningToolService(
         return prev[b.length]
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun proposeAppointment(doctor: DoctorProfile, args: Map<String, Any?>): Map<String, Any?> {
         val patientId = (args["patientId"] as? Number)?.toLong()
             ?: return mapOf(
@@ -1204,7 +1205,7 @@ class DoctorMorningToolService(
         )
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun proposeReschedule(
         doctor: DoctorProfile,
         args: Map<String, Any?>,

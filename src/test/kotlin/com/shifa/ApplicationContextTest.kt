@@ -7,6 +7,7 @@ import tools.jackson.databind.ObjectMapper
 import tools.jackson.databind.cfg.JsonNodeFeature
 import tools.jackson.databind.node.ObjectNode
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Assumptions.assumeTrue
 import org.junit.jupiter.api.BeforeAll
@@ -49,6 +50,7 @@ class ApplicationContextTest {
 
     @Autowired lateinit var objectMapper: tools.jackson.databind.ObjectMapper
     @Autowired lateinit var metricsService: com.shifa.admin.application.MetricsService
+    @Autowired lateinit var bookingWorkflows: com.shifa.appointments.application.IntelligenceBookingWorkflowService
 
     @Test
     fun `context loads, migrations apply and entities match the schema`() {
@@ -151,5 +153,15 @@ class ApplicationContextTest {
 
         mockMvc.perform(get("/api/admin/metrics")).andExpect(status().isUnauthorized)
         mockMvc.perform(get("/admin-metrics/index.html")).andExpect(status().isOk)
+    }
+
+    /**
+     * The workflow lookup expires stale rows (an UPDATE) before it reads. Marked read-only in Phase 6, it failed
+     * on PostgreSQL with "cannot execute UPDATE in a read-only transaction" and took Shifa Intelligence down.
+     */
+    @Test
+    fun `booking workflow lookups run in a read-write transaction`() {
+        assertNull(bookingWorkflows.active(doctorId = 1L, conversationId = "context-test-conversation"))
+        assertNull(bookingWorkflows.activeReschedule(doctorId = 1L, conversationId = "context-test-conversation"))
     }
 }

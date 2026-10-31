@@ -11,6 +11,8 @@ import org.springframework.http.ResponseEntity
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
+import org.springframework.web.bind.MissingServletRequestParameterException
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.context.request.async.AsyncRequestNotUsableException
@@ -42,6 +44,18 @@ class ErrorHandler(
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
             .body(body(400, "Malformed request body", ErrorCode.MALFORMED_BODY))
     }
+
+    /** A required query or path parameter is missing: a client error, 400 with the parameter name. */
+    @ExceptionHandler(MissingServletRequestParameterException::class)
+    fun handleMissingParameter(e: MissingServletRequestParameterException): ResponseEntity<Map<String, Any>> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(body(400, "Missing required parameter '${e.parameterName}'", ErrorCode.VALIDATION))
+
+    /** A query or path parameter that Spring cannot convert to the declared type: 400, value kept out of the body. */
+    @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+    fun handleTypeMismatch(e: MethodArgumentTypeMismatchException): ResponseEntity<Map<String, Any>> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(body(400, "Invalid value for parameter '${e.name}'", ErrorCode.VALIDATION))
 
     // SECURITY (NEW): Return JSON 403 for forbidden (e.g. wrong role); avoid leaking stack/details
     @ExceptionHandler(AccessDeniedException::class)
