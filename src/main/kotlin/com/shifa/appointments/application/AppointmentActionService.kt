@@ -32,7 +32,8 @@ class AppointmentActionService(
     private val timeFmt = DateTimeFormatter.ofPattern("HH:mm", Locale.ENGLISH)
     private val dayFmt = DateTimeFormatter.ofPattern("EEEE d MMMM", Locale.ENGLISH)
 
-    @Transactional(readOnly = true)
+    // Stores or clears the pending cancellation (writes through PendingAppointmentActionStore), so not read-only.
+    @Transactional
     fun previewCancellation(
         doctor: DoctorProfile,
         userText: String,

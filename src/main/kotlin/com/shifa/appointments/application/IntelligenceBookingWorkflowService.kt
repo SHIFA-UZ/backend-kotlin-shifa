@@ -27,19 +27,20 @@ class IntelligenceBookingWorkflowService(
     private val objectMapper: ObjectMapper,
     private val clock: Clock,
 ) {
-    @Transactional(readOnly = true)
+    // findActive expires stale workflows first (an UPDATE), so these lookups need a read-write transaction.
+    @Transactional
     fun active(doctorId: Long, conversationId: String?): IntelligenceBookingWorkflow? {
         val conversation = validConversationId(conversationId) ?: return null
         return repository.findActive(doctorId, conversation, clock.instant())
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun activeOpen(doctorId: Long, conversationId: String?): IntelligenceBookingWorkflow? {
         val conversation = validConversationId(conversationId) ?: return null
         return repository.findActive(doctorId, openConversation(conversation), clock.instant())
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     fun activeReschedule(doctorId: Long, conversationId: String?): IntelligenceBookingWorkflow? {
         val conversation = validConversationId(conversationId) ?: return null
         return repository.findActive(doctorId, rescheduleConversation(conversation), clock.instant())
