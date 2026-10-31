@@ -148,7 +148,7 @@ app:
   storageRoot: ./public-storage/images
   storage:
     s3:
-      # Uploads go to an S3-compatible bucket when enabled (Railway Buckets); application-dev.yml turns it on.
+      # Uploads go to an S3-compatible bucket when enabled (Railway Buckets); application-prod.yml turns it on.
       # The three values are Railway reference variables to the environment's own bucket (${{shifa-uploads.BUCKET}} etc.).
       enabled: false
       endpoint: https://t3.storageapi.dev

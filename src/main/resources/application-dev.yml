@@ -4,15 +4,6 @@
 app:
   publicBaseUrl: https://api-dev.shifa.uz
 
-  # Uploads in the development bucket (Railway bucket "shifa-uploads", region iad). Production follows once its
-  # bucket exists: the same three reference variables there, and this block moves to application-prod.yml.
-  storage:
-    s3:
-      enabled: true
-      bucket: ${S3_BUCKET}
-      access-key: ${S3_ACCESS_KEY}
-      secret-key: ${S3_SECRET_KEY}
-
   rate-limit:
     # Verified 2026-10-28 (see ARCHITECTURE_ROADMAP.md, 0.7): Railway's CDN layer REPLACES X-Forwarded-For with
     # "<client>, <cdn node>" and drops anything the client sent, so the first entry (hops 0) is the real client.
