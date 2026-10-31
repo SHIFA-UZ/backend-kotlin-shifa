@@ -397,12 +397,30 @@ environments (1.10 complete; `GOOGLE_MAPS_API_KEY` stays); admin `sheroziy.saidk
 SUPER_ADMIN; the seeded `admin@shifa.local` **disabled, not deleted**: it owns 47 audit-log rows, 69 activity rows
 and 12 invitation keys, and deleting it would mean deleting or re-attributing that history. Leave it disabled.
 
-**Still open:** (1) 2.7 step 4, the storage migration (`POST /api/admin/storage/migrate` as an admin until it reports
-zero copied and zero failed), then step 5, unmount the volume after a week of zero fallback reads; (2) the live
-doctor and admin web builds still call the old Railway host until `web-flutter-doctor/build/web` is deployed to
-Firebase Hosting (a CLI login of the project owner, or a deploy workflow with a service account); (3) the 0.2/0.8
-enforcement flips after a week of clean production logs, earliest 2026-11-07; (4) a patient app store release so the
-2026-10-30/31 app fixes reach users; (5) deferred by decision on 2026-10-31 to about 2026-12-01: Daily key rotation (checklist 1.4) and a Stripe webhook endpoint for api-dev (until then Stripe payments on development cannot be confirmed by webhook).
+**Done later the same day:** the doctor and admin web builds (`doctor.shifa.uz`, `admin.shifa.uz`) are deployed with
+`api.shifa.uz` by the new `web-flutter-doctor/.github/workflows/deploy_web.yml` on every merge to `main` (service-account
+secret `FIREBASE_SERVICE_ACCOUNT`); a development-facing doctor/admin web site was considered and declined (the KMP
+rewrite replaces the doctor app); the storage migration got a button on the admin health page (`/admin-metrics/`).
+
+**Still open, in this order:** (1) 2.7 step 4, run the storage migration from the admin health page until it reports
+zero copied and zero failed, then step 5, unmount the volume after a week of zero fallback reads (this is what gives
+production a gap-free deploy); (2) a patient app store release so the 2026-10-30/31 app fixes reach users (owner,
+2026-10-31); (3) deferred by decision on 2026-10-31 to about 2026-12-01: Daily key rotation (checklist 1.4) and a
+Stripe webhook endpoint for api-dev (until then Stripe payments on development cannot be confirmed by webhook).
+
+**Backlog, deferred by decision on 2026-10-31 (no date; revisit with the KMP migration planning):**
+- the 0.2/0.8 enforcement flips (signed file URLs and the upload allow-list are still log-only; flip after a week
+  of clean production logs, the week started with the release);
+- 2.5: reminder SMS and push sends still run inside the job's transaction (mark-then-send or an outbox);
+- 2.4: the readiness health group has no database indicator; cold-start time to be measured first;
+- 1.4: golden response tests were never built, the OpenAPI snapshot is the only contract check (worth having before
+  the KMP migration leans on the contract);
+- audit items 6 and 9: three hand-built absolute URLs (`MessageService`, `AuthController` check-existing-patient,
+  `CarePartnershipService`) and three copies of `parseJsonList`;
+- `JWT_SECRET` is 40 characters (64 recommended); rotating it signs every user out, patients included, so it is a
+  scheduled decision, not a quick fix;
+- 3.3: Gradle 9 and the configuration cache; remaining library bumps via Dependabot;
+- patient-app items 1 and 2: push texts in the patient's language, one push token per device.
 
 ## Status 2026-10-29
 
