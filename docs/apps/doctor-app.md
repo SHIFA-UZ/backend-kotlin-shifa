@@ -6,6 +6,28 @@ contract-level check plus the items the new backend makes possible. To run it ag
 installed: `flutter run -d chrome --dart-define=API_BASE_URL=https://api-dev.shifa.uz` and log in with
 `seed.doctor1@shifa.dev` / `Dev12345!` (clinic staff: `seed.staff@shifa.dev`).
 
+## Check against the pre-release backend (2026-10-31)
+
+Done with Flutter 3.35.5 (the version the deploy workflows pin) against `https://api-dev.shifa.uz` at commit 460e0af,
+as `seed.doctor1@shifa.dev`, in a headless Chrome driven over the DevTools protocol (web build) and on the Android
+emulator (debug APK). `flutter analyze` (no errors, the usual infos and warnings), `flutter test` (54 tests) and
+`flutter build web` pass. Every screen below loaded with only 2xx answers from the API: sign-in, Home, Calendar
+(day view and the appointment detail), Patients (overview, documents, appointments), Clinic (overview, services
+with prices shown as `amountMinor / 100`, treatment plans, finance dashboard), Tasks, Reports, Finance, Settings
+(profile, services and pricing editor) and the Shifa Intelligence panel; on Android: sign-in, Home, Calendar,
+Patients, Chat. A token whose signature no longer verifies gets 401 `TOKEN_INVALID` and the app signs out.
+
+Found and fixed on the backend (branch `fix/intelligence-readonly-transactions`): `POST /api/ai/morning/stream`,
+which carries every Shifa Intelligence prompt of this app, answered 500 because the Phase 6 commit e7a3821 marked
+`IntelligenceBookingWorkflowService.active*` read-only while the repository expires stale workflows with an UPDATE
+first; `AppointmentActionService.previewCancellation` had the same defect. Production (3201e80) is not affected.
+
+Changed in this repo (branch `chore/api-domain`): the release-build fallback `AppConfig.productionApiBaseUrl`, the
+two deploy workflows and the README now use `https://api.shifa.uz` (section 3 below). The live web builds at
+`doctor.shifa.uz` and `admin.shifa.uz` still carry the old host until they are rebuilt and deployed.
+
+Not checked: the admin panel (its sign-in needs the e-mail OTP of a seeded admin mailbox) and video calls.
+
 ## Contract check
 
 All 186 distinct `/api/...` paths referenced under `lib/` exist in `docs/api/openapi.json` with the same methods (the
