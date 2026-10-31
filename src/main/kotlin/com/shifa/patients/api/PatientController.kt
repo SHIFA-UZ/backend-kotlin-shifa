@@ -351,7 +351,8 @@ class PatientController(
         // shortcut: row lock on the doctor, not a range exclusion constraint. Add that after a one-time overlap audit.
         doctorProfiles.findByIdForUpdate(doctor.id!!)
 
-        val startAt = Instant.parse(req.startAt)
+        val startAt = runCatching { Instant.parse(req.startAt) }
+            .getOrElse { throw ResponseStatusException(HttpStatus.BAD_REQUEST, "startAt must be an ISO-8601 instant") }
         if (!startAt.isAfter(Instant.now())) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Time slot is in the past")
         }
