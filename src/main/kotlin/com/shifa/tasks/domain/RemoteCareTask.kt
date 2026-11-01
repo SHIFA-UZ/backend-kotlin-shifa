@@ -145,6 +145,10 @@ class RemoteCareTask(
         // We cannot set task to null as it's non-nullable in the entity
     }
 
+    /** The last day with check-ins. [durationDays] counts the start day, so 1 is that day alone. Neither set: 30 days. */
+    fun lastScheduledDate(): LocalDate =
+        endDate ?: startDate.plusDays((durationDays ?: 30).coerceAtLeast(1) - 1L)
+
     fun isExpired(): Boolean {
         val end = endDate ?: startDate.plusDays((durationDays ?: 0).toLong())
         return LocalDate.now().isAfter(end) && status == Status.ACTIVE
