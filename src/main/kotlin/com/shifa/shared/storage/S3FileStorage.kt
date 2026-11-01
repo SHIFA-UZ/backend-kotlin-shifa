@@ -22,16 +22,23 @@ class S3FileStorage(private val client: S3Client, private val bucket: String) : 
     }
 
     override fun put(key: String, content: InputStream, size: Long, contentType: String?) {
-        client.putObject(putRequest(key, size, contentType).build(), RequestBody.fromInputStream(content, size))
+        client.putObject(putRequest(key, size, contentType).build(), body(content))
     }
 
     /** `If-None-Match: *`: the store refuses with 412 when the key exists, so two writers cannot race. */
     override fun putIfAbsent(key: String, content: InputStream, size: Long, contentType: String?): Boolean = try {
-        client.putObject(putRequest(key, size, contentType).ifNoneMatch("*").build(), RequestBody.fromInputStream(content, size))
+        client.putObject(putRequest(key, size, contentType).ifNoneMatch("*").build(), body(content))
         true
     } catch (e: S3Exception) {
         if (e.statusCode() == HTTP_PRECONDITION_FAILED) false else throw e
     }
+
+    /**
+     * The SDK retries a failed PUT and must re-read the body; a plain stream (multipart upload, volume file) cannot be
+     * reset, and the retry then fails with "Content input stream does not support mark/reset" (14 of 951 files on the
+     * first production migration, 2026-11-01). Uploads are capped at 25 MB, so buffering the whole body is fine.
+     */
+    private fun body(content: InputStream): RequestBody = RequestBody.fromBytes(content.readAllBytes())
 
     private fun putRequest(key: String, size: Long, contentType: String?): PutObjectRequest.Builder =
         PutObjectRequest.builder()
