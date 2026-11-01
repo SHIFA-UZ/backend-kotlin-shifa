@@ -402,9 +402,13 @@ and 12 invitation keys, and deleting it would mean deleting or re-attributing th
 secret `FIREBASE_SERVICE_ACCOUNT`); a development-facing doctor/admin web site was considered and declined (the KMP
 rewrite replaces the doctor app); the storage migration got a button on the admin health page (`/admin-metrics/`).
 
-**Still open, in this order:** (1) 2.7 step 4, run the storage migration from the admin health page until it reports
-zero copied and zero failed, then step 5, unmount the volume after a week of zero fallback reads (this is what gives
-production a gap-free deploy); (2) a patient app store release so the 2026-10-30/31 app fixes reach users (owner,
+**2.7 finished 2026-11-01:** the migration ran from the admin health page on production (951 files, 116.7 MB; the
+first pass failed 14 on SDK retries, fixed by buffering uploads in `S3FileStorage`, second pass 14 copied, 0 failed)
+and on development, then both uploads volumes were detached, files were verified to serve from the buckets, and the
+volumes were deleted the same day (`shifa-doc-backend-mvp-volume-7vHh` production, `shifa-doc-backend-mvp-volume`
+development, with their backups). Uploads live only in the buckets now; deploys no longer stop the old container first.
+
+**Still open, in this order:** (1) a patient app store release so the 2026-10-30/31 app fixes reach users (owner,
 2026-10-31); (3) deferred by decision on 2026-10-31 to about 2026-12-01: Daily key rotation (checklist 1.4) and a
 Stripe webhook endpoint for api-dev (until then Stripe payments on development cannot be confirmed by webhook).
 
