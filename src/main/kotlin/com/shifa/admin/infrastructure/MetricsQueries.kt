@@ -70,7 +70,7 @@ class MetricsQueries(private val jdbc: JdbcTemplate) {
 
     fun appointmentsPerDay(days: Int): List<Row2> =
         jdbc.query(
-            "SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD'), count(*) FROM appointments " +
+            "SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'), count(*) FROM appointments " +
                 "WHERE created_at > now() - make_interval(days => ?) GROUP BY 1 ORDER BY 1",
             { rs, _ -> Row2(rs.getString(1), rs.getLong(2)) },
             days,

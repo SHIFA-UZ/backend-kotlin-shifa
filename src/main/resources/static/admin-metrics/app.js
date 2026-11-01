@@ -29,12 +29,37 @@
     if (!rows.length) { const p = document.createElement('div'); p.className = 'muted small'; p.textContent = 'No rows'; el.append(p); }
   };
 
+  // The query omits days without appointments, so walk the calendar (31 dates: "now minus 30 days" starts mid-day).
+  const dailyColumns = (rows, generatedAt) => {
+    const counts = new Map(rows.map((r) => [r.day, r.count]));
+    const end = Date.parse(generatedAt.slice(0, 10) + 'T00:00:00Z');
+    const days = Array.from({ length: 31 }, (_, i) => {
+      const day = new Date(end - (30 - i) * 86400000).toISOString().slice(0, 10);
+      return { day, count: counts.get(day) || 0 };
+    });
+    const max = Math.max(1, ...days.map((d) => d.count));
+    const total = days.reduce((sum, d) => sum + d.count, 0);
+    const el = $('daily');
+    el.replaceChildren(...days.map((d) => {
+      const col = document.createElement('div'); col.className = 'col'; col.title = `${d.day}: ${fmt.format(d.count)}`;
+      const fill = document.createElement('div'); fill.style.height = (100 * d.count / max).toFixed(1) + '%';
+      col.append(fill); return col;
+    }));
+    const peak = days.reduce((a, b) => (b.count > a.count ? b : a));
+    const note = total ? `${fmt.format(total)} created, most on ${peak.day} (${fmt.format(peak.count)})` : 'No appointments created';
+    el.setAttribute('aria-label', note);
+    $('daily-note').textContent = note;
+    $('daily-first').textContent = days[0].day;
+    $('daily-last').textContent = days[30].day;
+  };
+
   const render = (m) => {
     $('uptime').textContent = dur(m.app.uptimeSeconds);
     $('commit').textContent = (m.app.commit || '').slice(0, 8);
     $('boot').textContent = m.app.springBoot;
     $('java').textContent = m.app.javaVersion;
-    $('heap').textContent = `${fmt.format(m.jvm.heapUsedMb)} / ${fmt.format(m.jvm.heapMaxMb)} MB`;
+    $('heap').textContent = `${fmt.format(m.jvm.heapUsedMb)} MB`;
+    $('heap-label').textContent = `heap used of ${fmt.format(m.jvm.heapMaxMb)} MB`;
     $('nonheap').textContent = `${fmt.format(m.jvm.nonHeapUsedMb)} MB`;
     $('threads').textContent = fmt.format(m.jvm.threads);
     const db = m.database;
@@ -50,7 +75,7 @@
     bars($('appointments'), dom.appointmentsByStatus, (r) => `${r.status} · ${r.paymentStatus}`, (r) => r.count, (r) => fmt.format(r.count));
     bars($('payments'), dom.paymentsByStatus, (r) => `${r.status} · ${r.gateway}`, (r) => r.count, (r) => fmt.format(r.count), () => 'alt');
     bars($('roles'), dom.usersByRole, (r) => r.key, (r) => r.count, (r) => fmt.format(r.count), () => 'alt');
-    bars($('daily'), dom.appointmentsPerDay, (r) => r.day, (r) => r.count, (r) => fmt.format(r.count));
+    dailyColumns(dom.appointmentsPerDay, m.generatedAt);
     $('notifications').textContent = `${fmt.format(dom.notificationsUnread)} / ${fmt.format(dom.notificationsTotal)}`;
     $('sessions').textContent = fmt.format(dom.sessionsActive);
     $('migration').textContent = db.lastMigration ? `${db.lastMigration} (${(db.migratedAt || '').slice(0, 10)})` : '—';
