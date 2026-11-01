@@ -119,7 +119,7 @@ Production HikariCP: `maximum-pool-size: 15`, `minimum-idle: 2`; Tomcat `threads
 
 ## Static File Serving
 
-Uploads are written and read through `shared/storage/FileStorage` (local directory `app.storageRoot`, or the S3-compatible Railway bucket when `app.storage.s3.enabled`; the bucket falls back to the directory for reads while a volume is being copied). `shared/api/StoredFileController` serves them with a 1-hour cache at `/doctors/**`, `/patients/**`, `/patientdocuments/**`, `/certificates/**`, `/chat-attachments/**`. Admins copy a volume into the bucket with `POST /api/admin/storage/migrate`.
+Uploads are written and read through `shared/storage/FileStorage` (local directory `app.storageRoot`, or the S3-compatible Railway bucket when `app.storage.s3.enabled`; the bucket falls back to the directory for reads while a volume is being copied). `shared/api/StoredFileController` serves them with a 1-hour cache at `/doctors/**`, `/patients/**`, `/patientdocuments/**`, `/certificates/**`, `/chat-attachments/**`.
 
 ## Key Environment Variables
 

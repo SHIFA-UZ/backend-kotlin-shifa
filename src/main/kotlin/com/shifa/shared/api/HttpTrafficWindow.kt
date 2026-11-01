@@ -1,22 +1,30 @@
 package com.shifa.shared.api
 
 import java.time.Instant
-import kotlin.math.ceil
-import kotlin.math.floor
-import kotlin.math.log2
-import kotlin.math.pow
 import org.springframework.stereotype.Component
 
 /**
  * API traffic per hour for the admin health page: 48 hourly buckets (the last 24 hours and the 24 before them) and
  * latency per route since start. Fed by [RequestTimingFilter], so it covers `/api` only and holds route templates,
- * never raw paths. In memory: a deploy resets it.
+ * never raw paths. In memory: a deploy resets it, so what must outlive one is handed over through [drain].
  */
 @Component
 class HttpTrafficWindow {
     data class HourRow(val hour: Instant, val requests: Long, val p95Ms: Long?, val serverErrors: Long)
     data class RouteCount(val status: Int, val method: String, val route: String, val count: Long)
     data class RoutePercentiles(val p95Ms: Long, val p99Ms: Long)
+
+    /** What happened in one hour since the last [drain]. */
+    data class HourDelta(
+        val hour: Instant,
+        val requests: Long,
+        val byStatus: Map<String, Long>,
+        val latency: LatencyHistogram,
+        val peakRps: Long,
+        val peakAt: Instant,
+        val clientErrors: List<RouteCount>,
+    )
+
     data class Snapshot(
         val requests: Long,
         val previousRequests: Long?,
@@ -41,10 +49,28 @@ class HttpTrafficWindow {
         var currentSecondCount = 0L
         var peakRps = 0L
         var peakSecond = 0L
+
+        fun add(method: String, route: String, status: Int, ms: Long, second: Long) {
+            requests++
+            latency.add(ms)
+            byStatus.merge(statusGroup(status), 1L, Long::plus)
+            if (status >= SERVER_ERROR) serverErrors++
+            if (status in CLIENT_ERROR until SERVER_ERROR) clientErrors.merge(Triple(status, method, route), 1L, Long::plus)
+            if (currentSecond != second) {
+                currentSecond = second
+                currentSecondCount = 0
+            }
+            currentSecondCount++
+            if (currentSecondCount > peakRps) {
+                peakRps = currentSecondCount
+                peakSecond = second
+            }
+        }
     }
 
     private val slots = arrayOfNulls<Bucket>(HOURS * 2)
     private val routeLatency = HashMap<String, LatencyHistogram>()
+    private var undrained = HashMap<Long, Bucket>()
     private var firstHour: Long? = null
 
     // ponytail: one lock for all requests; it guards a few array writes, so split it only if it ever shows up in a profile.
@@ -56,22 +82,8 @@ class HttpTrafficWindow {
         if (firstHour == null) firstHour = hour
         val slot = (hour % slots.size).toInt()
         val bucket = slots[slot]?.takeIf { it.hour == hour } ?: Bucket(hour).also { slots[slot] = it }
-
-        bucket.requests++
-        bucket.latency.add(ms)
-        bucket.byStatus.merge(statusGroup(status), 1L, Long::plus)
-        if (status >= SERVER_ERROR) bucket.serverErrors++
-        if (status in CLIENT_ERROR until SERVER_ERROR) bucket.clientErrors.merge(Triple(status, method, route), 1L, Long::plus)
-
-        if (bucket.currentSecond != second) {
-            bucket.currentSecond = second
-            bucket.currentSecondCount = 0
-        }
-        bucket.currentSecondCount++
-        if (bucket.currentSecondCount > bucket.peakRps) {
-            bucket.peakRps = bucket.currentSecondCount
-            bucket.peakSecond = second
-        }
+        bucket.add(method, route, status, ms, second)
+        undrained.getOrPut(hour) { Bucket(hour) }.add(method, route, status, ms, second)
         routeLatency.getOrPut("$method $route") { LatencyHistogram() }.add(ms)
     }
 
@@ -116,6 +128,46 @@ class HttpTrafficWindow {
         )
     }
 
+    /** Everything recorded since the last call, and forgets it. If saving fails, hand it back through [restore]. */
+    @Synchronized
+    fun drain(): List<HourDelta> {
+        val drained = undrained
+        undrained = HashMap()
+        // A drain can fall inside a busy second: the next bucket goes on counting that second, or its peak would split in two.
+        drained.values.maxByOrNull { it.hour }?.let { last ->
+            undrained[last.hour] = Bucket(last.hour).apply {
+                currentSecond = last.currentSecond
+                currentSecondCount = last.currentSecondCount
+            }
+        }
+        return drained.values.filter { it.requests > 0 }.sortedBy { it.hour }.map { b ->
+            HourDelta(
+                hour = Instant.ofEpochSecond(b.hour * SECONDS_PER_HOUR),
+                requests = b.requests,
+                byStatus = STATUS_GROUPS.associateWith { b.byStatus[it] ?: 0L },
+                latency = b.latency,
+                peakRps = b.peakRps,
+                peakAt = Instant.ofEpochSecond(b.peakSecond),
+                clientErrors = b.clientErrors.map { (key, count) -> RouteCount(key.first, key.second, key.third, count) },
+            )
+        }
+    }
+
+    @Synchronized
+    fun restore(deltas: List<HourDelta>) {
+        deltas.forEach { d ->
+            val b = undrained.getOrPut(d.hour.epochSecond / SECONDS_PER_HOUR) { Bucket(d.hour.epochSecond / SECONDS_PER_HOUR) }
+            b.requests += d.requests
+            b.latency.merge(d.latency)
+            d.byStatus.forEach { (group, count) -> b.byStatus.merge(group, count, Long::plus) }
+            d.clientErrors.forEach { b.clientErrors.merge(Triple(it.status, it.method, it.route), it.count, Long::plus) }
+            if (d.peakRps > b.peakRps) {
+                b.peakRps = d.peakRps
+                b.peakSecond = d.peakAt.epochSecond
+            }
+        }
+    }
+
     /** Percentiles of one route since start, null for a route the filter has not seen. */
     @Synchronized
     fun routePercentiles(method: String, route: String): RoutePercentiles? =
@@ -123,43 +175,10 @@ class HttpTrafficWindow {
 
     private fun bucketAt(hour: Long): Bucket? = slots[(hour % slots.size).toInt()]?.takeIf { it.hour == hour }
 
-    /** Four bins per doubling of the milliseconds: about 9% of error, and histograms add up across hours. */
-    private class LatencyHistogram {
-        private val bins = LongArray(BINS)
-        private var max = 0L
-        var total = 0L
-            private set
-
-        fun add(ms: Long) {
-            val value = ms.coerceAtLeast(0)
-            bins[floor(BINS_PER_DOUBLING * log2(value + 1.0)).toInt().coerceAtMost(BINS - 1)]++
-            total++
-            max = maxOf(max, value)
-        }
-
-        fun merge(other: LatencyHistogram) {
-            other.bins.forEachIndexed { i, count -> bins[i] += count }
-            total += other.total
-            max = maxOf(max, other.max)
-        }
-
-        fun percentile(fraction: Double): Long {
-            val rank = ceil(fraction * total).toLong().coerceAtLeast(1)
-            var seen = 0L
-            bins.forEachIndexed { i, count ->
-                seen += count
-                if (seen >= rank) return minOf(ceil(2.0.pow((i + 1.0) / BINS_PER_DOUBLING)).toLong() - 1, max)
-            }
-            return max
-        }
-    }
-
     private companion object {
         const val HOURS = 24
         const val SECONDS_PER_HOUR = 3600L
         const val TOP_4XX = 4
-        const val BINS = 96
-        const val BINS_PER_DOUBLING = 4
         const val SUCCESS = 200
         const val REDIRECT = 300
         const val NOT_MODIFIED = 304

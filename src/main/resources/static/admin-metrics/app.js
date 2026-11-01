@@ -4,7 +4,6 @@
 (() => {
   // Limits behind the verdict, the vitals and the colours.
   const POLL_MS = 30000;
-  const STORAGE_POLL_MS = 5000;
   const FETCH_TIMEOUT_MS = 15000; // a hung request must end in the stale state, not freeze the refresh
   const LIMIT_5XX = 0.001; // share of requests
   const BUDGET_MS = 1000;
@@ -19,8 +18,8 @@
   const JOB_GRACE_MS = 120000;
   const ROUTE_ROWS = 25;
   const WATCH_ROWS = 5;
-  const SEVERITY = ['DOWN', '5xx', 'DEP', 'JOB', 'POOL', 'HEAP', 'SLOW', 'PAY', 'STORAGE'];
-  const CHIP = { DOWN: 'c-bad', '5xx': 'c-bad', DEP: 'c-bad', JOB: 'c-warn', POOL: 'c-warn', HEAP: 'c-warn', SLOW: 'c-warn', PAY: 'c-warn', STORAGE: 'c-bad' };
+  const SEVERITY = ['DOWN', '5xx', 'DEP', 'JOB', 'POOL', 'HEAP', 'SLOW', 'PAY'];
+  const CHIP = { DOWN: 'c-bad', '5xx': 'c-bad', DEP: 'c-bad', JOB: 'c-warn', POOL: 'c-warn', HEAP: 'c-warn', SLOW: 'c-warn', PAY: 'c-warn' };
 
   const $ = (id) => document.getElementById(id);
   const api = location.origin;
@@ -70,11 +69,11 @@
   let lastOk = null;
   let lastMetrics = null;
   let readiness = null;
-  let storage = null;
   let isStale = false;
   let session = 0; // bumped on sign-out: a response that was already on its way is dropped
   let routeSort = store.get('shifa.admin.routeSort') === 'busy' ? 'busy' : 'worst';
   let routesAll = false;
+  let trafficRange = ['7d', '30d'].includes(store.get('shifa.admin.trafficRange')) ? store.get('shifa.admin.trafficRange') : '24h';
 
   // Environment: the Railway hosts of both environments are told apart by name, so dev is never labelled production.
   const host = location.hostname;
@@ -146,7 +145,6 @@
     const windowed = m.paymentsLast24h != null;
     gateways(windowed ? m.paymentsLast24h : m.domain.paymentsByStatus).filter((g) => g.rate >= PAY_BAD).sort((a, b) => b.rate - a.rate).forEach((g) =>
       add('PAY', `${words(g.name)} failure rate ${pct(g.rate)} (${fmt(g.failed)} of ${fmt(g.total)})`, windowed ? 'Last 24 hours.' : 'All-time numbers.', 'Payments', '#payments'));
-    if (storage && (storage.failed > 0 || storage.state === 'failed')) add('STORAGE', `Upload copy: ${plural(storage.failed, 'failed file')}`, storage.lastError || 'See the last pass under Maintenance.', 'Maintenance', '#maintenance');
     return out.sort((a, b) => SEVERITY.indexOf(a.level) - SEVERITY.indexOf(b.level));
   };
 
@@ -168,7 +166,7 @@
       const link = el('a', 'watch-link', w.link); link.href = w.href;
       return el('div', 'watch-row', el('span', 'chip ' + CHIP[w.level], w.level), el('div', 'min0', el('div', 'strong', w.title), el('div', 'small muted', w.detail)), link);
     });
-    fill('watch', ...(rows.length ? rows : [el('div', 'small muted', 'No rule is tripped: routes, pool, heap, payments and uploads are all clear.')]),
+    fill('watch', ...(rows.length ? rows : [el('div', 'small muted', 'No rule is tripped: routes, pool, heap and payments are all clear.')]),
       items.length > WATCH_ROWS ? el('div', 'small muted', `+${items.length - WATCH_ROWS} more`) : null);
   };
 
@@ -240,44 +238,85 @@
   };
 
   const STATUS = [['2xx', '2xx success', 'c-accent'], ['304', '304 not modified', 'c-soft'], ['3xxOther', 'Other 3xx', 'c-dim'], ['401', '401 unauthorized', 'c-pending'], ['403', '403 forbidden', 'c-warn'], ['4xxOther', '404 / 422 / other 4xx', 'c-grey'], ['5xx', '5xx', 'c-bad']];
-  const renderTraffic = (m) => {
-    const w = m.http.last24h;
-    if (!show('traffic', w != null)) return;
+  const RANGES = {
+    '24h': { title: '24 h', unit: 'requests / hour', compare: 'same hours yesterday', span: '24 hours' },
+    '7d': { title: '7 days', unit: 'requests / 6 hours', compare: 'previous 7 days', span: '7 days' },
+    '30d': { title: '30 days', unit: 'requests / day', compare: 'previous 30 days', span: '30 days' },
+  };
+  // Exact counts sit in a row above the columns: flat when every one fits its column, else turned on end.
+  const fitNumbers = (id) => {
+    const chart = $(id);
+    chart.classList.add('flat');
+    if ([...chart.querySelectorAll('.num')].some((n) => n.offsetWidth > n.nextElementSibling.clientWidth)) chart.classList.remove('flat');
+  };
+  const renderTrafficRange = () => {
+    document.querySelectorAll('[data-range]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.range === trafficRange)));
+  };
+  const renderTraffic = (t) => {
+    const r = RANGES[t.range];
+    $('traffic-title').textContent = `Traffic, last ${r.title}`; // set here, so a heading never sits on another range's numbers
+    $('traffic-unit').textContent = r.unit;
     const change = (now, before) => (before ? Math.round(100 * (now - before) / before) : null);
     const signed = (n) => `${n >= 0 ? '+' : ''}${n}%`;
-    const completeHours = w.hourly.slice(0, -1).reduce((s, h) => s + h.requests, 0); // previousRequests leaves out the running hour too
-    const reqChange = change(completeHours, w.previousRequests);
-    const p95Change = change(w.p95Ms, w.previousP95Ms);
-    const worst = m.http.routes.filter((r) => r.p99Ms != null).reduce((a, b) => (!a || b.p99Ms > a.p99Ms ? b : a), null);
-    const avail = m.http.availability30d;
-    const kpi = (label, value, sub, tone) => el('div', 'mini kpi', el('div', 'label', label), el('div', 'value', value), el('div', 'small ' + (tone || 'muted'), sub));
+    const reqChange = change(t.comparableRequests, t.previousRequests);
+    const p95Change = t.comparableP95Ms != null ? change(t.comparableP95Ms, t.previousP95Ms) : null;
+    const none = 'no earlier period yet';
+    const avail = lastMetrics && lastMetrics.http.availability30d;
+    const when = (iso) => (t.bucketSeconds < 86400 ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }));
+    const label = (iso) => (t.bucketSeconds === 3600 ? `${String(new Date(iso).getHours()).padStart(2, '0')}:00` : when(iso));
+    const kpi = (name, value, sub, tone) => el('div', 'mini kpi', el('div', 'label', name), el('div', 'value', value), el('div', 'small ' + (tone || 'muted'), sub));
     fill('traffic-kpis',
-      kpi('Requests', compact(w.requests), reqChange !== null ? `${signed(reqChange)} vs same hours yesterday` : 'no earlier 24 h yet'),
-      kpi('Peak rate', `${fmt(w.peakRps)} rps`, [w.peakAt ? hourMin(w.peakAt) : null, w.peakPoolActive != null ? `pool peak ${w.peakPoolActive}/${m.database.pool.max}` : null].filter(Boolean).join(' · ')),
-      kpi('p50 / p95', `${fmt(w.p50Ms)} / ${ms(w.p95Ms)}`, p95Change !== null ? `p95 ${signed(p95Change)} vs yesterday` : 'no earlier 24 h yet', p95Change !== null && p95Change > 10 ? 't-warn' : ''),
-      kpi('p99', ms(w.p99Ms), worst ? `highest ${worst.method} ${worst.route}` : ''),
+      kpi('Requests', fmt(t.requests), reqChange !== null ? `${signed(reqChange)} vs ${r.compare}` : none),
+      kpi('Peak rate', `${fmt(t.peakRps)} rps`, t.peakAt ? new Date(t.peakAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '—'),
+      kpi('p50 / p95', t.p95Ms != null ? `${fmt(t.p50Ms)} / ${ms(t.p95Ms)}` : '—', p95Change !== null ? `p95 ${signed(p95Change)} vs ${r.compare}` : none, p95Change !== null && p95Change > 10 ? 't-warn' : ''),
+      kpi('p99', t.p99Ms != null ? ms(t.p99Ms) : '—', ''),
       avail ? kpi('Error budget', pct(avail.ratio, 2), `SLO ${pct(avail.slo)} · 30 d`, avail.ratio >= avail.slo ? 't-ok' : 't-bad') : null);
 
-    const peak = Math.max(1, ...w.hourly.map((h) => h.requests));
-    const hh = (iso) => `${String(new Date(iso).getHours()).padStart(2, '0')}:00`;
-    fill('hours', ...w.hourly.map((h) => titled(el('div', 'hour',
-      sized(el('div', 'h ' + (h.serverErrors > 0 ? 'c-bad' : 'c-accent')), 'height', widthPct(h.requests / peak)),
-      h.p95Ms != null ? sized(el('div', 'p'), 'bottom', widthPct(h.p95Ms / 800)) : null),
-      `${hh(h.hour)} · ${fmt(h.requests)} req${h.p95Ms != null ? ` · p95 ${ms(h.p95Ms)}` : ''}${h.serverErrors ? ` · ${fmt(h.serverErrors)} 5xx` : ''}`)));
-    const top = w.hourly.reduce((a, b) => (b.requests > a.requests ? b : a), w.hourly[0]);
-    $('hours').setAttribute('aria-label', `${fmt(w.requests)} requests in 24 hours, busiest hour ${hh(top.hour)} with ${fmt(top.requests)}, ${fmt(w.byStatus['5xx'] || 0)} answered 5xx`);
-    $('hours-first').textContent = hh(w.hourly[0].hour);
-    $('hours-peak').textContent = `peak ${hh(top.hour)}`;
+    const peak = Math.max(1, ...t.buckets.map((b) => b.requests));
+    fill('hours', ...t.buckets.flatMap((b) => {
+      const tip = `${label(b.start)} · ${fmt(b.requests)} req${b.p95Ms != null ? ` · p95 ${ms(b.p95Ms)}` : ''}${b.serverErrors ? ` · ${fmt(b.serverErrors)} 5xx` : ''}`;
+      return [titled(el('span', 'num', fmt(b.requests)), tip), titled(el('div', 'hour',
+        sized(el('div', 'h ' + (b.serverErrors > 0 ? 'c-bad' : 'c-accent')), 'height', widthPct(b.requests / peak)),
+        b.p95Ms != null ? sized(el('div', 'p'), 'bottom', widthPct(b.p95Ms / 800)) : null), tip)];
+    }));
+    fitNumbers('hours');
+    const top = t.buckets.reduce((a, b) => (b.requests > a.requests ? b : a), t.buckets[0]);
+    $('hours').setAttribute('aria-label', `${fmt(t.requests)} requests in ${r.span}, busiest ${label(top.start)} with ${fmt(top.requests)}, ${fmt(t.byStatus['5xx'] || 0)} answered 5xx`);
+    $('hours-first').textContent = label(t.buckets[0].start);
+    $('hours-peak').textContent = top.requests ? `peak ${label(top.start)}` : '';
 
-    const parts = STATUS.map(([key, label, tone]) => ({ key, label, tone, count: w.byStatus[key] || 0 })).filter((p) => p.key !== '3xxOther' || p.count > 0);
+    const parts = STATUS.map(([key, name, tone]) => ({ key, label: name, tone, count: t.byStatus[key] || 0 })).filter((p) => p.key !== '3xxOther' || p.count > 0);
     stackBar('status-bar', parts, 0.4);
     legend('status-legend', parts);
-    fill('top4xx', ...(w.top4xx && w.top4xx.length ? w.top4xx.slice(0, 4).map((e) => el('div', 'row-4xx',
+    fill('top4xx', ...(t.top4xx.length ? t.top4xx.slice(0, 4).map((e) => el('div', 'row-4xx',
       el('span', 'mono t-warn', String(e.status)),
       el('div', 'min0', el('div', 'mono ellipsis', `${e.method} ${e.route}`), e.reason ? el('div', 'small muted', words(e.reason)) : null),
       el('span', 'right', fmt(e.count)))) : [noRows()]));
-    const young = Date.parse(m.generatedAt) - Date.parse(m.http.since) < 86400000;
-    $('traffic-note').textContent = `/api requests only. ${young ? `Collected since the last deploy at ${utcMinute(m.http.since)} UTC, so this covers less than 24 h.` : 'Kept in memory: a deploy resets it.'}`;
+    const partial = !t.collectingSince || Date.parse(t.collectingSince) > Date.parse(t.from);
+    $('traffic-note').textContent = `/api requests only, saved every minute. ${!t.collectingSince ? 'Nothing saved yet.' : partial ? `Collecting since ${when(t.collectingSince)}, so this covers less than ${r.span}.` : 'Survives deploys.'}${t.bucketSeconds === 86400 ? ' Days are UTC.' : ''}`;
+  };
+
+  // One view at a time, fetched on every poll. Only the latest request may touch the page: a slow older answer is dropped.
+  let trafficRequest = 0;
+  const loadTraffic = async () => {
+    if (!token) return;
+    const mine = session, range = trafficRange, request = ++trafficRequest;
+    try {
+      const r = await fetch(`${api}/api/admin/metrics/traffic?range=${range}`, { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+      if (mine !== session || request !== trafficRequest) return;
+      if (r.status === 401 || r.status === 403) return signOut('Session ended. Sign in again.');
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const t = await r.json();
+      if (mine !== session || request !== trafficRequest) return;
+      show('traffic-error', false);
+      show('traffic', true);
+      renderTraffic(t);
+    } catch (e) {
+      if (mine !== session || request !== trafficRequest) return;
+      $('traffic-error').textContent = `Traffic for ${RANGES[range].span} could not be read. Trying again on the next refresh.`;
+      show('traffic-error', true);
+      show('traffic', $('hours').childElementCount > 0); // keeps the last good view
+    }
   };
 
   const renderClients = (m) => {
@@ -380,6 +419,8 @@
     'sms-otp-cleanup': ['SMS code cleanup', 'expired phone codes'],
     'email-otp-cleanup': ['E-mail code cleanup', 'expired e-mail codes'],
     'ai-draft-note-cleanup': ['AI draft cleanup', 'old unsaved visit drafts'],
+    'traffic-rollup': ['Traffic rollup', 'saves request counts for the traffic card'],
+    'traffic-rollup-cleanup': ['Traffic rollup cleanup', 'deletes saved counts older than 62 days'],
   };
   const jobLabel = (j) => JOBS[j.name] || [words(j.name), ''];
   const renderJobs = (m) => {
@@ -447,7 +488,11 @@
     const total = days.reduce((s, d) => s + d.count, 0);
     const today = days[30].count;
     const avg7 = days.slice(23, 30).reduce((s, d) => s + d.count, 0) / 7;
-    fill('daily', ...days.map((d, i) => titled(el('div', 'day', sized(el('div', i === 30 ? 'c-warn' : 'c-accent'), 'height', widthPct(d.count / max))), `${d.day}: ${fmt(d.count)}${i === 30 ? ' (today, still partial)' : ''}`)));
+    fill('daily', ...days.flatMap((d, i) => {
+      const tip = `${d.day}: ${fmt(d.count)}${i === 30 ? ' (today, still partial)' : ''}`;
+      return [titled(el('span', 'num', fmt(d.count)), tip), titled(el('div', 'day', sized(el('div', i === 30 ? 'c-warn' : 'c-accent'), 'height', widthPct(d.count / max))), tip)];
+    }));
+    fitNumbers('daily');
     const head = `${fmt(total)} in 30 d · today ${fmt(today)} vs 7-d avg ${fmt(Math.round(avg7))}`;
     $('daily-head').textContent = head;
     $('daily').setAttribute('aria-label', `Appointments created per day: ${head}`);
@@ -471,7 +516,7 @@
   const render = (m) => {
     lastMetrics = m;
     $('where').textContent = `${host} · build ${(m.app.commit || '').slice(0, 8)} · up ${dur(m.app.uptimeSeconds)}`;
-    [renderVerdict, renderVitals, renderDeps, renderRoutes, renderTraffic, renderClients, renderAuth, renderAi, renderMedia, renderPayments, renderJobs, renderDatabase, renderActivity, renderFooter].forEach((f) => f(m));
+    [renderVerdict, renderVitals, renderDeps, renderRoutes, renderClients, renderAuth, renderAi, renderMedia, renderPayments, renderJobs, renderDatabase, renderActivity, renderFooter].forEach((f) => f(m));
     lastOk = new Date(m.generatedAt);
     isStale = false;
     $('board').classList.remove('stale');
@@ -507,12 +552,11 @@
 
   const signOut = (message) => {
     session++;
-    inFlight = false; storageBusy = false;
+    inFlight = false;
     token = null; try { sessionStorage.removeItem('shifa.admin.token'); } catch (e) { /* storage blocked */ }
     clearInterval(timer); timer = null;
     clearInterval(countdown); countdown = null;
-    clearInterval(storageTimer); storageTimer = null;
-    lastMetrics = null; lastOk = null; storage = null;
+    lastMetrics = null; lastOk = null;
     $('board').hidden = true; $('login').hidden = false; $('status').hidden = true;
     $('where').textContent = host;
     resetLogin();
@@ -549,68 +593,8 @@
     nextAt = Date.now() + POLL_MS;
     if (document.hidden) return;
     load();
-    loadStorage();
+    loadTraffic();
   };
-
-  // Volume-to-bucket copy (POST /api/admin/storage/migrate starts it, GET reports progress). Polls every 5 s while running.
-  let storageTimer = null;
-  let maintOpen = store.get('shifa.admin.maintOpen') === 'true';
-  let maintAutoOpened = false;
-  const setMaint = (open) => {
-    maintOpen = open;
-    $('maint-body').hidden = !open;
-    $('maint-toggle').setAttribute('aria-expanded', String(open));
-    $('maint-label').textContent = open ? 'Hide' : 'Show controls';
-  };
-  const renderStorage = (st) => {
-    storage = st;
-    const run = st.state === 'running';
-    const bad = st.state === 'failed' || st.failed > 0;
-    const pill = $('maint-pill');
-    pill.textContent = `${st.state}${st.dryRun ? ' (dry run)' : ''} · ${fmt(st.copied)} copied · ${fmt(st.failed)} failed`;
-    pill.className = 'pill ' + (bad ? 'bad' : st.state === 'done' ? 'ok' : '');
-    const span = st.startedAt ? `${hourMin(st.startedAt)}${st.finishedAt ? '–' + hourMin(st.finishedAt) : ''}` : null;
-    $('maint-desc').textContent = (span ? `${run ? 'This pass' : 'Last pass'} ${span}: ` : 'No pass since the last deploy. ') +
-      (span ? `scanned ${fmt(st.scanned)} · skipped ${fmt(st.skipped)} · conflicts ${fmt(st.conflicts)} · ${bytes(st.bytes)}. ` : '') +
-      'Copies every file on the volume into the bucket; safe to repeat. A clean pass (0 copied, 0 failed) means the volume can be unmounted.';
-    $('storage-start').disabled = run; $('storage-dry').disabled = run;
-    $('storage-error').hidden = !st.lastError; $('storage-error').textContent = st.lastError || '';
-    if ((run || bad) && !maintAutoOpened) { maintAutoOpened = true; setMaint(true); }
-    clearInterval(storageTimer); storageTimer = run ? setInterval(() => loadStorage(), STORAGE_POLL_MS) : null;
-    if (lastMetrics) renderVerdict(lastMetrics);
-  };
-  let storageBusy = false;
-  const storageCall = async (method, query) => {
-    if (!token || storageBusy) return;
-    storageBusy = true;
-    const mine = session;
-    if (method === 'POST') { $('storage-start').disabled = true; $('storage-dry').disabled = true; }
-    try {
-      const r = await fetch(api + '/api/admin/storage/migrate' + (query || ''), { method, headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-      if (mine !== session) return; // signed out while the request was in flight
-      if (r.status === 401 || r.status === 403) return signOut('Session ended. Sign in again.');
-      const j = await r.json().catch(() => null);
-      if (mine !== session) return;
-      if (!r.ok || !j || !j.state) { // keeps the last good status and, during a pass, its polling
-        $('storage-error').textContent = (j && j.message) || (r.ok ? 'Storage status unreachable' : `HTTP ${r.status}`); $('storage-error').hidden = false;
-        if (!storage || storage.state !== 'running') { $('storage-start').disabled = false; $('storage-dry').disabled = false; }
-        return;
-      }
-      renderStorage(j);
-    } catch (e) {
-      if (mine !== session) return;
-      $('storage-error').textContent = 'Storage status unreachable'; $('storage-error').hidden = false;
-      if (!storage || storage.state !== 'running') { $('storage-start').disabled = false; $('storage-dry').disabled = false; }
-    } finally {
-      storageBusy = false;
-    }
-  };
-  const loadStorage = () => storageCall('GET');
-  $('storage-start').addEventListener('click', () => {
-    if (confirm('Start copying every file on the volume into the bucket?')) storageCall('POST');
-  });
-  $('storage-dry').addEventListener('click', () => storageCall('POST', '?dryRun=true'));
-  $('maint-toggle').addEventListener('click', () => { setMaint(!maintOpen); store.set('shifa.admin.maintOpen', String(maintOpen)); });
 
   const setSort = (mode) => {
     routeSort = mode;
@@ -621,6 +605,13 @@
   $('sort-busy').addEventListener('click', () => setSort('busy'));
   $('routes-all').addEventListener('click', () => { routesAll = !routesAll; if (lastMetrics) renderRoutes(lastMetrics); });
 
+  document.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => {
+    trafficRange = b.dataset.range;
+    store.set('shifa.admin.trafficRange', trafficRange);
+    renderTrafficRange();
+    loadTraffic();
+  }));
+
   const restartTimer = () => {
     clearInterval(timer); timer = setInterval(tick, POLL_MS);
     tick();
@@ -628,7 +619,8 @@
 
   const start = () => {
     $('login').hidden = true; $('board').hidden = false; $('status').hidden = false;
-    setMaint(maintOpen);
+    fitNumbers('hours'); fitNumbers('daily'); // charts kept from before a sign-out were last measured while hidden
+    renderTrafficRange();
     clearInterval(countdown); countdown = setInterval(updateClock, 1000);
     restartTimer();
   };
@@ -662,6 +654,7 @@
   $('start-over').addEventListener('click', () => { resetLogin(); $('login-error').hidden = true; });
   $('refresh').addEventListener('click', restartTimer);
   $('logout').addEventListener('click', () => signOut());
+  window.addEventListener('resize', () => { fitNumbers('hours'); fitNumbers('daily'); });
   document.addEventListener('visibilitychange', () => { if (!document.hidden && token) restartTimer(); });
 
   if (token) start();

@@ -9893,71 +9893,6 @@
         ],
         "type": "object"
       },
-      "Status": {
-        "properties": {
-          "bytes": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "conflicts": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "copied": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "dryRun": {
-            "type": "boolean"
-          },
-          "failed": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "finishedAt": {
-            "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "lastError": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "scanned": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "skipped": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "startedAt": {
-            "format": "date-time",
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "state": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "bytes",
-          "conflicts",
-          "copied",
-          "dryRun",
-          "failed",
-          "scanned",
-          "skipped",
-          "state"
-        ],
-        "type": "object"
-      },
       "SubmitCheckInRequest": {
         "properties": {
           "booleanValue": {
@@ -10366,6 +10301,149 @@
         "required": [
           "forcePasswordReset",
           "token"
+        ],
+        "type": "object"
+      },
+      "TrafficBucketDto": {
+        "properties": {
+          "p95Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "requests": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "serverErrors": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "start": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "requests",
+          "serverErrors",
+          "start"
+        ],
+        "type": "object"
+      },
+      "TrafficRangeDto": {
+        "properties": {
+          "bucketSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/TrafficBucketDto"
+            },
+            "type": "array"
+          },
+          "byStatus": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "collectingSince": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "comparableP95Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "comparableRequests": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "p50Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "p95Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "p99Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "peakAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "peakRps": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "previousP95Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "previousRequests": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "range": {
+            "type": "string"
+          },
+          "requests": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "top4xx": {
+            "items": {
+              "$ref": "#/components/schemas/HttpRouteCountDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "bucketSeconds",
+          "buckets",
+          "byStatus",
+          "comparableRequests",
+          "from",
+          "peakRps",
+          "range",
+          "requests",
+          "top4xx"
         ],
         "type": "object"
       },
@@ -12223,6 +12301,38 @@
         ]
       }
     },
+    "/api/admin/metrics/traffic": {
+      "get": {
+        "operationId": "traffic",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "24h",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrafficRangeDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "API traffic over the last 24 hours, 7 days or 30 days (range: 24h, 7d, 30d)",
+        "tags": [
+          "admin-metrics-controller"
+        ]
+      }
+    },
     "/api/admin/patients/deleted/search": {
       "post": {
         "operationId": "searchDeletedPatients",
@@ -12450,55 +12560,6 @@
         },
         "tags": [
           "admin-payment-controller"
-        ]
-      }
-    },
-    "/api/admin/storage/migrate": {
-      "get": {
-        "operationId": "status",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/Status"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "storage-migration-controller"
-        ]
-      },
-      "post": {
-        "operationId": "start",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "dryRun",
-            "required": false,
-            "schema": {
-              "default": false,
-              "type": "boolean"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/Status"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "storage-migration-controller"
         ]
       }
     },

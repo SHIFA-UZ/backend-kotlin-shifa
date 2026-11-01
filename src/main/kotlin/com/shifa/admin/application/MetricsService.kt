@@ -179,6 +179,8 @@ class MetricsService(
             "sms-otp-cleanup" to HOUR,
             "email-otp-cleanup" to HOUR,
             "ai-draft-note-cleanup" to DAY,
+            "traffic-rollup" to MINUTE,
+            "traffic-rollup-cleanup" to DAY,
         )
         private val JOB_NOTES = mapOf("reminder-notifications" to "sends inside job transaction")
 
