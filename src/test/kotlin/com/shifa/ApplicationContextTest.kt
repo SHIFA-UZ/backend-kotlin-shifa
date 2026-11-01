@@ -150,6 +150,8 @@ class ApplicationContextTest {
         assertTrue(m.database.sizeBytes > 0)
         assertTrue(m.jvm.heapMaxMb > 0)
         assertTrue(m.app.uptimeSeconds >= 0)
+        assertTrue(m.database.unusedIndexes != null)
+        assertTrue(m.ai24h != null && m.paymentsLast24h != null && m.jobs != null)
 
         mockMvc.perform(get("/api/admin/metrics")).andExpect(status().isUnauthorized)
         mockMvc.perform(get("/admin-metrics/index.html")).andExpect(status().isOk)

@@ -1,5 +1,6 @@
 package com.shifa.shared.config
 
+import com.shifa.shared.api.HttpTrafficWindow
 import com.shifa.shared.api.RequestIdFilter
 import com.shifa.shared.api.RequestTimingFilter
 import org.springframework.boot.web.servlet.FilterRegistrationBean
@@ -19,8 +20,8 @@ class RequestTimingConfig {
 
     /** Outermost filter on the API paths, so the time includes security and rate limiting; actuator and files are not logged. */
     @Bean
-    fun requestTimingFilterRegistration(): FilterRegistrationBean<RequestTimingFilter> =
-        FilterRegistrationBean(RequestTimingFilter()).apply {
+    fun requestTimingFilterRegistration(traffic: HttpTrafficWindow): FilterRegistrationBean<RequestTimingFilter> =
+        FilterRegistrationBean(RequestTimingFilter(traffic)).apply {
             addUrlPatterns("/api/*")
             order = Ordered.HIGHEST_PRECEDENCE + 10
         }

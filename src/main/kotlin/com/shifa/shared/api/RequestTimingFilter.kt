@@ -11,9 +11,10 @@ import org.springframework.web.servlet.HandlerMapping
  * One JSON line per API request: method, route template, status, milliseconds. No query string, no ids,
  * no user data, so the line is safe to keep in logs and cheap to aggregate (scripts/latency-report.sh).
  * Volume: one INFO line per request. To silence it in an environment, set
- * logging.level.com.shifa.shared.api.RequestTimingFilter: WARN.
+ * logging.level.com.shifa.shared.api.RequestTimingFilter: WARN. The admin health page reads the same
+ * numbers from [HttpTrafficWindow].
  */
-class RequestTimingFilter : OncePerRequestFilter() {
+class RequestTimingFilter(private val traffic: HttpTrafficWindow) : OncePerRequestFilter() {
     private val log = LoggerFactory.getLogger(RequestTimingFilter::class.java)
 
     override fun doFilterInternal(request: HttpServletRequest, response: HttpServletResponse, chain: FilterChain) {
@@ -23,7 +24,9 @@ class RequestTimingFilter : OncePerRequestFilter() {
         } finally {
             val pattern = request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE) as? String
             val ms = (System.nanoTime() - started) / 1_000_000
-            log.info(line(request.method, routeOf(pattern, request.requestURI), response.status, ms))
+            val route = routeOf(pattern, request.requestURI)
+            traffic.record(request.method, route, response.status, ms)
+            log.info(line(request.method, route, response.status, ms))
         }
     }
 

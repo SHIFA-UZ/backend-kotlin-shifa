@@ -10,6 +10,10 @@ data class AdminMetricsDto(
     val database: DatabaseMetricsDto,
     val domain: DomainMetricsDto,
     val http: HttpMetricsDto,
+    val jobs: List<JobMetricsDto>? = null,
+    val ai24h: List<AiProviderMetricsDto>? = null,
+    val aiFallbacks24h: Long? = null,
+    val paymentsLast24h: List<PaymentCountDto>? = null,
 )
 
 data class AppMetricsDto(
@@ -36,7 +40,14 @@ data class DatabaseMetricsDto(
     val serverConnections: ConnectionStatesDto,
     val pool: PoolMetricsDto,
     val tables: List<TableSizeDto>,
+    val cacheHitRatio: Double? = null,
+    val deadTupleRatio: DeadTupleRatioDto? = null,
+    val unusedIndexes: UnusedIndexesDto? = null,
 )
+
+data class DeadTupleRatioDto(val table: String, val ratio: Double)
+
+data class UnusedIndexesDto(val count: Long, val bytes: Long)
 
 data class ConnectionStatesDto(val active: Long, val idle: Long, val idleInTransaction: Long)
 
@@ -69,6 +80,42 @@ data class HttpMetricsDto(
     val requests: Long,
     val serverErrors: Long,
     val routes: List<RouteMetricsDto>,
+    val last24h: HttpWindowDto? = null,
+)
+
+/** `/api` traffic of the last 24 hours as far as this process has seen it: a deploy resets it. */
+data class HttpWindowDto(
+    val requests: Long,
+    /** The 23 complete hours of this window, one day earlier: compare with `hourly` minus its running last row. Null until watched in full. */
+    val previousRequests: Long? = null,
+    val p50Ms: Long,
+    val p95Ms: Long,
+    val p99Ms: Long,
+    val previousP95Ms: Long? = null,
+    val peakRps: Long,
+    val peakAt: Instant? = null,
+    /** Keys: 2xx, 304, 3xxOther, 401, 403, 4xxOther, 5xx. */
+    val byStatus: Map<String, Long>,
+    /** 24 rows, oldest first. */
+    val hourly: List<HttpHourDto>,
+    val top4xx: List<HttpRouteCountDto>,
+)
+
+data class HttpHourDto(val hour: Instant, val requests: Long, val p95Ms: Long? = null, val serverErrors: Long)
+
+data class HttpRouteCountDto(val status: Int, val method: String, val route: String, val count: Long)
+
+/** A scheduled job as ShedLock saw it. `nextRunAt` is the last start plus the job's interval. */
+data class JobMetricsDto(val name: String, val lastRunAt: Instant, val nextRunAt: Instant? = null, val note: String? = null)
+
+data class AiProviderMetricsDto(
+    val provider: String,
+    val use: String? = null,
+    val calls: Long,
+    val p95Ms: Long? = null,
+    val errorRatio: Double,
+    val tokensIn: Long,
+    val tokensOut: Long,
 )
 
 data class RouteMetricsDto(
@@ -80,4 +127,7 @@ data class RouteMetricsDto(
     val averageMs: Long,
     /** Micrometer keeps the maximum over a rolling window of about two minutes, not since start. */
     val recentMaxMs: Long,
+    /** Since start, from the `/api` request filter; null for paths it does not cover. */
+    val p95Ms: Long? = null,
+    val p99Ms: Long? = null,
 )

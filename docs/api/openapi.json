@@ -89,6 +89,22 @@
       },
       "AdminMetricsDto": {
         "properties": {
+          "ai24h": {
+            "items": {
+              "$ref": "#/components/schemas/AiProviderMetricsDto"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "aiFallbacks24h": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "app": {
             "$ref": "#/components/schemas/AppMetricsDto"
           },
@@ -105,8 +121,26 @@
           "http": {
             "$ref": "#/components/schemas/HttpMetricsDto"
           },
+          "jobs": {
+            "items": {
+              "$ref": "#/components/schemas/JobMetricsDto"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
           "jvm": {
             "$ref": "#/components/schemas/JvmMetricsDto"
+          },
+          "paymentsLast24h": {
+            "items": {
+              "$ref": "#/components/schemas/PaymentCountDto"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
           }
         },
         "required": [
@@ -266,6 +300,50 @@
         "required": [
           "content",
           "role"
+        ],
+        "type": "object"
+      },
+      "AiProviderMetricsDto": {
+        "properties": {
+          "calls": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "errorRatio": {
+            "format": "double",
+            "type": "number"
+          },
+          "p95Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "provider": {
+            "type": "string"
+          },
+          "tokensIn": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tokensOut": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "use": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "calls",
+          "errorRatio",
+          "provider",
+          "tokensIn",
+          "tokensOut"
         ],
         "type": "object"
       },
@@ -3285,6 +3363,23 @@
       },
       "DatabaseMetricsDto": {
         "properties": {
+          "cacheHitRatio": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "deadTupleRatio": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DeadTupleRatioDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "lastMigration": {
             "type": [
               "string",
@@ -3323,6 +3418,16 @@
               "$ref": "#/components/schemas/TableSizeDto"
             },
             "type": "array"
+          },
+          "unusedIndexes": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/UnusedIndexesDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
@@ -3389,6 +3494,22 @@
         "required": [
           "count",
           "day"
+        ],
+        "type": "object"
+      },
+      "DeadTupleRatioDto": {
+        "properties": {
+          "ratio": {
+            "format": "double",
+            "type": "number"
+          },
+          "table": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ratio",
+          "table"
         ],
         "type": "object"
       },
@@ -4986,8 +5107,47 @@
         ],
         "type": "object"
       },
+      "HttpHourDto": {
+        "properties": {
+          "hour": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "p95Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "requests": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "serverErrors": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hour",
+          "requests",
+          "serverErrors"
+        ],
+        "type": "object"
+      },
       "HttpMetricsDto": {
         "properties": {
+          "last24h": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/HttpWindowDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "requests": {
             "format": "int64",
             "type": "integer"
@@ -5012,6 +5172,106 @@
           "routes",
           "serverErrors",
           "since"
+        ],
+        "type": "object"
+      },
+      "HttpRouteCountDto": {
+        "properties": {
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "method": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          },
+          "status": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "count",
+          "method",
+          "route",
+          "status"
+        ],
+        "type": "object"
+      },
+      "HttpWindowDto": {
+        "properties": {
+          "byStatus": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "hourly": {
+            "items": {
+              "$ref": "#/components/schemas/HttpHourDto"
+            },
+            "type": "array"
+          },
+          "p50Ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "p95Ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "p99Ms": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "peakAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "peakRps": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "previousP95Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "previousRequests": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "requests": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "top4xx": {
+            "items": {
+              "$ref": "#/components/schemas/HttpRouteCountDto"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "byStatus",
+          "hourly",
+          "p50Ms",
+          "p95Ms",
+          "p99Ms",
+          "peakRps",
+          "requests",
+          "top4xx"
         ],
         "type": "object"
       },
@@ -5378,6 +5638,35 @@
         "required": [
           "partnerDoctorId",
           "patientId"
+        ],
+        "type": "object"
+      },
+      "JobMetricsDto": {
+        "properties": {
+          "lastRunAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "nextRunAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "lastRunAt",
+          "name"
         ],
         "type": "object"
       },
@@ -9087,6 +9376,20 @@
           "method": {
             "type": "string"
           },
+          "p95Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "p99Ms": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "recentMaxMs": {
             "format": "int64",
             "type": "integer"
@@ -10308,6 +10611,23 @@
           "symptoms",
           "totalMinor",
           "visitCount"
+        ],
+        "type": "object"
+      },
+      "UnusedIndexesDto": {
+        "properties": {
+          "bytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "count": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "bytes",
+          "count"
         ],
         "type": "object"
       },
