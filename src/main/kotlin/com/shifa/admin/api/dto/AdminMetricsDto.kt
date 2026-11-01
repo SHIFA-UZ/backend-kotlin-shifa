@@ -83,7 +83,54 @@ data class HttpMetricsDto(
     val last24h: HttpWindowDto? = null,
 )
 
-/** `/api` traffic of the last 24 hours as far as this process has seen it: a deploy resets it. */
+/** One view of `GET /api/admin/metrics/traffic`, from the saved hourly rollups: it survives a deploy and lags about a minute. */
+data class TrafficRangeDto(
+    /** 24h, 7d or 30d. */
+    val range: String,
+    val bucketSeconds: Long,
+    val from: Instant,
+    /** The oldest saved hour. Later than `from` while the rollups are younger than the range. */
+    val collectingSince: Instant? = null,
+    val requests: Long,
+    /** `requests` without the running bucket, the number to hold against `previousRequests`. */
+    val comparableRequests: Long,
+    /** The same complete buckets one range earlier. Null until all of them were recorded from start to end. */
+    val previousRequests: Long? = null,
+    val p50Ms: Long? = null,
+    val p95Ms: Long? = null,
+    val p99Ms: Long? = null,
+    /** `p95Ms` without the running bucket, the number to hold against `previousP95Ms`. */
+    val comparableP95Ms: Long? = null,
+    val previousP95Ms: Long? = null,
+    val peakRps: Long,
+    val peakAt: Instant? = null,
+    /** Keys: 2xx, 304, 3xxOther, 401, 403, 4xxOther, 5xx. */
+    val byStatus: Map<String, Long>,
+    /** Oldest first, the last one still running: 24 of an hour, 28 of 6 hours, or 30 of a UTC day. */
+    val buckets: List<TrafficBucketDto>,
+    val top4xx: List<HttpRouteCountDto>,
+)
+
+/** One view of `GET /api/admin/metrics/appointments`, counted from the appointments themselves. */
+data class AppointmentActivityDto(
+    /** 24h, 7d or 30d. */
+    val range: String,
+    val bucketSeconds: Long,
+    val from: Instant,
+    val total: Long,
+    /** `total` without the running bucket, the number to hold against `previousTotal`. */
+    val comparableTotal: Long,
+    /** The same complete buckets one range earlier. */
+    val previousTotal: Long,
+    /** Oldest first, the last one still running: 24 of an hour, 28 of 6 hours, or 30 of a UTC day. */
+    val buckets: List<AppointmentBucketDto>,
+)
+
+data class AppointmentBucketDto(val start: Instant, val count: Long)
+
+data class TrafficBucketDto(val start: Instant, val requests: Long, val p95Ms: Long? = null, val serverErrors: Long)
+
+/** `/api` traffic of the last 24 hours as far as this process has seen it: a deploy resets it. The page reads [TrafficRangeDto] instead. */
 data class HttpWindowDto(
     val requests: Long,
     /** The 23 complete hours of this window, one day earlier: compare with `hourly` minus its running last row. Null until watched in full. */

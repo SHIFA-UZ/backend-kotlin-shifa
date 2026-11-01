@@ -61,8 +61,7 @@ app:
   # separate decision (api.shifa.uz is a second domain of the same service).
   publicBaseUrl: https://shifa-doc-backend-mvp-production.up.railway.app
   frontendUrl: https://doctor.shifa.uz
-  # Railway volume mount: the read fallback while the volume is copied into the bucket (POST /api/admin/storage/migrate);
-  # unmount it after a week of zero local reads.
+  # The old volume mount, now only an empty read fallback behind the bucket: the volumes were deleted on 2026-11-01.
   storageRoot: /app/storage/images
   # Uploads live in the environment's own Railway bucket (region iad): "shifa-uploads-prod" on production,
   # "shifa-uploads" on development (bucket names are unique per project). The three values are reference variables

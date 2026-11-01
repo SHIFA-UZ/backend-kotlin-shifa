@@ -50,6 +50,9 @@ class ApplicationContextTest {
 
     @Autowired lateinit var objectMapper: tools.jackson.databind.ObjectMapper
     @Autowired lateinit var metricsService: com.shifa.admin.application.MetricsService
+    @Autowired lateinit var trafficRollups: com.shifa.admin.application.TrafficRollupService
+    @Autowired lateinit var trafficRepository: com.shifa.admin.infrastructure.TrafficRollupRepository
+    @Autowired lateinit var jdbc: org.springframework.jdbc.core.JdbcTemplate
     @Autowired lateinit var bookingWorkflows: com.shifa.appointments.application.IntelligenceBookingWorkflowService
 
     @Test
@@ -157,7 +160,50 @@ class ApplicationContextTest {
         mockMvc.perform(get("/admin-metrics/index.html")).andExpect(status().isOk)
         mockMvc.perform(get("/admin-metrics/app.js")).andExpect(status().isOk)
         mockMvc.perform(get("/admin-metrics/favicon.svg")).andExpect(status().isOk)
-        mockMvc.perform(get("/api/admin/storage/migrate")).andExpect(status().isUnauthorized)
+    }
+
+    @Test
+    fun `appointment views count the same rows as the table, in PostgreSQL`() {
+        mockMvc.perform(get("/api/admin/metrics/appointments?range=7d")).andExpect(status().isUnauthorized)
+        com.shifa.admin.application.MetricsRange.entries.forEach { range ->
+            val view = metricsService.appointmentActivity(range)
+            val inTable = jdbc.queryForObject(
+                "SELECT count(*) FROM appointments WHERE created_at >= ?",
+                Long::class.java,
+                java.sql.Timestamp.from(view.from),
+            )
+            assertEquals(range.buckets, view.buckets.size)
+            assertEquals(inTable, view.total)
+            assertEquals(view.total, view.buckets.sumOf { it.count })
+        }
+    }
+
+    @Test
+    fun `traffic rollups add up across saves in PostgreSQL and the admin route is closed`() {
+        mockMvc.perform(get("/api/admin/metrics/traffic?range=7d")).andExpect(status().isUnauthorized)
+        val hour = java.time.Instant.parse("2001-02-03T04:00:00Z") // far before any real row
+        val saves = (1..2).map {
+            val window = com.shifa.shared.api.HttpTrafficWindow()
+            repeat(it) { window.record("GET", "/api/x", 422, 100, hour.plusSeconds(1)) }
+            window.record("GET", "/api/x", 200, 100, hour.plusSeconds(2))
+            window.drain()
+        }
+        try {
+            saves.forEach(trafficRollups::save)
+            val row = trafficRepository.hoursFrom(hour).first()
+            assertEquals(hour, row.hour)
+            assertEquals(5, row.requests)
+            assertEquals(3, row.byStatus["4xxOther"])
+            assertEquals(5, row.latency.total)
+            assertEquals(100, row.latency.percentile(0.95))
+            assertEquals(2, row.peakRps)
+            assertEquals(3, trafficRepository.top4xxFrom(hour, 4).first { it.route == "/api/x" }.count)
+            assertEquals(hour, trafficRepository.earliestHour())
+            com.shifa.admin.application.MetricsRange.entries.forEach { trafficRollups.range(it) }
+        } finally {
+            trafficRepository.deleteBefore(hour.plusSeconds(3600))
+        }
+        assertTrue(jdbc.queryForObject("SELECT count(*) FROM ops_http_hourly WHERE hour = ?", Long::class.java, java.sql.Timestamp.from(hour)) == 0L)
     }
 
     /**

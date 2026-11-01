@@ -18,6 +18,8 @@ class CacheConfig {
         const val PUBLIC_DOCTOR_CACHE = "publicDoctor"
         /** `GET /api/admin/metrics`: every open admin health page polls it, one database read per 15 s is enough. */
         const val ADMIN_METRICS_CACHE = "adminMetrics"
+        /** `GET /api/admin/metrics/traffic` and `/appointments`: one minute of staleness is fine, one entry per chart and range. */
+        const val ADMIN_TRAFFIC_CACHE = "adminTraffic"
     }
 
     @Bean
@@ -35,6 +37,10 @@ class CacheConfig {
         manager.registerCustomCache(
             ADMIN_METRICS_CACHE,
             Caffeine.newBuilder().expireAfterWrite(Duration.ofSeconds(15)).maximumSize(1).build(),
+        )
+        manager.registerCustomCache(
+            ADMIN_TRAFFIC_CACHE,
+            Caffeine.newBuilder().expireAfterWrite(Duration.ofSeconds(60)).maximumSize(6).build(),
         )
         return manager
     }
