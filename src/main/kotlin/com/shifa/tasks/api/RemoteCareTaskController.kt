@@ -489,7 +489,7 @@ class RemoteCareTaskController(
 
     private fun generateCheckIns(task: RemoteCareTask) {
         val startDate = task.startDate
-        val endDate = task.endDate ?: startDate.plusDays((task.durationDays ?: 30).toLong())
+        val endDate = task.lastScheduledDate()
         var currentDate = startDate
 
         // Slot generation has three modes (in priority order):
