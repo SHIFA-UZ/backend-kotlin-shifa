@@ -163,6 +163,22 @@ class ApplicationContextTest {
     }
 
     @Test
+    fun `appointment views count the same rows as the table, in PostgreSQL`() {
+        mockMvc.perform(get("/api/admin/metrics/appointments?range=7d")).andExpect(status().isUnauthorized)
+        com.shifa.admin.application.MetricsRange.entries.forEach { range ->
+            val view = metricsService.appointmentActivity(range)
+            val inTable = jdbc.queryForObject(
+                "SELECT count(*) FROM appointments WHERE created_at >= ?",
+                Long::class.java,
+                java.sql.Timestamp.from(view.from),
+            )
+            assertEquals(range.buckets, view.buckets.size)
+            assertEquals(inTable, view.total)
+            assertEquals(view.total, view.buckets.sumOf { it.count })
+        }
+    }
+
+    @Test
     fun `traffic rollups add up across saves in PostgreSQL and the admin route is closed`() {
         mockMvc.perform(get("/api/admin/metrics/traffic?range=7d")).andExpect(status().isUnauthorized)
         val hour = java.time.Instant.parse("2001-02-03T04:00:00Z") // far before any real row
@@ -183,7 +199,7 @@ class ApplicationContextTest {
             assertEquals(2, row.peakRps)
             assertEquals(3, trafficRepository.top4xxFrom(hour, 4).first { it.route == "/api/x" }.count)
             assertEquals(hour, trafficRepository.earliestHour())
-            com.shifa.admin.application.TrafficRange.entries.forEach { trafficRollups.range(it) }
+            com.shifa.admin.application.MetricsRange.entries.forEach { trafficRollups.range(it) }
         } finally {
             trafficRepository.deleteBefore(hour.plusSeconds(3600))
         }

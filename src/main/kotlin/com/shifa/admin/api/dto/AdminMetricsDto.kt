@@ -111,6 +111,23 @@ data class TrafficRangeDto(
     val top4xx: List<HttpRouteCountDto>,
 )
 
+/** One view of `GET /api/admin/metrics/appointments`, counted from the appointments themselves. */
+data class AppointmentActivityDto(
+    /** 24h, 7d or 30d. */
+    val range: String,
+    val bucketSeconds: Long,
+    val from: Instant,
+    val total: Long,
+    /** `total` without the running bucket, the number to hold against `previousTotal`. */
+    val comparableTotal: Long,
+    /** The same complete buckets one range earlier. */
+    val previousTotal: Long,
+    /** Oldest first, the last one still running: 24 of an hour, 28 of 6 hours, or 30 of a UTC day. */
+    val buckets: List<AppointmentBucketDto>,
+)
+
+data class AppointmentBucketDto(val start: Instant, val count: Long)
+
 data class TrafficBucketDto(val start: Instant, val requests: Long, val p95Ms: Long? = null, val serverErrors: Long)
 
 /** `/api` traffic of the last 24 hours as far as this process has seen it: a deploy resets it. The page reads [TrafficRangeDto] instead. */

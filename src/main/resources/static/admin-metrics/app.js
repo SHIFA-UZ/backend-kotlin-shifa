@@ -73,6 +73,7 @@
   let session = 0; // bumped on sign-out: a response that was already on its way is dropped
   let routeSort = store.get('shifa.admin.routeSort') === 'busy' ? 'busy' : 'worst';
   let routesAll = false;
+  let activityRange = ['24h', '7d'].includes(store.get('shifa.admin.activityRange')) ? store.get('shifa.admin.activityRange') : '30d';
   let trafficRange = ['7d', '30d'].includes(store.get('shifa.admin.trafficRange')) ? store.get('shifa.admin.trafficRange') : '24h';
 
   // Environment: the Railway hosts of both environments are told apart by name, so dev is never labelled production.
@@ -239,31 +240,36 @@
 
   const STATUS = [['2xx', '2xx success', 'c-accent'], ['304', '304 not modified', 'c-soft'], ['3xxOther', 'Other 3xx', 'c-dim'], ['401', '401 unauthorized', 'c-pending'], ['403', '403 forbidden', 'c-warn'], ['4xxOther', '404 / 422 / other 4xx', 'c-grey'], ['5xx', '5xx', 'c-bad']];
   const RANGES = {
-    '24h': { title: '24 h', unit: 'requests / hour', compare: 'same hours yesterday', span: '24 hours' },
-    '7d': { title: '7 days', unit: 'requests / 6 hours', compare: 'previous 7 days', span: '7 days' },
-    '30d': { title: '30 days', unit: 'requests / day', compare: 'previous 30 days', span: '30 days' },
+    '24h': { title: '24 h', per: 'hour', compare: 'same hours yesterday', span: '24 hours' },
+    '7d': { title: '7 days', per: '6 hours', compare: 'previous 7 days', span: '7 days' },
+    '30d': { title: '30 days', per: 'day', compare: 'previous 30 days', span: '30 days' },
   };
+  const percentChange = (now, before) => (before ? Math.round(100 * (now - before) / before) : null);
+  const signed = (n) => `${n >= 0 ? '+' : ''}${n}%`;
+  const bucketLabel = (bucketSeconds, iso) => (bucketSeconds === 3600 ? `${String(new Date(iso).getHours()).padStart(2, '0')}:00`
+    : bucketSeconds < 86400 ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }));
   // Exact counts sit in a row above the columns: flat when every one fits its column, else turned on end.
   const fitNumbers = (id) => {
     const chart = $(id);
     chart.classList.add('flat');
     if ([...chart.querySelectorAll('.num')].some((n) => n.offsetWidth > n.nextElementSibling.clientWidth)) chart.classList.remove('flat');
   };
-  const renderTrafficRange = () => {
+  const renderRangeButtons = () => {
     document.querySelectorAll('[data-range]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.range === trafficRange)));
+    document.querySelectorAll('[data-activity-range]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.activityRange === activityRange)));
   };
   const renderTraffic = (t) => {
     const r = RANGES[t.range];
     $('traffic-title').textContent = `Traffic, last ${r.title}`; // set here, so a heading never sits on another range's numbers
-    $('traffic-unit').textContent = r.unit;
-    const change = (now, before) => (before ? Math.round(100 * (now - before) / before) : null);
-    const signed = (n) => `${n >= 0 ? '+' : ''}${n}%`;
+    $('traffic-unit').textContent = `requests / ${r.per}`;
+    const change = percentChange;
     const reqChange = change(t.comparableRequests, t.previousRequests);
     const p95Change = t.comparableP95Ms != null ? change(t.comparableP95Ms, t.previousP95Ms) : null;
     const none = 'no earlier period yet';
     const avail = lastMetrics && lastMetrics.http.availability30d;
-    const when = (iso) => (t.bucketSeconds < 86400 ? new Date(iso).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : new Date(iso).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }));
-    const label = (iso) => (t.bucketSeconds === 3600 ? `${String(new Date(iso).getHours()).padStart(2, '0')}:00` : when(iso));
+    const when = (iso) => bucketLabel(t.bucketSeconds === 3600 ? 21600 : t.bucketSeconds, iso); // always shows the date
+    const label = (iso) => bucketLabel(t.bucketSeconds, iso);
     const kpi = (name, value, sub, tone) => el('div', 'mini kpi', el('div', 'label', name), el('div', 'value', value), el('div', 'small ' + (tone || 'muted'), sub));
     fill('traffic-kpis',
       kpi('Requests', fmt(t.requests), reqChange !== null ? `${signed(reqChange)} vs ${r.compare}` : none),
@@ -297,27 +303,34 @@
   };
 
   // One view at a time, fetched on every poll. Only the latest request may touch the page: a slow older answer is dropped.
-  let trafficRequest = 0;
-  const loadTraffic = async () => {
-    if (!token) return;
-    const mine = session, range = trafficRange, request = ++trafficRequest;
-    try {
-      const r = await fetch(`${api}/api/admin/metrics/traffic?range=${range}`, { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
-      if (mine !== session || request !== trafficRequest) return;
-      if (r.status === 401 || r.status === 403) return signOut('Session ended. Sign in again.');
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const t = await r.json();
-      if (mine !== session || request !== trafficRequest) return;
-      show('traffic-error', false);
-      show('traffic', true);
-      renderTraffic(t);
-    } catch (e) {
-      if (mine !== session || request !== trafficRequest) return;
-      $('traffic-error').textContent = `Traffic for ${RANGES[range].span} could not be read. Trying again on the next refresh.`;
-      show('traffic-error', true);
-      show('traffic', $('hours').childElementCount > 0); // keeps the last good view
-    }
+  const rangeLoader = (path, rangeOf, onData, onError) => {
+    let latest = 0;
+    return async () => {
+      if (!token) return;
+      const mine = session, range = rangeOf(), request = ++latest;
+      try {
+        const r = await fetch(`${api}/api/admin/metrics/${path}?range=${range}`, { headers: { Authorization: 'Bearer ' + token }, signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) });
+        if (mine !== session || request !== latest) return;
+        if (r.status === 401 || r.status === 403) return signOut('Session ended. Sign in again.');
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const body = await r.json();
+        if (mine !== session || request !== latest) return;
+        onData(body);
+      } catch (e) {
+        if (mine !== session || request !== latest) return;
+        onError(range);
+      }
+    };
   };
+  const loadTraffic = rangeLoader('traffic', () => trafficRange, (t) => {
+    show('traffic-error', false);
+    show('traffic', true);
+    renderTraffic(t);
+  }, (range) => {
+    $('traffic-error').textContent = `Traffic for ${RANGES[range].span} could not be read. Trying again on the next refresh.`;
+    show('traffic-error', true);
+    show('traffic', $('hours').childElementCount > 0); // keeps the last good view
+  });
 
   const renderClients = (m) => {
     const list = m.clients24h;
@@ -475,31 +488,31 @@
     if (r.status === 'REQUESTED' || r.status === 'PENDING_PAYMENT') return 'c-pending';
     return r.paymentStatus === 'REFUNDED' ? 'c-grey' : 'c-dim';
   };
-  // The query omits days without appointments, so walk the calendar (31 dates: "now minus 30 days" starts mid-day).
-  const renderActivity = (m) => {
-    const dom = m.domain;
-    const counts = new Map(dom.appointmentsPerDay.map((r) => [r.day, r.count]));
-    const end = Date.parse(m.generatedAt.slice(0, 10) + 'T00:00:00Z');
-    const days = Array.from({ length: 31 }, (_, i) => {
-      const day = new Date(end - (30 - i) * 86400000).toISOString().slice(0, 10);
-      return { day, count: counts.get(day) || 0 };
-    });
-    const max = Math.max(1, ...days.map((d) => d.count));
-    const total = days.reduce((s, d) => s + d.count, 0);
-    const today = days[30].count;
-    const avg7 = days.slice(23, 30).reduce((s, d) => s + d.count, 0) / 7;
-    fill('daily', ...days.flatMap((d, i) => {
-      const tip = `${d.day}: ${fmt(d.count)}${i === 30 ? ' (today, still partial)' : ''}`;
-      return [titled(el('span', 'num', fmt(d.count)), tip), titled(el('div', 'day', sized(el('div', i === 30 ? 'c-warn' : 'c-accent'), 'height', widthPct(d.count / max))), tip)];
+  const renderDaily = (a) => {
+    const r = RANGES[a.range];
+    const last = a.buckets.length - 1;
+    const max = Math.max(1, ...a.buckets.map((b) => b.count));
+    const label = (b) => bucketLabel(a.bucketSeconds, b.start);
+    $('daily-title').textContent = `Appointments created / ${r.per}`; // set here, so a heading never sits on another range's numbers
+    fill('daily', ...a.buckets.flatMap((b, i) => {
+      const tip = `${label(b)}: ${fmt(b.count)}${i === last ? ' (still running)' : ''}`;
+      return [titled(el('span', 'num', fmt(b.count)), tip), titled(el('div', 'day', sized(el('div', i === last ? 'c-warn' : 'c-accent'), 'height', widthPct(b.count / max))), tip)];
     }));
     fitNumbers('daily');
-    const head = `${fmt(total)} in 30 d · today ${fmt(today)} vs 7-d avg ${fmt(Math.round(avg7))}`;
+    const change = percentChange(a.comparableTotal, a.previousTotal);
+    const head = `${fmt(a.total)} in ${r.span}${change !== null ? ` · ${signed(change)} vs ${r.compare}` : ''}`;
     $('daily-head').textContent = head;
-    $('daily').setAttribute('aria-label', `Appointments created per day: ${head}`);
-    const label = (iso) => new Date(iso + 'T00:00:00Z').toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-    $('daily-first').textContent = label(days[0].day);
-    $('daily-last').textContent = label(days[30].day);
+    $('daily').setAttribute('aria-label', `Appointments created per ${r.per}: ${head}`);
+    $('daily-first').textContent = label(a.buckets[0]);
+    show('daily-error', false);
+  };
+  const loadActivity = rangeLoader('appointments', () => activityRange, renderDaily, (range) => {
+    $('daily-error').textContent = `Appointments for ${RANGES[range].span} could not be read. Trying again on the next refresh.`;
+    show('daily-error', true);
+  });
 
+  const renderActivity = (m) => {
+    const dom = m.domain;
     const parts = dom.appointmentsByStatus.map((r) => ({ label: `${words(r.status)} · ${words(r.paymentStatus).toLowerCase()}`, count: r.count, tone: outcomeTone(r) }));
     stackBar('outcome-bar', parts, 0.4);
     legend('outcome-legend', parts);
@@ -594,6 +607,7 @@
     if (document.hidden) return;
     load();
     loadTraffic();
+    loadActivity();
   };
 
   const setSort = (mode) => {
@@ -608,8 +622,15 @@
   document.querySelectorAll('[data-range]').forEach((b) => b.addEventListener('click', () => {
     trafficRange = b.dataset.range;
     store.set('shifa.admin.trafficRange', trafficRange);
-    renderTrafficRange();
+    renderRangeButtons();
     loadTraffic();
+  }));
+
+  document.querySelectorAll('[data-activity-range]').forEach((b) => b.addEventListener('click', () => {
+    activityRange = b.dataset.activityRange;
+    store.set('shifa.admin.activityRange', activityRange);
+    renderRangeButtons();
+    loadActivity();
   }));
 
   const restartTimer = () => {
@@ -620,7 +641,7 @@
   const start = () => {
     $('login').hidden = true; $('board').hidden = false; $('status').hidden = false;
     fitNumbers('hours'); fitNumbers('daily'); // charts kept from before a sign-out were last measured while hidden
-    renderTrafficRange();
+    renderRangeButtons();
     clearInterval(countdown); countdown = setInterval(updateClock, 1000);
     restartTimer();
   };

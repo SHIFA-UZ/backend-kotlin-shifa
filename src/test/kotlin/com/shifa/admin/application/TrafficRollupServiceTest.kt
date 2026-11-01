@@ -18,22 +18,22 @@ class TrafficRollupServiceTest {
         return TrafficRollupRepository.HourRow(hour, requests, mapOf("2xx" to requests - errors, "5xx" to errors), latency, requests, hour)
     }
 
-    private fun summarize(range: TrafficRange, vararg rows: TrafficRollupRepository.HourRow, earliest: Instant? = rows.firstOrNull()?.hour) =
+    private fun summarize(range: MetricsRange, vararg rows: TrafficRollupRepository.HourRow, earliest: Instant? = rows.firstOrNull()?.hour) =
         TrafficRollupService.summarize(range, rows.toList(), emptyList(), earliest, now)
 
     @Test
     fun `each range has its bucket count, oldest first, ending in the running bucket`() {
-        val day = summarize(TrafficRange.DAY)
+        val day = summarize(MetricsRange.DAY)
         assertEquals(24, day.buckets.size)
         assertEquals(hoursAgo(23), day.from)
         assertEquals(hoursAgo(0), day.buckets.last().start)
 
-        val week = summarize(TrafficRange.WEEK)
+        val week = summarize(MetricsRange.WEEK)
         assertEquals(28, week.buckets.size)
         assertEquals(Instant.parse("2026-11-20T12:00:00Z"), week.buckets.last().start)
         assertEquals(Instant.parse("2026-11-13T18:00:00Z"), week.from)
 
-        val month = summarize(TrafficRange.MONTH)
+        val month = summarize(MetricsRange.MONTH)
         assertEquals(30, month.buckets.size)
         assertEquals(Instant.parse("2026-11-20T00:00:00Z"), month.buckets.last().start)
         assertEquals(Instant.parse("2026-10-22T00:00:00Z"), month.from)
@@ -42,7 +42,7 @@ class TrafficRollupServiceTest {
     @Test
     fun `hours add up inside their bucket and hours before the window stay out of the totals`() {
         val s = summarize(
-            TrafficRange.WEEK,
+            MetricsRange.WEEK,
             row(Instant.parse("2026-11-13T17:00:00Z"), 99),
             row(Instant.parse("2026-11-20T06:00:00Z"), 3, errors = 1),
             row(Instant.parse("2026-11-20T07:00:00Z"), 4),
@@ -60,7 +60,7 @@ class TrafficRollupServiceTest {
     @Test
     fun `the comparison leaves out the running bucket and its counterpart one range earlier`() {
         val s = summarize(
-            TrafficRange.DAY,
+            MetricsRange.DAY,
             row(hoursAgo(48), 1),
             row(hoursAgo(25), 7, ms = 100), // same hour yesterday as the complete one below
             row(hoursAgo(24), 1000, ms = 9000), // the running hour's counterpart
@@ -76,7 +76,7 @@ class TrafficRollupServiceTest {
 
     @Test
     fun `no comparison until the earlier range was recorded from start to end`() {
-        val s = summarize(TrafficRange.DAY, row(hoursAgo(47), 5), row(hoursAgo(1), 9))
+        val s = summarize(MetricsRange.DAY, row(hoursAgo(47), 5), row(hoursAgo(1), 9))
         assertNull(s.previousRequests)
         assertNull(s.previousP95Ms)
         assertEquals(hoursAgo(47), s.collectingSince)
@@ -84,7 +84,7 @@ class TrafficRollupServiceTest {
 
     @Test
     fun `no rows is an empty view, not an error`() {
-        val s = summarize(TrafficRange.MONTH, earliest = null)
+        val s = summarize(MetricsRange.MONTH, earliest = null)
         assertEquals(0, s.requests)
         assertNull(s.p95Ms)
         assertNull(s.peakAt)
@@ -108,8 +108,8 @@ class TrafficRollupServiceTest {
 
     @Test
     fun `an unknown range is refused`() {
-        assertEquals(TrafficRange.WEEK, TrafficRange.of("7d"))
-        assertThrows<IllegalArgumentException> { TrafficRange.of("1y") }
+        assertEquals(MetricsRange.WEEK, MetricsRange.of("7d"))
+        assertThrows<IllegalArgumentException> { MetricsRange.of("1y") }
     }
 
     @Test

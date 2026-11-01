@@ -90,6 +90,16 @@ class MetricsQueries(private val jdbc: JdbcTemplate) {
             days,
         )
 
+    /** Appointments created since [fromEpochSecond], by UTC bucket start in epoch seconds. Buckets without any stay out. */
+    fun appointmentsCreatedSince(fromEpochSecond: Long, bucketSeconds: Long): Map<Long, Long> =
+        jdbc.query(
+            "SELECT floor(extract(epoch FROM created_at) / ?)::bigint, count(*) FROM appointments " +
+                "WHERE created_at >= ? GROUP BY 1",
+            { rs, _ -> rs.getLong(1) * bucketSeconds to rs.getLong(2) },
+            bucketSeconds,
+            Timestamp.from(Instant.ofEpochSecond(fromEpochSecond)),
+        ).toMap()
+
     fun paymentsLast24h(): List<Row3> =
         jdbc.query(
             "SELECT status, gateway, count(*) FROM payments WHERE created_at > now() - interval '24 hours' " +

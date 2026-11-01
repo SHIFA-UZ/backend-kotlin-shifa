@@ -13,18 +13,6 @@ import org.springframework.cache.annotation.Cacheable
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
-enum class TrafficRange(val param: String, val buckets: Int, val bucketHours: Long) {
-    DAY("24h", 24, 1),
-    WEEK("7d", 28, 6),
-    MONTH("30d", 30, 24),
-    ;
-
-    companion object {
-        fun of(param: String): TrafficRange =
-            entries.firstOrNull { it.param == param } ?: throw IllegalArgumentException("range must be 24h, 7d or 30d")
-    }
-}
-
 /** Saves the request filter's hourly counts and answers the health page's traffic views from them. */
 @Service
 class TrafficRollupService(private val rollups: TrafficRollupRepository) {
@@ -36,31 +24,18 @@ class TrafficRollupService(private val rollups: TrafficRollupRepository) {
 
     @Transactional(readOnly = true)
     @Cacheable(CacheConfig.ADMIN_TRAFFIC_CACHE, key = "#range.name", sync = true)
-    fun range(range: TrafficRange): TrafficRangeDto {
+    fun range(range: MetricsRange): TrafficRangeDto {
         val now = Instant.now()
-        val starts = Starts.of(range, now)
         return summarize(
             range = range,
-            rows = rollups.hoursFrom(Instant.ofEpochSecond(starts.previous)),
-            top4xx = rollups.top4xxFrom(Instant.ofEpochSecond(starts.window), TOP_4XX),
+            rows = rollups.hoursFrom(Instant.ofEpochSecond(range.previousStart(now))),
+            top4xx = rollups.top4xxFrom(Instant.ofEpochSecond(range.windowStart(now)), TOP_4XX),
             earliest = rollups.earliestHour(),
             now = now,
         )
     }
 
-    private data class Starts(val size: Long, val window: Long, val running: Long, val previous: Long) {
-        companion object {
-            fun of(range: TrafficRange, now: Instant): Starts {
-                val size = range.bucketHours * SECONDS_PER_HOUR
-                val running = now.epochSecond / size * size
-                val window = running - (range.buckets - 1) * size
-                return Starts(size, window, running, window - range.buckets * size)
-            }
-        }
-    }
-
     companion object {
-        private const val SECONDS_PER_HOUR = 3600L
         private const val TOP_4XX = 4
         private const val P50 = 0.50
         private const val P95 = 0.95
@@ -81,30 +56,31 @@ class TrafficRollupService(private val rollups: TrafficRollupRepository) {
          * oldest hour was probably recorded for only part of it.
          */
         internal fun summarize(
-            range: TrafficRange,
+            range: MetricsRange,
             rows: List<TrafficRollupRepository.HourRow>,
             top4xx: List<HttpTrafficWindow.RouteCount>,
             earliest: Instant?,
             now: Instant,
         ): TrafficRangeDto {
-            val starts = Starts.of(range, now)
-            val window = rows.filter { it.hour.epochSecond >= starts.window }
-            val complete = window.filter { it.hour.epochSecond < starts.running }
-            val shift = range.buckets * starts.size
-            val hasPrevious = earliest != null && earliest.epochSecond < starts.previous
+            val windowStart = range.windowStart(now)
+            val running = range.runningStart(now)
+            val previousStart = range.previousStart(now)
+            val window = rows.filter { it.hour.epochSecond >= windowStart }
+            val complete = window.filter { it.hour.epochSecond < running }
+            val hasPrevious = earliest != null && earliest.epochSecond < previousStart
             val previous = if (hasPrevious) {
-                rows.filter { it.hour.epochSecond >= starts.previous && it.hour.epochSecond < starts.running - shift }
+                rows.filter { it.hour.epochSecond >= previousStart && it.hour.epochSecond < running - range.spanSeconds }
             } else {
                 emptyList()
             }
             val latency = merged(window)
             val previousLatency = merged(previous)
             val peak = window.maxByOrNull { it.peakRps }
-            val byBucket = window.groupBy { (it.hour.epochSecond - starts.window) / starts.size }
+            val byBucket = window.groupBy { (it.hour.epochSecond - windowStart) / range.bucketSeconds }
             return TrafficRangeDto(
                 range = range.param,
-                bucketSeconds = starts.size,
-                from = Instant.ofEpochSecond(starts.window),
+                bucketSeconds = range.bucketSeconds,
+                from = Instant.ofEpochSecond(windowStart),
                 collectingSince = earliest,
                 requests = window.sumOf { it.requests },
                 comparableRequests = complete.sumOf { it.requests },
@@ -120,7 +96,7 @@ class TrafficRollupService(private val rollups: TrafficRollupRepository) {
                 buckets = (0 until range.buckets).map { i ->
                     val group = byBucket[i.toLong()].orEmpty()
                     TrafficBucketDto(
-                        start = Instant.ofEpochSecond(starts.window + i * starts.size),
+                        start = Instant.ofEpochSecond(windowStart + i * range.bucketSeconds),
                         requests = group.sumOf { it.requests },
                         p95Ms = merged(group).percentileOrNull(P95),
                         serverErrors = group.sumOf { it.byStatus["5xx"] ?: 0L },

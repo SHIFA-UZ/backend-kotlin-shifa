@@ -290,9 +290,16 @@
       <div class="head-left"><h2 class="eyebrow">Product activity</h2><span class="small muted">Sanity check that real traffic is flowing — not a health signal on its own</span></div>
       <div class="row">
         <div class="card" style="gap:8px">
-          <div class="head"><h3>Appointments created / day</h3><span class="small muted" id="daily-head"></span></div>
+          <div class="head">
+            <div class="head-left">
+              <h3 id="daily-title">Appointments created / day</h3>
+              <div class="seg" role="group" aria-label="Appointments range"><button type="button" data-activity-range="24h">24 h</button><button type="button" data-activity-range="7d">7 days</button><button type="button" data-activity-range="30d">1 month</button></div>
+            </div>
+            <span class="small muted" id="daily-head"></span>
+          </div>
           <div class="days" id="daily" role="img"></div>
-          <div class="axis"><span id="daily-first"></span><span id="daily-last"></span></div>
+          <div class="axis"><span id="daily-first"></span><span>now</span></div>
+          <div class="small t-bad" id="daily-error" hidden></div>
         </div>
         <div class="card">
           <h3>Appointments by outcome</h3>

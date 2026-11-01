@@ -3,6 +3,8 @@ package com.shifa.admin.application
 import com.shifa.admin.api.dto.AdminMetricsDto
 import com.shifa.admin.api.dto.AiProviderMetricsDto
 import com.shifa.admin.api.dto.AppMetricsDto
+import com.shifa.admin.api.dto.AppointmentActivityDto
+import com.shifa.admin.api.dto.AppointmentBucketDto
 import com.shifa.admin.api.dto.AppointmentCountDto
 import com.shifa.admin.api.dto.ConnectionStatesDto
 import com.shifa.admin.api.dto.CountByDto
@@ -74,6 +76,12 @@ class MetricsService(
             aiFallbacks24h = aiProviders.sumOf { it.fallbacks },
             paymentsLast24h = queries.paymentsLast24h().map { PaymentCountDto(it.a, it.b, it.c) },
         )
+    }
+
+    @Cacheable(CacheConfig.ADMIN_TRAFFIC_CACHE, key = "'appointments-' + #range.name", sync = true)
+    fun appointmentActivity(range: MetricsRange): AppointmentActivityDto {
+        val now = Instant.now()
+        return appointmentActivityOf(range, queries.appointmentsCreatedSince(range.previousStart(now), range.bucketSeconds), now)
     }
 
     private fun gauge(name: String, vararg tags: String): Long =
@@ -183,6 +191,25 @@ class MetricsService(
             "traffic-rollup-cleanup" to DAY,
         )
         private val JOB_NOTES = mapOf("reminder-notifications" to "sends inside job transaction")
+
+        /** Compares complete buckets only: a bucket that has barely started would always read as a drop. */
+        internal fun appointmentActivityOf(range: MetricsRange, counts: Map<Long, Long>, now: Instant): AppointmentActivityDto {
+            val window = range.windowStart(now)
+            val running = range.runningStart(now)
+            fun sum(from: Long, until: Long) = counts.filterKeys { it in from until until }.values.sum()
+            return AppointmentActivityDto(
+                range = range.param,
+                bucketSeconds = range.bucketSeconds,
+                from = Instant.ofEpochSecond(window),
+                total = sum(window, running + range.bucketSeconds),
+                comparableTotal = sum(window, running),
+                previousTotal = sum(range.previousStart(now), running - range.spanSeconds),
+                buckets = (0 until range.buckets).map { i ->
+                    val start = window + i * range.bucketSeconds
+                    AppointmentBucketDto(Instant.ofEpochSecond(start), counts[start] ?: 0)
+                },
+            )
+        }
 
         /** One row per method and route template, every status folded in, busiest first. */
         internal fun routesFrom(timers: Collection<Timer>): List<RouteMetricsDto> =
