@@ -1,6 +1,7 @@
 package com.shifa.admin.infrastructure
 
 import java.sql.Timestamp
+import java.time.Instant
 import org.springframework.jdbc.core.JdbcTemplate
 import org.springframework.stereotype.Repository
 
@@ -15,6 +16,19 @@ class MetricsQueries(private val jdbc: JdbcTemplate) {
     data class TableRow(val table: String, val estimatedRows: Long, val bytes: Long)
     data class Migration(val version: Int, val description: String, val installedOn: Timestamp)
     data class Connections(val active: Long, val idle: Long, val idleInTransaction: Long)
+    data class DeadTuples(val table: String, val ratio: Double)
+    data class UnusedIndexes(val count: Long, val bytes: Long)
+    data class JobRun(val name: String, val lockedAt: Instant)
+    data class AiProviderRow(
+        val provider: String,
+        val use: String?,
+        val calls: Long,
+        val p95Ms: Long?,
+        val errorRatio: Double,
+        val tokensIn: Long,
+        val tokensOut: Long,
+        val fallbacks: Long,
+    )
 
     fun databaseSizeBytes(): Long = jdbc.queryForObject("SELECT pg_database_size(current_database())", Long::class.java) ?: 0
 
@@ -70,9 +84,65 @@ class MetricsQueries(private val jdbc: JdbcTemplate) {
 
     fun appointmentsPerDay(days: Int): List<Row2> =
         jdbc.query(
-            "SELECT to_char(date_trunc('day', created_at), 'YYYY-MM-DD'), count(*) FROM appointments " +
+            "SELECT to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD'), count(*) FROM appointments " +
                 "WHERE created_at > now() - make_interval(days => ?) GROUP BY 1 ORDER BY 1",
             { rs, _ -> Row2(rs.getString(1), rs.getLong(2)) },
             days,
         )
+
+    fun paymentsLast24h(): List<Row3> =
+        jdbc.query(
+            "SELECT status, gateway, count(*) FROM payments WHERE created_at > now() - interval '24 hours' " +
+                "GROUP BY 1, 2 ORDER BY 3 DESC",
+        ) { rs, _ -> Row3(rs.getString(1), rs.getString(2) ?: "none", rs.getLong(3)) }
+
+    /** ShedLock's `locked_at` is written in UTC (`usingDbTime`) when a job starts, so it is the job's last start. */
+    fun jobRuns(): List<JobRun> =
+        jdbc.query("SELECT name, locked_at AT TIME ZONE 'UTC' FROM shedlock ORDER BY name") { rs, _ ->
+            JobRun(rs.getString(1), rs.getTimestamp(2).toInstant())
+        }
+
+    /** A failed call is logged with a duration of 0, so p95 reads successful calls only. */
+    fun aiProviders24h(): List<AiProviderRow> =
+        jdbc.query(
+            "SELECT provider, mode() WITHIN GROUP (ORDER BY purpose), count(*), " +
+                "percentile_cont(0.95) WITHIN GROUP (ORDER BY duration_ms) FILTER (WHERE outcome = 'SUCCESS'), " +
+                "avg(CASE WHEN outcome = 'SUCCESS' THEN 0.0 ELSE 1.0 END), " +
+                "coalesce(sum(input_tokens), 0), coalesce(sum(output_tokens), 0), count(*) FILTER (WHERE fallback_index > 0) " +
+                "FROM ai_llm_request_log WHERE created_at > now() - interval '24 hours' GROUP BY 1 ORDER BY 3 DESC",
+        ) { rs, _ ->
+            AiProviderRow(
+                provider = rs.getString(1),
+                use = rs.getString(2),
+                calls = rs.getLong(3),
+                p95Ms = rs.getObject(4)?.let { (it as Number).toLong() },
+                errorRatio = rs.getDouble(5),
+                tokensIn = rs.getLong(6),
+                tokensOut = rs.getLong(7),
+                fallbacks = rs.getLong(8),
+            )
+        }
+
+    /** Null until PostgreSQL has read a block since its statistics were reset. */
+    fun cacheHitRatio(): Double? =
+        jdbc.queryForObject(
+            "SELECT blks_hit::float8 / nullif(blks_hit + blks_read, 0) FROM pg_stat_database WHERE datname = current_database()",
+            Double::class.javaObjectType,
+        )
+
+    /** The worst table of at least [minRows] rows, smaller ones swing too much to mean anything. */
+    fun worstDeadTuples(minRows: Long): DeadTuples? =
+        jdbc.query(
+            "SELECT relname, n_dead_tup::float8 / (n_live_tup + n_dead_tup) FROM pg_stat_user_tables " +
+                "WHERE n_live_tup + n_dead_tup >= ? ORDER BY 2 DESC LIMIT 1",
+            { rs, _ -> DeadTuples(rs.getString(1), rs.getDouble(2)) },
+            minRows,
+        ).firstOrNull()
+
+    /** Unique indexes stay out: they enforce a rule even when no query reads them. */
+    fun unusedIndexes(): UnusedIndexes =
+        jdbc.queryForObject(
+            "SELECT count(*), coalesce(sum(pg_relation_size(s.indexrelid)), 0) FROM pg_stat_user_indexes s " +
+                "JOIN pg_index i ON i.indexrelid = s.indexrelid WHERE s.idx_scan = 0 AND NOT i.indisunique",
+        ) { rs, _ -> UnusedIndexes(rs.getLong(1), rs.getLong(2)) } ?: UnusedIndexes(0, 0)
 }

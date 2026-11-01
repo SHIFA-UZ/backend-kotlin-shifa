@@ -1,20 +1,28 @@
 package com.shifa.admin.application
 
 import com.shifa.admin.api.dto.AdminMetricsDto
+import com.shifa.admin.api.dto.AiProviderMetricsDto
 import com.shifa.admin.api.dto.AppMetricsDto
 import com.shifa.admin.api.dto.AppointmentCountDto
 import com.shifa.admin.api.dto.ConnectionStatesDto
 import com.shifa.admin.api.dto.CountByDto
 import com.shifa.admin.api.dto.DatabaseMetricsDto
 import com.shifa.admin.api.dto.DayCountDto
+import com.shifa.admin.api.dto.DeadTupleRatioDto
 import com.shifa.admin.api.dto.DomainMetricsDto
+import com.shifa.admin.api.dto.HttpHourDto
 import com.shifa.admin.api.dto.HttpMetricsDto
+import com.shifa.admin.api.dto.HttpRouteCountDto
+import com.shifa.admin.api.dto.HttpWindowDto
+import com.shifa.admin.api.dto.JobMetricsDto
 import com.shifa.admin.api.dto.JvmMetricsDto
 import com.shifa.admin.api.dto.PaymentCountDto
 import com.shifa.admin.api.dto.PoolMetricsDto
 import com.shifa.admin.api.dto.RouteMetricsDto
 import com.shifa.admin.api.dto.TableSizeDto
+import com.shifa.admin.api.dto.UnusedIndexesDto
 import com.shifa.admin.infrastructure.MetricsQueries
+import com.shifa.shared.api.HttpTrafficWindow
 import com.shifa.shared.config.CacheConfig
 import io.micrometer.core.instrument.MeterRegistry
 import io.micrometer.core.instrument.Timer
@@ -37,6 +45,7 @@ import org.springframework.transaction.annotation.Transactional
 class MetricsService(
     private val queries: MetricsQueries,
     private val registry: MeterRegistry,
+    private val traffic: HttpTrafficWindow,
     @Value("\${info.commit:local}") private val commit: String,
 ) {
     /** Cached for a few seconds ([CacheConfig.ADMIN_METRICS_CACHE]) so several open dashboards share one read. */
@@ -44,6 +53,7 @@ class MetricsService(
     fun snapshot(): AdminMetricsDto {
         val now = Instant.now()
         val startedAt = Instant.ofEpochMilli(ManagementFactory.getRuntimeMXBean().startTime)
+        val aiProviders = queries.aiProviders24h()
         return AdminMetricsDto(
             generatedAt = now,
             app = AppMetricsDto(
@@ -56,7 +66,13 @@ class MetricsService(
             jvm = jvm(),
             database = database(),
             domain = domain(),
-            http = http(startedAt),
+            http = http(startedAt, now),
+            jobs = jobs(),
+            ai24h = aiProviders.map {
+                AiProviderMetricsDto(it.provider, it.use, it.calls, it.p95Ms, it.errorRatio, it.tokensIn, it.tokensOut)
+            },
+            aiFallbacks24h = aiProviders.sumOf { it.fallbacks },
+            paymentsLast24h = queries.paymentsLast24h().map { PaymentCountDto(it.a, it.b, it.c) },
         )
     }
 
@@ -87,6 +103,9 @@ class MetricsService(
                 max = gauge("hikaricp.connections.max"),
             ),
             tables = queries.largestTables(TABLES).map { TableSizeDto(it.table, it.estimatedRows, it.bytes) },
+            cacheHitRatio = queries.cacheHitRatio(),
+            deadTupleRatio = queries.worstDeadTuples(DEAD_TUPLE_MIN_ROWS)?.let { DeadTupleRatioDto(it.table, it.ratio) },
+            unusedIndexes = queries.unusedIndexes().let { UnusedIndexesDto(it.count, it.bytes) },
         )
     }
 
@@ -103,13 +122,41 @@ class MetricsService(
         )
     }
 
-    private fun http(since: Instant): HttpMetricsDto {
-        val routes = routesFrom(registry.find("http.server.requests").timers())
+    private fun jobs(): List<JobMetricsDto> = queries.jobRuns().map { run ->
+        JobMetricsDto(
+            name = run.name,
+            lastRunAt = run.lockedAt,
+            nextRunAt = JOB_INTERVAL_SECONDS[run.name]?.let { run.lockedAt.plusSeconds(it) },
+            note = JOB_NOTES[run.name],
+        )
+    }
+
+    private fun window(now: Instant): HttpWindowDto? = traffic.snapshot(now)?.let { s ->
+        HttpWindowDto(
+            requests = s.requests,
+            previousRequests = s.previousRequests,
+            p50Ms = s.p50Ms,
+            p95Ms = s.p95Ms,
+            p99Ms = s.p99Ms,
+            previousP95Ms = s.previousP95Ms,
+            peakRps = s.peakRps,
+            peakAt = s.peakAt,
+            byStatus = s.byStatus,
+            hourly = s.hourly.map { HttpHourDto(it.hour, it.requests, it.p95Ms, it.serverErrors) },
+            top4xx = s.top4xx.map { HttpRouteCountDto(it.status, it.method, it.route, it.count) },
+        )
+    }
+
+    private fun http(since: Instant, now: Instant): HttpMetricsDto {
+        val routes = routesFrom(registry.find("http.server.requests").timers()).map { row ->
+            traffic.routePercentiles(row.method, row.route)?.let { row.copy(p95Ms = it.p95Ms, p99Ms = it.p99Ms) } ?: row
+        }
         return HttpMetricsDto(
             since = since,
             requests = routes.sumOf { it.requests },
             serverErrors = routes.sumOf { it.serverErrors },
             routes = routes,
+            last24h = window(now),
         )
     }
 
@@ -119,6 +166,21 @@ class MetricsService(
         private const val DAYS = 30
         private const val SERVER_ERROR = 500
         private const val CLIENT_ERROR = 400
+        private const val DEAD_TUPLE_MIN_ROWS = 1000L
+        private const val MINUTE = 60L
+        private const val HOUR = 3600L
+        private const val DAY = 86400L
+
+        /** The `@SchedulerLock` jobs and their `@Scheduled` periods; a job missing here just has no next run. */
+        private val JOB_INTERVAL_SECONDS = mapOf(
+            "reminder-notifications" to MINUTE,
+            "payment-hold-expiry" to MINUTE,
+            "user-session-cleanup" to HOUR,
+            "sms-otp-cleanup" to HOUR,
+            "email-otp-cleanup" to HOUR,
+            "ai-draft-note-cleanup" to DAY,
+        )
+        private val JOB_NOTES = mapOf("reminder-notifications" to "sends inside job transaction")
 
         /** One row per method and route template, every status folded in, busiest first. */
         internal fun routesFrom(timers: Collection<Timer>): List<RouteMetricsDto> =

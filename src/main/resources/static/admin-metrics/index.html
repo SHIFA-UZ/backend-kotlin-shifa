@@ -5,65 +5,169 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Shifa Backend Health</title>
 <meta name="robots" content="noindex">
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
 <style>
-  /* Operations board: one column of cards, numbers first, bars for every breakdown. */
+  /* Reads top down: is anything wrong, where is it wrong, is real usage flowing. Colours live here, app.js only picks classes. */
   :root {
-    --bg: #f4f7f6; --panel: #ffffff; --fg: #15201d; --muted: #5d6b67; --line: #d9e2df;
-    --accent: #0a7f6b; --accent-2: #2b6cb0; --ok: #1f7a4d; --warn: #8a5a12; --bad: #b42318; --bar: #cfe3de;
-    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+    --bg: #f4f7f6; --panel: #ffffff; --fg: #15201d; --muted: #5d6b67; --line: #d9e2df; --line-soft: #eef2f1; --bar: #e6eeeb;
+    --accent: #0a7f6b; --accent-hover: #086353; --accent-2: #2b6cb0; --ok: #1f7a4d; --warn: #8a5a12; --warn-fill: #b7791f; --bad: #b42318;
+    --pending: #c9a25a; --soft: #7fb8aa; --grey: #9aa8a4; --dim: #5d6b67;
+    --verdict-bg: #eef6f3; --verdict-bad-bg: #fbeceb; --halo-ok: #cfe9dc; --halo-warn: #f4e3c4; --halo-bad: #f6d5d1; --on-fill: #ffffff;
+    --sans: system-ui, -apple-system, "Segoe UI", sans-serif; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   }
   @media (prefers-color-scheme: dark) {
-    :root { --bg: #0f1614; --panel: #17201d; --fg: #e8efec; --muted: #9bb0aa; --line: #2a3733; --accent: #3fb59a; --accent-2: #6ea8e8; --ok: #4cc38a; --warn: #e3b341; --bad: #f1707a; --bar: #22312d; color-scheme: dark; }
+    :root {
+      --bg: #0f1614; --panel: #17201d; --fg: #e8efec; --muted: #9bb0aa; --line: #2a3733; --line-soft: #1f2a27; --bar: #22312d;
+      --accent: #3fb59a; --accent-hover: #63c9b1; --accent-2: #6ea8e8; --ok: #4cc38a; --warn: #e3b341; --warn-fill: #e3b341; --bad: #f1707a;
+      --soft: #4f8c7d; --grey: #7f908b; --dim: #55655f;
+      --verdict-bg: #16302a; --verdict-bad-bg: #331c1f; --halo-ok: #1f4a3a; --halo-warn: #4a3a18; --halo-bad: #4f2528; --on-fill: #0f1614;
+      color-scheme: dark;
+    }
   }
   * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); font-variant-numeric: tabular-nums; }
-  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 20px; }
-  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: baseline; justify-content: space-between; }
-  h1 { font-size: 24px; font-weight: 600; margin: 0; }
-  h2 { font-size: 16px; font-weight: 600; margin: 0 0 8px; }
-  h3 { font-size: 14px; font-weight: 600; margin: 0 0 6px; color: var(--muted); }
-  .muted { color: var(--muted); }
-  .small { font-size: 12px; }
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 18rem), 1fr)); gap: 14px; }
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 14px; }
-  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; min-width: 0; }
-  .big { font-size: 26px; font-weight: 600; line-height: 1.1; }
-  .label { color: var(--muted); font-size: 12px; margin-top: 2px; }
-  .pill { display: inline-block; padding: 1px 10px; border-radius: 999px; font-size: 12px; border: 1px solid var(--line); }
-  .pill.ok { color: var(--ok); border-color: currentColor; }
-  .pill.bad { color: var(--bad); border-color: currentColor; }
-  .bars { display: grid; gap: 6px; }
-  .bar { display: grid; grid-template-columns: minmax(7rem, 40%) 1fr auto; gap: 10px; align-items: center; font-size: 13px; }
-  .bar .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .bar .track { height: 10px; background: var(--bar); border-radius: 5px; overflow: hidden; }
-  .bar .fill { height: 100%; background: var(--accent); border-radius: 5px; }
-  .bar .fill.alt { background: var(--accent-2); }
-  .bar .fill.bad { background: var(--bad); }
-  .bar .val { white-space: nowrap; color: var(--muted); }
-  .kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 16px; margin: 0; }
-  .kv dt { color: var(--muted); } .kv dd { margin: 0; text-align: right; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; }
-  form { display: grid; gap: 10px; max-width: 24rem; }
-  input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); width: 100%; }
-  button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--accent); background: var(--accent); color: #fff; cursor: pointer; }
-  button.quiet { background: transparent; color: var(--fg); border-color: var(--line); }
-  button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
-  .error { color: var(--bad); }
   [hidden] { display: none !important; }
-  @media (prefers-reduced-motion: no-preference) { .bar .fill { transition: width .4s ease-out; } }
+  body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--sans); font-variant-numeric: tabular-nums; }
+  a { color: var(--accent); } a:hover { color: var(--accent-hover); }
+  h1, h2, h3, p, dl, dd { margin: 0; }
+  h1 { font-size: 22px; font-weight: 600; }
+  h2 { font-size: 16px; font-weight: 600; }
+  h3 { font-size: 14px; font-weight: 600; }
+  .wrap, #board { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; }
+  .wrap { max-width: 1200px; margin: 0 auto; padding: 24px max(16px, env(safe-area-inset-right, 0px)) 48px max(16px, env(safe-area-inset-left, 0px)); }
+  #board.stale { opacity: .6; }
+  .muted { color: var(--muted); } .small { font-size: 12px; } .mono { font-family: var(--mono); font-size: 12px; }
+  .ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .right { text-align: right; } .strong { font-weight: 600; } .min0 { min-width: 0; }
+  .t-ok { color: var(--ok); } .t-warn { color: var(--warn); } .t-bad { color: var(--bad); }
+  .c-accent { background: var(--accent); } .c-accent2 { background: var(--accent-2); } .c-soft { background: var(--soft); } .c-pending { background: var(--pending); }
+  .c-warn { background: var(--warn-fill); } .c-bad { background: var(--bad); } .c-grey { background: var(--grey); } .c-dim { background: var(--dim); }
+
+  header { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; justify-content: space-between; }
+  .brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .brand img { flex: none; }
+  .title-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .env { font-size: 11px; font-weight: 700; letter-spacing: .06em; padding: 2px 8px; border-radius: 4px; background: var(--fg); color: var(--bg); }
+  .env.dev { background: var(--warn-fill); color: var(--on-fill); } .env.local { background: var(--grey); color: var(--on-fill); }
+  .status { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 12px; color: var(--muted); }
+  .status.failed { color: var(--bad); }
+  button { font: inherit; padding: 7px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--fg); cursor: pointer; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-fill); }
+  button:disabled { opacity: .6; cursor: default; }
+  button:focus-visible, input:focus-visible, a:focus-visible, .scroll:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px; }
+  input { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); width: 100%; }
+  #login-form { display: grid; gap: 10px; max-width: 24rem; margin-top: 10px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+  .mini { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: 8px; align-content: start; min-width: 0; }
+  .mini .label { font-size: 12px; color: var(--muted); } .mini .value { font-size: 18px; font-weight: 600; } .mini .sub { font-size: 12px; color: var(--muted); }
+  .kpi .value { font-size: 20px; }
+  .stack { display: grid; gap: 10px; }
+  .row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 12px; }
+  .row:not(:has(> :not([hidden]))) { display: none; }
+  .grid-13 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 13rem), 1fr)); gap: 12px; }
+  .grid-105 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 10.5rem), 1fr)); gap: 12px; }
+  .grid-9 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); gap: 12px; }
+  .grid-8 { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 8rem), 1fr)); gap: 10px; }
+  .eyebrow { font-size: 13px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px 12px; flex-wrap: wrap; }
+  .head-left { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .legend { display: flex; gap: 6px 14px; flex-wrap: wrap; font-size: 12px; color: var(--muted); align-items: center; }
+  .legend > span { display: flex; align-items: center; gap: 5px; }
+  .sw { width: 10px; height: 10px; border-radius: 2px; flex: none; display: inline-block; }
+  .foot { font-size: 12px; color: var(--muted); border-top: 1px solid var(--line-soft); padding-top: 8px; }
+  .empty { font-size: 12px; color: var(--muted); }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; display: inline-block; }
+
+  .track { background: var(--bar); border-radius: 3px; height: 6px; overflow: hidden; }
+  .track > div { height: 100%; border-radius: 3px; }
+  .track.tall { height: 8px; border-radius: 4px; } .track.tall > div { border-radius: 4px; }
+  @media (prefers-reduced-motion: no-preference) { .track > div, .segs > div { transition: width .4s ease-out; } }
+  .segs { display: flex; height: 12px; border-radius: 6px; overflow: hidden; gap: 2px; }
+  .segs.thin { height: 10px; border-radius: 5px; }
+  .legend-grid { display: grid; grid-template-columns: auto minmax(0, 1fr) auto 3.6rem; gap: 6px 10px; font-size: 13px; align-items: center; }
+  .kv { display: grid; grid-template-columns: auto 1fr; gap: 6px 16px; font-size: 13px; }
+  .kv dt { color: var(--muted); } .kv dd { text-align: right; overflow-wrap: anywhere; font-family: var(--mono); font-size: 12px; }
+  .kv.top { border-top: 1px solid var(--line-soft); padding-top: 10px; }
+
+  .verdict { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 20rem), 1fr)); overflow: hidden; }
+  .verdict-main { padding: 20px 22px; display: grid; gap: 6px; align-content: center; background: var(--verdict-bg); border-right: 1px solid var(--line); }
+  .verdict-main.bad { background: var(--verdict-bad-bg); }
+  .verdict-state { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 600; letter-spacing: .04em; }
+  .verdict-dot { width: 12px; height: 12px; border-radius: 50%; }
+  .verdict-dot.ok { background: var(--ok); box-shadow: 0 0 0 4px var(--halo-ok); } .verdict-dot.bad { background: var(--bad); box-shadow: 0 0 0 4px var(--halo-bad); }
+  .verdict-head { font-size: 24px; font-weight: 600; line-height: 1.2; text-wrap: pretty; }
+  .watch { padding: 14px 22px; display: grid; align-content: center; }
+  .watch-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line-soft); }
+  .watch-row:last-child { border-bottom: 0; }
+  .chip { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 4px; color: var(--on-fill); }
+  .watch-link { font-size: 12px; white-space: nowrap; }
+
+  .vital-head { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+  .vital-value { font-size: 26px; font-weight: 600; line-height: 1.1; overflow-wrap: anywhere; }
+  .dep { padding: 12px 14px; gap: 4px; }
+  .dep-name { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; border-radius: 0; padding: 3px 10px; font-size: 12px; color: var(--muted); }
+  .seg button[aria-pressed="true"] { background: var(--line-soft); color: var(--fg); font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  .rt { display: grid; grid-template-columns: minmax(12rem, 1.3fr) 5.5rem minmax(10rem, 2fr) 4.5rem 4.5rem 3rem; gap: 0 14px; font-size: 13px; min-width: 44rem; }
+  .rt.has-p95 { grid-template-columns: minmax(12rem, 1.3fr) 5.5rem minmax(10rem, 2fr) 4.5rem 4.5rem 4.5rem 3rem; min-width: 49rem; }
+  .rt > [role="row"] { display: contents; }
+  .rt .th { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding-bottom: 6px; }
+  .rt .td { padding: 8px 0; border-top: 1px solid var(--line-soft); display: block; }
+  .lat { position: relative; height: 10px; background: var(--line-soft); border-radius: 5px; width: 100%; margin-top: 5px; }
+  .lat .avg { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 5px; }
+  .lat .tick { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--fg); }
+  .lat .budget { position: absolute; top: -4px; bottom: -4px; left: 75%; border-left: 1px dashed var(--bad); }
+  .link { border: 0; background: none; padding: 0; color: var(--accent); text-decoration: underline; font-size: 12px; justify-self: start; }
+
+  .hours { display: flex; align-items: flex-end; gap: 3px; height: 120px; border-bottom: 1px solid var(--line); }
+  .hour { flex: 1 1 0; min-width: 0; position: relative; height: 100%; display: flex; align-items: flex-end; }
+  .hour > .h { width: 100%; border-radius: 3px 3px 0 0; opacity: .85; }
+  .hour > .p { position: absolute; left: 15%; right: 15%; height: 3px; border-radius: 2px; background: var(--accent-2); }
+  .days { display: flex; align-items: stretch; gap: 2px; height: 96px; border-bottom: 1px solid var(--line); }
+  .day { flex: 1 1 0; min-width: 0; display: flex; align-items: flex-end; }
+  .day > div { width: 100%; border-radius: 3px 3px 0 0; }
+  .axis { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+  .split { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 22rem), 1fr)); gap: 16px; border-top: 1px solid var(--line-soft); padding-top: 12px; }
+  .row-4xx { display: grid; grid-template-columns: 3rem minmax(0, 1fr) auto; gap: 10px; font-size: 13px; padding: 4px 0; border-top: 1px solid var(--line-soft); }
+
+  .bars3 { display: grid; gap: 8px 12px; align-items: center; font-size: 13px; }
+  .bars3.clients { grid-template-columns: minmax(0, 1fr) 3.5rem 3rem; } .bars3.tables { grid-template-columns: minmax(0, 1fr) 4.5rem 5.5rem; }
+  .bars3 > div { display: contents; }
+  .bar-cell { display: grid; gap: 3px; min-width: 0; }
+  .funnel-row { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr) 3.5rem; gap: 10px; align-items: center; font-size: 13px; }
+  .ai { display: grid; grid-template-columns: minmax(7rem, 1fr) 3.5rem 3.5rem 3rem; gap: 0 12px; font-size: 13px; }
+  .ai.has-cost { grid-template-columns: minmax(7rem, 1fr) 3.5rem 3.5rem 3rem 4rem; min-width: 26rem; }
+  .ai > div { display: contents; }
+  .ai .th { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding-bottom: 6px; }
+  .ai .td { padding: 7px 0; border-top: 1px solid var(--line-soft); }
+  .job { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line-soft); }
+  .query { display: grid; grid-template-columns: minmax(0, 1fr) auto 3.5rem; gap: 10px; font-size: 12px; padding: 4px 0; border-top: 1px solid var(--line-soft); align-items: center; }
+
+  .maint-head { width: 100%; border: 0; background: none; border-radius: 12px; padding: 14px 18px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; text-align: left; }
+  .maint-body { padding: 12px 18px 16px; display: grid; gap: 10px; border-top: 1px solid var(--line-soft); }
+  .pill { font-size: 12px; border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; color: var(--muted); }
+  .pill.ok { color: var(--ok); border-color: currentColor; } .pill.bad { color: var(--bad); border-color: currentColor; }
+  footer { font-size: 12px; color: var(--muted); font-family: var(--mono); display: flex; flex-wrap: wrap; gap: 6px 18px; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <header>
-    <div>
-      <h1>Shifa Backend Health</h1>
-      <div class="muted small" id="where">—</div>
+    <div class="brand">
+      <img src="favicon.svg" alt="" width="40" height="40">
+      <div class="min0">
+        <div class="title-row"><h1>Shifa Backend Health</h1><span class="env" id="env"></span></div>
+        <div class="mono muted" id="where"></div>
+      </div>
     </div>
-    <div class="small muted" id="status-line">
-      <span id="health" class="pill">—</span>
-      <span id="refreshed"></span>
-      <button class="quiet" id="refresh" type="button" hidden>Refresh now</button>
-      <button class="quiet" id="logout" type="button" hidden>Sign out</button>
+    <div class="status" id="status" hidden>
+      <span id="refreshed" role="status"></span>
+      <button type="button" id="refresh">Refresh</button>
+      <button type="button" id="logout">Sign out</button>
     </div>
   </header>
 
@@ -74,75 +178,141 @@
       <input id="username" name="username" placeholder="Email or username" autocomplete="username" required>
       <input id="password" name="password" type="password" placeholder="Password" autocomplete="current-password" required>
       <input id="code" name="code" placeholder="Six-digit code from your email" inputmode="numeric" autocomplete="one-time-code" hidden>
-      <div style="display:flex; gap:8px; flex-wrap:wrap"><button type="submit" id="submit">Send code</button><button type="button" class="quiet" id="start-over">Start over</button></div>
-      <div class="small error" id="login-error" hidden></div>
+      <div class="actions"><button type="submit" class="primary" id="submit">Send code</button><button type="button" id="start-over">Start over</button></div>
+      <div class="small t-bad" id="login-error" hidden></div>
     </form>
   </section>
 
   <div id="board" hidden>
-    <section>
-      <h2>Service</h2>
-      <div class="tiles">
-        <div class="card"><div class="big" id="uptime">—</div><div class="label">uptime</div></div>
-        <div class="card"><div class="big" id="commit">—</div><div class="label">commit</div></div>
-        <div class="card"><div class="big" id="boot">—</div><div class="label">Spring Boot</div></div>
-        <div class="card"><div class="big" id="java">—</div><div class="label">Java</div></div>
-        <div class="card"><div class="big" id="heap">—</div><div class="label">heap used / max</div></div>
-        <div class="card"><div class="big" id="nonheap">—</div><div class="label">non-heap used</div></div>
-        <div class="card"><div class="big" id="threads">—</div><div class="label">live threads</div></div>
+    <section class="verdict" aria-label="Verdict">
+      <div class="verdict-main" id="verdict-main">
+        <div class="verdict-state" id="verdict-state"><span class="verdict-dot" id="verdict-dot"></span><span id="verdict-label"></span></div>
+        <div class="verdict-head" id="verdict-head"></div>
+        <div class="small muted" id="verdict-sub"></div>
       </div>
+      <div class="watch" id="watch"></div>
     </section>
 
-    <section>
-      <h2 style="margin-top:20px">Database</h2>
-      <div class="tiles">
-        <div class="card"><div class="big" id="dbsize">—</div><div class="label">database size</div></div>
-        <div class="card"><div class="big" id="schema">—</div><div class="label" id="schema-label">schema version</div></div>
-        <div class="card"><div class="big" id="pool">—</div><div class="label">pool active + idle / max</div></div>
-        <div class="card"><div class="big" id="pending">—</div><div class="label">threads waiting for a connection</div></div>
-        <div class="card"><div class="big" id="server-conns">—</div><div class="label">server connections active + idle</div></div>
-        <div class="card"><div class="big" id="pg">—</div><div class="label">PostgreSQL</div></div>
+    <section class="stack" id="vitals"><h2 class="eyebrow">Vitals</h2><div class="grid-13" id="vitals-list"></div></section>
+    <section class="stack" id="dependencies" hidden><h2 class="eyebrow">Dependencies</h2><div class="grid-105" id="deps-list"></div></section>
+
+    <section class="card" id="routes">
+      <div class="head">
+        <h2>Routes</h2>
+        <div class="legend">
+          <div class="seg" role="group" aria-label="Sort routes"><button type="button" id="sort-worst">Worst first</button><button type="button" id="sort-busy">Busiest first</button></div>
+          <span><i class="sw c-accent"></i>avg</span>
+          <span><i class="sw" style="width:2px;background:var(--fg)"></i><span id="tick-label">recent max</span></span>
+          <span><i class="sw" style="height:0;border-top:1px dashed var(--bad);border-radius:0"></i>1 s budget</span>
+        </div>
       </div>
-      <div class="grid" style="margin-top:14px">
-        <div class="card"><h3>Largest tables (size with indexes, row counts are PostgreSQL estimates)</h3><div class="bars" id="tables"></div></div>
-        <div class="card"><h3>Appointments by status</h3><div class="bars" id="appointments"></div></div>
-        <div class="card"><h3>Payments by status and gateway</h3><div class="bars" id="payments"></div></div>
-        <div class="card"><h3>Users by role</h3><div class="bars" id="roles"></div></div>
-        <div class="card"><h3>Appointments created per day, last 30 days</h3><div class="bars" id="daily"></div></div>
+      <div class="scroll" tabindex="0" aria-label="Routes table"><div class="rt" id="routes-table" role="table"></div></div>
+      <button type="button" class="link" id="routes-all" hidden></button>
+      <div class="small muted" id="routes-note"></div>
+    </section>
+
+    <section class="card" id="traffic" hidden>
+      <div class="head">
+        <h2>Traffic, last 24 h</h2>
+        <div class="legend">
+          <span><i class="sw c-accent"></i>requests / hour</span>
+          <span><i class="sw c-bad"></i>hour with 5xx</span>
+          <span><i class="sw c-accent2" style="height:3px"></i>p95 latency (top = 800 ms)</span>
+        </div>
+      </div>
+      <div class="grid-9" id="traffic-kpis"></div>
+      <div class="stack" style="gap:4px"><div class="hours" id="hours" role="img"></div><div class="axis"><span id="hours-first"></span><span id="hours-peak"></span><span>now</span></div></div>
+      <div class="split">
+        <div class="stack" style="gap:8px;align-content:start"><h3>Responses by status</h3><div class="segs" id="status-bar"></div><div class="legend-grid" id="status-legend"></div></div>
+        <div class="stack" style="gap:8px;align-content:start"><h3>Top 4xx routes</h3><div id="top4xx"></div></div>
+      </div>
+      <div class="small muted" id="traffic-note"></div>
+    </section>
+
+    <div class="row">
+      <section class="card" id="clients" hidden>
+        <h2>Clients &amp; app versions</h2>
+        <div class="small muted">Requests in 24 h by User-Agent / app header. Tells you when a deprecated field is safe to remove.</div>
+        <div class="bars3 clients" id="clients-list"></div>
+        <div class="foot" id="clients-foot" hidden></div>
+      </section>
+      <section class="card" id="auth" hidden>
+        <h2>Auth &amp; sessions, 24 h</h2>
+        <div class="stack" id="funnels"></div>
+        <dl class="kv top" id="auth-kv"></dl>
+      </section>
+    </div>
+
+    <div class="row">
+      <section class="card" id="ai" hidden>
+        <h2>AI providers, 24 h</h2>
+        <div class="scroll" tabindex="0" aria-label="AI providers table"><div class="ai" id="ai-table"></div></div>
+        <div class="foot" id="ai-foot"></div>
+      </section>
+      <section class="card" id="media" hidden>
+        <h2>Video &amp; push, 24 h</h2>
+        <div class="grid-8" id="media-list"></div>
+      </section>
+    </div>
+
+    <div class="row">
+      <section class="card" id="payments">
+        <h2>Payments by gateway</h2>
+        <div class="stack" id="payments-list"></div>
+        <div class="foot" id="payments-foot"></div>
+      </section>
+      <section class="card" id="jobs" hidden>
+        <h2>Background jobs</h2>
+        <div id="jobs-list"></div>
+      </section>
+    </div>
+
+    <section class="stack" id="database">
+      <h2 class="eyebrow">Database</h2>
+      <div class="row">
         <div class="card">
-          <h3>Records</h3>
-          <dl class="kv">
-            <dt>Notifications unread / total</dt><dd id="notifications">—</dd>
-            <dt>Active sessions</dt><dd id="sessions">—</dd>
-            <dt>Last migration</dt><dd id="migration">—</dd>
-          </dl>
+          <div class="head"><h3>Largest tables</h3><span class="small muted" id="tables-head"></span></div>
+          <div class="bars3 tables" id="tables"></div>
+        </div>
+        <div class="card"><h3>Schema &amp; connections</h3><dl class="kv" id="db-kv"></dl></div>
+        <div class="card" id="pg" hidden>
+          <h3>Postgres internals</h3>
+          <div class="grid-8" id="pg-list"></div>
+          <div class="stack" id="slow-block" style="gap:4px" hidden><h3 class="muted" style="font-size:13px">Slowest queries (pg_stat_statements, mean)</h3><div id="slow-list"></div></div>
         </div>
       </div>
     </section>
 
-    <section>
-      <h2 style="margin-top:20px">Requests since start</h2>
-      <div class="tiles">
-        <div class="card"><div class="big" id="req">—</div><div class="label">requests</div></div>
-        <div class="card"><div class="big" id="req5xx">—</div><div class="label">answered 5xx</div></div>
-        <div class="card"><div class="big" id="req-since">—</div><div class="label">counting since (UTC)</div></div>
+    <section class="stack" id="activity">
+      <div class="head-left"><h2 class="eyebrow">Product activity</h2><span class="small muted">Sanity check that real traffic is flowing — not a health signal on its own</span></div>
+      <div class="row">
+        <div class="card" style="gap:8px">
+          <div class="head"><h3>Appointments created / day</h3><span class="small muted" id="daily-head"></span></div>
+          <div class="days" id="daily" role="img"></div>
+          <div class="axis"><span id="daily-first"></span><span id="daily-last"></span></div>
+        </div>
+        <div class="card">
+          <h3>Appointments by outcome</h3>
+          <div class="segs" id="outcome-bar"></div>
+          <div class="legend-grid" id="outcome-legend"></div>
+          <div class="foot" id="users-line"></div>
+        </div>
       </div>
-      <div class="card" style="margin-top:14px"><h3>Busiest routes since start: requests, average ms and the slowest of the last minutes; red where a 5xx was answered</h3><div class="bars" id="routes"></div></div>
     </section>
 
-    <section>
-      <h2 style="margin-top:20px">Uploads: volume to bucket</h2>
-      <div class="card">
-        <p class="small muted">Copies every file on the volume into the bucket (size-verified, files already there are skipped). Safe to repeat: run it until a pass reports 0 copied and 0 failed, then the volume can be unmounted.</p>
-        <div class="small" id="storage-status">—</div>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px">
-          <button type="button" id="storage-start">Start copy</button>
-          <button type="button" class="quiet" id="storage-dry">Dry run</button>
-          <button type="button" class="quiet" id="storage-refresh">Refresh status</button>
-        </div>
-        <div class="small error" id="storage-error" hidden></div>
+    <section class="card" id="maintenance" style="padding:0;gap:0">
+      <button type="button" class="maint-head" id="maint-toggle" aria-expanded="false" aria-controls="maint-body">
+        <span class="title-row"><span class="strong">Maintenance · volume → bucket copy</span><span class="pill" id="maint-pill">—</span></span>
+        <span class="small muted" id="maint-label">Show controls</span>
+      </button>
+      <div class="maint-body" id="maint-body" hidden>
+        <p class="small muted" id="maint-desc"></p>
+        <div class="actions"><button type="button" id="storage-dry">Dry run</button><button type="button" class="primary" id="storage-start">Start copy…</button></div>
+        <div class="small t-bad" id="storage-error" hidden></div>
       </div>
     </section>
+
+    <footer id="footer"></footer>
   </div>
 </div>
 
