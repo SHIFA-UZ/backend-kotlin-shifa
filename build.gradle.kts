@@ -86,7 +86,7 @@ dependencies {
     implementation("com.stripe:stripe-java:30.1.0")
 
     // Uploads in an S3-compatible bucket (Railway Buckets), roadmap 2.7
-    implementation(platform("software.amazon.awssdk:bom:2.57.6"))
+    implementation(platform("software.amazon.awssdk:bom:2.57.8"))
     implementation("software.amazon.awssdk:s3")
 }
 
