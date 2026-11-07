@@ -1,6 +1,6 @@
 package com.shifa.doctors.application
 
-import com.shifa.doctors.infrastructure.GoogleGeocodingClient
+import com.shifa.doctors.infrastructure.NominatimGeocodingClient
 import com.shifa.shared.CodedStatusException
 import com.shifa.shared.ErrorCode
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -10,7 +10,7 @@ import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import tools.jackson.module.kotlin.jacksonObjectMapper
 
-/** BE-15: Google's answer becomes the profile's address fields; the proxy caches, rate-limits and validates. */
+/** BE-15: OpenStreetMap's answer becomes the profile's address fields; the proxy caches, rate-limits and validates. */
 class GeocodingServiceTest {
     private class FakeGateway(var configured: Boolean = true) : GeocodingGateway {
         var calls = 0
@@ -24,31 +24,29 @@ class GeocodingServiceTest {
     }
 
     @Test
-    fun `google components map to the profile fields`() {
-        val json = """
-            {"status":"OK","results":[{"formatted_address":"Amir Temur 1, Tashkent, Uzbekistan",
-              "geometry":{"location":{"lat":41.311,"lng":69.279}},
-              "address_components":[
-                {"long_name":"1","types":["street_number"]},
-                {"long_name":"Amir Temur","types":["route"]},
-                {"long_name":"Yunusabad","types":["sublocality_level_1","sublocality","political"]},
-                {"long_name":"Tashkent","types":["locality","political"]},
-                {"long_name":"Tashkent Region","types":["administrative_area_level_1","political"]},
-                {"long_name":"Uzbekistan","types":["country","political"]},
-                {"long_name":"100000","types":["postal_code"]}]}]}
+    fun `openstreetmap places map to the profile fields`() {
+        val search = """
+            [{"lat":"41.3110","lon":"69.2790","display_name":"1, Amir Temur, Yunusobod, Tashkent, 100000, Uzbekistan",
+              "address":{"house_number":"1","road":"Amir Temur","suburb":"Yunusobod","city":"Tashkent",
+                "state":"Tashkent Region","postcode":"100000","country":"Uzbekistan","country_code":"uz"}}]
         """.trimIndent()
-        val address = GoogleGeocodingClient.parse(jacksonObjectMapper().readTree(json))!!.single()
+        val address = NominatimGeocodingClient.parse(jacksonObjectMapper().readTree(search))!!.single()
         assertEquals("Uzbekistan", address.locationCountry)
         assertEquals("Tashkent Region", address.locationRegion)
         assertEquals("Tashkent", address.locationCity)
-        assertEquals("Yunusabad", address.locationDistrict)
+        assertEquals("Yunusobod", address.locationDistrict)
         assertEquals("100000", address.locationPostalCode)
         assertEquals("Amir Temur 1", address.locationStreetAddress)
         assertEquals(41.311, address.latitude)
-        assertEquals("Amir Temur 1, Tashkent, Uzbekistan", address.formattedAddress)
+        assertEquals(69.279, address.longitude)
+        assertEquals("1, Amir Temur, Yunusobod, Tashkent, 100000, Uzbekistan", address.formattedAddress)
 
-        assertTrue(GoogleGeocodingClient.parse(jacksonObjectMapper().readTree("""{"status":"ZERO_RESULTS","results":[]}"""))!!.isEmpty())
-        assertNull(GoogleGeocodingClient.parse(jacksonObjectMapper().readTree("""{"status":"REQUEST_DENIED"}""")))
+        // Reverse answers one place; a town stands in for a city.
+        val reverse = """{"lat":"40.1","lon":"65.3","display_name":"Navoiy","address":{"town":"Navoiy","country":"Uzbekistan"}}"""
+        assertEquals("Navoiy", NominatimGeocodingClient.parse(jacksonObjectMapper().readTree(reverse))!!.single().locationCity)
+        assertTrue(NominatimGeocodingClient.parse(jacksonObjectMapper().readTree("[]"))!!.isEmpty())
+        assertTrue(NominatimGeocodingClient.parse(jacksonObjectMapper().readTree("""{"error":"Unable to geocode"}"""))!!.isEmpty())
+        assertNull(NominatimGeocodingClient.parse(jacksonObjectMapper().readTree("{}"))) // a strange answer: 502, not cached
     }
 
     @Test
