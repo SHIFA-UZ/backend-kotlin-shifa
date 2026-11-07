@@ -378,6 +378,6 @@ class AppointmentBriefingService(
             appointmentId = appointment.id,
         )
         val saved = notificationService.save(notif)
-        doctor.fcmToken?.let { notificationService.sendDoctorNotification(it, saved) }
+        notificationService.sendDoctorNotification(doctor.fcmToken, saved)
     }
 }

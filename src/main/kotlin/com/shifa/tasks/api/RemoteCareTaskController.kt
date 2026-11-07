@@ -376,7 +376,7 @@ class RemoteCareTaskController(
                 taskId = task.id
             )
             val savedNotif = notificationService.save(notification)
-            task.doctor.fcmToken?.let { notificationService.sendDoctorNotification(it, savedNotif) }
+            notificationService.sendDoctorNotification(task.doctor.fcmToken, savedNotif)
         }
 
         return toCheckInDto(saved)

@@ -21,6 +21,10 @@ data class NotificationDto(
     val readAt: String?,
     val treatmentPlanId: Long? = null,
     val appointmentStartAt: String? = null,
+    /** Chat notifications: the conversation (`GET /messages/conversations/{id}`). */
+    val conversationId: Long? = null,
+    /** Care-partnership notifications: the partnership. */
+    val carePartnershipId: Long? = null,
 ) {
     companion object {
         fun from(d: NotificationDetails): NotificationDto {
@@ -44,6 +48,8 @@ data class NotificationDto(
                 readAt = n.readAt?.toString(),
                 treatmentPlanId = n.treatmentPlanId,
                 appointmentStartAt = d.appointmentStartAt?.toString(),
+                conversationId = n.conversationId,
+                carePartnershipId = n.carePartnershipId,
             )
         }
     }

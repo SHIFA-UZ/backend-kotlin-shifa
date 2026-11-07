@@ -731,7 +731,8 @@ class MessageService(
                     type = Notification.Type.CHAT_MESSAGE,
                     appointmentId = null,
                     documentAccessRequestId = null,
-                    taskId = null
+                    taskId = null,
+                    conversationId = chatId,
                 )
             )
         } catch (e: Exception) {
@@ -789,7 +790,8 @@ class MessageService(
                     type = Notification.Type.CHAT_MESSAGE,
                     appointmentId = null,
                     documentAccessRequestId = null,
-                    taskId = null
+                    taskId = null,
+                    conversationId = chatId,
                 )
             )
         } catch (e: Exception) {
@@ -808,15 +810,10 @@ class MessageService(
         )
 
         deliverChatPushAfterCommit(notificationId, extraData) {
-            val token = doctorProfile.fcmToken
-            if (token.isNullOrBlank()) {
-                log.info("CHAT_PUSH_DOCTOR: no FCM token for doctorProfileId={}", doctorProfile.id)
-                false
-            } else {
-                val notif = notificationService.findById(notificationId).orElse(null)
-                if (notif == null) false
-                else notificationService.sendDoctorNotification(token, notif, extraData)
-            }
+            // The doctor's legacy token and every device token (sendDoctorNotification fans out; none: no push).
+            val notif = notificationService.findById(notificationId).orElse(null)
+            if (notif == null) false
+            else notificationService.sendDoctorNotification(doctorProfile.fcmToken, notif, extraData)
         }
     }
 

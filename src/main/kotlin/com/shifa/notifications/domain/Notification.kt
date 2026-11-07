@@ -62,6 +62,14 @@ class Notification(
     @Column(name = "installment_item_id")
     val installmentItemId: Long? = null,
 
+    /** Chat notifications: the conversation to open. */
+    @Column(name = "conversation_id")
+    val conversationId: Long? = null,
+
+    /** Care-partnership notifications: the partnership to open. */
+    @Column(name = "care_partnership_id")
+    val carePartnershipId: Long? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
 

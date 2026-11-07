@@ -110,9 +110,7 @@ class DoctorController(
             type = Notification.Type.GENERAL
         )
         val saved = notificationService.save(notif)
-        d.fcmToken?.let { token ->
-            notificationService.sendDoctorNotification(token, saved)
-        }
+        notificationService.sendDoctorNotification(d.fcmToken, saved)
     }
 
     // -------------------- GET all sections --------------------

@@ -17,7 +17,8 @@ class FcmTokenCleanupServiceTest {
 
     private val patients = mock(com.shifa.patients.application.PatientProfiles::class.java)
     private val doctors = mock(com.shifa.doctors.application.DoctorProfiles::class.java)
-    private val service = FcmTokenCleanupService(patients, doctors)
+    private val devices = mock(DoctorPushTokens::class.java)
+    private val service = FcmTokenCleanupService(patients, doctors, devices)
 
     @Test
     fun `clears matching patient token`() {
@@ -34,10 +35,22 @@ class FcmTokenCleanupServiceTest {
     }
 
     @Test
+    fun `drops a dead doctor device token too`() {
+        val token = "dead-device-token"
+        `when`(patients.findByFcmToken(token)).thenReturn(emptyList())
+        `when`(doctors.findByFcmToken(token)).thenReturn(emptyList())
+
+        service.clearToken(token)
+
+        verify(devices).drop(token)
+    }
+
+    @Test
     fun `ignores blank token`() {
         service.clearToken("  ")
         verify(patients, never()).findByFcmToken(org.mockito.ArgumentMatchers.anyString())
         verify(doctors, never()).findByFcmToken(org.mockito.ArgumentMatchers.anyString())
+        verify(devices, never()).drop(org.mockito.ArgumentMatchers.anyString())
     }
 }
 

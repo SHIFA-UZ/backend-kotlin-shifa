@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional
 class FcmTokenCleanupService(
     private val patientProfiles: com.shifa.patients.application.PatientProfiles,
     private val doctorProfiles: com.shifa.doctors.application.DoctorProfiles,
+    private val doctorPushTokens: DoctorPushTokens,
 ) {
     private val log = LoggerFactory.getLogger(FcmTokenCleanupService::class.java)
 
@@ -38,6 +39,9 @@ class FcmTokenCleanupService(
                 doctors.size,
                 prefix,
             )
+        }
+        if (doctorPushTokens.drop(token) > 0) {
+            log.warn("Dropped invalid doctor device token (tokenPrefix={})", prefix)
         }
     }
 }
