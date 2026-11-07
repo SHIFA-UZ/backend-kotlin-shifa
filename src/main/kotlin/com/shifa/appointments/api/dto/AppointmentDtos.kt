@@ -67,3 +67,17 @@ data class ScribeStatusResponse(
     val hasDocumentation: Boolean,
     val hasScribeNote: Boolean,
 )
+
+/** `POST /appointments/{id}/cancel`: why the visit is cancelled; the patient sees the reason and the note. */
+data class CancelAppointmentRequest(
+    @field:jakarta.validation.constraints.NotNull
+    @field:jakarta.validation.constraints.Pattern(regexp = "DOCTOR_UNAVAILABLE|PATIENT_REQUEST|RESCHEDULED|OTHER")
+    val reasonCode: String? = null,
+    @field:jakarta.validation.constraints.Size(max = 500)
+    val note: String? = null,
+)
+
+/** `POST /appointments/{id}/no-show`: [notify] false marks the visit without telling the patient (default true). */
+data class NoShowRequest(
+    val notify: Boolean? = null,
+)

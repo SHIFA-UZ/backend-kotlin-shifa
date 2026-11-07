@@ -25,6 +25,9 @@ data class NotificationDto(
     val conversationId: Long? = null,
     /** Care-partnership notifications: the partnership. */
     val carePartnershipId: Long? = null,
+    /** APPOINTMENT_CANCELLED with a reason: DOCTOR_UNAVAILABLE, PATIENT_REQUEST, RESCHEDULED or OTHER, and the note. */
+    val cancelReasonCode: String? = null,
+    val cancelNote: String? = null,
 ) {
     companion object {
         fun from(d: NotificationDetails): NotificationDto {
@@ -50,6 +53,8 @@ data class NotificationDto(
                 appointmentStartAt = d.appointmentStartAt?.toString(),
                 conversationId = n.conversationId,
                 carePartnershipId = n.carePartnershipId,
+                cancelReasonCode = n.cancelReasonCode,
+                cancelNote = n.cancelNote,
             )
         }
     }

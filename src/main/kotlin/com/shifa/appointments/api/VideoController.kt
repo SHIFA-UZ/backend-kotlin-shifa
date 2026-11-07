@@ -4,9 +4,12 @@ package com.shifa.appointments.api
 import com.shifa.appointments.api.dto.VideoTokenRequest
 import com.shifa.appointments.api.dto.VideoPresenceResponse
 import com.shifa.appointments.api.dto.VideoTokenResponse
+import com.shifa.appointments.domain.VideoJoinWindow
 import com.shifa.appointments.infrastructure.DailyVideoService
 import com.shifa.auth.domain.SubscriptionFeature
 import com.shifa.payments.application.SubscriptionTierService
+import com.shifa.shared.CodedStatusException
+import com.shifa.shared.ErrorCode
 import com.shifa.shared.security.DoctorPrincipal
 import com.shifa.shared.security.PatientPrincipal
 import java.time.Instant
@@ -100,37 +103,7 @@ class VideoController(
                 }
             } else null
 
-            // Join window: from 5 min before start to 15 min after end (all UTC)
-            val now = Instant.now()
-            if (now.isBefore(appointment.startAt.minusSeconds(5 * 60L))) {
-                throw ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Video call is not yet available. You can join 5 minutes before the appointment start."
-                )
-            }
-            if (now.isAfter(appointment.endAt.plusSeconds(15 * 60L))) {
-                throw ResponseStatusException(
-                    HttpStatus.FORBIDDEN,
-                    "Video call has ended. The join window closes 15 minutes after the appointment end."
-                )
-            }
-
-            // Payment gate for paid consultations: token can be issued only after payment is confirmed.
-            val requiresPayment = (appointment.paymentAmountMinor ?: 0L) > 0L
-            if (requiresPayment && appointment.paymentStatus != com.shifa.appointments.domain.Appointment.PaymentStatus.PAID) {
-                logger.warn(
-                    "Video token blocked for appointment {} due to unpaid status: paymentStatus={}, amountMinor={}",
-                    appointment.id,
-                    appointment.paymentStatus,
-                    appointment.paymentAmountMinor
-                )
-                throw ResponseStatusException(
-                    HttpStatus.PAYMENT_REQUIRED,
-                    "Payment is required before joining this video consultation."
-                )
-            }
-
-            // Verify user has access to this appointment
+            // Access first: the window and payment answers (and their joinWindow) are only for the visit's own people.
             if (isDoctor && doctor != null) {
                 if (appointment.doctor?.id != doctor.id) {
                     logger.warn("Doctor ${doctor.id} attempted to access appointment ${appointment.id} belonging to doctor ${appointment.doctor?.id}")
@@ -142,6 +115,25 @@ class VideoController(
                     throw ResponseStatusException(HttpStatus.FORBIDDEN, "Appointment does not belong to this patient")
                 }
                 logger.debug("Patient ${patient.id} verified for appointment ${appointment.id}")
+            }
+
+
+            assertInJoinWindow(VideoJoinWindow.of(appointment.startAt, appointment.endAt), Instant.now())
+
+            // Payment gate for paid consultations: token can be issued only after payment is confirmed.
+            val requiresPayment = (appointment.paymentAmountMinor ?: 0L) > 0L
+            if (requiresPayment && appointment.paymentStatus != com.shifa.appointments.domain.Appointment.PaymentStatus.PAID) {
+                logger.warn(
+                    "Video token blocked for appointment {} due to unpaid status: paymentStatus={}, amountMinor={}",
+                    appointment.id,
+                    appointment.paymentStatus,
+                    appointment.paymentAmountMinor
+                )
+                throw CodedStatusException(
+                    HttpStatus.PAYMENT_REQUIRED,
+                    "Payment is required before joining this video consultation.",
+                    ErrorCode.VIDEO_PAYMENT_REQUIRED,
+                )
             }
 
             // Generate room name if not provided
@@ -239,6 +231,30 @@ class VideoController(
                 HttpStatus.INTERNAL_SERVER_ERROR,
                 "Failed to generate video token: ${e.message ?: e.javaClass.simpleName}",
                 e
+            )
+        }
+    }
+
+    /**
+     * The join window (all UTC; the token is checked against the visit's times whether or not it is flagged as video).
+     * Both refusals are 403 as before, with a code and the window in the body.
+     */
+    private fun assertInJoinWindow(window: VideoJoinWindow, now: Instant) {
+        val extra = mapOf("joinWindow" to mapOf("from" to window.from.toString(), "to" to window.to.toString()))
+        if (window.isTooEarly(now)) {
+            throw CodedStatusException(
+                HttpStatus.FORBIDDEN,
+                "Video call is not yet available. You can join 5 minutes before the appointment start.",
+                ErrorCode.VIDEO_TOO_EARLY,
+                extra = extra,
+            )
+        }
+        if (window.isTooLate(now)) {
+            throw CodedStatusException(
+                HttpStatus.FORBIDDEN,
+                "Video call has ended. The join window closes 15 minutes after the appointment end.",
+                ErrorCode.VIDEO_TOO_LATE,
+                extra = extra,
             )
         }
     }

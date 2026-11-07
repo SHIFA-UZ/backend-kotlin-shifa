@@ -22,4 +22,6 @@ data class EntryDto(
     val locationLabel: String? = null,
     val briefingStatus: String? = null,
     val attachmentCount: Int = 0,
+    /** APPOINTMENT entries: whether it is a video visit; null for the other types. */
+    val isVideo: Boolean? = null,
 )

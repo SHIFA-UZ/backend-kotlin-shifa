@@ -261,6 +261,7 @@ class CalendarController(
                         locationLabel = ap.locationRef?.label,
                         briefingStatus = briefStatus,
                         attachmentCount = attachmentCount,
+                        isVideo = ap.isVideoConsultation,
                     )
                 )
             }

@@ -29,6 +29,16 @@ list is guarded by `PushNotificationsDocTest`: a new `Notification.Type` fails t
 
 The inbox's `NotificationDto` has the same ids (`conversationId` and `carePartnershipId` since 2026-11-07).
 
+## Patient pushes about a cancelled or missed visit
+
+- `APPOINTMENT_CANCELLED` from `POST /api/appointments/{id}/cancel` (a reason given): the title and body are in the
+  patient's language (en, uz, ru) and end with the reason as a sentence; `data` and the inbox row also carry
+  `cancelReasonCode` (`DOCTOR_UNAVAILABLE`, `PATIENT_REQUEST`, `RESCHEDULED`, `OTHER`) and `cancelNote` when the doctor
+  wrote one. A cancellation without a reason (`DELETE /api/appointments/{id}`, schedule blocks) is unchanged: English
+  text, no reason keys.
+- `APPOINTMENT_NO_SHOW` from `POST /api/appointments/{id}/no-show` (unless the body has `"notify": false`): title and
+  body in the patient's language, with `appointmentId`.
+
 ## Types
 
 `D` = can reach the doctor app, `P` = the patient app.
@@ -38,6 +48,7 @@ The inbox's `NotificationDto` has the same ids (`conversationId` and `carePartne
 | `CHAT_MESSAGE` | D, P |
 | `APPOINTMENT_CANCELLED` | D, P |
 | `APPOINTMENT_CHANGED` | P |
+| `APPOINTMENT_NO_SHOW` | P |
 | `APPOINTMENT_REMINDER` | P |
 | `APPOINTMENT_BOOKED_BY_PATIENT` | D |
 | `APPOINTMENT_CANCELLED_BY_PATIENT` | D |

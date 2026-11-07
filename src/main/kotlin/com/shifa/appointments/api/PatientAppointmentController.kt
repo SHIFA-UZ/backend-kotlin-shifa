@@ -61,6 +61,11 @@ class PatientAppointmentController(
         val canReschedule: Boolean = false,
         val refundRequired: Boolean = false,
         val holdExpiresAt: String? = null,
+        /** Set when the doctor's side cancelled with a reason: DOCTOR_UNAVAILABLE, PATIENT_REQUEST, RESCHEDULED, OTHER. */
+        val cancelReasonCode: String? = null,
+        val cancelNote: String? = null,
+        /** When the video room can be joined; null for a visit in person. */
+        val joinWindow: com.shifa.appointments.api.dto.JoinWindowDto? = null,
     )
 
     @GetMapping("/{appointmentId}")
@@ -113,6 +118,9 @@ class PatientAppointmentController(
                 canReschedule = canChange,
                 refundRequired = appointment.refundRequired,
                 holdExpiresAt = appointment.holdExpiresAt?.toString(),
+                cancelReasonCode = appointment.cancelReasonCode?.name,
+                cancelNote = appointment.cancelNote,
+                joinWindow = com.shifa.appointments.api.dto.JoinWindowDto.of(appointment.videoJoinWindow()),
             )
         } catch (e: Exception) {
             log.error("Failed to build appointment summary for id=$appointmentId", e)
