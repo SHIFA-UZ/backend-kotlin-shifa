@@ -42,9 +42,11 @@ class MessageService(
         val ATTACHMENT_PREFIX = setOf(com.shifa.shared.security.FileUrlSigner.CHAT_ATTACHMENTS)
     }
     
+        /** [since]: only the conversations whose last message is after it (null: all). */
         @Transactional(readOnly = true)
-        fun listConversations(doctorUserId: Long): List<ConversationDto> {
+        fun listConversations(doctorUserId: Long, since: java.time.Instant? = null): List<ConversationDto> {
             val conversations = conversationRepo.findByDoctorUserIdOrderByLastMessageDesc(doctorUserId)
+                .filter { since == null || it.lastMessageAt?.toInstant()?.isAfter(since) == true }
             // Three queries for the whole list instead of three per conversation (roadmap P5).
             val conversationIds = conversations.mapNotNull { it.id }
             val lastMessages = lastMessagesByConversation(conversationIds)
@@ -120,8 +122,14 @@ class MessageService(
             )
         }
 
+        /** [after]: only the messages with a larger id, oldest first, at most [limit] (see [MessageCursor]). */
         @Transactional(readOnly = true)
-        fun getConversationWithMessages(conversationId: Long, doctorUserId: Long): ConversationWithMessagesDto {
+        fun getConversationWithMessages(
+            conversationId: Long,
+            doctorUserId: Long,
+            after: Long? = null,
+            limit: Int? = null,
+        ): ConversationWithMessagesDto {
             val conversation = conversationRepo.findById(conversationId)
                 .orElseThrow { IllegalArgumentException("Conversation not found: $conversationId") }
 
@@ -166,7 +174,7 @@ class MessageService(
         val doctorUserIdInConv = conversation.doctorUser?.id
         val otherDoctorUserIdInConv = conversation.doctorParticipant?.id
         val patientUserIdInConv = try { conversation.patientParticipant?.user?.id } catch (_: Exception) { null }
-        val messageDtos = messages.map { msg ->
+        val messageDtos = MessageCursor.page(messages, after, limit).map { msg ->
             messageToDto(msg, doctorUserId, doctorUserIdInConv, otherDoctorUserIdInConv, patientUserIdInConv)
         }
 
@@ -381,11 +389,14 @@ class MessageService(
         }
     }
 
+    /** [after] and [limit] as in [getConversationWithMessages]. */
     @Transactional(readOnly = true)
     fun getConversationWithMessagesForPatient(
         conversationId: Long,
         patientProfileId: Long,
-        patientUserId: Long
+        patientUserId: Long,
+        after: Long? = null,
+        limit: Int? = null,
     ): ConversationWithMessagesDto {
         val conversation = conversationRepo.findById(conversationId)
             .orElseThrow { IllegalArgumentException("Conversation not found: $conversationId") }
@@ -414,7 +425,7 @@ class MessageService(
         val doctorUserIdInConv = conversation.doctorUser?.id
         val otherDoctorUserIdInConv = conversation.doctorParticipant?.id
         val patientUserIdInConv = try { conversation.patientParticipant?.user?.id } catch (_: Exception) { null }
-        val messageDtos = messages.map { msg ->
+        val messageDtos = MessageCursor.page(messages, after, limit).map { msg ->
             messageToDto(msg, patientUserId, doctorUserIdInConv, otherDoctorUserIdInConv, patientUserIdInConv)
         }
 

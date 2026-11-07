@@ -33,13 +33,19 @@ class PatientMessageController(
     @GetMapping("/conversations/{conversationId}")
     fun getConversation(
         @PathVariable conversationId: Long,
-        @AuthenticationPrincipal principal: PatientPrincipal
+        @AuthenticationPrincipal principal: PatientPrincipal,
+        /** Message id: only newer messages, oldest first. */
+        @RequestParam(required = false) after: Long? = null,
+        /** With [after]: at most this many (default 100, at most 200). */
+        @RequestParam(required = false) limit: Int? = null,
     ): ResponseEntity<ConversationWithMessagesDto> {
         val patientProfileId = currentPatientProfileId(principal)
         val result = messageService.getConversationWithMessagesForPatient(
             conversationId = conversationId,
             patientProfileId = patientProfileId,
-            patientUserId = principal.user.id
+            patientUserId = principal.user.id,
+            after = after,
+            limit = limit,
         )
         return ResponseEntity.ok(result)
     }
