@@ -22,6 +22,7 @@ class PdfBox : AutoCloseable {
     private val regular = PDType0Font.load(doc, REGULAR.inputStream())
     private val boldFace = PDType0Font.load(doc, BOLD.inputStream())
     private val supported = HashMap<Pair<Boolean, Int>, Boolean>()
+    private val scriptFace by lazy { PDType0Font.load(doc, SCRIPT.inputStream()) }
 
     /** The height [text] takes wrapped inside [width]. */
     fun measure(
@@ -150,6 +151,18 @@ class PdfBox : AutoCloseable {
                     cs.endText()
                 }
             }
+            is PdfOp.Script -> {
+                val text = clean(op.text, false).replace('\n', ' ')
+                if (text.isBlank()) return
+                val face = if (runCatching { scriptFace.encode(text) }.isSuccess) scriptFace else regular
+                val g = gray(op.gray)
+                cs.setNonStrokingColor(g, g, g)
+                cs.beginText()
+                cs.setFont(face, op.size)
+                cs.newLineAtOffset(op.x, pageH - (op.y + face.fontDescriptor.ascent / 1000f * op.size))
+                cs.showText(text)
+                cs.endText()
+            }
             is PdfOp.Rect -> {
                 op.fill?.let {
                     val g = gray(it)
@@ -192,6 +205,7 @@ class PdfBox : AutoCloseable {
         private val log = LoggerFactory.getLogger(PdfBox::class.java)
         private val REGULAR: ByteArray = font("/fonts/DejaVuSans.ttf")
         private val BOLD: ByteArray = font("/fonts/DejaVuSans-Bold.ttf")
+        private val SCRIPT: ByteArray by lazy { font("/fonts/Sacramento-Regular.ttf") }
 
         private fun font(path: String): ByteArray =
             PdfBox::class.java.getResourceAsStream(path)?.use { it.readBytes() }

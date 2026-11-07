@@ -37,6 +37,18 @@ sealed interface PdfOp {
         val width: Float = 1f,
     ) : PdfOp
 
+    /**
+     * One line in the handwriting face (Sacramento, SIL OFL 1.1), for a typed signature; not wrapped, so keep it short.
+     * A text the face can't draw (Cyrillic) falls back to the regular face.
+     */
+    data class Script(
+        val x: Float,
+        val y: Float,
+        val text: String,
+        val size: Float,
+        val gray: Float = 0.06f,
+    ) : PdfOp
+
     /** An image (PNG or JPEG bytes) fitted inside the box, aspect kept, centred. */
     class Image(
         val x: Float,
@@ -75,7 +87,8 @@ open class PdfFlow(
     protected val contentW = pageW - 2 * margin
     protected val bottom = pageH - margin
 
-    protected fun newPage() {
+    /** Starts the next page; a layout overrides it to close what spans pages (a bordered box) before calling super. */
+    protected open fun newPage() {
         pages += PdfPage(pageW, pageH, ops)
         ops = mutableListOf()
         y = margin

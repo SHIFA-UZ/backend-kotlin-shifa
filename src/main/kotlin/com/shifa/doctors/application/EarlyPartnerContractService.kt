@@ -6,6 +6,8 @@ import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.EarlyPartnerContract
 import com.shifa.doctors.infrastructure.DoctorProfileRepository
 import com.shifa.doctors.infrastructure.EarlyPartnerContractRepository
+import com.shifa.shared.CodedStatusException
+import com.shifa.shared.ErrorCode
 import java.time.LocalDate
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
@@ -13,6 +15,18 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.server.ResponseStatusException
+
+/** The doctor-app view of a contract; [active] until the end date (inclusive). */
+data class DoctorContractSummary(
+    val contractNumber: String,
+    val effectiveDate: LocalDate,
+    val endDate: LocalDate,
+    val termMonths: Int,
+    val issuedAt: OffsetDateTime,
+    val active: Boolean,
+)
+
+class ContractPdf(val contractNumber: String, val bytes: ByteArray)
 
 @Service
 class EarlyPartnerContractService(
@@ -59,6 +73,46 @@ class EarlyPartnerContractService(
         earlyPartnerContractRepository.save(contract)
         return toDto(contract, newAllocation = true)
     }
+
+    /** The doctor's own contract (one per doctor) for the doctor app; 404 `NO_CONTRACT` when none was issued. */
+    @Transactional(readOnly = true)
+    fun summaryForDoctor(doctorId: Long, today: LocalDate = LocalDate.now(UTC)): DoctorContractSummary {
+        val contract = contractOf(doctorId)
+        val endDate = contract.effectiveDate.plusMonths(contract.termMonths.toLong())
+        return DoctorContractSummary(
+            contractNumber = contract.contractNumber,
+            effectiveDate = contract.effectiveDate,
+            endDate = endDate,
+            termMonths = contract.termMonths,
+            issuedAt = contract.createdAt,
+            // The end date is the last day it applies (UTC calendar, like the effective date).
+            active = !today.isAfter(endDate),
+        )
+    }
+
+    /** The contract as the admin panel prints it; 404 `NO_CONTRACT` when none was issued. */
+    @Transactional(readOnly = true)
+    fun pdfForDoctor(doctorId: Long): ContractPdf {
+        val contract = contractOf(doctorId)
+        val data = EarlyPartnerContractPdfData(
+            contractNumber = contract.contractNumber,
+            effectiveDate = contract.effectiveDate,
+            termMonths = contract.termMonths,
+            partnerFullName = contract.partnerFullName,
+            partnerFirstName = contract.doctorProfile.firstName.trim(),
+            partnerLastName = contract.doctorProfile.lastName.trim(),
+            partnerClinic = contract.partnerClinic,
+            partnerPhone = contract.partnerPhone,
+            partnerEmail = contract.partnerEmail,
+            signedDate = contract.createdAt.atZoneSameInstant(UTC).toLocalDate(),
+        )
+        return ContractPdf(contract.contractNumber, EarlyPartnerContractPdf.pdf(data))
+    }
+
+    private fun contractOf(doctorId: Long): EarlyPartnerContract =
+        earlyPartnerContractRepository.findByDoctorProfileId(doctorId).orElseThrow {
+            CodedStatusException(HttpStatus.NOT_FOUND, "No early-partner contract", ErrorCode.NO_CONTRACT)
+        }
 
     @Transactional(readOnly = true)
     fun contractNumbersByDoctorIds(doctorIds: Collection<Long>): Map<Long, String> {
