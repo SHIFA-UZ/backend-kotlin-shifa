@@ -35,6 +35,7 @@ import org.springframework.web.server.ResponseStatusException
 @RestController
 @RequestMapping("/api/doctors/me")
 class DoctorController(
+    private val stripeConnectStatus: com.shifa.payments.application.StripeConnectStatusService,
     private val users: com.shifa.auth.application.Users,
     private val doctors: com.shifa.doctors.application.DoctorProfiles,
     private val billingRepo: DoctorBillingService,
@@ -174,7 +175,8 @@ class DoctorController(
                 taxId = b?.taxId,
                 stripeConnectAccountId = b?.stripeConnectAccountId,
                 clickMerchantId = b?.clickMerchantId,
-                paymeMerchantId = b?.paymeMerchantId
+                paymeMerchantId = b?.paymeMerchantId,
+                stripeConnectStatus = stripeConnectStatus.status(b?.stripeConnectAccountId)?.name,
             ),
             "settings" to SettingsDto(
                 country = s?.country,
@@ -405,6 +407,20 @@ class DoctorController(
         doctors.save(d)
 
         return UploadResp(photoUrl = normalizeAvatar(d.avatarUrl)!!)
+    }
+
+    /**
+     * Removes the profile photo (BE-30): `avatarUrl` becomes null everywhere and the stored file is deleted. 204, also
+     * when there was no photo.
+     */
+    @DeleteMapping("/photo")
+    fun deletePhoto(@AuthenticationPrincipal principal: DoctorPrincipal): ResponseEntity<Void> {
+        val d = currentDoctor(principal)
+        val key = d.avatarUrl?.takeIf { it.startsWith("doctors/") }
+        d.avatarUrl = null
+        doctors.save(d)
+        key?.let { runCatching { storage.delete(it) } } // the row is the truth; a leftover file is harmless
+        return ResponseEntity.noContent().build()
     }
 
     // -------------------- POST /certificate --------------------

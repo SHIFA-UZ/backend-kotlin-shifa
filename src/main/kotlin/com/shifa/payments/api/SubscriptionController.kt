@@ -11,8 +11,12 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/api/doctor/subscription")
 class SubscriptionController(
-    private val subscriptionService: SubscriptionService
+    private val subscriptionService: SubscriptionService,
+    private val stripeProperties: com.shifa.shared.config.StripeProperties,
 ) {
+    /** Gateways with a hosted checkout for plans (`POST /checkout`): Stripe when configured. */
+    private fun checkoutGateways(): List<String> =
+        if (stripeProperties.secretKey.isNotBlank()) listOf(PaymentGatewayCode.STRIPE.name) else emptyList()
 
 
     @GetMapping("/plans")
@@ -24,7 +28,9 @@ class SubscriptionController(
                 "priceMinor" to it.priceMinor,
                 "currency" to it.currency,
                 "interval" to it.interval.name,
-                "featuresJson" to it.featuresJson
+                "featuresJson" to it.featuresJson,
+                // BE-18: how this plan can be paid in the app; `POST /checkout` is Stripe only. Empty = contact support.
+                "checkoutGateways" to checkoutGateways(),
             )
         }
 

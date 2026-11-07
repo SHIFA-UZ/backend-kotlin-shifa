@@ -153,6 +153,7 @@ class JwtAuthFilter(
             "/api/auth/create-patient-for-doctor",
             "/api/auth/send-email-otp",
             "/api/auth/send-login-sms-otp",
+            "/api/auth/verify-forgot-password-otp",
             "/api/auth/verify-login-sms-otp",
             "/api/auth/admin/request-login-otp",
             "/api/auth/admin/verify-login-otp",

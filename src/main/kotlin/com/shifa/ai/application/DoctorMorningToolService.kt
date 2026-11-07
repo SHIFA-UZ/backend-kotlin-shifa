@@ -298,6 +298,7 @@ class DoctorMorningToolService(
                 "cardType" to "propose_appointment",
                 "workflowStatus" to "COLLECTING_DETAILS",
                 "spokenHint" to "Which patient should I book?",
+                "hint" to com.shifa.appointments.application.ToolHints.of("ASK_PATIENT"),
             )
         }
         val date = (args["date"] as? String)?.trim()?.takeIf { it.isNotEmpty() }
@@ -319,6 +320,7 @@ class DoctorMorningToolService(
                 "patientName" to patientName,
                 "workflowStatus" to "COLLECTING_DETAILS",
                 "spokenHint" to "Which day should I book for $patientName?",
+                "hint" to com.shifa.appointments.application.ToolHints.of("ASK_BOOKING_DAY", mapOf("patientName" to patientName)),
             )
         }
         val proposal = proposeAppointment(
@@ -353,6 +355,14 @@ class DoctorMorningToolService(
             "pendingQuestion" to workflow.pendingQuestionType?.name,
             "matches" to rows,
             "spokenHint" to question,
+            "hint" to when {
+                candidates.size == 1 -> com.shifa.appointments.application.ToolHints.of(
+                    "CONFIRM_PATIENT",
+                    mapOf("patientId" to candidates.single().patientId, "patientName" to candidates.single().patientName),
+                )
+                candidates.isNotEmpty() -> com.shifa.appointments.application.ToolHints.of("ASK_WHICH_PATIENT", mapOf("candidates" to rows))
+                else -> com.shifa.appointments.application.ToolHints.of("ASK_PATIENT")
+            },
         )
     }
 

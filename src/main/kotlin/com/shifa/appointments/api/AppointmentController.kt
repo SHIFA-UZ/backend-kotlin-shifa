@@ -94,6 +94,8 @@ class AppointmentController(
         val cancelNote: String? = null,
         /** When the video room can be joined; null for a visit in person. */
         val joinWindow: JoinWindowDto? = null,
+        /** The earlier appointment this visit follows up (BE-20). */
+        val followUpOf: Long? = null,
     )
 
     @GetMapping("/{appointmentId}")
@@ -146,6 +148,7 @@ class AppointmentController(
             cancelReasonCode = appointment.cancelReasonCode?.name,
             cancelNote = appointment.cancelNote,
             joinWindow = JoinWindowDto.of(appointment.videoJoinWindow()),
+            followUpOf = appointment.followUpOfAppointmentId,
         )
     }
 

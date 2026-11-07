@@ -14,20 +14,20 @@ interface PatientDocumentRepository : JpaRepository<PatientDocument, Long> {
     @Query("update PatientDocument d set d.uploadedByDoctor = null where d.uploadedByDoctor.id = :doctorId")
     fun clearUploadedByDoctor(@Param("doctorId") doctorId: Long): Int
 
-    @Query("select d from PatientDocument d where d.patient.id = :patientId order by d.date desc, d.id desc")
+    @Query("select d from PatientDocument d where d.patient.id = :patientId and d.deletedAt is null order by d.date desc, d.id desc")
     fun listForPatient(patientId: Long): List<PatientDocument>  // <-- non-null Long
 
-    @Query("select d from PatientDocument d where d.appointment.id = :appointmentId order by d.date desc, d.id desc")
+    @Query("select d from PatientDocument d where d.appointment.id = :appointmentId and d.deletedAt is null order by d.date desc, d.id desc")
     fun findByAppointmentId(@Param("appointmentId") appointmentId: Long): List<PatientDocument>
 
     /** (appointmentId, documentId) pairs; a projection, so no entity or lazy association is loaded. */
-    @Query("select d.appointment.id, d.id from PatientDocument d where d.appointment.id in :appointmentIds")
+    @Query("select d.appointment.id, d.id from PatientDocument d where d.appointment.id in :appointmentIds and d.deletedAt is null")
     fun findIdPairsByAppointmentIds(@Param("appointmentIds") appointmentIds: Collection<Long>): List<Array<Any>>
 
     @Query(
         """
         SELECT d.appointment.id, COUNT(d.id) FROM PatientDocument d
-        WHERE d.appointment.id IN :appointmentIds
+        WHERE d.appointment.id IN :appointmentIds AND d.deletedAt IS NULL
         GROUP BY d.appointment.id
         """
     )
@@ -48,6 +48,7 @@ interface PatientDocumentRepository : JpaRepository<PatientDocument, Long> {
               AND a.start_at >= :apptStart AND a.start_at < :apptEnd
         )
         AND d.date >= :docStart AND d.date < :docEnd
+        AND d.deleted_at IS NULL
     """, nativeQuery = true)
     fun countDocumentsByDoctorPatientsInDateRange(
         @Param("doctorId") doctorId: Long,
@@ -59,7 +60,7 @@ interface PatientDocumentRepository : JpaRepository<PatientDocument, Long> {
 
     @Query(
         """SELECT COUNT(d) FROM PatientDocument d WHERE d.uploadedByDoctor IS NOT NULL
-           AND d.uploadedByDoctor.id = :doctorId AND d.date >= :from AND d.date <= :toInclusive"""
+           AND d.uploadedByDoctor.id = :doctorId AND d.date >= :from AND d.date <= :toInclusive AND d.deletedAt IS NULL"""
     )
     fun countByUploadedDoctorAndDocumentDateBetween(
         @Param("doctorId") doctorId: Long,
@@ -68,16 +69,19 @@ interface PatientDocumentRepository : JpaRepository<PatientDocument, Long> {
     ): Long
 
     @Query(
-        """SELECT COUNT(d) FROM PatientDocument d WHERE d.uploadedByDoctor IS NOT NULL AND d.uploadedByDoctor.id = :doctorId"""
+        """SELECT COUNT(d) FROM PatientDocument d WHERE d.uploadedByDoctor IS NOT NULL AND d.uploadedByDoctor.id = :doctorId AND d.deletedAt IS NULL"""
     )
     fun countUploadedByDoctorAllTime(@Param("doctorId") doctorId: Long): Long
 
     @Query("""
         SELECT d FROM PatientDocument d WHERE d.uploadedByDoctor IS NOT NULL AND d.uploadedByDoctor.id = :doctorId
-        AND d.date >= :from AND d.date <= :toInclusive""")
+        AND d.date >= :from AND d.date <= :toInclusive AND d.deletedAt IS NULL""")
     fun listUploadedByDoctorInDocumentDateRange(
         @Param("doctorId") doctorId: Long,
         @Param("from") from: LocalDate,
         @Param("toInclusive") toInclusive: LocalDate,
     ): List<PatientDocument>
+
+    /** Every row of the patient, removed ones included (account deletion must not leave rows behind). */
+    fun findAllByPatientId(patientId: Long): List<PatientDocument>
 }

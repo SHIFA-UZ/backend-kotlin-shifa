@@ -73,6 +73,7 @@ class SecurityConfig(
                     "/api/auth/send-login-sms-otp",
                     "/api/auth/verify-login-sms-otp",
                     "/api/auth/send-forgot-password-otp",
+                    "/api/auth/verify-forgot-password-otp",
                     "/api/auth/admin/request-login-otp",
                     "/api/auth/admin/verify-login-otp"
                 ).permitAll()
@@ -146,6 +147,8 @@ class SecurityConfig(
                 it.requestMatchers("/api/ai/memories", "/api/ai/memories/**").hasRole("DOCTOR")
                 // Shared (authenticated): notifications, AI, video
                 it.requestMatchers("/api/notifications/**", "/api/ai/**", "/api/video/**").authenticated()
+                // Address lookups for the apps (any signed-in account; rate-limited in GeocodingService)
+                it.requestMatchers("/api/geocode/**").authenticated()
 
                 it.anyRequest().authenticated()
             }
@@ -265,6 +268,7 @@ class SecurityConfig(
                 "Accept",
                 "Origin",
                 "X-Requested-With",
+                "Idempotency-Key",
                 "Access-Control-Request-Method",
                 "Access-Control-Request-Headers",
             )
@@ -279,7 +283,8 @@ class SecurityConfig(
                 "X-RateLimit-Limit",
                 "X-RateLimit-Remaining",
                 "X-RateLimit-Reset",
-                "Retry-After"
+                "Retry-After",
+                "Idempotent-Replayed"
             )
 
             allowCredentials = true

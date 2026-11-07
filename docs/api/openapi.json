@@ -580,6 +580,13 @@
           "endAt": {
             "type": "string"
           },
+          "followUpOf": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "holdExpiresAt": {
             "type": [
               "string",
@@ -855,6 +862,13 @@
           "endAt": {
             "type": "string"
           },
+          "followUpOf": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "id": {
             "format": "int64",
             "type": [
@@ -1013,6 +1027,12 @@
               "null"
             ]
           },
+          "stripeConnectStatus": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "taxId": {
             "type": [
               "string",
@@ -1144,6 +1164,13 @@
       },
       "BookReq": {
         "properties": {
+          "followUpOf": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "isVideo": {
             "type": "boolean"
           },
@@ -2558,6 +2585,159 @@
           "hasScribeNote",
           "scribePending",
           "status"
+        ],
+        "type": "object"
+      },
+      "ComposePlanInstallmentsReq": {
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "frequency": {
+            "type": "string"
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "numInstallments": {
+            "format": "int32",
+            "minimum": 2,
+            "type": "integer"
+          },
+          "scheduleItems": {
+            "items": {
+              "$ref": "#/components/schemas/InstallmentItemSpecDto"
+            },
+            "type": [
+              "array",
+              "null"
+            ]
+          },
+          "startDate": {
+            "format": "date",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "totalAmountMinor": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "currency",
+          "frequency",
+          "numInstallments"
+        ],
+        "type": "object"
+      },
+      "ComposePlanSlotReq": {
+        "properties": {
+          "doctorId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lineIndex": {
+            "format": "int32",
+            "minimum": 0,
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "locationId": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "notes": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "slotMinutes": {
+            "format": "int32",
+            "minimum": 5,
+            "type": "integer"
+          },
+          "startAt": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "doctorId",
+          "slotMinutes",
+          "startAt"
+        ],
+        "type": "object"
+      },
+      "ComposeTreatmentPlanRequest": {
+        "properties": {
+          "initialPayment": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/PaymentReq"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "installments": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/ComposePlanInstallmentsReq"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "lines": {
+            "items": {
+              "$ref": "#/components/schemas/LineReq"
+            },
+            "type": "array"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/CreatePlanRequest"
+          },
+          "slots": {
+            "items": {
+              "$ref": "#/components/schemas/ComposePlanSlotReq"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "ON_HOLD",
+              "IN_PROGRESS",
+              "COMPLETED",
+              "CANCELLED"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "lines",
+          "plan",
+          "slots"
         ],
         "type": "object"
       },
@@ -5291,6 +5471,81 @@
         },
         "type": "object"
       },
+      "GeocodeResultsDto": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/GeocodedAddress"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "results"
+        ],
+        "type": "object"
+      },
+      "GeocodedAddress": {
+        "properties": {
+          "formattedAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "latitude": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "locationCity": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locationCountry": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locationDistrict": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locationPostalCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locationRegion": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "locationStreetAddress": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "longitude": {
+            "format": "double",
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "GroupDto": {
         "properties": {
           "id": {
@@ -5525,6 +5780,13 @@
             "format": "int64",
             "type": "integer"
           },
+          "lastNotifiedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "notes": {
             "type": [
               "string",
@@ -5576,6 +5838,13 @@
           "installmentPlanId": {
             "format": "int64",
             "type": "integer"
+          },
+          "lastNotifiedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "notes": {
             "type": [
@@ -7485,6 +7754,23 @@
         },
         "type": "object"
       },
+      "PatchPatientDocumentRequest": {
+        "properties": {
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "title": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "PatchPlanRequest": {
         "properties": {
           "attendingDoctorId": {
@@ -8027,6 +8313,12 @@
               "null"
             ]
           },
+          "createdAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "createdByDoctorId": {
             "format": "int64",
             "type": [
@@ -8181,6 +8473,12 @@
             ]
           },
           "treatmentResult": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
             "type": [
               "string",
               "null"
@@ -11621,6 +11919,23 @@
           },
           "email": {
             "format": "email",
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "email"
+        ],
+        "type": "object"
+      },
+      "VerifyForgotPasswordOtpRequest": {
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "email": {
             "minLength": 1,
             "type": "string"
           }
@@ -15332,6 +15647,39 @@
         ]
       }
     },
+    "/api/auth/verify-forgot-password-otp": {
+      "post": {
+        "operationId": "verifyForgotPasswordOtp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyForgotPasswordOtpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "additionalProperties": {
+                    "type": "boolean"
+                  },
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
     "/api/auth/verify-key": {
       "post": {
         "operationId": "verifyKey",
@@ -16084,6 +16432,11 @@
               "format": "int64",
               "type": "integer"
             }
+          },
+          {
+            "description": "Optional, 8-128 of [A-Za-z0-9_-] (a UUID). The first 2xx answer for the key is replayed for 24 h (header Idempotent-Replayed: true); another path or body with the same key is 409 IDEMPOTENCY_KEY_REUSED, a key still running is 409 IDEMPOTENCY_IN_PROGRESS, a malformed key is 400 IDEMPOTENCY_KEY_INVALID.",
+            "in": "header",
+            "name": "Idempotency-Key"
           }
         ],
         "requestBody": {
@@ -16207,6 +16560,15 @@
             "schema": {
               "default": 20,
               "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "doctorId",
+            "required": false,
+            "schema": {
+              "format": "int64",
               "type": "integer"
             }
           }
@@ -16501,6 +16863,11 @@
               "format": "int64",
               "type": "integer"
             }
+          },
+          {
+            "description": "Optional, 8-128 of [A-Za-z0-9_-] (a UUID). The first 2xx answer for the key is replayed for 24 h (header Idempotent-Replayed: true); another path or body with the same key is 409 IDEMPOTENCY_KEY_REUSED, a key still running is 409 IDEMPOTENCY_IN_PROGRESS, a malformed key is 400 IDEMPOTENCY_KEY_INVALID.",
+            "in": "header",
+            "name": "Idempotency-Key"
           }
         ],
         "requestBody": {
@@ -16761,6 +17128,22 @@
               "format": "int32",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -16793,6 +17176,11 @@
               "format": "int64",
               "type": "integer"
             }
+          },
+          {
+            "description": "Optional, 8-128 of [A-Za-z0-9_-] (a UUID). The first 2xx answer for the key is replayed for 24 h (header Idempotent-Replayed: true); another path or body with the same key is 409 IDEMPOTENCY_KEY_REUSED, a key still running is 409 IDEMPOTENCY_IN_PROGRESS, a malformed key is 400 IDEMPOTENCY_KEY_INVALID.",
+            "in": "header",
+            "name": "Idempotency-Key"
           }
         ],
         "requestBody": {
@@ -16861,6 +17249,22 @@
               "default": 50,
               "format": "int32",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -17425,6 +17829,26 @@
     "/api/doctor/analytics/consultation-types": {
       "get": {
         "operationId": "consultationTypes",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -17445,6 +17869,26 @@
     "/api/doctor/analytics/engagement": {
       "get": {
         "operationId": "engagement",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -17465,6 +17909,26 @@
     "/api/doctor/analytics/overview": {
       "get": {
         "operationId": "overview",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -18100,6 +18564,17 @@
       }
     },
     "/api/doctors/me/photo": {
+      "delete": {
+        "operationId": "deletePhoto",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "doctor-controller"
+        ]
+      },
       "post": {
         "operationId": "uploadPhoto",
         "requestBody": {
@@ -18497,6 +18972,92 @@
         },
         "tags": [
           "document-access-controller"
+        ]
+      }
+    },
+    "/api/geocode/reverse": {
+      "get": {
+        "operationId": "reverse",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lat",
+            "required": true,
+            "schema": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lng",
+            "required": true,
+            "schema": {
+              "format": "double",
+              "type": "number"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeocodeResultsDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "geocode-controller"
+        ]
+      }
+    },
+    "/api/geocode/search": {
+      "get": {
+        "operationId": "search_1",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "q",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/GeocodeResultsDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "geocode-controller"
         ]
       }
     },
@@ -20877,6 +21438,103 @@
       }
     },
     "/api/patients/{patientId}/documents/{documentId}": {
+      "delete": {
+        "operationId": "removeDoctorUpload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patientId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "clinicId",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "patient-document-controller"
+        ]
+      },
+      "patch": {
+        "operationId": "patchDoctorUpload",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patientId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "documentId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "clinicId",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchPatientDocumentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatientDocumentDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "patient-document-controller"
+        ]
+      },
       "put": {
         "operationId": "updateDocument",
         "parameters": [
@@ -23418,6 +24076,43 @@
         ]
       }
     },
+    "/api/treatment-plans/compose": {
+      "post": {
+        "operationId": "composePlan",
+        "parameters": [
+          {
+            "description": "Optional, 8-128 of [A-Za-z0-9_-] (a UUID). The first 2xx answer for the key is replayed for 24 h (header Idempotent-Replayed: true); another path or body with the same key is 409 IDEMPOTENCY_KEY_REUSED, a key still running is 409 IDEMPOTENCY_IN_PROGRESS, a malformed key is 400 IDEMPOTENCY_KEY_INVALID.",
+            "in": "header",
+            "name": "Idempotency-Key"
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComposeTreatmentPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TreatmentPlanDetailDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "treatment-plan-controller"
+        ]
+      }
+    },
     "/api/treatment-plans/doctor-locations": {
       "get": {
         "operationId": "doctorLocations",
@@ -23955,6 +24650,11 @@
               "format": "int64",
               "type": "integer"
             }
+          },
+          {
+            "description": "Optional, 8-128 of [A-Za-z0-9_-] (a UUID). The first 2xx answer for the key is replayed for 24 h (header Idempotent-Replayed: true); another path or body with the same key is 409 IDEMPOTENCY_KEY_REUSED, a key still running is 409 IDEMPOTENCY_IN_PROGRESS, a malformed key is 400 IDEMPOTENCY_KEY_INVALID.",
+            "in": "header",
+            "name": "Idempotency-Key"
           }
         ],
         "requestBody": {

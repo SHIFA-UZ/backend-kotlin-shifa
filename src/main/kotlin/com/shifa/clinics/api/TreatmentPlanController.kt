@@ -7,6 +7,8 @@ import com.shifa.appointments.domain.Appointment
 import com.shifa.clinics.api.dto.AppendLinesRequest
 import com.shifa.clinics.api.dto.BookSlotReq
 import com.shifa.clinics.api.dto.CatalogItemDto
+import com.shifa.clinics.api.dto.ComposePlanInstallmentsReq
+import com.shifa.clinics.api.dto.ComposeTreatmentPlanRequest
 import com.shifa.clinics.api.dto.CreatePlanRequest
 import com.shifa.clinics.api.dto.DoctorRef
 import com.shifa.clinics.api.dto.FulfillPlanRequest
@@ -30,11 +32,14 @@ import com.shifa.clinics.application.ClinicCatalogService
 import com.shifa.clinics.application.ClinicFinanceLedgerService
 import com.shifa.clinics.application.TreatmentPlanFinanceService
 import com.shifa.clinics.application.TreatmentPlanFulfillmentService
+import com.shifa.clinics.domain.InstallmentPlan
 import com.shifa.clinics.domain.TreatmentPlan
 import com.shifa.clinics.domain.TreatmentPlanCatalogItem
 import com.shifa.clinics.domain.TreatmentPlanLine
 import com.shifa.clinics.domain.TreatmentPlanPayment
 import com.shifa.notifications.domain.Notification
+import com.shifa.shared.CodedStatusException
+import com.shifa.shared.ErrorCode
 import jakarta.validation.Valid
 import java.time.Instant
 import java.time.OffsetDateTime
@@ -72,6 +77,9 @@ class TreatmentPlanController(
     private val doctorServices: com.shifa.doctors.application.DoctorServices,
     private val doctorServicePrices: com.shifa.doctors.application.DoctorServicePrices,
     private val doctorSettings: com.shifa.doctors.application.DoctorSettingsDoor,
+    private val financeAccess: com.shifa.clinics.application.ClinicFinanceAccessService,
+    private val installmentService: com.shifa.clinics.application.InstallmentService,
+    private val auditService: com.shifa.clinics.application.ClinicFinanceAuditService,
 ) {
 
     data class AppointmentSummaryDto(
@@ -286,7 +294,13 @@ class TreatmentPlanController(
         )
     }
 
-    private fun notifyPatient(plan: TreatmentPlan, type: Notification.Type, title: String, message: String) {
+    private fun notifyPatient(
+        plan: TreatmentPlan,
+        type: Notification.Type,
+        title: String,
+        message: String,
+        afterCommit: Boolean = false,
+    ) {
         val patient = plan.patient
         val pid = patient.id ?: return
         // Patient-only notification: do NOT tag the attending doctor here.
@@ -302,13 +316,12 @@ class TreatmentPlanController(
             treatmentPlanId = plan.id,
         )
         val saved = notificationService.save(n)
-        patient.fcmToken?.let {
-            notificationService.sendPatientNotification(
-                it,
-                saved,
-                mapOf("route" to "/bookings/treatment-plan/${plan.id}"),
-            )
+        val data = mapOf("route" to "/bookings/treatment-plan/${plan.id}")
+        if (afterCommit) {
+            notificationService.sendPatientNotificationAfterCommit(patient.fcmToken, saved, data)
+            return
         }
+        patient.fcmToken?.let { notificationService.sendPatientNotification(it, saved, data) }
     }
 
     private fun toCatalogItemDto(item: TreatmentPlanCatalogItem): CatalogItemDto {
@@ -665,7 +678,9 @@ class TreatmentPlanController(
     fun createPlan(
         @AuthenticationPrincipal principal: Any,
         @RequestBody @Valid req: CreatePlanRequest,
-    ): TreatmentPlanSummaryDto {
+    ): TreatmentPlanSummaryDto = toSummary(newPlan(principal, req))
+
+    private fun newPlan(principal: Any, req: CreatePlanRequest): TreatmentPlan {
         clinicAccess.assertPrincipalMayAccessClinic(principal, req.clinicId)
         clinicAccess.assertPatientVisible(principal, req.patientId)
         val clinic = clinics.findById(req.clinicId).orElseThrow {
@@ -692,7 +707,7 @@ class TreatmentPlanController(
         val uid = clinicAccess.resolveBookingActorUserId(principal)
         val user = users.findById(uid).orElse(null)
         val symptomsJson = req.symptoms?.takeIf { it.isNotEmpty() }?.let { objectMapper.writeValueAsString(it) }
-        val plan = plans.save(
+        return plans.save(
             TreatmentPlan(
                 clinic = clinic,
                 patient = patient,
@@ -709,7 +724,101 @@ class TreatmentPlanController(
                 dentalPlanDocumentation = req.dentalPlanDocumentation?.trim()?.takeIf { it.isNotEmpty() },
             ),
         )
-        return toSummary(plan)
+    }
+
+    /**
+     * The plan wizard in one transaction (BE-12): plan, lines, booked slots, initial payment, installments and the target
+     * status, or nothing at all. Installments must add up to the outstanding amount (400 `INSTALLMENTS_MISMATCH` with
+     * `outstandingMinor` and `scheduledMinor`). The patient gets one notification, after the commit. Honours
+     * `Idempotency-Key` (shared/api/IdempotencyFilter).
+     */
+    @PostMapping("/compose")
+    @io.swagger.v3.oas.annotations.Parameter(
+        name = "Idempotency-Key",
+        `in` = io.swagger.v3.oas.annotations.enums.ParameterIn.HEADER,
+        required = false,
+        description = "Optional, 8-128 of [A-Za-z0-9_-] (a UUID). The first 2xx answer for the key is replayed for 24 h " +
+            "(header Idempotent-Replayed: true); another path or body with the same key is 409 IDEMPOTENCY_KEY_REUSED, " +
+            "a key still running is 409 IDEMPOTENCY_IN_PROGRESS, a malformed key is 400 IDEMPOTENCY_KEY_INVALID.",
+    )
+    @Transactional
+    fun composePlan(
+        @AuthenticationPrincipal principal: Any,
+        @RequestBody @Valid req: ComposeTreatmentPlanRequest,
+    ): TreatmentPlanDetailDto {
+        val plan = newPlan(principal, req.plan)
+        if (req.initialPayment != null || req.installments != null) {
+            financeAccess.assertCanManagePatientFinance(principal, plan.clinic.id!!, plan.patient.id!!)
+        }
+        val lines = req.lines.map { saveLineFromReq(plan, it, principal) }
+        val slots = req.slots.map { s ->
+            val lineId = s.lineIndex?.let { i ->
+                lines.getOrNull(i)?.id ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Slot lineIndex $i has no line")
+            }
+            BookSlotReq(s.doctorId, s.startAt, s.slotMinutes, s.locationId, lineId, s.notes)
+        }
+        if (slots.isNotEmpty()) bookSlotsOnPlan(principal, plan, slots)
+        financeService.recalculatePlanTotals(plan.id)
+
+        val user = users.findById(clinicAccess.resolveBookingActorUserId(principal)).orElse(null)
+        req.initialPayment?.let { p ->
+            val payment = financeService.recordPaymentAndSync(plan.id, p.amountMinor, p.currency, p.method, p.memo?.trim(), user)
+            user?.let { auditService.log(plan.clinic, it, "RECORD_PAYMENT", "TREATMENT_PLAN_PAYMENT", payment.id) }
+        }
+        req.installments?.let { composeInstallments(plan, it, user) }
+        req.status?.let { plan.status = it }
+        plan.updatedAt = OffsetDateTime.now()
+        plans.save(plan)
+        notifyPatient(
+            plan,
+            Notification.Type.TREATMENT_PLAN_UPDATED,
+            "Treatment plan",
+            "Your clinic prepared a treatment plan for you. Please review it and the payment details in the app.",
+            afterCommit = true,
+        )
+        return toDetail(plan)
+    }
+
+    private fun composeInstallments(plan: TreatmentPlan, req: ComposePlanInstallmentsReq, user: com.shifa.auth.domain.User?) {
+        val outstanding = financeService.planLiveTotals(plan.id).remainingMinor
+        val schedule = req.scheduleItems?.takeIf { it.isNotEmpty() }
+            ?.map { com.shifa.clinics.application.InstallmentService.InstallmentScheduleItem(it.dueDate, it.amountMinor) }
+        val scheduled = schedule?.sumOf { it.amountMinor } ?: req.totalAmountMinor ?: outstanding
+        if (scheduled != outstanding || outstanding <= 0) {
+            throw CodedStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Installments add up to $scheduled but $outstanding is outstanding",
+                ErrorCode.INSTALLMENTS_MISMATCH,
+                extra = mapOf("outstandingMinor" to outstanding, "scheduledMinor" to scheduled),
+            )
+        }
+        val frequency = InstallmentPlan.Frequency.entries.find { it.name == req.frequency.uppercase() }
+        val startDate = req.startDate ?: schedule?.first()?.dueDate
+        require(frequency != null) { "Unknown frequency '${req.frequency}'. Allowed: WEEKLY, BIWEEKLY, MONTHLY, CUSTOM" }
+        require(startDate != null) { "startDate is required without scheduleItems" }
+        val installmentPlan = installmentService.createInstallmentPlan(
+            treatmentPlanId = plan.id,
+            request = com.shifa.clinics.application.InstallmentService.CreateInstallmentRequest(
+                totalAmountMinor = outstanding,
+                currency = req.currency,
+                numInstallments = schedule?.size ?: req.numInstallments,
+                frequency = frequency,
+                startDate = startDate,
+                notes = req.notes?.trim(),
+                scheduleItems = schedule,
+            ),
+            createdByUser = user,
+        )
+        val items = installmentItems.findByInstallmentPlan_IdOrderBySequenceNumberAsc(installmentPlan.id)
+        financeService.ensureInstallmentInvoice(
+            treatmentPlan = plan,
+            installmentPlanId = installmentPlan.id,
+            totalScheduledMinor = items.sumOf { it.amountMinor },
+            currency = installmentPlan.currency,
+            firstDueDate = items.minOfOrNull { it.dueDate },
+            createdByUser = user,
+        )
+        user?.let { auditService.log(plan.clinic, it, "CREATE", "INSTALLMENT_PLAN", installmentPlan.id) }
     }
 
     @GetMapping("/{planId}")
@@ -1231,6 +1340,23 @@ class TreatmentPlanController(
         }
         clinicAccess.assertPrincipalMayAccessClinic(principal, plan.clinic.id!!)
         clinicAccess.assertPatientVisible(principal, plan.patient.id!!)
+        bookSlotsOnPlan(principal, plan, body)
+
+        plan.updatedAt = OffsetDateTime.now()
+        plans.save(plan)
+        notifyPatient(
+            plan,
+            Notification.Type.TREATMENT_PLAN_UPDATED,
+            "Visits scheduled",
+            "Your clinic scheduled new visits as part of your treatment plan.",
+        )
+        return toDetail(plans.findById(planId).orElseThrow())
+    }
+
+    /** Books each slot for the plan's patient and links it to its line (or a placeholder line); shared with compose. */
+    @Suppress("CyclomaticComplexMethod", "ThrowsCount") // moved unchanged out of bookSlots (baselined there)
+    private fun bookSlotsOnPlan(principal: Any, plan: TreatmentPlan, body: List<BookSlotReq>) {
+        val planId = plan.id
         val uid = clinicAccess.resolveBookingActorUserId(principal)
         val bookedBy = users.findById(uid).orElse(null)
 
@@ -1330,19 +1456,17 @@ class TreatmentPlanController(
                 plan.attendingDoctors.add(doctor)
             }
         }
-
-        plan.updatedAt = OffsetDateTime.now()
-        plans.save(plan)
-        notifyPatient(
-            plan,
-            Notification.Type.TREATMENT_PLAN_UPDATED,
-            "Visits scheduled",
-            "Your clinic scheduled new visits as part of your treatment plan.",
-        )
-        return toDetail(plans.findById(planId).orElseThrow())
     }
 
     @PostMapping("/{planId}/payments")
+    @io.swagger.v3.oas.annotations.Parameter(
+        name = "Idempotency-Key",
+        `in` = io.swagger.v3.oas.annotations.enums.ParameterIn.HEADER,
+        required = false,
+        description = "Optional, 8-128 of [A-Za-z0-9_-] (a UUID). The first 2xx answer for the key is replayed for 24 h " +
+            "(header Idempotent-Replayed: true); another path or body with the same key is 409 IDEMPOTENCY_KEY_REUSED, " +
+            "a key still running is 409 IDEMPOTENCY_IN_PROGRESS, a malformed key is 400 IDEMPOTENCY_KEY_INVALID.",
+    )
     @Transactional
     fun recordPayment(
         @AuthenticationPrincipal principal: Any,

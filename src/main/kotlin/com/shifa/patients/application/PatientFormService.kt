@@ -289,6 +289,7 @@ class PatientFormService(
             existing.filePath = saved.filePathRelative
             existing.category = PatientDocumentCategory.FORM_025_2.code
             existing.isSharedWithTeam = false
+            existing.deletedAt = null // re-filing brings back a document the doctor had removed
             docs.save(existing).also {
                 if (oldPath.isNotBlank() && oldPath != saved.filePathRelative) deleteAfterCommit(oldPath)
             }
@@ -386,6 +387,8 @@ class PatientFormService(
             createdByDoctorId = form.createdByDoctor?.id,
             clinicalDiseaseId = form.clinicalDiseaseId,
             clinicalChipSelections = fromChipSelectionMaps(form.clinicalChipSelections),
+            createdAt = form.createdAt.toInstant().toString(),
+            updatedAt = form.updatedAt.toInstant().toString(),
         )
     }
 

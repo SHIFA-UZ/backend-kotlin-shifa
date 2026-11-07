@@ -223,6 +223,8 @@ class ClinicFinanceController(
         @RequestParam(required = false) to: String?,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "20") size: Int,
+        /** Only this doctor's visits (BE-23); the order is then by visit start, newest first. */
+        @RequestParam(required = false) doctorId: Long?,
     ): Map<String, Any> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         val patientFilter = financeAccess.financeReadPatientIdFilter(principal, clinicId)
@@ -233,35 +235,8 @@ class ClinicFinanceController(
         require((fromInst == null) == (toInst == null)) {
             "from and to must both be set or both omitted"
         }
-        val monthScoped = fromInst != null && toInst != null
 
-        val apptPage = when {
-            patientFilter?.isEmpty() == true ->
-                org.springframework.data.domain.PageImpl(emptyList<Long>(), pageable, 0)
-            monthScoped && patientFilter == null ->
-                linesRepo.findDistinctLinkedAppointmentIdsForClinicInRange(
-                    clinicId,
-                    fromInst!!,
-                    toInst!!,
-                    pageable,
-                )
-            monthScoped ->
-                linesRepo.findDistinctLinkedAppointmentIdsForClinicAndPatientsInRange(
-                    clinicId,
-                    patientFilter!!.toList(),
-                    fromInst!!,
-                    toInst!!,
-                    pageable,
-                )
-            patientFilter == null ->
-                linesRepo.findDistinctLinkedAppointmentIdsForClinic(clinicId, pageable)
-            else ->
-                linesRepo.findDistinctLinkedAppointmentIdsForClinicAndPatients(
-                    clinicId,
-                    patientFilter.toList(),
-                    pageable,
-                )
-        }
+        val apptPage = ledgerAppointmentIds(clinicId, patientFilter, doctorId, fromInst, toInst, pageable)
 
         val rows = mutableListOf<AppointmentLedgerRowDto>()
         val planIds = mutableSetOf<Long>()
@@ -299,6 +274,55 @@ class ClinicFinanceController(
             "totalPages" to apptPage.totalPages,
             "number" to apptPage.number,
         )
+    }
+
+    /** The ledger page's appointment ids: by doctor (BE-23), by month, by patient filter, or all. */
+    private fun ledgerAppointmentIds(
+        clinicId: Long,
+        patientFilter: Set<Long>?,
+        doctorId: Long?,
+        fromInst: Instant?,
+        toInst: Instant?,
+        pageable: org.springframework.data.domain.Pageable,
+    ): org.springframework.data.domain.Page<Long> {
+        val monthScoped = fromInst != null && toInst != null
+        return when {
+            patientFilter?.isEmpty() == true ->
+                org.springframework.data.domain.PageImpl(emptyList<Long>(), pageable, 0)
+            doctorId != null ->
+                linesRepo.findLinkedAppointmentIdsForClinicDoctor(
+                    clinicId,
+                    doctorId,
+                    allPatients = patientFilter == null,
+                    patientIds = patientFilter?.toList() ?: listOf(-1L),
+                    from = fromInst ?: Instant.EPOCH,
+                    toExclusive = toInst ?: ALL_TIME_END,
+                    pageable = pageable,
+                )
+            monthScoped && patientFilter == null ->
+                linesRepo.findDistinctLinkedAppointmentIdsForClinicInRange(
+                    clinicId,
+                    fromInst!!,
+                    toInst!!,
+                    pageable,
+                )
+            monthScoped ->
+                linesRepo.findDistinctLinkedAppointmentIdsForClinicAndPatientsInRange(
+                    clinicId,
+                    patientFilter!!.toList(),
+                    fromInst!!,
+                    toInst!!,
+                    pageable,
+                )
+            patientFilter == null ->
+                linesRepo.findDistinctLinkedAppointmentIdsForClinic(clinicId, pageable)
+            else ->
+                linesRepo.findDistinctLinkedAppointmentIdsForClinicAndPatients(
+                    clinicId,
+                    patientFilter.toList(),
+                    pageable,
+                )
+        }
     }
 
     @GetMapping("/doctor-earnings")
@@ -366,12 +390,24 @@ class ClinicFinanceController(
         @RequestParam(required = false) status: String?,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "50") size: Int,
+        @RequestParam(required = false) from: String?,
+        @RequestParam(required = false) to: String?,
     ): Map<String, Any> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         val patientFilter = financeAccess.financeReadPatientIdFilter(principal, clinicId)
         val pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"))
+        val range = instantRange(from, to)
 
         val result = when {
+            patientFilter?.isEmpty() != true && range != null -> {
+                val statuses = status?.let { listOf(FinancialRecord.Status.valueOf(it.uppercase())) } ?: FinancialRecord.Status.entries
+                val unsorted = PageRequest.of(page, size)
+                if (patientFilter == null) {
+                    financialRecords.findByClinicInRange(clinicId, statuses, range.first, range.second, unsorted)
+                } else {
+                    financialRecords.findByClinicAndPatientsInRange(clinicId, statuses, patientFilter.toList(), range.first, range.second, unsorted)
+                }
+            }
             patientFilter == null -> {
                 if (status != null) {
                     val s = FinancialRecord.Status.valueOf(status.uppercase())
@@ -526,6 +562,15 @@ class ClinicFinanceController(
     }
 
     @PostMapping("/payments")
+    @Suppress("ThrowsCount") // legacy body, baselined before the Idempotency-Key annotation changed its signature
+    @io.swagger.v3.oas.annotations.Parameter(
+        name = "Idempotency-Key",
+        `in` = io.swagger.v3.oas.annotations.enums.ParameterIn.HEADER,
+        required = false,
+        description = "Optional, 8-128 of [A-Za-z0-9_-] (a UUID). The first 2xx answer for the key is replayed for 24 h " +
+            "(header Idempotent-Replayed: true); another path or body with the same key is 409 IDEMPOTENCY_KEY_REUSED, " +
+            "a key still running is 409 IDEMPOTENCY_IN_PROGRESS, a malformed key is 400 IDEMPOTENCY_KEY_INVALID.",
+    )
     @Transactional
     fun recordPayment(
         @AuthenticationPrincipal principal: Any,
@@ -596,16 +641,25 @@ class ClinicFinanceController(
         @PathVariable clinicId: Long,
         @RequestParam(defaultValue = "0") page: Int,
         @RequestParam(defaultValue = "50") size: Int,
+        @RequestParam(required = false) from: String?,
+        @RequestParam(required = false) to: String?,
     ): List<PaymentHistoryDto> {
         clinicAccess.assertPrincipalMayAccessClinic(principal, clinicId)
         val patientFilter = financeAccess.financeReadPatientIdFilter(principal, clinicId)
         val pageable = PageRequest.of(page, size)
+        val range = instantRange(from, to)
         val statuses = listOf(
             com.shifa.clinics.domain.TreatmentPlan.Status.ACTIVE,
             com.shifa.clinics.domain.TreatmentPlan.Status.IN_PROGRESS,
             com.shifa.clinics.domain.TreatmentPlan.Status.COMPLETED,
         )
         val payments = when {
+            range != null && patientFilter == null ->
+                treatmentPlanPayments.findByClinicAndPlanStatusesInRange(clinicId, statuses, range.first, range.second, pageable)
+            range != null && !patientFilter.isNullOrEmpty() ->
+                treatmentPlanPayments.findByClinicAndPlanStatusesAndPatientIdsInRange(
+                    clinicId, statuses, patientFilter.toList(), range.first, range.second, pageable,
+                )
             patientFilter == null ->
                 treatmentPlanPayments.findByClinicAndPlanStatuses(clinicId, statuses, pageable)
             patientFilter.isEmpty() -> emptyList()
@@ -898,6 +952,15 @@ class ClinicFinanceController(
     }
 
     @PostMapping("/installment-items/{itemId}/mark-paid")
+    @Suppress("ThrowsCount") // legacy body, baselined before the Idempotency-Key annotation changed its signature
+    @io.swagger.v3.oas.annotations.Parameter(
+        name = "Idempotency-Key",
+        `in` = io.swagger.v3.oas.annotations.enums.ParameterIn.HEADER,
+        required = false,
+        description = "Optional, 8-128 of [A-Za-z0-9_-] (a UUID). The first 2xx answer for the key is replayed for 24 h " +
+            "(header Idempotent-Replayed: true); another path or body with the same key is 409 IDEMPOTENCY_KEY_REUSED, " +
+            "a key still running is 409 IDEMPOTENCY_IN_PROGRESS, a malformed key is 400 IDEMPOTENCY_KEY_INVALID.",
+    )
     @Transactional
     fun markInstallmentItemPaid(
         @AuthenticationPrincipal principal: Any,
@@ -1027,7 +1090,26 @@ class ClinicFinanceController(
                 mapOf("route" to "/bookings/treatment-plan/${tp.id}", "installmentItemId" to item.id.toString()),
             )
         }
-        return mapOf("status" to "sent")
+        item.lastNotifiedAt = OffsetDateTime.now()
+        installmentItems.save(item)
+        return mapOf("status" to "sent", "lastNotifiedAt" to item.lastNotifiedAt.toString())
+    }
+
+    /**
+     * `from`/`to` of the payments and records lists (BE-11): ISO-8601 instants, `from` inclusive and `to` exclusive
+     * like the ledger; both or neither (400 otherwise).
+     */
+    private fun instantRange(from: String?, to: String?): Pair<OffsetDateTime, OffsetDateTime>? {
+        require((from == null) == (to == null)) { "from and to must both be set or both omitted" }
+        if (from == null || to == null) return null
+        val parsed = runCatching { Instant.parse(from) to Instant.parse(to) }.getOrNull()
+        requireNotNull(parsed) { "from and to must be ISO-8601 instants, e.g. 2026-11-01T00:00:00Z" }
+        return parsed.first.atOffset(ZoneOffset.UTC) to parsed.second.atOffset(ZoneOffset.UTC)
+    }
+
+    private companion object {
+        /** "No upper bound" for range queries that always take one. */
+        val ALL_TIME_END: Instant = Instant.parse("9999-01-01T00:00:00Z")
     }
 
     // --- Mappers ---
@@ -1196,6 +1278,7 @@ class ClinicFinanceController(
         status = item.status.name,
         paidAt = item.paidAt,
         notes = item.notes,
+        lastNotifiedAt = item.lastNotifiedAt,
     )
 
     private fun toInstallmentItemListDto(item: InstallmentItem): InstallmentItemListDto {
@@ -1215,6 +1298,7 @@ class ClinicFinanceController(
             treatmentPlanTitle = tp.title,
             patientId = tp.patient.id!!,
             patientName = patientName,
+            lastNotifiedAt = item.lastNotifiedAt,
         )
     }
 }

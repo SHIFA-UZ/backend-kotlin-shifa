@@ -4,9 +4,11 @@ import com.shifa.clinics.api.TreatmentPlanController.LineDetailDto
 import com.shifa.clinics.domain.TreatmentPlan
 import com.shifa.clinics.domain.TreatmentPlanLine
 import com.shifa.clinics.domain.TreatmentPlanPayment
+import jakarta.validation.Valid
 import jakarta.validation.constraints.Min
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import java.time.LocalDate
 
 
 data class CatalogItemDto(
@@ -244,4 +246,46 @@ data class PlanDoctorLocationDto(
     val clinic: String?,
     val address: String?,
     val isPrimary: Boolean,
+)
+
+/**
+ * `POST /api/treatment-plans/compose` (BE-12): the plan wizard in one transaction. Steps run in this order: the plan
+ * ([plan], status DRAFT), its [lines], the [slots] to book, the [initialPayment], the [installments] and last the
+ * target [status]; any failure rolls all of them back.
+ */
+data class ComposeTreatmentPlanRequest(
+    @field:Valid @field:NotNull val plan: CreatePlanRequest,
+    @field:Valid val lines: List<LineReq> = emptyList(),
+    @field:Valid val slots: List<ComposePlanSlotReq> = emptyList(),
+    @field:Valid val initialPayment: PaymentReq? = null,
+    @field:Valid val installments: ComposePlanInstallmentsReq? = null,
+    /** The plan's status after composing (e.g. ACTIVE); null keeps DRAFT. */
+    val status: TreatmentPlan.Status? = null,
+)
+
+/** A visit to book, as in `book-slots`; [lineIndex] points into the request's `lines` (the line ids don't exist yet). */
+data class ComposePlanSlotReq(
+    @field:NotNull val doctorId: Long,
+    /** ISO-8601 instant, e.g. "2026-06-12T09:00:00Z". */
+    @field:NotBlank val startAt: String,
+    @field:Min(5) val slotMinutes: Int = 30,
+    val locationId: Long? = null,
+    @field:Min(0) val lineIndex: Int? = null,
+    val notes: String? = null,
+)
+
+/**
+ * The installment schedule. It must add up to the plan's outstanding amount (lines total minus [ComposeTreatmentPlanRequest.initialPayment]):
+ * the sum of [scheduleItems] when given, otherwise [totalAmountMinor] when given (split into [numInstallments] from
+ * [startDate]), else the outstanding amount itself is split. A mismatch is 400 `INSTALLMENTS_MISMATCH`.
+ */
+data class ComposePlanInstallmentsReq(
+    val totalAmountMinor: Long? = null,
+    val currency: String = "UZS",
+    @field:Min(2) val numInstallments: Int = 2,
+    val frequency: String = "MONTHLY",
+    /** Required without [scheduleItems]; with them, the first row's due date is used when absent. */
+    val startDate: LocalDate? = null,
+    val notes: String? = null,
+    @field:Valid val scheduleItems: List<InstallmentItemSpecDto>? = null,
 )

@@ -166,7 +166,11 @@ class AiRateLimitFilter(
             "remaining" to denied.remaining,
             "dailyLimit" to denied.dailyLimit,
             "resetAt" to resetIso,
-            "reason" to denied.reason.name
+            "reason" to denied.reason.name,
+            // BE-08: the standard keys next to the legacy ones (`code` stays RATE_LIMIT, the patient app matches it).
+            "error" to 429,
+            "status" to 429,
+            "errorCode" to com.shifa.shared.ErrorCode.AI_QUOTA_EXCEEDED.name,
         ) + (com.shifa.shared.ErrorBodies.requestId()?.let { mapOf("requestId" to it) } ?: emptyMap())
         response.writer.write(objectMapper.writeValueAsString(body))
     }

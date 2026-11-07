@@ -1,6 +1,8 @@
 // src/main/kotlin/com/shifa/documents/api/PatientDocumentController.kt
 package com.shifa.documents.api
 
+import com.shifa.documents.api.dto.PatchPatientDocumentRequest
+
 import com.shifa.appointments.application.AppointmentQueries
 import com.shifa.patients.application.DoctorPatientAccessService
 import com.shifa.shared.security.ClinicStaffPrincipal
@@ -138,6 +140,32 @@ class PatientDocumentController(
         val doctorId = effectiveDoctorProfileId(principal, clinicId)
         val dto = service.updateFile(documentId, doctorId, file)
         return ResponseEntity.ok(dto)
+    }
+
+    /** Rename or recategorise a document the signed-in doctor uploaded (BE-21); 403 for anyone else's upload. */
+    @PatchMapping("/{patientId}/documents/{documentId}")
+    fun patchDoctorUpload(
+        @PathVariable patientId: Long,
+        @PathVariable documentId: Long,
+        @AuthenticationPrincipal principal: Any,
+        @RequestParam(name = "clinicId", required = false) clinicId: Long?,
+        @RequestBody body: PatchPatientDocumentRequest,
+    ): PatientDocumentDto {
+        ensurePatientDocumentAccess(principal, patientId, clinicId)
+        return service.patchByDoctor(patientId, documentId, effectiveDoctorProfileId(principal, clinicId), body.title, body.category)
+    }
+
+    /** Remove (soft delete) a document the signed-in doctor uploaded (BE-21): 204; 403 for anyone else's upload. */
+    @DeleteMapping("/{patientId}/documents/{documentId}")
+    fun removeDoctorUpload(
+        @PathVariable patientId: Long,
+        @PathVariable documentId: Long,
+        @AuthenticationPrincipal principal: Any,
+        @RequestParam(name = "clinicId", required = false) clinicId: Long?,
+    ): ResponseEntity<Void> {
+        ensurePatientDocumentAccess(principal, patientId, clinicId)
+        service.deleteByDoctor(patientId, documentId, effectiveDoctorProfileId(principal, clinicId))
+        return ResponseEntity.noContent().build()
     }
 
     @PostMapping("/{patientId}/documents/{documentId}/request-access")

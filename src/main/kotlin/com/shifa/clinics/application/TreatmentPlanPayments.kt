@@ -18,5 +18,9 @@ class TreatmentPlanPayments(private val repo: TreatmentPlanPaymentRepository) {
     fun findByPlanIdsOrderByRecordedAtAsc(planIds: Collection<Long>): List<TreatmentPlanPayment> = repo.findByPlanIdsOrderByRecordedAtAsc(planIds)
     fun findByClinicAndPlanStatuses(clinicId: Long, statuses: List<TreatmentPlan.Status>, pageable: Pageable): List<TreatmentPlanPayment> = repo.findByClinicAndPlanStatuses(clinicId, statuses, pageable)
     fun findByClinicAndPlanStatusesAndPatientIds(clinicId: Long, statuses: List<TreatmentPlan.Status>, patientIds: Collection<Long>, pageable: Pageable): List<TreatmentPlanPayment> = repo.findByClinicAndPlanStatusesAndPatientIds(clinicId, statuses, patientIds, pageable)
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    fun findByClinicAndPlanStatusesInRange(clinicId: Long, statuses: List<TreatmentPlan.Status>, from: java.time.OffsetDateTime, to: java.time.OffsetDateTime, pageable: Pageable): List<TreatmentPlanPayment> = repo.findByClinicAndPlanStatusesInRange(clinicId, statuses, from, to, pageable)
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    fun findByClinicAndPlanStatusesAndPatientIdsInRange(clinicId: Long, statuses: List<TreatmentPlan.Status>, patientIds: Collection<Long>, from: java.time.OffsetDateTime, to: java.time.OffsetDateTime, pageable: Pageable): List<TreatmentPlanPayment> = repo.findByClinicAndPlanStatusesAndPatientIdsInRange(clinicId, statuses, patientIds, from, to, pageable)
     fun save(entity: TreatmentPlanPayment): TreatmentPlanPayment = repo.save(entity)
 }

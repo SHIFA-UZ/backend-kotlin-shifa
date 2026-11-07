@@ -79,6 +79,9 @@ class TreatmentPlanPdfEndpointTest {
     @MockitoBean lateinit var doctorServices: com.shifa.doctors.application.DoctorServices
     @MockitoBean lateinit var doctorServicePrices: com.shifa.doctors.application.DoctorServicePrices
     @MockitoBean lateinit var doctorSettings: com.shifa.doctors.application.DoctorSettingsDoor
+    @MockitoBean lateinit var financeAccess: com.shifa.clinics.application.ClinicFinanceAccessService
+    @MockitoBean lateinit var installmentService: com.shifa.clinics.application.InstallmentService
+    @MockitoBean lateinit var auditService: com.shifa.clinics.application.ClinicFinanceAuditService
 
     private val doctor = DoctorProfile(id = 9, user = User(id = 2, passwordHash = "x"), firstName = "Aziza", lastName = "Karimova")
     private val principal = DoctorPrincipal(doctor, listOf(SimpleGrantedAuthority("ROLE_DOCTOR")))

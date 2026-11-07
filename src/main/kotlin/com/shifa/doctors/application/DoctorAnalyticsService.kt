@@ -27,9 +27,10 @@ class DoctorAnalyticsService(
 ) {
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
-    fun overview(doctor: DoctorProfile): DoctorAnalyticsOverviewDto {
+    /** Today by default; with [from]/[to] (BE-19) the `…Today` counts cover that period instead. */
+    fun overview(doctor: DoctorProfile, from: LocalDate? = null, to: LocalDate? = null): DoctorAnalyticsOverviewDto {
         val doctorId = doctor.id
-        val (dayStart, dayEnd) = todayRange(doctor)
+        val (dayStart, dayEnd) = periodRange(doctor, from, to) ?: todayRange(doctor)
         val appointmentsToday = appts.countByDoctor_IdAndStartAtBetweenAndStatus(
             doctorId, dayStart, dayEnd, Appointment.Status.REQUESTED
         ) + appts.countByDoctor_IdAndStartAtBetweenAndStatus(
@@ -74,22 +75,23 @@ class DoctorAnalyticsService(
     }
 
     /** Last 30 days: video vs in-person counts. */
-    fun consultationTypes(doctor: DoctorProfile): ConsultationTypesDto {
+    fun consultationTypes(doctor: DoctorProfile, from: LocalDate? = null, to: LocalDate? = null): ConsultationTypesDto {
         val doctorId = doctor.id
-        val (start, end) = last30DaysRange(doctor)
+        val (start, end) = periodRange(doctor, from, to) ?: last30DaysRange(doctor)
         val video = appts.countVideoByDoctorIdAndStartAtBetween(doctorId, start, end).toInt()
         val inPerson = appts.countInPersonByDoctorIdAndStartAtBetween(doctorId, start, end).toInt()
         return ConsultationTypesDto(video = video, inPerson = inPerson)
     }
 
     /** Active patients (distinct in last 30 days) and documents received (last 30 days) for those patients. */
-    fun engagement(doctor: DoctorProfile): DoctorEngagementDto {
+    fun engagement(doctor: DoctorProfile, from: LocalDate? = null, to: LocalDate? = null): DoctorEngagementDto {
         val doctorId = doctor.id
-        val (start, end) = last30DaysRange(doctor)
+        val (start, end) = periodRange(doctor, from, to) ?: last30DaysRange(doctor)
         val zone = java.time.ZoneId.of(doctor.timeZone)
         val activePatients = appts.countDistinctPatientsByDoctorIdAndStartAtBetween(doctorId, start, end).toInt()
         val docStart = start.atZone(zone).toLocalDate()
-        val docEnd = end.atZone(zone).toLocalDate().plusDays(1)
+        // `end` is exclusive (midnight after `to`, or just after now): the last day it covers, plus one.
+        val docEnd = end.minusNanos(1).atZone(zone).toLocalDate().plusDays(1)
         val documentsReceived = patientDocs.countDocumentsByDoctorPatientsInDateRange(
             doctorId, start, end, docStart, docEnd
         ).toInt()
@@ -121,6 +123,18 @@ class DoctorAnalyticsService(
             pricePerSmsMinor = summary.pricePerSmsMinor,
             smsRemindersAllowed = doctor.smsRemindersAllowed,
         )
+    }
+
+    /**
+     * [from]..[to] (dates in the doctor's time zone, both inclusive) as instants, end exclusive; null when neither is
+     * given (the caller's default). Both or neither, and from ≤ to (400 otherwise).
+     */
+    private fun periodRange(doctor: DoctorProfile, from: LocalDate?, to: LocalDate?): Pair<Instant, Instant>? {
+        require((from == null) == (to == null)) { "from and to must both be set or both omitted" }
+        if (from == null || to == null) return null
+        require(!from.isAfter(to)) { "from must not be after to" }
+        val zone = java.time.ZoneId.of(doctor.timeZone)
+        return from.atStartOfDay(zone).toInstant() to to.plusDays(1).atStartOfDay(zone).toInstant()
     }
 
     private fun todayRange(doctor: DoctorProfile): Pair<Instant, Instant> {

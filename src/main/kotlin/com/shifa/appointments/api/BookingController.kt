@@ -55,6 +55,7 @@ class BookingController(
                     location = b.location,
                     reason = b.reason,
                     isVideo = b.isVideo,
+                    followUpOf = b.followUpOf,
                 ),
             )
         } catch (e: NoSuchElementException) {
@@ -75,7 +76,8 @@ class BookingController(
             reason = saved.reason,
             status = saved.status.name,
             locationId = saved.locationRef?.id,
-            locationLabel = saved.locationRef?.label
+            locationLabel = saved.locationRef?.label,
+            followUpOf = saved.followUpOfAppointmentId,
         )
     }
 }

@@ -133,6 +133,8 @@ class PatientController(
         val cancelNote: String? = null,
         /** When the video room can be joined; null for a visit in person. */
         val joinWindow: com.shifa.appointments.api.dto.JoinWindowDto? = null,
+        /** The earlier appointment this visit follows up, set by the doctor's side when booking (BE-20). */
+        val followUpOf: Long? = null,
     )
 
     // -------------------- FCM Token (push notifications) --------------------
@@ -660,6 +662,7 @@ class PatientController(
             cancelReasonCode = appt.cancelReasonCode?.name,
             cancelNote = appt.cancelNote,
             joinWindow = com.shifa.appointments.api.dto.JoinWindowDto.of(appt.videoJoinWindow()),
+            followUpOf = appt.followUpOfAppointmentId,
         )
     }
 

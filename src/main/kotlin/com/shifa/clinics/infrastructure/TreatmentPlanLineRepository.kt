@@ -221,4 +221,42 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
         from: java.time.Instant,
         toExclusive: java.time.Instant,
     ): List<TreatmentPlanLine>
+
+    /**
+     * The ledger's visits of one doctor (BE-23 `doctorId`), newest first: every patient when [allPatients], else only
+     * [patientIds]; start in [from, toExclusive) (callers pass wide bounds for "all time"). GROUP BY rather than
+     * DISTINCT so the ORDER BY may use `a.start_at`.
+     */
+    @Query(
+        value = """
+            SELECT a.id FROM treatment_plan_lines l
+            INNER JOIN treatment_plans p ON l.plan_id = p.id
+            INNER JOIN appointments a ON a.id = l.linked_appointment_id
+            WHERE p.clinic_id = :clinicId AND a.doctor_id = :doctorId
+            AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
+            AND (:allPatients OR a.patient_id IN (:patientIds))
+            AND a.start_at >= :from AND a.start_at < :toExclusive
+            GROUP BY a.id, a.start_at
+            ORDER BY a.start_at DESC, a.id DESC
+            """,
+        countQuery = """
+            SELECT COUNT(DISTINCT a.id) FROM treatment_plan_lines l
+            INNER JOIN treatment_plans p ON l.plan_id = p.id
+            INNER JOIN appointments a ON a.id = l.linked_appointment_id
+            WHERE p.clinic_id = :clinicId AND a.doctor_id = :doctorId
+            AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
+            AND (:allPatients OR a.patient_id IN (:patientIds))
+            AND a.start_at >= :from AND a.start_at < :toExclusive
+            """,
+        nativeQuery = true,
+    )
+    fun findLinkedAppointmentIdsForClinicDoctor(
+        clinicId: Long,
+        doctorId: Long,
+        allPatients: Boolean,
+        patientIds: List<Long>,
+        from: java.time.Instant,
+        toExclusive: java.time.Instant,
+        pageable: org.springframework.data.domain.Pageable,
+    ): org.springframework.data.domain.Page<Long>
 }

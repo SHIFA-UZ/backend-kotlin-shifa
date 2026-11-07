@@ -82,6 +82,14 @@ class ClinicWorkspaceController(
         workspace.listPatientAppointments(principal, clinicId, patientId)
 
     @PostMapping("/api/clinics/{clinicId}/appointments/{appointmentId}/visit-charges")
+    @io.swagger.v3.oas.annotations.Parameter(
+        name = "Idempotency-Key",
+        `in` = io.swagger.v3.oas.annotations.enums.ParameterIn.HEADER,
+        required = false,
+        description = "Optional, 8-128 of [A-Za-z0-9_-] (a UUID). The first 2xx answer for the key is replayed for 24 h " +
+            "(header Idempotent-Replayed: true); another path or body with the same key is 409 IDEMPOTENCY_KEY_REUSED, " +
+            "a key still running is 409 IDEMPOTENCY_IN_PROGRESS, a malformed key is 400 IDEMPOTENCY_KEY_INVALID.",
+    )
     fun addVisitCharges(
         @AuthenticationPrincipal principal: Any,
         @PathVariable clinicId: Long,

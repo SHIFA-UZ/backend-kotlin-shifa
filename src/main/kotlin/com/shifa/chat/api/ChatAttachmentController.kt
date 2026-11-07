@@ -14,6 +14,7 @@ class ChatAttachmentController(
     private val signer: com.shifa.shared.security.FileUrlSigner,
     private val uploadGuard: com.shifa.shared.UploadGuard,
     private val publicUrls: com.shifa.shared.PublicUrls,
+    private val heic: com.shifa.shared.storage.HeicConverter,
 ) {
 
     /**
@@ -30,10 +31,16 @@ class ChatAttachmentController(
         try {
             // Generate unique filename
             val originalFilename = file.originalFilename ?: "attachment"
-            val extension = originalFilename.substringAfterLast('.', "")
+            // HEIC/HEIF is stored as JPEG when it can be converted (BE-21); `fileName` stays the uploaded name.
+            val jpeg = if (heic.isHeic(originalFilename, file.contentType)) file.inputStream.use { heic.toJpeg(it) } else null
+            val extension = if (jpeg != null) "jpg" else originalFilename.substringAfterLast('.', "")
             val uniqueFilename = "${UUID.randomUUID()}.$extension"
-            
-            file.inputStream.use { storage.put("chat-attachments/$uniqueFilename", it, file.size, file.contentType) }
+
+            if (jpeg != null) {
+                storage.put("chat-attachments/$uniqueFilename", jpeg.inputStream(), jpeg.size.toLong(), "image/jpeg")
+            } else {
+                file.inputStream.use { storage.put("chat-attachments/$uniqueFilename", it, file.size, file.contentType) }
+            }
 
             // Save thumbnail if provided
             var thumbnailUrl: String? = null
@@ -50,7 +57,7 @@ class ChatAttachmentController(
                 "url" to publicUrl,
                 "thumbnailUrl" to (thumbnailUrl ?: ""),
                 "fileName" to originalFilename,
-                "fileSize" to file.size.toString()
+                "fileSize" to (jpeg?.size?.toLong() ?: file.size).toString()
             ))
         } catch (e: Exception) {
             return ResponseEntity.status(500).body(mapOf<String, String>("error" to (e.message ?: "Upload failed")))

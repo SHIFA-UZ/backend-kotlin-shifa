@@ -64,6 +64,13 @@ open class PatientDocument(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "appointment_id")
     open var appointment: Appointment? = null,
+
+    /**
+     * Set when the uploading doctor removed the document (BE-21, soft delete): every list, count and lookup skips it;
+     * the row and the file stay for the record.
+     */
+    @Column(name = "deleted_at")
+    open var deletedAt: java.time.OffsetDateTime? = null,
 ) {
     protected constructor() : this(
         id = null,

@@ -113,6 +113,10 @@ class Appointment(
     /** The doctor's note to the patient with [cancelReasonCode]. */
     @Column(name = "cancel_note", columnDefinition = "TEXT")
     var cancelNote: String? = null,
+
+    /** The earlier visit of the same patient this one follows up (BE-20); null for an ordinary booking. */
+    @Column(name = "follow_up_of_appointment_id")
+    var followUpOfAppointmentId: Long? = null,
 ) {
     enum class Status {
         REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED, NO_SHOW,
