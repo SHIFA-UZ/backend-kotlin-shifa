@@ -109,7 +109,12 @@ data class RegisterRequest(
     @field:NotBlank val key: String,
     /** Optional IANA timezone (e.g. Europe/Berlin). If provided, used for new doctor profile so appointment times
      * are correct. */
-    val timeZone: String? = null
+    val timeZone: String? = null,
+    /** The code from `POST /auth/send-email-otp {purpose: REGISTRATION}`. Optional while store builds that never send
+     * it are in use; when present it must be valid. Also proves ownership of an existing account with this e-mail. */
+    val emailOtp: String? = null,
+    /** An existing (non-doctor) account's current password: the other way to prove it is yours before it is merged. */
+    val currentPassword: String? = null,
 )
 
 /** Receptionist/clinic staff self-signup via [InvitationKey.PURPOSE_CLINIC_RECEPTIONIST_INVITE]; no
@@ -122,6 +127,10 @@ data class RegisterClinicStaffRequest(
     @field:NotBlank val password: String,
     @field:NotBlank val key: String,
     val timeZone: String? = null,
+    /** As [RegisterRequest.emailOtp]. */
+    val emailOtp: String? = null,
+    /** As [RegisterRequest.currentPassword]. */
+    val currentPassword: String? = null,
 )
 
 data class LoginRequest(@field:NotBlank val username: String, @field:NotBlank val password: String)

@@ -79,6 +79,25 @@ class EmailOtpService(
         return verifyEntry(entry, code)
     }
 
+    /** The outcome of [check]: the app tells a mistyped code from one that ran out. */
+    enum class OtpCheck { VALID, INVALID, EXPIRED }
+
+    /**
+     * Like [verify] for [purpose], but says why a code failed: [OtpCheck.EXPIRED] when the latest unverified code
+     * for the address has run out, else [OtpCheck.INVALID]. A valid code is marked verified (single use).
+     */
+    @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
+    fun check(email: String, code: String, purpose: String): OtpCheck {
+        val normalized = email.trim().lowercase()
+        val entry = repo.findTopByEmailAndPurposeAndVerifiedFalseOrderByCreatedAtDesc(normalized, purpose)
+            .orElse(null)
+        return when {
+            entry != null && entry.isExpired() -> OtpCheck.EXPIRED
+            verifyEntry(entry, code) -> OtpCheck.VALID
+            else -> OtpCheck.INVALID
+        }
+    }
+
     private fun verifyEntry(entry: EmailVerificationCode?, code: String): Boolean {
         if (entry == null) return false
         if (entry.isExpired()) return false

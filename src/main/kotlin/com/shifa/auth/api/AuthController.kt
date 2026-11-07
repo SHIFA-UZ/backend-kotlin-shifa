@@ -37,6 +37,8 @@ import com.shifa.clinics.domain.ClinicMembership
 import com.shifa.clinics.domain.InvitationKey
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.patients.domain.PatientProfile
+import com.shifa.shared.CodedStatusException
+import com.shifa.shared.ErrorCode
 import com.shifa.shared.security.JwtService
 import com.shifa.shared.security.PasswordPolicy
 import com.shifa.shared.util.PhoneNormalizer
@@ -144,7 +146,7 @@ class AuthController(
         val phoneNorm = phoneTrimmed?.let { PhoneNormalizer.normalize(it) }
         val user = phoneTrimmed?.let { users.findByPhone(it).orElse(null) }
             ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
-            ?: emailTrimmed?.let { users.findByEmail(it).orElse(null) }
+            ?: emailTrimmed?.let { users.findByEmailIgnoreCase(it).orElse(null) }
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found")
         if (!userRoles.existsByUserIdAndRole(user.id, Role.DOCTOR)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "No doctor account found")
@@ -173,7 +175,7 @@ class AuthController(
         val phoneNorm = phoneTrimmed?.let { PhoneNormalizer.normalize(it) }
         val user = phoneTrimmed?.let { users.findByPhone(it).orElse(null) }
             ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
-            ?: emailTrimmed?.let { users.findByEmail(it).orElse(null) }
+            ?: emailTrimmed?.let { users.findByEmailIgnoreCase(it).orElse(null) }
             ?: return CheckIdentifierResponse(type = "none")
         if (userRoles.existsByUserIdAndRole(user.id, Role.DOCTOR)) {
             val doc = doctors.findByUserId(user.id).orElse(null)
@@ -564,6 +566,7 @@ class AuthController(
                 )
             }
         }
+        val emailProven = checkRegistrationEmailOtp(emailTrimmed, r.emailOtp)
 
         val byPhoneRaw = phoneRaw?.let { users.findByPhone(it).orElse(null) }
         val byPhoneNorm = phoneNorm?.let { users.findByPhone(it).orElse(null) }
@@ -616,6 +619,15 @@ class AuthController(
             if (!existingUser.enabled) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Account is disabled.")
             }
+            // A key must never set an existing doctor's password (account takeover with someone else's address).
+            if (userRoles.existsByUserIdAndRole(existingUser.id, Role.DOCTOR)) {
+                throw CodedStatusException(
+                    HttpStatus.CONFLICT,
+                    "A doctor account with this email already exists. Sign in instead.",
+                    ErrorCode.DOCTOR_EXISTS,
+                )
+            }
+            requireAccountOwnership(existingUser, emailTrimmed, emailProven, r.currentPassword)
             if (!userRoles.existsByUserIdAndRole(existingUser.id, Role.DOCTOR)) {
                 userRoles.save(
                     com.shifa.auth.domain.UserRole(user = existingUser, role = Role.DOCTOR)
@@ -743,6 +755,7 @@ class AuthController(
                 )
             }
         }
+        val emailProven = checkRegistrationEmailOtp(emailTrimmed, r.emailOtp)
 
         val byPhoneRaw = phoneRaw?.let { users.findByPhone(it).orElse(null) }
         val byPhoneNorm = phoneNorm?.let { users.findByPhone(it).orElse(null) }
@@ -794,6 +807,7 @@ class AuthController(
             if (!existingUser.enabled) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Account is disabled.")
             }
+            requireAccountOwnership(existingUser, emailTrimmed, emailProven, r.currentPassword)
             if (!userRoles.existsByUserIdAndRole(existingUser.id, Role.CLINIC_STAFF)) {
                 userRoles.save(com.shifa.auth.domain.UserRole(user = existingUser, role = Role.CLINIC_STAFF))
             }
@@ -1425,6 +1439,43 @@ class AuthController(
                 }
             }
         }
+    }
+
+    /**
+     * A registration's e-mail code, when sent: true once valid; a wrong or expired one is a coded 400. Absent: false
+     * (still optional for store builds that never send it).
+     */
+    private fun checkRegistrationEmailOtp(email: String, otp: String?): Boolean {
+        val code = otp?.trim()?.takeIf { it.isNotEmpty() } ?: return false
+        return when (emailOtpService.check(email, code, com.shifa.auth.domain.EmailVerificationCode.PURPOSE_REGISTRATION)) {
+            com.shifa.auth.application.EmailOtpService.OtpCheck.VALID -> true
+            com.shifa.auth.application.EmailOtpService.OtpCheck.EXPIRED -> throw CodedStatusException(
+                HttpStatus.BAD_REQUEST,
+                "The verification code has expired. Request a new one.",
+                ErrorCode.EMAIL_OTP_EXPIRED,
+            )
+            com.shifa.auth.application.EmailOtpService.OtpCheck.INVALID -> throw CodedStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Invalid verification code.",
+                ErrorCode.EMAIL_OTP_INVALID,
+            )
+        }
+    }
+
+    /**
+     * Registration may add a role to an existing account only when the caller proves it is theirs: a valid code sent
+     * to that account's own e-mail, or its current password. An invitation key proves nothing about the account.
+     */
+    private fun requireAccountOwnership(existing: User, email: String, emailProven: Boolean, currentPassword: String?) {
+        val ownEmail = existing.email?.trim()?.equals(email, ignoreCase = true) == true
+        if (emailProven && ownEmail) return
+        val password = currentPassword?.takeIf { it.isNotEmpty() }
+        if (password != null && encoder.matches(password, existing.passwordHash)) return
+        throw CodedStatusException(
+            HttpStatus.CONFLICT,
+            "This email already has a Shifa account. Confirm it with the code sent to that email or its current password.",
+            ErrorCode.OWNERSHIP_REQUIRED,
+        )
     }
 
     private fun maskEmailHint(email: String): String {

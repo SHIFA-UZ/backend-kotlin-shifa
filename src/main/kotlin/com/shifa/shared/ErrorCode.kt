@@ -2,6 +2,8 @@ package com.shifa.shared
 
 import com.shifa.shared.api.RequestIdFilter
 import org.slf4j.MDC
+import org.springframework.http.HttpStatus
+import org.springframework.web.server.ResponseStatusException
 
 /**
  * Machine-readable error codes (patient-app ask 4). Added next to the existing `error`, `status` and
@@ -10,7 +12,17 @@ import org.slf4j.MDC
  */
 enum class ErrorCode {
     VALIDATION, MALFORMED_BODY, BAD_REQUEST, UNAUTHORIZED, PAYMENT_REQUIRED, FORBIDDEN, NOT_FOUND, CONFLICT,
-    RATE_LIMITED, SESSION_INVALID, SESSION_EXPIRED, TOKEN_INVALID, ACCOUNT_DISABLED, INTERNAL, UPSTREAM, UNAVAILABLE;
+    RATE_LIMITED, SESSION_INVALID, SESSION_EXPIRED, TOKEN_INVALID, ACCOUNT_DISABLED, INTERNAL, UPSTREAM, UNAVAILABLE,
+
+    // Thrown as [CodedStatusException] where the status alone doesn't tell the app what to do.
+    /** Registration: the account is already a doctor; sign in instead. */
+    DOCTOR_EXISTS,
+    /** Registration onto an existing account: prove it is yours (its e-mail code or its current password). */
+    OWNERSHIP_REQUIRED,
+    EMAIL_OTP_INVALID,
+    EMAIL_OTP_EXPIRED,
+    /** Account deletion: resolve the listed obligations first (`details`). */
+    HAS_ACTIVE_OBLIGATIONS;
 
     companion object {
         fun forStatus(status: Int): ErrorCode = when (status) {
@@ -50,3 +62,14 @@ object ErrorBodies {
         return """{"error":"$errorText","code":"${code.name}"$rid}"""
     }
 }
+
+/**
+ * A [ResponseStatusException] that names its own [code] (and optional [details]) instead of the status's
+ * default; the controller advice puts both in the body.
+ */
+class CodedStatusException(
+    status: HttpStatus,
+    reason: String,
+    val code: ErrorCode,
+    val details: List<String> = emptyList(),
+) : ResponseStatusException(status, reason)
