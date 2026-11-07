@@ -13,7 +13,12 @@ import com.shifa.ai.clinicalengine.application.DentalChartKeyValidator
 import com.shifa.ai.clinicalengine.api.ClinicalChipSelectionDto
 import com.shifa.patients.api.PatientFormDto
 import com.shifa.patients.api.PatientFormFollowupDto
+import com.shifa.documents.application.FiledDocument
+import com.shifa.documents.application.PatientDocumentStorageService
+import com.shifa.documents.domain.PatientDocument
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
+import org.springframework.web.server.ResponseStatusException
 import org.springframework.transaction.annotation.Transactional
 import java.time.Instant
 
@@ -26,6 +31,7 @@ class PatientFormService(
     private val clinicalRagIndexingService: ClinicalRagIndexingService,
     private val smartPriorityService: ClinicalSmartPriorityService,
     private val dentalChartKeyValidator: DentalChartKeyValidator,
+    private val documentStorage: PatientDocumentStorageService,
 ) {
 
     @Transactional(readOnly = true)
@@ -253,6 +259,67 @@ class PatientFormService(
         return toDto(saved)
     }
 
+    /** A rendered 025-2: its file name and bytes. */
+    class FormPdf(val fileName: String, val bytes: ByteArray)
+
+    /**
+     * The form as the 025-2 PDF (BE-01), read-only. 404 for an unknown form; 400 when it belongs to another patient
+     * (as `GET …/forms/{formId}`) or is not a 025-2.
+     */
+    @Transactional(readOnly = true)
+    fun renderPdf(patientId: Long, formId: Long): FormPdf {
+        val form = formOfPatient(patientId, formId)
+        return FormPdf("025-2-${form.formNumber ?: form.id}.pdf", Form0252Pdf.pdf(form))
+    }
+
+    /**
+     * Renders the 025-2 and files it as the patient's FORM_025_2 document linked to the form, as the app did with
+     * upload + `link-document`: the form's linked document gets the new file (the old file is deleted), or a new
+     * doctor-private document is made and linked. Idempotent.
+     */
+    @Transactional
+    fun filePdfDocument(patientId: Long, formId: Long, doctor: DoctorProfile): FiledDocument {
+        val form = formOfPatient(patientId, formId)
+        val patient = requireNotNull(form.patient) { "Form must have a patient" }
+        val bytes = Form0252Pdf.pdf(form)
+        val saved = documentStorage.saveBytes(patientId, bytes, "form_025-2_${form.date}", "pdf")
+        val existing = form.document
+        val document = if (existing != null) {
+            val oldPath = existing.filePath
+            existing.filePath = saved.filePathRelative
+            existing.category = PatientDocumentCategory.FORM_025_2.code
+            existing.isSharedWithTeam = false
+            docs.save(existing).also {
+                if (oldPath.isNotBlank() && oldPath != saved.filePathRelative) deleteAfterCommit(oldPath)
+            }
+        } else {
+            docs.save(
+                PatientDocument(
+                    title = "Form 025-2 (${form.date})",
+                    date = form.date,
+                    filePath = saved.filePathRelative,
+                    patient = patient,
+                    uploadedByDoctor = doctor,
+                    category = PatientDocumentCategory.FORM_025_2.code,
+                    isSharedWithTeam = false,
+                ),
+            ).also {
+                form.document = it
+                forms.save(form)
+                form.id?.let { id -> clinicalRagIndexingService.reindexPatientForm(id) }
+            }
+        }
+        return documentStorage.filed(document)
+    }
+
+    private fun formOfPatient(patientId: Long, formId: Long): PatientForm {
+        val form = forms.findById(formId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Form not found: $formId") }
+        require(form.patient?.id == patientId) { "Form does not belong to patient $patientId" }
+        require(form.templateId == "025-2") { "Only form 025-2 has a PDF" }
+        return form
+    }
+
     @Transactional
     fun delete(formId: Long) {
         clinicalRagIndexingService.deleteChunksForPatientForm(formId)
@@ -345,5 +412,23 @@ class PatientFormService(
         val diseaseId = form.clinicalDiseaseId ?: return
         val doctorId = doctor.id ?: return
         smartPriorityService.recordUsage(doctorId, diseaseId)
+    }
+
+    /**
+     * The replaced PDF goes only once the new path is committed: a rollback keeps the document on its old file
+     * (deleting first would leave it pointing at nothing). Outside a transaction it goes at once.
+     */
+    private fun deleteAfterCommit(path: String) {
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            documentStorage.deleteFile(path)
+            return
+        }
+        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+            object : org.springframework.transaction.support.TransactionSynchronization {
+                override fun afterCommit() {
+                    documentStorage.deleteFile(path)
+                }
+            },
+        )
     }
 }

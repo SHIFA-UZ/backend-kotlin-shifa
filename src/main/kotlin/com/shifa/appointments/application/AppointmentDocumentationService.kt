@@ -64,7 +64,15 @@ class AppointmentDocumentationService(
     }
 
     @Transactional
-    fun generateForAppointment(appointmentId: Long): PatientDocument? {
+    fun generateForAppointment(appointmentId: Long): PatientDocument? = generateForAppointment(appointmentId, null)
+
+    /**
+     * Renders the summary and files it as the patient's APPOINTMENT_NOTE document (re-rendering replaces it); null
+     * when the visit has no notes yet. [language] (`en`, `uz`, `ru`) overrides the default: the doctor's profile
+     * language, then the patient's.
+     */
+    @Transactional
+    fun generateForAppointment(appointmentId: Long, language: String?): PatientDocument? {
         val appointment = appointmentRepository.findByIdWithDoctorAndPatient(appointmentId).orElse(null)
             ?: run {
                 log.warn("Cannot generate documentation: appointment {} not found", appointmentId)
@@ -75,10 +83,10 @@ class AppointmentDocumentationService(
             log.info("Skipping documentation PDF: no consultation notes for appointment {}", appointmentId)
             return null
         }
-        val language = doctorSettingsRepository.findByDoctorId(appointment.doctor.id)
+        val lang = language ?: doctorSettingsRepository.findByDoctorId(appointment.doctor.id)
             .map { it.language }
             .orElse(appointment.patient.language)
-        val body = AppointmentDocumentationComposer.compose(notes, language)
+        val body = AppointmentDocumentationComposer.compose(notes, lang)
         if (body.isBlank()) {
             log.info("Skipping documentation PDF: empty composed notes for appointment {}", appointmentId)
             return null
