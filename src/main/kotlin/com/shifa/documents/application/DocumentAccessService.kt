@@ -139,16 +139,8 @@ class DocumentAccessService(
             }
         }
         if (doctor != null) {
-            val token = doctor.fcmToken
-            if (token.isNullOrBlank()) {
-                log.warn(
-                    "DOC_ACCESS_REQUEST: owner doctor {} has no FCM token; in-app notification {} stored but no push sent",
-                    doctor.id,
-                    savedNotif.id
-                )
-            } else {
-                notificationService.sendDoctorNotificationAfterCommit(token, savedNotif)
-            }
+            // The legacy token and every device token; with none the in-app notification stays and no push goes.
+            notificationService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
         }
     }
 
@@ -205,7 +197,7 @@ class DocumentAccessService(
             documentTitle = docTitle
         )
         val savedNotif = notificationService.save(notifForRequester)
-        doctor.fcmToken?.let { notificationService.sendDoctorNotificationAfterCommit(it, savedNotif) }
+        notificationService.sendDoctorNotificationAfterCommit(doctor.fcmToken, savedNotif)
 
         return request
     }
@@ -248,7 +240,7 @@ class DocumentAccessService(
             documentTitle = docTitle
         )
         val savedNotif = notificationService.save(notifForRequester)
-        request.requestingDoctor.fcmToken?.let { notificationService.sendDoctorNotificationAfterCommit(it, savedNotif) }
+        notificationService.sendDoctorNotificationAfterCommit(request.requestingDoctor.fcmToken, savedNotif)
 
         return saved
     }

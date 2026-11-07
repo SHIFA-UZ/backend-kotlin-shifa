@@ -1,5 +1,7 @@
 package com.shifa.doctors.api.dto
 
+import com.shifa.doctors.domain.DoctorLocation
+
 data class LocationDto(
     val id: Long?,
     val label: String,
@@ -14,4 +16,20 @@ data class LocationDto(
     val locationPostalCode: String? = null,
     val locationStreetAddress: String? = null,
     val isPrimary: Boolean = false
+)
+
+fun DoctorLocation.toLocationDto(): LocationDto = LocationDto(
+    id = id,
+    label = label,
+    clinic = clinic,
+    address = address,
+    latitude = latitude,
+    longitude = longitude,
+    locationCountry = locationCountry,
+    locationRegion = locationRegion,
+    locationDistrict = locationDistrict,
+    locationCity = locationCity,
+    locationPostalCode = locationPostalCode,
+    locationStreetAddress = locationStreetAddress,
+    isPrimary = isPrimary,
 )

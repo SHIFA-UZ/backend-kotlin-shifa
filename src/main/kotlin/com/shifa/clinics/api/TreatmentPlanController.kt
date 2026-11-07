@@ -71,6 +71,7 @@ class TreatmentPlanController(
     private val patientDaySlots: PatientDaySlotsService,
     private val doctorServices: com.shifa.doctors.application.DoctorServices,
     private val doctorServicePrices: com.shifa.doctors.application.DoctorServicePrices,
+    private val doctorSettings: com.shifa.doctors.application.DoctorSettingsDoor,
 ) {
 
     data class AppointmentSummaryDto(
@@ -737,6 +738,103 @@ class TreatmentPlanController(
         clinicAccess.assertPatientVisible(principal, plan.patient.id!!)
         return toDetail(plan)
     }
+
+    /**
+     * The plan as a PDF (BE-01): the detail's data in the doctor app's layout. Same access as [getPlanDetail].
+     * [lang] (`en`, `uz`, `ru`) defaults to the profile language of the signed-in doctor (staff: the attending doctor).
+     */
+    @GetMapping("/{planId}/pdf")
+    @Transactional(readOnly = true)
+    fun getPlanPdf(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable planId: Long,
+        @RequestParam(required = false) lang: String?,
+    ): org.springframework.http.ResponseEntity<ByteArray> {
+        val language = com.shifa.shared.pdf.PdfLanguage.parse(lang)
+        val plan = plans.findById(planId).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found")
+        }
+        clinicAccess.assertPrincipalMayAccessClinic(principal, plan.clinic.id!!)
+        clinicAccess.assertPatientVisible(principal, plan.patient.id!!)
+        val doctorId = (principal as? com.shifa.shared.security.DoctorPrincipal)?.profile?.id ?: plan.attendingDoctor?.id
+        val labels = com.shifa.clinics.application.TreatmentPlanPdfLabels.of(
+            language ?: doctorId?.let { id -> doctorSettings.findByDoctorId(id).map { it.language }.orElse(null) },
+        )
+        val bytes = com.shifa.clinics.application.TreatmentPlanPdf.pdf(toPdfData(plan, toDetail(plan)), labels)
+        return org.springframework.http.ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+            .header(
+                org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                org.springframework.http.ContentDisposition.inline().filename("treatment-plan-${plan.id}.pdf").build().toString(),
+            )
+            .body(bytes)
+    }
+
+    /** The detail as the PDF's input; dates in the clinic's zone, as the app showed them. */
+    private fun toPdfData(plan: TreatmentPlan, detail: TreatmentPlanDetailDto): com.shifa.clinics.application.TreatmentPlanPdfData {
+        val zone = runCatching { java.time.ZoneId.of(plan.clinic.timeZone) }.getOrElse { java.time.ZoneId.of("Asia/Tashkent") }
+        val day = java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy")
+        val s = detail.summary
+        return com.shifa.clinics.application.TreatmentPlanPdfData(
+            summary = com.shifa.clinics.application.PlanPdfSummary(
+                id = s.id,
+                patientId = s.patientId,
+                patientName = s.patientName,
+                title = s.title,
+                diagnosis = s.diagnosis,
+                status = s.status,
+                notes = s.notes,
+                symptoms = s.symptoms,
+                totalMinor = s.totalMinor,
+                paidMinor = s.paidMinor,
+                owedMinor = s.owedMinor,
+                currency = s.currency,
+            ),
+            lines = detail.lines.map {
+                com.shifa.clinics.application.PlanPdfLine(
+                    id = it.id,
+                    title = it.title,
+                    quantity = it.quantity,
+                    unitPriceMinor = it.unitPriceMinor,
+                    discountMinor = it.discountMinor,
+                    currency = it.currency,
+                    sortOrder = it.sortOrder,
+                    status = it.status,
+                    lineTotalMinor = it.lineTotalMinor,
+                    tooth = toothOf(it.specialtyMetadata),
+                )
+            },
+            schedules = detail.installmentPlans.map { ip ->
+                com.shifa.clinics.application.PlanPdfSchedule(
+                    id = ip.installmentPlanId,
+                    status = ip.status,
+                    totalAmountMinor = ip.totalAmountMinor,
+                    currency = ip.currency,
+                    items = ip.scheduleRows.map {
+                        com.shifa.clinics.application.PlanPdfInstallment(it.sequenceNumber, it.amountMinor, it.currency, it.dueDate, it.status)
+                    },
+                )
+            },
+            clinic = plan.clinic.name.takeIf { it.isNotBlank() },
+            generatedAt = java.time.ZonedDateTime.now(zone).format(java.time.format.DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm")),
+            created = plan.createdAt.atZoneSameInstant(zone).format(day),
+            updated = plan.updatedAt.atZoneSameInstant(zone).format(day),
+            doctors = s.attendingDoctors.map { it.name }.filter { it.isNotBlank() }
+                .ifEmpty { listOfNotNull(s.attendingDoctorName) }
+                .joinToString(", ")
+                .ifEmpty { null },
+        )
+    }
+
+    /** The FDI tooth in a line's specialty metadata (`{"fdi":"16",...}`); null when none or unreadable. */
+    private fun toothOf(metadata: String?): String? =
+        metadata?.takeIf { it.isNotBlank() }?.let { raw ->
+            runCatching { objectMapper.readTree(raw).path("fdi") }.getOrNull()
+                ?.takeIf { it.isValueNode }
+                ?.asString()
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+        }
 
     /**
      * All appointments linked to [planId] via plan lines — upcoming, past, and

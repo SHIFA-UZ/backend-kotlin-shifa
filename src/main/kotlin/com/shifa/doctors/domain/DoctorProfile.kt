@@ -83,6 +83,10 @@ class DoctorProfile(
     @Column(name = "fcm_token", columnDefinition = "TEXT")
     var fcmToken: String? = null,
 
+    /** Last `GET /api/doctors/me/export` (once a day). */
+    @Column(name = "data_exported_at")
+    var dataExportedAt: java.time.Instant? = null,
+
     /** IANA timezone for practice (e.g. Europe/Berlin). Used for scheduling and "today"; storage remains UTC. */
     @Column(name = "time_zone", nullable = false, length = 64)
     var timeZone: String = "Asia/Tashkent",

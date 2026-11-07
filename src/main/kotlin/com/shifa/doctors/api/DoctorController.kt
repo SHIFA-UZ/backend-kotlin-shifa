@@ -8,6 +8,7 @@ import com.shifa.doctors.api.dto.ContactDto
 import com.shifa.doctors.api.dto.LanguageRequest
 import com.shifa.doctors.api.dto.ProfileDto
 import com.shifa.doctors.api.dto.SettingsDto
+import com.shifa.doctors.api.dto.toLocationDto
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.doctors.domain.DoctorSettings
 import com.shifa.doctors.domain.DoctorStartTab
@@ -16,10 +17,14 @@ import com.shifa.payments.application.DoctorBillingService
 import com.shifa.payments.domain.DoctorBilling
 import com.shifa.shared.security.DoctorPrincipal
 import java.text.Normalizer
+import java.time.Duration
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.Locale
 import org.springframework.dao.DataIntegrityViolationException
+import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
+import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.web.bind.annotation.*
@@ -42,6 +47,7 @@ class DoctorController(
     private val uploadGuard: com.shifa.shared.UploadGuard,
     private val storage: com.shifa.shared.storage.FileStorage,
     private val publicUrls: com.shifa.shared.PublicUrls,
+    private val locations: com.shifa.doctors.application.DoctorLocations,
 ) {
 
     // -------------------- helpers --------------------
@@ -110,9 +116,7 @@ class DoctorController(
             type = Notification.Type.GENERAL
         )
         val saved = notificationService.save(notif)
-        d.fcmToken?.let { token ->
-            notificationService.sendDoctorNotification(token, saved)
-        }
+        notificationService.sendDoctorNotification(d.fcmToken, saved)
     }
 
     // -------------------- GET all sections --------------------
@@ -184,6 +188,30 @@ class DoctorController(
                 "features" to subscriptionTierService.availableFeatures(d.user).map { it.name }
             )
         )
+    }
+
+    // -------------------- Data export --------------------
+
+    /**
+     * The doctor's own data as a JSON download: every section of `GET /api/doctors/me` plus the practice locations.
+     * Patients' records belong to the patients and the clinics, so they are not part of it. Once a day.
+     */
+    @GetMapping("/export")
+    @Transactional
+    fun exportData(@AuthenticationPrincipal principal: DoctorPrincipal): ResponseEntity<Map<String, Any?>> {
+        val d = currentDoctor(principal)
+        val now = Instant.now()
+        d.dataExportedAt?.takeIf { it.isAfter(now.minus(Duration.ofDays(1))) }?.let {
+            throw ResponseStatusException(HttpStatus.TOO_MANY_REQUESTS, "Your data can be exported once a day.")
+        }
+        val export = linkedMapOf<String, Any?>("exportedAt" to now.toString())
+        export.putAll(getAll(principal))
+        export["locations"] = locations.findByDoctorIdOrderByIsPrimaryDescIdAsc(d.id).map { it.toLocationDto() }
+        d.dataExportedAt = now
+        doctors.save(d)
+        return ResponseEntity.ok()
+            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"shifa-doctor-data.json\"")
+            .body(export)
     }
 
     // -------------------- FCM Token (push notifications) --------------------

@@ -63,6 +63,10 @@ class PatientDocumentStorageService(
         return signer.sign(publicUrls.absolute(filePathRelative)!!)
     }
 
+    /** A document the server generated and filed: its id and the same signed URL `PatientDocumentDto.url` carries. */
+    fun filed(document: com.shifa.documents.domain.PatientDocument): FiledDocument =
+        FiledDocument(requireNotNull(document.id) { "Document must be saved" }, publicUrlFor(document.filePath))
+
     /** Delete the stored file by relative path. Returns true if deleted or did not exist. */
     fun deleteFile(filePathRelative: String): Boolean {
         if (filePathRelative.isBlank()) return true
@@ -106,3 +110,10 @@ class PatientDocumentStorageService(
         return if (sanitized.isNotEmpty()) sanitized else "document-${System.currentTimeMillis()}"
     }
 }
+
+/** `{documentId, url}`: a PDF the server rendered and filed as a patient document (BE-01). */
+data class FiledDocument(
+    val documentId: Long,
+    /** Absolute signed URL, valid for one hour (as `PatientDocumentDto.url`). */
+    val url: String,
+)

@@ -2,6 +2,7 @@
 package com.shifa.doctors.api
 
 import com.shifa.doctors.api.dto.LocationDto
+import com.shifa.doctors.api.dto.toLocationDto
 import com.shifa.doctors.domain.DoctorLocation
 import com.shifa.shared.security.DoctorPrincipal
 import java.time.Instant
@@ -31,7 +32,7 @@ class DoctorLocationController(
     @Transactional(readOnly = true)
     fun list(@AuthenticationPrincipal principal: DoctorPrincipal): List<LocationDto> {
         val d = principal.profile
-        return locations.findByDoctorIdOrderByIsPrimaryDescIdAsc(d.id).map(::toDto)
+        return locations.findByDoctorIdOrderByIsPrimaryDescIdAsc(d.id).map { it.toLocationDto() }
     }
 
     @PostMapping
@@ -74,7 +75,7 @@ class DoctorLocationController(
                 isPrimary = shouldBePrimary
             )
         )
-        return toDto(saved)
+        return saved.toLocationDto()
     }
 
     @PatchMapping("/{id}")
@@ -115,7 +116,7 @@ class DoctorLocationController(
         }
 
         loc.updatedAt = OffsetDateTime.now()
-        return toDto(locations.save(loc))
+        return locations.save(loc).toLocationDto()
     }
 
     @DeleteMapping("/{id}")
@@ -170,20 +171,4 @@ class DoctorLocationController(
             }
         }
     }
-
-    private fun toDto(l: DoctorLocation): LocationDto = LocationDto(
-        id = l.id,
-        label = l.label,
-        clinic = l.clinic,
-        address = l.address,
-        latitude = l.latitude,
-        longitude = l.longitude,
-        locationCountry = l.locationCountry,
-        locationRegion = l.locationRegion,
-        locationDistrict = l.locationDistrict,
-        locationCity = l.locationCity,
-        locationPostalCode = l.locationPostalCode,
-        locationStreetAddress = l.locationStreetAddress,
-        isPrimary = l.isPrimary
-    )
 }

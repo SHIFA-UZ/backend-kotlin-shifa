@@ -328,6 +328,7 @@ class CarePartnershipService(
             title = title,
             message = message,
             type = type,
+            carePartnershipId = extraData["partnershipId"]?.toLongOrNull(),
         )
         val saved = notificationService.save(notif)
         notificationService.sendDoctorNotificationAfterCommit(doctor.fcmToken, saved, extraData)

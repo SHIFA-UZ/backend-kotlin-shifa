@@ -23,6 +23,7 @@ class FcmService(
     private val appointments: com.shifa.appointments.application.Appointments,
     private val doctorSettings: com.shifa.doctors.application.DoctorSettingsDoor,
     private val tokenCleanup: FcmTokenCleanupService,
+    private val doctorPushTokens: DoctorPushTokenRepository,
 ) {
 
     private val log = LoggerFactory.getLogger(FcmService::class.java)
@@ -175,53 +176,71 @@ class FcmService(
         notification: Notification,
         extraData: Map<String, String> = emptyMap()
     ): Boolean {
-        if (fcmToken.isNullOrBlank()) {
-            log.info(
-                "FCM skip: no token for doctor (doctorId={}, notificationId={})",
-                notification.doctor?.id,
-                notification.id
-            )
+        // The legacy single token (Flutter build) and every device token (POST /doctors/me/fcm-tokens), once each.
+        val doctorId = notification.doctor?.id
+        val tokens = (listOfNotNull(fcmToken?.trim()?.takeIf { it.isNotEmpty() }) + deviceTokens(doctorId)).distinct()
+        if (tokens.isEmpty()) {
+            log.info("FCM skip: no token for doctor (doctorId={}, notificationId={})", doctorId, notification.id)
             return false
         }
         log.info(
-            "Sending FCM to doctor (doctorId={}, notificationId={}, type={}, tokenPrefix={})",
-            notification.doctor?.id,
+            "Sending FCM to doctor (doctorId={}, notificationId={}, type={}, devices={})",
+            doctorId,
             notification.id,
             notification.type,
-            fcmToken.take(10)
+            tokens.size,
         )
+        val appointment = notification.appointmentId?.let { appointments.findById(it).orElse(null) }
         val data = mutableMapOf<String, String>(
             "id" to notification.id.toString(),
+            "notificationId" to notification.id.toString(),
             "title" to notification.title,
             "message" to notification.message,
             "type" to notification.type.name,
             "createdAt" to notification.createdAt.toString(),
         )
         notification.appointmentId?.let { data["appointmentId"] = it.toString() }
-        notification.appointmentId?.let { apptId ->
-            appointments.findById(apptId).orElse(null)?.startAt?.let { startAt ->
-                data["appointmentStartAt"] = startAt.toString()
-            }
-        }
+        appointment?.startAt?.let { data["appointmentStartAt"] = it.toString() }
         notification.documentAccessRequestId?.let { data["documentAccessRequestId"] = it.toString() }
         notification.taskId?.let { data["taskId"] = it.toString() }
         notification.documentId?.let { data["documentId"] = it.toString() }
         notification.documentPatientId?.let { data["patientId"] = it.toString() }
         notification.documentTitle?.let { data["documentTitle"] = it }
+        notification.treatmentPlanId?.let { data["treatmentPlanId"] = it.toString() }
+        notification.patientFormId?.let { data["patientFormId"] = it.toString() }
+        notification.installmentItemId?.let { data["installmentItemId"] = it.toString() }
+        notification.conversationId?.let { data["conversationId"] = it.toString() }
+        notification.carePartnershipId?.let { data["carePartnershipId"] = it.toString() }
         data.putAll(extraData)
+        // The same names the inbox (NotificationDto) uses, also where callers only sent their older keys.
+        extraData["partnershipId"]?.let { data.putIfAbsent("carePartnershipId", it) }
+        appointment?.patient?.id?.let { data.putIfAbsent("patientId", it.toString()) }
         val patientName = resolveDoctorPatientName(notification, data)
         if (patientName.isNotBlank()) {
             data.putIfAbsent("patientName", patientName)
         }
-        val lang = doctorUiLanguage(notification.doctor?.id)
+        val lang = doctorUiLanguage(doctorId)
         val tray = DoctorPushI18n.trayText(notification, lang, patientName)
-        return sendToToken(
-            token = fcmToken,
-            title = tray.title,
-            body = tray.body,
-            data = data,
-            androidChannelId = DOCTOR_ANDROID_CHANNEL_ID
-        )
+        // Every device gets it; delivered when at least one accepted it.
+        return tokens.map { token ->
+            sendToToken(
+                token = token,
+                title = tray.title,
+                body = tray.body,
+                data = data,
+                androidChannelId = DOCTOR_ANDROID_CHANNEL_ID
+            )
+        }.any { it }
+    }
+
+    private fun deviceTokens(doctorId: Long?): List<String> {
+        if (doctorId == null || doctorId == 0L) return emptyList()
+        return try {
+            doctorPushTokens.findByDoctorProfileId(doctorId).map { it.token }
+        } catch (e: Exception) {
+            log.warn("Doctor device tokens lookup failed (doctorId={}): {}", doctorId, e.message)
+            emptyList()
+        }
     }
 
     private fun doctorUiLanguage(doctorId: Long?): String {

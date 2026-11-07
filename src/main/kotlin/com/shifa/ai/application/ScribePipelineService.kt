@@ -302,7 +302,7 @@ class ScribePipelineService(
                 return
             }
             val doctor = doctorProfileRepository.findById(doctorId).orElse(null) ?: return
-            val token = doctor.fcmToken ?: return
+            val token = doctor.fcmToken
             val notif = Notification(
                 patient = null,
                 doctor = doctor,

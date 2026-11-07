@@ -15,18 +15,21 @@ import org.springframework.web.bind.annotation.RestController
 class ConfigController(
     @Value("\${googleMaps.apiKey:}")
     private val googleMapsApiKey: String,
-    private val appProperties: AppProperties
+    private val appProperties: AppProperties,
+    private val contributors: List<PublicConfigContributor>,
 ) {
-    
+
     /**
      * GET /api/public/config
-     * Returns public configuration for frontend
+     * The two original string keys exactly as before, then each feature's blocks (e.g. `doctorApp`).
      */
     @GetMapping
-    fun getConfig(): Map<String, String> {
-        return mapOf(
+    fun getConfig(): Map<String, Any?> {
+        val config = linkedMapOf<String, Any?>(
             "googleMapsApiKey" to googleMapsApiKey,
-            "transcriptionFeedbackEnabled" to if (appProperties.transcriptionFeedbackEnabled) "true" else "false"
+            "transcriptionFeedbackEnabled" to if (appProperties.transcriptionFeedbackEnabled) "true" else "false",
         )
+        contributors.forEach { config.putAll(it.publicConfig()) }
+        return config
     }
 }

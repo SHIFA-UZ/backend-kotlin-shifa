@@ -2546,6 +2546,18 @@
         ],
         "type": "object"
       },
+      "ConfirmDoctorDeleteAccountRequest": {
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "type": "object"
+      },
       "ConnectionStatesDto": {
         "properties": {
           "active": {
@@ -4038,6 +4050,22 @@
         ],
         "type": "object"
       },
+      "DoctorDeleteAccountRequestResponse": {
+        "properties": {
+          "expiresInSeconds": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "maskedEmail": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "expiresInSeconds",
+          "maskedEmail"
+        ],
+        "type": "object"
+      },
       "DoctorDto": {
         "properties": {
           "address": {
@@ -4372,6 +4400,26 @@
           "page",
           "pageSize",
           "totalCount"
+        ],
+        "type": "object"
+      },
+      "DoctorPushTokenRequest": {
+        "properties": {
+          "platform": {
+            "pattern": "android|ios|web",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "token": {
+            "maxLength": 512,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
         ],
         "type": "object"
       },
@@ -4795,6 +4843,22 @@
             ]
           }
         },
+        "type": "object"
+      },
+      "FiledDocument": {
+        "properties": {
+          "documentId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "documentId",
+          "url"
+        ],
         "type": "object"
       },
       "FinanceDashboardDto": {
@@ -6325,6 +6389,20 @@
           "appointmentStartAt": {
             "type": [
               "string",
+              "null"
+            ]
+          },
+          "carePartnershipId": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
+          "conversationId": {
+            "format": "int64",
+            "type": [
+              "integer",
               "null"
             ]
           },
@@ -9226,10 +9304,22 @@
       },
       "RegisterClinicStaffRequest": {
         "properties": {
+          "currentPassword": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "email": {
             "format": "email",
             "minLength": 1,
             "type": "string"
+          },
+          "emailOtp": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "firstName": {
             "minLength": 1,
@@ -9341,10 +9431,22 @@
       },
       "RegisterRequest": {
         "properties": {
+          "currentPassword": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "email": {
             "format": "email",
             "minLength": 1,
             "type": "string"
+          },
+          "emailOtp": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "firstName": {
             "minLength": 1,
@@ -14305,6 +14407,45 @@
         ]
       }
     },
+    "/api/appointments/{appointmentId}/summary-document": {
+      "post": {
+        "operationId": "summaryDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointmentId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiledDocument"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "appointment-summary-document-controller"
+        ]
+      }
+    },
     "/api/auth/admin/request-login-otp": {
       "post": {
         "operationId": "adminRequestLoginOtp",
@@ -17296,6 +17437,78 @@
         ]
       }
     },
+    "/api/doctors/me/delete-account/confirm": {
+      "post": {
+        "operationId": "confirm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmDoctorDeleteAccountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "doctor-account-deletion-controller"
+        ]
+      }
+    },
+    "/api/doctors/me/delete-account/request": {
+      "post": {
+        "operationId": "request",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoctorDeleteAccountRequestResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "doctor-account-deletion-controller"
+        ]
+      }
+    },
+    "/api/doctors/me/export": {
+      "get": {
+        "operationId": "exportData",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "additionalProperties": {},
+                  "type": "object"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "doctor-controller"
+        ]
+      }
+    },
     "/api/doctors/me/fcm-token": {
       "put": {
         "operationId": "updateFcmToken_1",
@@ -17316,6 +17529,52 @@
         },
         "tags": [
           "doctor-controller"
+        ]
+      }
+    },
+    "/api/doctors/me/fcm-tokens": {
+      "post": {
+        "operationId": "add",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DoctorPushTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "doctor-push-token-controller"
+        ]
+      }
+    },
+    "/api/doctors/me/fcm-tokens/{token}": {
+      "delete": {
+        "operationId": "remove",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "doctor-push-token-controller"
         ]
       }
     },
@@ -20659,6 +20918,87 @@
         ]
       }
     },
+    "/api/patients/{patientId}/forms/{formId}/pdf": {
+      "get": {
+        "operationId": "formPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patientId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "patient-form-pdf-controller"
+        ]
+      }
+    },
+    "/api/patients/{patientId}/forms/{formId}/pdf-document": {
+      "post": {
+        "operationId": "formPdfDocument",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patientId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/FiledDocument"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "patient-form-pdf-controller"
+        ]
+      }
+    },
     "/api/patients/{patientId}/forms/{formId}/request-signature": {
       "put": {
         "operationId": "requestPatientSignature",
@@ -21078,9 +21418,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "additionalProperties": {
-                    "type": "string"
-                  },
+                  "additionalProperties": {},
                   "type": "object"
                 }
               }
@@ -23174,6 +23512,46 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/TreatmentPlanSummaryDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "treatment-plan-controller"
+        ]
+      }
+    },
+    "/api/treatment-plans/{planId}/pdf": {
+      "get": {
+        "operationId": "getPlanPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "planId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
                 }
               }
             },

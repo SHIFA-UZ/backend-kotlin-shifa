@@ -1,5 +1,6 @@
 package com.shifa.shared.api
 
+import com.shifa.shared.CodedStatusException
 import com.shifa.shared.ErrorBodies.body
 import com.shifa.shared.ErrorCode
 import org.apache.catalina.connector.ClientAbortException
@@ -66,8 +67,11 @@ class ErrorHandler(
 
     @ExceptionHandler(ResponseStatusException::class)
     fun handleResponseStatusException(e: ResponseStatusException): ResponseEntity<Map<String, Any>> {
+        val coded = e as? CodedStatusException
+        val code = coded?.code ?: ErrorCode.forStatus(e.statusCode.value())
+        val extra = coded?.details?.takeIf { it.isNotEmpty() }?.let { mapOf("details" to it) } ?: emptyMap()
         return ResponseEntity.status(e.statusCode)
-            .body(body(e.statusCode.value(), e.reason ?: "An error occurred", ErrorCode.forStatus(e.statusCode.value())))
+            .body(body(e.statusCode.value(), e.reason ?: "An error occurred", code, extra))
     }
 
     /** Return 400 for IllegalArgumentException (e.g. schedule validation: past dates, too many slots). */
