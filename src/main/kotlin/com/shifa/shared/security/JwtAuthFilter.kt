@@ -31,20 +31,7 @@ class JwtAuthFilter(
     override fun shouldNotFilter(request: HttpServletRequest): Boolean {
         // Skip public auth endpoints
         val path = request.servletPath
-        if (path == "/api/auth/login" || 
-            path == "/api/auth/register" || 
-            path == "/api/auth/register-clinic-staff" ||
-            path == "/api/auth/register-patient" || 
-            path == "/api/auth/verify-key" ||
-            path == "/api/auth/check-existing-patient" ||
-            path == "/api/auth/check-existing-doctor" ||
-            path == "/api/auth/check-identifier" ||
-            path == "/api/auth/create-patient-for-doctor" ||
-            path == "/api/auth/send-email-otp" ||
-            path == "/api/auth/admin/request-login-otp" ||
-            path == "/api/auth/admin/verify-login-otp") {
-            return true
-        }
+        if (path in PUBLIC_AUTH_PATHS) return true
 
         // 🔴 IMPORTANT: skip CORS preflight
         if (request.method.equals("OPTIONS", ignoreCase = true)) return true
@@ -150,5 +137,25 @@ class JwtAuthFilter(
         // Removed debug logs for missing headers - too verbose and causes memory issues
 
         filterChain.doFilter(request, response)
+    }
+
+    private companion object {
+        /** Public auth routes: never filtered, so a stale or revoked token can't block signing in again. */
+        val PUBLIC_AUTH_PATHS = setOf(
+            "/api/auth/login",
+            "/api/auth/register",
+            "/api/auth/register-clinic-staff",
+            "/api/auth/register-patient",
+            "/api/auth/verify-key",
+            "/api/auth/check-existing-patient",
+            "/api/auth/check-existing-doctor",
+            "/api/auth/check-identifier",
+            "/api/auth/create-patient-for-doctor",
+            "/api/auth/send-email-otp",
+            "/api/auth/send-login-sms-otp",
+            "/api/auth/verify-login-sms-otp",
+            "/api/auth/admin/request-login-otp",
+            "/api/auth/admin/verify-login-otp",
+        )
     }
 }

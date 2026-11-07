@@ -2,6 +2,7 @@
 package com.shifa.appointments.api
 
 import com.shifa.appointments.api.dto.VideoTokenRequest
+import com.shifa.appointments.api.dto.VideoPresenceResponse
 import com.shifa.appointments.api.dto.VideoTokenResponse
 import com.shifa.appointments.infrastructure.DailyVideoService
 import com.shifa.auth.domain.SubscriptionFeature
@@ -22,6 +23,7 @@ class VideoController(
     private val appointmentRepository: com.shifa.appointments.application.Appointments,
     private val subscriptionTierService: SubscriptionTierService,
     private val currentPatient: com.shifa.patients.application.CurrentPatientResolver,
+    private val videoPresence: com.shifa.appointments.application.VideoPresenceService,
 ) {
     private val logger = org.slf4j.LoggerFactory.getLogger(javaClass)
     
@@ -143,7 +145,7 @@ class VideoController(
             }
 
             // Generate room name if not provided
-            val roomName = request.roomName ?: "appointment-${request.appointmentId}"
+            val roomName = request.roomName ?: com.shifa.appointments.application.VideoPresenceService.roomNameFor(request.appointmentId)
             logger.debug("Using room name: $roomName")
 
             // Get or create room
@@ -257,6 +259,21 @@ class VideoController(
             else -> Unit
         }
     }
+
+    /**
+     * Whether the appointment's patient is in its video room right now, for the doctor's pre-join page (Daily presence;
+     * the patient's token names them `patient-{id}`). Only the visit's own doctor. 503 when Daily can't be asked, so the
+     * app shows nothing rather than a wrong "not here yet".
+     */
+    @GetMapping("/appointments/{appointmentId}/presence")
+    fun presence(
+        @AuthenticationPrincipal principal: Any?,
+        @PathVariable appointmentId: Long,
+    ): VideoPresenceResponse {
+        val patient = videoPresence.patientInRoom(principal, appointmentId)
+        return VideoPresenceResponse(patientInRoom = patient != null, patientJoinedAt = patient?.joinTime)
+    }
+
 
     /**
      * Get room info (optional endpoint)

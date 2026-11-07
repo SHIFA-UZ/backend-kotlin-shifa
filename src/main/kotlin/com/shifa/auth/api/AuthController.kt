@@ -20,6 +20,8 @@ import com.shifa.auth.api.dto.SendEmailOtpResponse
 import com.shifa.auth.api.dto.SendForgotPasswordOtpRequest
 import com.shifa.auth.api.dto.SendForgotPasswordOtpResponse
 import com.shifa.auth.api.dto.SendLoginOtpRequest
+import com.shifa.auth.api.dto.SendLoginSmsOtpRequest
+import com.shifa.auth.api.dto.VerifyLoginSmsOtpRequest
 import com.shifa.auth.api.dto.SendOtpChannelResponse
 import com.shifa.auth.api.dto.SendSmsOtpRequest
 import com.shifa.auth.api.dto.VerifyEmailOtpRequest
@@ -302,6 +304,11 @@ class AuthController(
         }
         user.emailVerified = true
         users.save(user)
+        return doctorCodeSignIn(user)
+    }
+
+    /** A DOCTOR token for a code sign-in (e-mail or SMS): a new session, the last-login time. */
+    private fun doctorCodeSignIn(user: User): TokenResponse {
         val principal = user.email ?: user.phone!!
         val tokenResult = jwt.generate(user.id, principal, Role.DOCTOR.name)
         userSessions.save(
@@ -313,6 +320,66 @@ class AuthController(
         )
         userManagementService.updateLastLogin(user.id)
         return TokenResponse(token = tokenResult.token, forcePasswordReset = user.forcePasswordReset)
+    }
+
+    // ---------- Doctor SMS code sign-in (the e-mail code sign-in, by phone) ----------
+
+    /**
+     * Doctor app: send a sign-in code by SMS to the doctor's registered Uzbek mobile number. When the SMS can't go
+     * out (provider failure, hourly cap) and the account has an e-mail, the code goes there instead
+     * (`channel = "email"`, `emailHint`); `verify-login-sms-otp` accepts either.
+     */
+    @PostMapping("/send-login-sms-otp")
+    fun sendLoginSmsOtp(@RequestBody @Valid req: SendLoginSmsOtpRequest): SendOtpChannelResponse {
+        val (phone, user) = doctorForSmsSignIn(req.phone)
+        val result = smsOtpService.sendCode(phone, com.shifa.auth.domain.SmsVerificationCode.PURPOSE_LOGIN)
+        if (result is com.shifa.auth.application.SmsOtpSendResult.Failure) {
+            val email = user.email?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+            if (email == null || !shouldFallbackSmsToEmail(result.reason)) throwSmsOtpFailure(result)
+            return sendEmailOtpChannelOrThrow(email, com.shifa.auth.domain.EmailVerificationCode.PURPOSE_LOGIN, smsFallback = true)
+                .copy(emailHint = maskEmailHint(email))
+        }
+        return SendOtpChannelResponse(channel = "sms")
+    }
+
+    /** Doctor app: the SMS sign-in code (or the e-mail one it fell back to) → a DOCTOR token. */
+    @PostMapping("/verify-login-sms-otp")
+    fun verifyLoginSmsOtp(@RequestBody @Valid req: VerifyLoginSmsOtpRequest): TokenResponse {
+        val (phone, user) = doctorForSmsSignIn(req.phone)
+        val code = req.code.trim()
+        val email = user.email?.trim()?.lowercase()?.takeIf { it.isNotBlank() }
+        val valid = smsOtpService.verify(phone, code, com.shifa.auth.domain.SmsVerificationCode.PURPOSE_LOGIN) ||
+            (email != null && emailOtpService.verify(email, code, com.shifa.auth.domain.EmailVerificationCode.PURPOSE_LOGIN))
+        if (!valid) throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid or expired verification code")
+        return doctorCodeSignIn(user)
+    }
+
+    /** The checks of `send-login-otp`, by phone: an Uzbek mobile of an enabled, unlocked DOCTOR account. */
+    private fun doctorForSmsSignIn(rawPhone: String): Pair<String, User> {
+        val phone = smsSignInPhone(rawPhone)
+        val user = users.findByPhone(phone).orElse(null)
+            ?: users.findByPhone(rawPhone.trim()).orElse(null)
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found with this phone number")
+        val refusal = when {
+            !user.enabled -> "Account is disabled"
+            user.isLocked() -> "Account is locked"
+            !userRoles.existsByUserIdAndRole(user.id, Role.DOCTOR) -> "Access restricted to doctors"
+            else -> null
+        }
+        if (refusal != null) throw ResponseStatusException(HttpStatus.FORBIDDEN, refusal)
+        return phone to user
+    }
+
+    private fun smsSignInPhone(rawPhone: String): String {
+        val phone = PhoneNormalizer.normalize(rawPhone.trim())
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid phone number")
+        if (!PhoneNormalizer.isUzbekMobile(phone)) {
+            throw ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "SMS sign-in is only available for Uzbek phone numbers. Please use email."
+            )
+        }
+        return phone
     }
 
     // ---------- Send forgot-password OTP ----------

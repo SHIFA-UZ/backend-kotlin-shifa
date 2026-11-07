@@ -40,6 +40,7 @@ class SmsOtpService(
             SmsVerificationCode.PURPOSE_REGISTRATION -> SmsOtpFormatting.registrationOtpBody(code)
             SmsVerificationCode.PURPOSE_FORGOT_PASSWORD -> SmsOtpFormatting.forgotPasswordOtpBody(code)
             SmsVerificationCode.PURPOSE_ACCOUNT_DELETION -> SmsOtpFormatting.accountDeletionOtpBody(code)
+            SmsVerificationCode.PURPOSE_LOGIN -> SmsOtpFormatting.loginOtpBody(code)
             else -> SmsOtpFormatting.registrationOtpBody(code)
         }
         val result = notificationService.sendSms(normalized, message)
