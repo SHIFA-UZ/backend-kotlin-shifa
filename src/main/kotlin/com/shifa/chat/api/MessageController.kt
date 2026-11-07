@@ -29,20 +29,28 @@ class MessageController(
 
     @GetMapping("/conversations")
     fun listConversations(
-        @AuthenticationPrincipal principal: Any
+        @AuthenticationPrincipal principal: Any,
+        /** ISO-8601 instant: only conversations whose last message is after it. */
+        @RequestParam(required = false) since: java.time.Instant? = null,
     ): ResponseEntity<List<ConversationDto>> {
-        val conversations = messageService.listConversations(resolveActorUserId(principal))
+        val conversations = messageService.listConversations(resolveActorUserId(principal), since)
         return ResponseEntity.ok(conversations)
     }
 
     @GetMapping("/conversations/{conversationId}")
     fun getConversation(
         @PathVariable conversationId: Long,
-        @AuthenticationPrincipal principal: Any
+        @AuthenticationPrincipal principal: Any,
+        /** Message id: only newer messages, oldest first. */
+        @RequestParam(required = false) after: Long? = null,
+        /** With [after]: at most this many (default 100, at most 200). */
+        @RequestParam(required = false) limit: Int? = null,
     ): ResponseEntity<ConversationWithMessagesDto> {
         val result = messageService.getConversationWithMessages(
             conversationId,
             resolveActorUserId(principal),
+            after,
+            limit,
         )
         return ResponseEntity.ok(result)
     }

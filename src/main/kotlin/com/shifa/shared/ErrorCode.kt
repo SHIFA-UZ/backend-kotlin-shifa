@@ -22,7 +22,17 @@ enum class ErrorCode {
     EMAIL_OTP_INVALID,
     EMAIL_OTP_EXPIRED,
     /** Account deletion: resolve the listed obligations first (`details`). */
-    HAS_ACTIVE_OBLIGATIONS;
+    HAS_ACTIVE_OBLIGATIONS,
+    /** No-show: only for a confirmed or started visit, from its start until 24 h after its end. */
+    NO_SHOW_NOT_ALLOWED,
+    /** The doctor has no early-partner contract. */
+    NO_CONTRACT,
+    /** Video token: the join window has not opened yet (`joinWindow` in the body). */
+    VIDEO_TOO_EARLY,
+    /** Video token: the join window has closed (`joinWindow` in the body). */
+    VIDEO_TOO_LATE,
+    /** Video token: the visit is paid and the payment is not confirmed yet. */
+    VIDEO_PAYMENT_REQUIRED;
 
     companion object {
         fun forStatus(status: Int): ErrorCode = when (status) {
@@ -65,11 +75,13 @@ object ErrorBodies {
 
 /**
  * A [ResponseStatusException] that names its own [code] (and optional [details]) instead of the status's
- * default; the controller advice puts both in the body.
+ * default; the controller advice puts both in the body. [extra] adds structured keys to the body (e.g. `joinWindow`);
+ * it never replaces a standard key.
  */
 class CodedStatusException(
     status: HttpStatus,
     reason: String,
     val code: ErrorCode,
     val details: List<String> = emptyList(),
+    val extra: Map<String, Any> = emptyMap(),
 ) : ResponseStatusException(status, reason)

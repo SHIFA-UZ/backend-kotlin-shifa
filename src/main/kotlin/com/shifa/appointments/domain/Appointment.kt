@@ -103,15 +103,37 @@ class Appointment(
 
     /** Set when DevSMS 24h reminder was sent; cleared on reschedule. */
     @Column(name = "sms_reminder_sent_at")
-    var smsReminderSentAt: Instant? = null
+    var smsReminderSentAt: Instant? = null,
+
+    /** Why the doctor's side cancelled (`POST /appointments/{id}/cancel`); null for other cancellations and old rows. */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "cancel_reason_code", length = 32)
+    var cancelReasonCode: CancelReason? = null,
+
+    /** The doctor's note to the patient with [cancelReasonCode]. */
+    @Column(name = "cancel_note", columnDefinition = "TEXT")
+    var cancelNote: String? = null,
 ) {
     enum class Status {
         REQUESTED, CONFIRMED, IN_PROGRESS, CANCELLED, COMPLETED, NO_SHOW,
         PENDING_PAYMENT, EXPIRED, PAYMENT_FAILED,
     }
     enum class PaymentStatus { NOT_REQUIRED, PENDING, PAID, FAILED, REFUNDED, PAY_IN_CLINIC }
+    enum class CancelReason { DOCTOR_UNAVAILABLE, PATIENT_REQUEST, RESCHEDULED, OTHER }
+
+    /** A confirmed or started visit can be marked NO_SHOW from its start until [NO_SHOW_GRACE] after its end. */
+    fun canMarkNoShow(now: Instant): Boolean =
+        status in NO_SHOW_STATUSES && !now.isBefore(startAt) && !now.isAfter(endAt.plus(NO_SHOW_GRACE))
+
+    /** When the video room can be joined; null for a visit in person. */
+    fun videoJoinWindow(): VideoJoinWindow? = if (isVideoConsultation) VideoJoinWindow.of(startAt, endAt) else null
 
     /** Slot is free for someone else. */
     fun releasesSlot(): Boolean =
         status == Status.CANCELLED || status == Status.EXPIRED || status == Status.PAYMENT_FAILED
+
+    companion object {
+        val NO_SHOW_GRACE: java.time.Duration = java.time.Duration.ofHours(24)
+        private val NO_SHOW_STATUSES = setOf(Status.CONFIRMED, Status.IN_PROGRESS)
+    }
 }

@@ -128,6 +128,11 @@ class PatientController(
         val alreadySigned: Boolean = false,
         val documentIds: List<Long> = emptyList(),
         val notes: String? = null,
+        /** Set when the doctor's side cancelled with a reason: DOCTOR_UNAVAILABLE, PATIENT_REQUEST, RESCHEDULED, OTHER. */
+        val cancelReasonCode: String? = null,
+        val cancelNote: String? = null,
+        /** When the video room can be joined; null for a visit in person. */
+        val joinWindow: com.shifa.appointments.api.dto.JoinWindowDto? = null,
     )
 
     // -------------------- FCM Token (push notifications) --------------------
@@ -652,6 +657,9 @@ class PatientController(
             alreadySigned = appt.patientSignatureImage != null,
             documentIds = documentIds,
             notes = appt.reason,
+            cancelReasonCode = appt.cancelReasonCode?.name,
+            cancelNote = appt.cancelNote,
+            joinWindow = com.shifa.appointments.api.dto.JoinWindowDto.of(appt.videoJoinWindow()),
         )
     }
 

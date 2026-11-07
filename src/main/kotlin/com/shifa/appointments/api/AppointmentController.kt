@@ -6,12 +6,15 @@ import tools.jackson.databind.ObjectMapper
 import com.shifa.ai.application.ClinicalRagIndexingService
 import com.shifa.ai.application.ScribePipelineService
 import com.shifa.ai.domain.AiDraftNote
+import com.shifa.appointments.api.dto.CancelAppointmentRequest
 import com.shifa.appointments.api.dto.ChangeSlotReq
 import com.shifa.appointments.api.dto.CompleteAppointmentRequest
 import com.shifa.appointments.api.dto.CompleteAppointmentResponse
 import com.shifa.appointments.api.dto.ConsultationNoteDto
 import com.shifa.appointments.api.dto.DraftNoteDto
 import com.shifa.appointments.api.dto.IcdSuggestionDto
+import com.shifa.appointments.api.dto.JoinWindowDto
+import com.shifa.appointments.api.dto.NoShowRequest
 import com.shifa.appointments.api.dto.PutConsultationNotesRequest
 import com.shifa.appointments.api.dto.ScribeStatusResponse
 import com.shifa.appointments.application.AppointmentCancellationService
@@ -85,6 +88,12 @@ class AppointmentController(
         val alreadySigned: Boolean = false,
         val documentIds: List<Long> = emptyList(),
         val notes: String? = null,
+        val isVideoConsultation: Boolean = false,
+        /** Set when the doctor's side cancelled with a reason (`POST /{id}/cancel`). */
+        val cancelReasonCode: String? = null,
+        val cancelNote: String? = null,
+        /** When the video room can be joined; null for a visit in person. */
+        val joinWindow: JoinWindowDto? = null,
     )
 
     @GetMapping("/{appointmentId}")
@@ -98,6 +107,11 @@ class AppointmentController(
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
             }
         clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
+        return toDto(appointment)
+    }
+
+    private fun toDto(appointment: Appointment): AppointmentDto {
+        val appointmentId = appointment.id
         val planRow = planLinks.findPlanIdAndTitleByAppointmentId(appointmentId).firstOrNull()
         val fulfilled = lineFulfillments.findLineIdsByAppointmentId(appointmentId)
         val briefingStatus = appointmentBriefingService.summaryStatus(appointmentId)
@@ -128,6 +142,10 @@ class AppointmentController(
             alreadySigned = appointment.patientSignatureImage != null,
             documentIds = patientDocumentService.documentIdsByAppointment(listOf(appointmentId))[appointmentId] ?: emptyList(),
             notes = appointment.reason,
+            isVideoConsultation = appointment.isVideoConsultation,
+            cancelReasonCode = appointment.cancelReasonCode?.name,
+            cancelNote = appointment.cancelNote,
+            joinWindow = JoinWindowDto.of(appointment.videoJoinWindow()),
         )
     }
 
@@ -374,6 +392,20 @@ class AppointmentController(
         @AuthenticationPrincipal principal: Any,
         @PathVariable appointmentId: Long
     ) {
+        cancelAppointment(principal, appointmentId, null, null)
+    }
+
+    /** The DELETE above with a reason (and an optional note) that is stored and told to the patient. */
+    @PostMapping("/{appointmentId}/cancel")
+    fun cancelWithReason(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable appointmentId: Long,
+        @RequestBody @jakarta.validation.Valid body: CancelAppointmentRequest,
+    ) {
+        cancelAppointment(principal, appointmentId, body.reasonCode?.let(Appointment.CancelReason::valueOf), body.note)
+    }
+
+    private fun cancelAppointment(principal: Any, appointmentId: Long, reason: Appointment.CancelReason?, note: String?) {
         val appointment = appts.findById(appointmentId)
             .orElseThrow {
                 ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId")
@@ -386,9 +418,26 @@ class AppointmentController(
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot cancel a past appointment")
         }
 
-        if (!appointmentCancellationService.cancelByDoctorManual(appointment)) {
+        if (!appointmentCancellationService.cancelByDoctorManual(appointment, reason, note)) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Appointment cannot be cancelled")
         }
+    }
+
+    /**
+     * The patient did not come (confirmed or started visit, from its start until 24 h after its end; else 409
+     * `NO_SHOW_NOT_ALLOWED`). The patient is told unless the body says `"notify": false`.
+     */
+    @PostMapping("/{appointmentId}/no-show")
+    @org.springframework.transaction.annotation.Transactional
+    fun markNoShow(
+        @AuthenticationPrincipal principal: Any,
+        @PathVariable appointmentId: Long,
+        @RequestBody(required = false) body: NoShowRequest?,
+    ): AppointmentDto {
+        val appointment = appts.findById(appointmentId)
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Appointment not found: $appointmentId") }
+        clinicAccess.assertCanAccessAppointmentResource(principal, appointment.doctor.id)
+        return toDto(appointmentCancellationService.markNoShow(appointment, notify = body?.notify != false))
     }
 
     @GetMapping("/{appointmentId}/scribe-status")

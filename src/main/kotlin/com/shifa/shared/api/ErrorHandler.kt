@@ -69,7 +69,10 @@ class ErrorHandler(
     fun handleResponseStatusException(e: ResponseStatusException): ResponseEntity<Map<String, Any>> {
         val coded = e as? CodedStatusException
         val code = coded?.code ?: ErrorCode.forStatus(e.statusCode.value())
-        val extra = coded?.details?.takeIf { it.isNotEmpty() }?.let { mapOf("details" to it) } ?: emptyMap()
+        val extra = linkedMapOf<String, Any>()
+        coded?.details?.takeIf { it.isNotEmpty() }?.let { extra["details"] = it }
+        // Structured extras never replace a standard key.
+        coded?.extra?.filterKeys { it !in STANDARD_KEYS }?.forEach { (key, value) -> extra.putIfAbsent(key, value) }
         return ResponseEntity.status(e.statusCode)
             .body(body(e.statusCode.value(), e.reason ?: "An error occurred", code, extra))
     }
@@ -139,5 +142,9 @@ class ErrorHandler(
         }
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
             .body(body(500, e.message ?: "Internal server error", ErrorCode.INTERNAL, mapOf("exceptionClass" to e.javaClass.simpleName)))
+    }
+
+    private companion object {
+        val STANDARD_KEYS = setOf("error", "message", "status", "code", "requestId")
     }
 }

@@ -70,6 +70,13 @@ class Notification(
     @Column(name = "care_partnership_id")
     val carePartnershipId: Long? = null,
 
+    /** Patient APPOINTMENT_CANCELLED with a reason: the `Appointment.CancelReason` name and the doctor's note. */
+    @Column(name = "cancel_reason_code", length = 32)
+    val cancelReasonCode: String? = null,
+
+    @Column(name = "cancel_note", columnDefinition = "TEXT")
+    val cancelNote: String? = null,
+
     @Column(name = "created_at", nullable = false)
     val createdAt: Instant = Instant.now(),
 
@@ -136,6 +143,9 @@ class Notification(
 
         /** Doctor: invited as therapy partner on a care partnership. */
         CARE_PARTNERSHIP_INVITE,
+
+        /** Patient: the doctor's side marked the visit as not attended. */
+        APPOINTMENT_NO_SHOW,
 
         /** Doctor: care partnership invite was accepted. */
         CARE_PARTNERSHIP_ACCEPTED,

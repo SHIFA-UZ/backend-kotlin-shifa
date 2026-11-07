@@ -23,6 +23,9 @@ class CacheConfig {
 
         /** `GET /api/public/config`'s app blocks (force update, maintenance): an admin edit shows within 60 s. */
         const val PUBLIC_APP_CONFIG_CACHE = "publicAppConfig"
+
+        /** `GET /api/public/legal`, one entry per language: an admin edit shows within 60 s. */
+        const val PUBLIC_LEGAL_CACHE = "publicLegal"
     }
 
     @Bean
@@ -38,6 +41,7 @@ class CacheConfig {
         manager.registerCustomCache(PUBLIC_CLINICS_CACHE, referenceLists.build())
         manager.registerCustomCache(PUBLIC_DOCTOR_CACHE, referenceLists.build())
         manager.registerCustomCache(PUBLIC_APP_CONFIG_CACHE, referenceLists.build())
+        manager.registerCustomCache(PUBLIC_LEGAL_CACHE, referenceLists.build())
         manager.registerCustomCache(
             ADMIN_METRICS_CACHE,
             Caffeine.newBuilder().expireAfterWrite(Duration.ofSeconds(15)).maximumSize(1).build(),

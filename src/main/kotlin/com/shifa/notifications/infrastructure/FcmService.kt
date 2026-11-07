@@ -157,6 +157,8 @@ class FcmService(
         notification.documentId?.let { data["documentId"] = it.toString() }
         notification.documentPatientId?.let { data["patientId"] = it.toString() }
         notification.documentTitle?.let { data["documentTitle"] = it }
+        notification.cancelReasonCode?.let { data["cancelReasonCode"] = it }
+        notification.cancelNote?.let { data["cancelNote"] = it }
         data.putAll(extraData)
         return sendToToken(
             token = fcmToken,

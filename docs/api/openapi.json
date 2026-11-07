@@ -527,6 +527,18 @@
           "canReschedule": {
             "type": "boolean"
           },
+          "cancelNote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cancelReasonCode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "doctorClinic": {
             "type": [
               "string",
@@ -586,6 +598,16 @@
           },
           "isVideoConsultation": {
             "type": "boolean"
+          },
+          "joinWindow": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/JoinWindowDto"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "location": {
             "type": "string"
@@ -1213,6 +1235,29 @@
           "doctorId",
           "slotMinutes",
           "startAt"
+        ],
+        "type": "object"
+      },
+      "CancelAppointmentRequest": {
+        "properties": {
+          "note": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reasonCode": {
+            "pattern": "DOCTOR_UNAVAILABLE|PATIENT_REQUEST|RESCHEDULED|OTHER",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "reasonCode"
         ],
         "type": "object"
       },
@@ -4050,6 +4095,38 @@
         ],
         "type": "object"
       },
+      "DoctorContractDto": {
+        "properties": {
+          "contractNumber": {
+            "type": "string"
+          },
+          "effectiveDate": {
+            "type": "string"
+          },
+          "endDate": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "termMonths": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "contractNumber",
+          "effectiveDate",
+          "endDate",
+          "issuedAt",
+          "status",
+          "termMonths"
+        ],
+        "type": "object"
+      },
       "DoctorDeleteAccountRequestResponse": {
         "properties": {
           "expiresInSeconds": {
@@ -4752,6 +4829,12 @@
           },
           "endAt": {
             "type": "string"
+          },
+          "isVideo": {
+            "type": [
+              "boolean",
+              "null"
+            ]
           },
           "location": {
             "type": [
@@ -5794,6 +5877,21 @@
         ],
         "type": "object"
       },
+      "JoinWindowDto": {
+        "properties": {
+          "from": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object"
+      },
       "JvmMetricsDto": {
         "properties": {
           "heapMaxMb": {
@@ -5824,6 +5922,41 @@
       "LanguageRequest": {
         "properties": {
           "language": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "LegalDocumentsDto": {
+        "properties": {
+          "licences": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "privacy": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "terms": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "updatedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
             "type": [
               "string",
               "null"
@@ -6377,6 +6510,17 @@
         ],
         "type": "object"
       },
+      "NoShowRequest": {
+        "properties": {
+          "notify": {
+            "type": [
+              "boolean",
+              "null"
+            ]
+          }
+        },
+        "type": "object"
+      },
       "NotificationDto": {
         "properties": {
           "appointmentId": {
@@ -6387,6 +6531,18 @@
             ]
           },
           "appointmentStartAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cancelNote": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "cancelReasonCode": {
             "type": [
               "string",
               "null"
@@ -14142,6 +14298,40 @@
         ]
       }
     },
+    "/api/appointments/{appointmentId}/cancel": {
+      "post": {
+        "operationId": "cancelWithReason",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointmentId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelAppointmentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "appointment-controller"
+        ]
+      }
+    },
     "/api/appointments/{appointmentId}/change": {
       "put": {
         "operationId": "changeSlot",
@@ -14370,6 +14560,46 @@
                     "$ref": "#/components/schemas/DraftNoteDto"
                   },
                   "type": "array"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "appointment-controller"
+        ]
+      }
+    },
+    "/api/appointments/{appointmentId}/no-show": {
+      "post": {
+        "operationId": "markNoShow",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointmentId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NoShowRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AppointmentDto"
                 }
               }
             },
@@ -17550,6 +17780,47 @@
         ]
       }
     },
+    "/api/doctors/me/contract": {
+      "get": {
+        "operationId": "myContract",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/DoctorContractDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "doctor-contract-controller"
+        ]
+      }
+    },
+    "/api/doctors/me/contract/pdf": {
+      "get": {
+        "operationId": "myContractPdf",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "doctor-contract-controller"
+        ]
+      }
+    },
     "/api/doctors/me/delete-account/confirm": {
       "post": {
         "operationId": "confirm",
@@ -18330,6 +18601,17 @@
     "/api/messages/conversations": {
       "get": {
         "operationId": "listConversations_1",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -18390,6 +18672,24 @@
             "required": true,
             "schema": {
               "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
               "type": "integer"
             }
           }
@@ -19867,6 +20167,24 @@
             "required": true,
             "schema": {
               "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "after",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
               "type": "integer"
             }
           }
@@ -21921,6 +22239,36 @@
         },
         "tags": [
           "public-doctor-controller"
+        ]
+      }
+    },
+    "/api/public/legal": {
+      "get": {
+        "operationId": "legalDocuments",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "lang",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegalDocumentsDto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "public-legal-controller"
         ]
       }
     },
