@@ -20,6 +20,9 @@ class CacheConfig {
         const val ADMIN_METRICS_CACHE = "adminMetrics"
         /** `GET /api/admin/metrics/traffic` and `/appointments`: one minute of staleness is fine, one entry per chart and range. */
         const val ADMIN_TRAFFIC_CACHE = "adminTraffic"
+
+        /** `GET /api/public/config`'s app blocks (force update, maintenance): an admin edit shows within 60 s. */
+        const val PUBLIC_APP_CONFIG_CACHE = "publicAppConfig"
     }
 
     @Bean
@@ -34,6 +37,7 @@ class CacheConfig {
         manager.registerCustomCache(PROFESSIONS_CACHE, referenceLists.build())
         manager.registerCustomCache(PUBLIC_CLINICS_CACHE, referenceLists.build())
         manager.registerCustomCache(PUBLIC_DOCTOR_CACHE, referenceLists.build())
+        manager.registerCustomCache(PUBLIC_APP_CONFIG_CACHE, referenceLists.build())
         manager.registerCustomCache(
             ADMIN_METRICS_CACHE,
             Caffeine.newBuilder().expireAfterWrite(Duration.ofSeconds(15)).maximumSize(1).build(),
