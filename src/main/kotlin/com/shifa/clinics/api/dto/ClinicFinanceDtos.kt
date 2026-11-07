@@ -143,6 +143,8 @@ data class InstallmentItemDto(
     val status: String,
     val paidAt: OffsetDateTime?,
     val notes: String?,
+    /** Last manual reminder (`…/notify`), for a cooldown in the app (BE-23). */
+    val lastNotifiedAt: OffsetDateTime? = null,
 )
 
 /** Installment row for the clinic finance "Installments" tab (includes patient/plan context). */
@@ -160,6 +162,7 @@ data class InstallmentItemListDto(
     val treatmentPlanTitle: String?,
     val patientId: Long,
     val patientName: String,
+    val lastNotifiedAt: OffsetDateTime? = null,
 )
 
 data class PatchInstallmentItemRequest(

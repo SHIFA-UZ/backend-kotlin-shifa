@@ -24,10 +24,17 @@ class DoctorAnalyticsController(
     private val analytics: DoctorAnalyticsService
 ) {
 
+    /** `from`/`to` (ISO dates, practice time zone, inclusive, both or neither) on overview, consultation-types and engagement (BE-19). */
     @GetMapping("/overview")
-    fun overview(@AuthenticationPrincipal principal: DoctorPrincipal) =
+    fun overview(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate?,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate?,
+    ) =
         principal.profile?.let { doctor ->
-            ResponseEntity.ok(analytics.overview(doctor))
+            ResponseEntity.ok(analytics.overview(doctor, from, to))
         } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Doctor profile not found")
 
     @GetMapping("/appointments-trend")
@@ -41,15 +48,27 @@ class DoctorAnalyticsController(
         } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Doctor profile not found")
 
     @GetMapping("/consultation-types")
-    fun consultationTypes(@AuthenticationPrincipal principal: DoctorPrincipal) =
+    fun consultationTypes(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate?,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate?,
+    ) =
         principal.profile?.let { doctor ->
-            ResponseEntity.ok(analytics.consultationTypes(doctor))
+            ResponseEntity.ok(analytics.consultationTypes(doctor, from, to))
         } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Doctor profile not found")
 
     @GetMapping("/engagement")
-    fun engagement(@AuthenticationPrincipal principal: DoctorPrincipal) =
+    fun engagement(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate?,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate?,
+    ) =
         principal.profile?.let { doctor ->
-            ResponseEntity.ok(analytics.engagement(doctor))
+            ResponseEntity.ok(analytics.engagement(doctor, from, to))
         } ?: throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Doctor profile not found")
 
     @GetMapping("/sms-usage")

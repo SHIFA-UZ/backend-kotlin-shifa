@@ -51,7 +51,9 @@ data class BillingDto(
     val taxId: String?,
     val stripeConnectAccountId: String?,
     val clickMerchantId: String?,
-    val paymeMerchantId: String?
+    val paymeMerchantId: String?,
+    /** BE-18: NOT_CONNECTED, ONBOARDING, ACTIVE or RESTRICTED, from Stripe (cached 5 min); null when Stripe can't tell. Read only. */
+    val stripeConnectStatus: String? = null,
 )
 
 data class SettingsDto(

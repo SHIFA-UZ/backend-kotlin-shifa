@@ -52,7 +52,7 @@ class DocumentAccessService(
             return existing
         }
 
-        val document = documentRepo.findById(documentId)
+        val document = documentRepo.findById(documentId).filter { it.deletedAt == null }
             .orElseThrow { IllegalArgumentException("Document not found: $documentId") }
         val requestingDoctor = doctorProfiles.findById(requestingDoctorId)
             .orElseThrow { IllegalArgumentException("Doctor not found: $requestingDoctorId") }

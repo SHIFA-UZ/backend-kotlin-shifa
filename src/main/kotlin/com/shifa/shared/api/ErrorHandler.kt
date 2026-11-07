@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.dao.DataIntegrityViolationException
 import org.springframework.http.HttpStatus
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.security.access.AccessDeniedException
 import org.springframework.http.converter.HttpMessageNotReadableException
@@ -29,12 +30,13 @@ class ErrorHandler(
 
     // SECURITY (NEW): Reject invalid input early with 400; do not leak field paths or internal details in production
     @ExceptionHandler(MethodArgumentNotValidException::class)
-    fun handleValidationException(e: MethodArgumentNotValidException): ResponseEntity<Map<String, Any>> {
+    fun handleValidationException(e: MethodArgumentNotValidException): ResponseEntity<Map<String, Any>>? {
         val errors = e.bindingResult.fieldErrors.associate { err ->
             err.field to (err.defaultMessage ?: "Invalid value")
         }
         log.debug("Validation failed: {}", errors)
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+        if (responseCommitted()) return null
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).contentType(MediaType.APPLICATION_JSON)
             .body(body(400, "Validation failed", ErrorCode.VALIDATION, mapOf("errors" to errors)))
     }
 
@@ -66,16 +68,26 @@ class ErrorHandler(
     }
 
     @ExceptionHandler(ResponseStatusException::class)
-    fun handleResponseStatusException(e: ResponseStatusException): ResponseEntity<Map<String, Any>> {
+    fun handleResponseStatusException(e: ResponseStatusException): ResponseEntity<Map<String, Any>>? {
+        if (responseCommitted()) return null
         val coded = e as? CodedStatusException
         val code = coded?.code ?: ErrorCode.forStatus(e.statusCode.value())
         val extra = linkedMapOf<String, Any>()
         coded?.details?.takeIf { it.isNotEmpty() }?.let { extra["details"] = it }
         // Structured extras never replace a standard key.
         coded?.extra?.filterKeys { it !in STANDARD_KEYS }?.forEach { (key, value) -> extra.putIfAbsent(key, value) }
-        return ResponseEntity.status(e.statusCode)
+        return ResponseEntity.status(e.statusCode).contentType(MediaType.APPLICATION_JSON)
             .body(body(e.statusCode.value(), e.reason ?: "An error occurred", code, extra))
     }
+
+    /**
+     * True once a streamed answer (SSE) has started: nothing can be added to it then. The two handlers above set the
+     * JSON type explicitly, so a refusal on a `text/event-stream` route (AI streams, BE-08) still gets the standard body
+     * before the stream opens instead of an empty response; this guard keeps that body out of an open stream.
+     */
+    private fun responseCommitted(): Boolean =
+        ((org.springframework.web.context.request.RequestContextHolder.getRequestAttributes()
+            as? org.springframework.web.context.request.ServletRequestAttributes)?.response?.isCommitted) == true
 
     /** Return 400 for IllegalArgumentException (e.g. schedule validation: past dates, too many slots). */
     @ExceptionHandler(IllegalArgumentException::class)

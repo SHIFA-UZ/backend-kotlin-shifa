@@ -84,21 +84,22 @@ class EmailOtpService(
 
     /**
      * Like [verify] for [purpose], but says why a code failed: [OtpCheck.EXPIRED] when the latest unverified code
-     * for the address has run out, else [OtpCheck.INVALID]. A valid code is marked verified (single use).
+     * for the address has run out, else [OtpCheck.INVALID]. A valid code is marked verified (single use) unless
+     * [consume] is false (the forgot-password pre-check, BE-26); a wrong code always counts as an attempt.
      */
     @Transactional(propagation = org.springframework.transaction.annotation.Propagation.REQUIRES_NEW)
-    fun check(email: String, code: String, purpose: String): OtpCheck {
+    fun check(email: String, code: String, purpose: String, consume: Boolean = true): OtpCheck {
         val normalized = email.trim().lowercase()
         val entry = repo.findTopByEmailAndPurposeAndVerifiedFalseOrderByCreatedAtDesc(normalized, purpose)
             .orElse(null)
         return when {
             entry != null && entry.isExpired() -> OtpCheck.EXPIRED
-            verifyEntry(entry, code) -> OtpCheck.VALID
+            verifyEntry(entry, code, consume) -> OtpCheck.VALID
             else -> OtpCheck.INVALID
         }
     }
 
-    private fun verifyEntry(entry: EmailVerificationCode?, code: String): Boolean {
+    private fun verifyEntry(entry: EmailVerificationCode?, code: String, consume: Boolean = true): Boolean {
         if (entry == null) return false
         if (entry.isExpired()) return false
         if (entry.attempts >= EmailVerificationCode.MAX_ATTEMPTS) return false
@@ -107,6 +108,7 @@ class EmailOtpService(
             repo.save(entry)
             return false
         }
+        if (!consume) return true
         entry.verified = true
         repo.save(entry)
         return true

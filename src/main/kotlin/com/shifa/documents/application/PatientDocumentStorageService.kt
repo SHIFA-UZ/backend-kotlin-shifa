@@ -16,6 +16,7 @@ class PatientDocumentStorageService(
     private val uploadGuard: com.shifa.shared.UploadGuard,
     private val storage: FileStorage,
     private val publicUrls: com.shifa.shared.PublicUrls,
+    private val heic: com.shifa.shared.storage.HeicConverter,
 ) {
 
     data class SaveResult(
@@ -31,11 +32,17 @@ class PatientDocumentStorageService(
     ): SaveResult {
         uploadGuard.check(kind, file)
         val originalName = file.originalFilename ?: "document"
-        val extension = resolveExtension(file)
+        // HEIC/HEIF is stored as JPEG when it can be converted (BE-21); otherwise as uploaded.
+        val jpeg = if (heic.isHeic(originalName, file.contentType)) file.inputStream.use { heic.toJpeg(it) } else null
+        val extension = if (jpeg != null) "jpg" else resolveExtension(file)
         val safeBase = sanitizeBaseName(preferredBaseName ?: originalName)
         // Unique suffix avoids overwriting another upload with the same display name.
         val rel = "patientdocuments/$patientId/$safeBase-${System.currentTimeMillis()}.$extension"
-        file.inputStream.use { storage.put(rel, it, file.size, file.contentType) }
+        if (jpeg != null) {
+            storage.put(rel, ByteArrayInputStream(jpeg), jpeg.size.toLong(), "image/jpeg")
+        } else {
+            file.inputStream.use { storage.put(rel, it, file.size, file.contentType) }
+        }
         return SaveResult(filePathRelative = rel, publicUrl = publicUrlFor(rel))
     }
 
@@ -73,6 +80,20 @@ class PatientDocumentStorageService(
         val key = filePathRelative.removePrefix("/")
         if (!StorageKeys.valid(key)) return false
         return runCatching { storage.delete(key) }.getOrDefault(false)
+    }
+
+    /**
+     * Copies a removed document's file under `deleted-…`, a prefix no route serves, and returns the new key: the bytes
+     * stay for the record while every URL of the old key stops working once it is deleted (BE-21).
+     */
+    fun retireFile(filePathRelative: String): String {
+        val key = StorageKeys.require(filePathRelative.removePrefix("/"))
+        val retired = "deleted-$key"
+        val stored = storage.head(key) ?: return retired
+        requireNotNull(storage.open(key)) { "Document file vanished" }.inputStream.use {
+            storage.put(retired, it, stored.size, null)
+        }
+        return retired
     }
 
     /** The stored file for an authenticated download or AI context. Returns null if it does not exist. */

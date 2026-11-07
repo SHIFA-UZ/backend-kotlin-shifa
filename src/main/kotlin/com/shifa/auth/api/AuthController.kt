@@ -11,6 +11,7 @@ import com.shifa.auth.api.dto.CheckIdentifierRequest
 import com.shifa.auth.api.dto.CheckIdentifierResponse
 import com.shifa.auth.api.dto.CreatePatientForDoctorRequest
 import com.shifa.auth.api.dto.ForgotPasswordResetRequest
+import com.shifa.auth.api.dto.VerifyForgotPasswordOtpRequest
 import com.shifa.auth.api.dto.LoginRequest
 import com.shifa.auth.api.dto.RegisterClinicStaffRequest
 import com.shifa.auth.api.dto.RegisterPatientRequest
@@ -1297,6 +1298,36 @@ class AuthController(
      * 2. Email OTP (new flow) — email + emailOtp fields
      * Returns JWT for auto-login after password reset.
      */
+    /**
+     * Checks a forgot-password e-mail code without using it up (BE-26), so the app can say "wrong code" before asking
+     * for the new password; `forgot-password-reset` still needs the same code. A wrong code counts as an attempt.
+     * 200 `{"valid": true}`; 400 `EMAIL_OTP_INVALID` (also for an unknown account) or `EMAIL_OTP_EXPIRED`.
+     */
+    @PostMapping("/verify-forgot-password-otp")
+    fun verifyForgotPasswordOtp(@RequestBody @Valid r: VerifyForgotPasswordOtpRequest): Map<String, Boolean> {
+        val identifier = r.email.trim()
+        val account = users.findByEmailIgnoreCase(identifier).orElse(null)
+            ?: users.findByPhone(identifier).orElse(null)
+            ?: PhoneNormalizer.normalize(identifier)?.let { users.findByPhone(it).orElse(null) }
+        val otpEmail = account?.email?.trim()?.lowercase()?.takeIf { it.isNotEmpty() }
+        val result = otpEmail?.let {
+            emailOtpService.check(it, r.code.trim(), com.shifa.auth.domain.EmailVerificationCode.PURPOSE_FORGOT_PASSWORD, consume = false)
+        } ?: com.shifa.auth.application.EmailOtpService.OtpCheck.INVALID
+        return when (result) {
+            com.shifa.auth.application.EmailOtpService.OtpCheck.VALID -> mapOf("valid" to true)
+            com.shifa.auth.application.EmailOtpService.OtpCheck.EXPIRED -> throw CodedStatusException(
+                HttpStatus.BAD_REQUEST,
+                "The verification code has expired. Request a new one.",
+                ErrorCode.EMAIL_OTP_EXPIRED,
+            )
+            com.shifa.auth.application.EmailOtpService.OtpCheck.INVALID -> throw CodedStatusException(
+                HttpStatus.BAD_REQUEST,
+                "Invalid verification code.",
+                ErrorCode.EMAIL_OTP_INVALID,
+            )
+        }
+    }
+
     @PostMapping("/forgot-password-reset")
     fun forgotPasswordReset(
         @RequestBody @Valid r: ForgotPasswordResetRequest,

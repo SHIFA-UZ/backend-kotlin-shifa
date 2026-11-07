@@ -85,7 +85,7 @@ Four roles — `DOCTOR`, `PATIENT`, `ADMIN`, `CLINIC_STAFF`. Users can hold mult
 - `/api/doctors/me/**`, `/api/consultations/**`, `/api/doctor/**`, `/api/clinical-engine/**`, `/api/tasks/**` (except `my-tasks`), `/api/ai/memories/**` → DOCTOR only
 - `/api/patients/**`, `/api/appointments/**`, `/api/calendar/**`, `/api/messages/**`, `/api/clinics/**`, `/api/treatment-plans/**` → DOCTOR or CLINIC_STAFF; `/api/schedule/**` reads, booking and blocks for both, other schedule mutations DOCTOR only
 - Fallback: `anyRequest().authenticated()` (any signed-in user), so every new route gets an explicit rule
-- `/api/notifications/**`, `/api/ai/**`, `/api/video/**` → any authenticated user
+- `/api/notifications/**`, `/api/ai/**`, `/api/video/**`, `/api/geocode/**` → any authenticated user (geocoding: 30 calls a minute per account)
 - `/api/admin/**` → ADMIN only (`GET /api/admin/metrics` is the operations read behind the `/admin-metrics/` page)
 - `/api/public/**` (except `POST .../reviews`, authenticated), `/api/webhooks/**`, the public `/api/auth/*` endpoints → no auth
 - `/actuator/health/**`, `GET /actuator/info`, `/swagger-ui/**`, `/v3/api-docs/**` → no auth

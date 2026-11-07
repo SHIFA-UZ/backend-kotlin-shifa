@@ -120,6 +120,9 @@ class AppointmentActionServiceTest {
         stubRange(visit)
         val preview = service.previewCancellation(doctor, "Cancel Franco yesterday", 3L, null)
         assertTrue((preview["spokenHint"] as String).contains("Nothing was changed"))
+        assertEquals("CANCEL_NONE_ELIGIBLE", (preview["hint"] as Map<*, *>)["code"]) // BE-07
+        @Suppress("UNCHECKED_CAST")
+        assertEquals("TIME_PASSED", (preview["skipped"] as List<Map<String, Any?>>).single()["reasonCode"])
         verifyNoInteractions(cancellation)
     }
 
@@ -138,8 +141,14 @@ class AppointmentActionServiceTest {
         `when`(cancellation.cancelByDoctorManual(second)).thenReturn(false)
         val preview = service.previewCancellation(doctor, "Cancel all my appointments next week", null, null)
         assertEquals(2, preview["count"])
+        // BE-07: the sentence's code and params next to it
+        val hint = preview["hint"] as Map<*, *>
+        assertEquals("CANCEL_PREVIEW", hint["code"])
+        assertEquals(mapOf("count" to 2, "names" to listOf(first.patient.fullName, second.patient.fullName),
+            "startAts" to listOf("2026-10-20T09:00:00Z", "2026-10-21T09:00:00Z"), "skipped" to 0), hint["params"])
         val result = service.confirmCancellation(doctor, "yes cancel them", listOf(marker(preview)))
         assertEquals("PARTIAL_SUCCESS", result["status"])
+        assertEquals(mapOf("cancelled" to 1, "failed" to 1), (result["hint"] as Map<*, *>)["params"])
     }
 
     @Test

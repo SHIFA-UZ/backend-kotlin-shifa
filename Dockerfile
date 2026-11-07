@@ -16,6 +16,9 @@ RUN ./gradlew clean bootJar --no-daemon
 FROM eclipse-temurin:21-jre-alpine
 WORKDIR /app
 
+# heif-convert turns HEIC/HEIF uploads into JPEG (shared/storage/HeicConverter); without it they are stored as uploaded.
+RUN apk add --no-cache libheif-tools
+
 # Create storage directory
 RUN mkdir -p /tmp/storage/images
 

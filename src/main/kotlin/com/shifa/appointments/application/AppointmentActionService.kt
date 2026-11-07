@@ -52,13 +52,18 @@ class AppointmentActionService(
                 "supported" to false,
                 "status" to "AWAITING_CLARIFICATION",
                 "spokenHint" to "That matches more than $MAX_BULK visits. Narrow the period before I cancel anything.",
+                "hint" to ToolHints.of("CANCEL_TOO_MANY", mapOf("max" to MAX_BULK)),
             )
         }
         val eligible = mutableListOf<Appointment>()
         val skipped = mutableListOf<Map<String, Any?>>()
         for (appointment in rows) {
             val reason = ineligibleReason(appointment, now)
-            if (reason == null) eligible += appointment else skipped += row(appointment, zone) + mapOf("reason" to reason)
+            if (reason == null) {
+                eligible += appointment
+            } else {
+                skipped += row(appointment, zone) + mapOf("reason" to reason, "reasonCode" to ineligibleReasonCode(appointment, now))
+            }
         }
         if (eligible.isEmpty()) {
             pending.clear(doctor.id, conversationId.orEmpty())
@@ -69,6 +74,7 @@ class AppointmentActionService(
                 "cancelled" to emptyList<Any>(),
                 "skipped" to skipped,
                 "spokenHint" to "No visits in that period can be cancelled. Nothing was changed.",
+                "hint" to ToolHints.of("CANCEL_NONE_ELIGIBLE", mapOf("skipped" to skipped.size)),
             )
         }
         val token = pending.newToken()
@@ -95,6 +101,15 @@ class AppointmentActionService(
             "skipped" to skipped,
             "count" to previewRows.size,
             "spokenHint" to "I can cancel ${previewRows.size} upcoming ${if (previewRows.size == 1) "visit" else "visits"}: $names$more.$skippedNote Say yes to cancel them. Nothing has been cancelled yet.",
+            "hint" to ToolHints.of(
+                "CANCEL_PREVIEW",
+                mapOf(
+                    "count" to previewRows.size,
+                    "names" to previewRows.map { it["patientName"] },
+                    "startAts" to previewRows.map { it["startAt"] },
+                    "skipped" to skipped.size,
+                ),
+            ),
         )
     }
 
@@ -110,6 +125,7 @@ class AppointmentActionService(
                 "supported" to true,
                 "status" to "AWAITING_CONFIRMATION",
                 "spokenHint" to "Nothing was cancelled. Say yes if you want me to cancel the visits I just listed.",
+                "hint" to ToolHints.of("CANCEL_NOT_CONFIRMED"),
             )
         }
         val stored = pending.get(doctor.id, conversationId.orEmpty())
@@ -119,6 +135,7 @@ class AppointmentActionService(
                 "supported" to false,
                 "status" to "FAILURE",
                 "spokenHint" to "I don't have a cancellation waiting for confirmation. Tell me which visits to cancel.",
+                "hint" to ToolHints.of("CANCEL_NOT_WAITING"),
             )
         }
         val current = stored.appointmentIds.mapNotNull { id ->
@@ -131,6 +148,7 @@ class AppointmentActionService(
                 "supported" to false,
                 "status" to "FAILURE",
                 "spokenHint" to "The schedule changed, so I did not cancel anything. Ask me again and I will show the updated list.",
+                "hint" to ToolHints.of("CANCEL_SCHEDULE_CHANGED"),
             )
         }
         val cancelled = mutableListOf<Map<String, Any?>>()
@@ -164,6 +182,7 @@ class AppointmentActionService(
             "cancelled" to cancelled,
             "failed" to failed,
             "spokenHint" to hint,
+            "hint" to ToolHints.of("CANCEL_RESULT", mapOf("cancelled" to cancelled.size, "failed" to failed.size)),
         )
     }
 
@@ -380,6 +399,7 @@ class AppointmentActionService(
                     "supported" to true,
                     "status" to "AWAITING_CLARIFICATION",
                     "spokenHint" to "Which visits should I cancel? Tell me the day, or say all for a period such as next week.",
+                    "hint" to ToolHints.of("CANCEL_ASK_WHICH"),
                 ),
             )
         }
@@ -417,6 +437,7 @@ class AppointmentActionService(
                     "supported" to true,
                     "status" to "SUCCESS",
                     "spokenHint" to "I could not find a matching visit. Nothing was changed.",
+                    "hint" to ToolHints.of("VISIT_NO_MATCH"),
                 ),
             )
         }
@@ -440,6 +461,7 @@ class AppointmentActionService(
                     "operation" to "OPEN_APPOINTMENT",
                     "appointments" to rows.take(8).map { row(it, zone) },
                     "spokenHint" to "I found ${rows.size} visits for this patient. Which one should I open?",
+                    "hint" to ToolHints.of("OPEN_CHOOSE_VISIT", mapOf("count" to rows.size)),
                 ),
             )
         }
@@ -458,6 +480,10 @@ class AppointmentActionService(
                     "status" to "AWAITING_CLARIFICATION",
                     "appointments" to rows.take(8).map { row(it, zone) },
                     "spokenHint" to "I found ${rows.size} visits that can be cancelled.$cancelledNote Which one should I cancel?",
+                    "hint" to ToolHints.of(
+                        "CANCEL_CHOOSE_VISIT",
+                        mapOf("count" to rows.size, "alreadyCancelled" to alreadyCancelled.size),
+                    ),
                 ),
             )
         }
@@ -477,6 +503,14 @@ class AppointmentActionService(
         if (clocks.size != 1) return emptyList()
         val wanted = clocks.single()
         return rows.filter { it.startAt.atZone(zone).toLocalTime().withSecond(0).withNano(0) == wanted }
+    }
+
+    /** [ineligibleReason] as a code: ALREADY_CANCELLED, ALREADY_COMPLETED or TIME_PASSED. */
+    private fun ineligibleReasonCode(appointment: Appointment, now: java.time.Instant): String? = when {
+        appointment.status == Appointment.Status.CANCELLED -> "ALREADY_CANCELLED"
+        appointment.status == Appointment.Status.COMPLETED -> "ALREADY_COMPLETED"
+        appointment.startAt.isBefore(now) -> "TIME_PASSED"
+        else -> null
     }
 
     private fun ineligibleReason(appointment: Appointment, now: java.time.Instant): String? = when {
@@ -506,6 +540,7 @@ class AppointmentActionService(
         "supported" to false,
         "status" to "FAILURE",
         "spokenHint" to "I could not find that visit.",
+        "hint" to ToolHints.of("VISIT_NOT_FOUND"),
     )
 
     private sealed class Selection {

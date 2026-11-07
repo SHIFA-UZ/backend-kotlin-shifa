@@ -19,6 +19,8 @@ data class DoctorBookingCommand(
     val location: String? = null,
     val reason: String? = null,
     val isVideo: Boolean = false,
+    /** An earlier appointment of the same patient (BE-20). */
+    val followUpOf: Long? = null,
 )
 
 @Service
@@ -35,6 +37,10 @@ class DoctorAppointmentBookingService(
         val patient = patients.findById(command.patientId)
             .orElseThrow { NoSuchElementException("Patient not found: ${command.patientId}") }
         val endAt = command.startAt.plusSeconds(command.slotMinutes * 60L)
+        command.followUpOf?.let { earlierId ->
+            val earlier = appointments.findById(earlierId).orElse(null)
+            require(earlier?.patient?.id == patient.id) { "followUpOf must be an appointment of the same patient" }
+        }
 
         check(appointments.findOverlapping(doctor.id, command.startAt, endAt).isEmpty()) {
             "Overlapping appointment exists"
@@ -78,6 +84,7 @@ class DoctorAppointmentBookingService(
                 isVideoConsultation = command.isVideo,
                 status = Appointment.Status.CONFIRMED,
                 paymentStatus = Appointment.PaymentStatus.NOT_REQUIRED,
+                followUpOfAppointmentId = command.followUpOf,
             ),
         )
         val local = saved.startAt.atZone(ZoneId.of(doctor.timeZone))

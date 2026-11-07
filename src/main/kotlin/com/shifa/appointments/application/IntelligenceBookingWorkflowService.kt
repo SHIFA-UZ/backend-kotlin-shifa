@@ -259,6 +259,20 @@ class IntelligenceBookingWorkflowService(
             put("autoConfirm", false)
             put("booked", false)
             put("spokenHint", spokenHint)
+            if (preferred != null) {
+                put(
+                    "hint",
+                    ToolHints.of(
+                        "BOOKING_CONFIRM_REQUIRED",
+                        mapOf(
+                            "workflowId" to next.id.toString(),
+                            "patientName" to patientName,
+                            "date" to date?.toString(),
+                            "time" to chosenTime,
+                        ),
+                    ),
+                )
+            }
         }
     }
 
@@ -275,6 +289,7 @@ class IntelligenceBookingWorkflowService(
             "workflowId" to current.id.toString(),
             "workflowStatus" to status.name,
             "spokenHint" to if (abandon) "I abandoned that booking." else "I did not book that appointment.",
+            "hint" to ToolHints.of(if (abandon) "BOOKING_ABANDONED" else "BOOKING_REJECTED", mapOf("workflowId" to current.id.toString())),
         )
     }
 
@@ -294,6 +309,7 @@ class IntelligenceBookingWorkflowService(
                 "workflowId" to current.id.toString(),
                 "workflowStatus" to current.status.name,
                 "spokenHint" to "There is no exact booking proposal waiting for confirmation.",
+                "hint" to ToolHints.of("BOOKING_NOTHING_TO_CONFIRM", mapOf("workflowId" to current.id.toString())),
             )
         }
         val executing = current.copy(status = BookingWorkflowStatus.EXECUTING)
@@ -342,6 +358,7 @@ class IntelligenceBookingWorkflowService(
                 "workflowStatus" to BookingWorkflowStatus.FAILED.name,
                 "error" to (e.message ?: "Booking failed"),
                 "spokenHint" to "That slot could not be booked. Please choose another available time.",
+                "hint" to ToolHints.of("BOOKING_SLOT_FAILED", mapOf("workflowId" to current.id.toString())),
             )
         }
     }
@@ -406,6 +423,7 @@ class IntelligenceBookingWorkflowService(
             "workflowId" to current.id.toString(),
             "workflowStatus" to BookingWorkflowStatus.REJECTED.name,
             "spokenHint" to "I did not move that appointment.",
+            "hint" to ToolHints.of("RESCHEDULE_REJECTED", mapOf("workflowId" to current.id.toString())),
         )
     }
 
@@ -464,6 +482,7 @@ class IntelligenceBookingWorkflowService(
                 "workflowStatus" to BookingWorkflowStatus.FAILED.name,
                 "error" to (e.message ?: "Reschedule failed"),
                 "spokenHint" to "The appointment or slot changed, so I did not move it. Please ask again.",
+                "hint" to ToolHints.of("RESCHEDULE_CHANGED", mapOf("workflowId" to current.id.toString())),
             )
         }
     }
@@ -487,6 +506,15 @@ class IntelligenceBookingWorkflowService(
             "spokenHint" to "Booked ${workflow.patientName ?: "the patient"}" +
                 (workflow.appointmentTime?.let { " at $it" } ?: "") +
                 (workflow.appointmentDate?.let { " on $it" } ?: "") + ".",
+            "hint" to ToolHints.of(
+                "BOOKING_DONE",
+                mapOf(
+                    "appointmentId" to workflow.appointmentId,
+                    "patientName" to workflow.patientName,
+                    "date" to workflow.appointmentDate?.toString(),
+                    "time" to workflow.appointmentTime?.toString(),
+                ),
+            ),
         )
 
     private fun noActive(): Map<String, Any?> = mapOf(
@@ -494,6 +522,7 @@ class IntelligenceBookingWorkflowService(
         "workflowStatus" to "NONE",
         "error" to "No active booking workflow",
         "spokenHint" to "There is no booking waiting for confirmation.",
+        "hint" to ToolHints.of("BOOKING_NOTHING_TO_CONFIRM"),
     )
 
     private fun completedReschedulePayload(
@@ -509,6 +538,10 @@ class IntelligenceBookingWorkflowService(
         "moved" to true,
         "replayed" to replay,
         "spokenHint" to "Moved the appointment to ${workflow.appointmentTime} on ${workflow.appointmentDate}.",
+        "hint" to ToolHints.of(
+            "RESCHEDULE_DONE",
+            mapOf("appointmentId" to workflow.appointmentId, "date" to workflow.appointmentDate?.toString(), "time" to workflow.appointmentTime?.toString()),
+        ),
     )
 
     private fun noActiveReschedule(): Map<String, Any?> = mapOf(
@@ -516,6 +549,7 @@ class IntelligenceBookingWorkflowService(
         "workflowStatus" to "NONE",
         "error" to "No active reschedule proposal",
         "spokenHint" to "There is no reschedule waiting for confirmation.",
+        "hint" to ToolHints.of("RESCHEDULE_NOTHING_TO_CONFIRM"),
     )
 
     private fun validConversationId(raw: String?): String? =

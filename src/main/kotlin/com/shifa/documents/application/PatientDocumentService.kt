@@ -285,7 +285,7 @@ class PatientDocumentService(
         doctorId: Long,
         file: MultipartFile
     ): PatientDocumentDto {
-        val existing = docs.findById(documentId)
+        val existing = docs.findById(documentId).filter { it.deletedAt == null }
             .orElseThrow { IllegalArgumentException("Document not found: $documentId") }
         if (!canDoctorViewDocument(existing, doctorId)) {
             throw IllegalArgumentException("Document not found")
@@ -305,6 +305,58 @@ class PatientDocumentService(
         existing.filePath = saved.filePathRelative
         val updated = docs.save(existing)
         return toDto(updated, doctorId)
+    }
+
+    /**
+     * Renames and/or recategorises a document the doctor uploaded (BE-21). A new category recomputes team sharing with
+     * the upload rule. 404 when the document is not this patient's (or removed), 403 when another account uploaded it.
+     */
+    @Transactional
+    fun patchByDoctor(patientId: Long, documentId: Long, doctorId: Long, title: String?, category: String?): PatientDocumentDto {
+        val doc = ownDoctorUpload(patientId, documentId, doctorId)
+        title?.trim()?.let {
+            require(it.length in 1..255) { "title must be 1 to 255 characters" }
+            doc.title = it
+        }
+        category?.let {
+            val resolved = PatientDocumentCategory.fromCodeOrNull(it)
+            requireNotNull(resolved) { "Unknown category: $it" }
+            doc.category = resolved.code
+            doc.isSharedWithTeam = !doc.isChatAttachment && shouldShareDoctorUpload(resolved)
+        }
+        return toDto(docs.save(doc), doctorId)
+    }
+
+    /** Soft-deletes a document the doctor uploaded (BE-21); same 404/403 rules as [patchByDoctor]. */
+    @Transactional
+    fun deleteByDoctor(patientId: Long, documentId: Long, doctorId: Long) {
+        val doc = ownDoctorUpload(patientId, documentId, doctorId)
+        val oldPath = doc.filePath
+        doc.deletedAt = java.time.OffsetDateTime.now()
+        if (oldPath.isNotBlank()) doc.filePath = storage.retireFile(oldPath)
+        docs.save(doc)
+        if (oldPath.isNotBlank()) afterCommit { storage.deleteFile(oldPath) }
+    }
+
+    private fun afterCommit(action: () -> Unit) {
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isSynchronizationActive()) {
+            action()
+            return
+        }
+        org.springframework.transaction.support.TransactionSynchronizationManager.registerSynchronization(
+            object : org.springframework.transaction.support.TransactionSynchronization {
+                override fun afterCommit() = action()
+            },
+        )
+    }
+
+    private fun ownDoctorUpload(patientId: Long, documentId: Long, doctorId: Long): PatientDocument {
+        val doc = docs.findById(documentId).filter { it.deletedAt == null && it.patient?.id == patientId }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found") }
+        if (doc.uploadedByDoctor?.id != doctorId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only documents you uploaded can be changed")
+        }
+        return doc
     }
 
     /**
@@ -352,7 +404,7 @@ class PatientDocumentService(
         val uniqueIds = documentIds.distinct()
         var linked = 0
         for (docId in uniqueIds) {
-            val doc = docs.findById(docId).orElse(null)
+            val doc = docs.findById(docId).filter { it.deletedAt == null }.orElse(null)
                 ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Document not found: $docId")
             if (doc.patient?.id != patientId) {
                 throw ResponseStatusException(HttpStatus.FORBIDDEN, "Document $docId does not belong to this patient")
@@ -382,7 +434,8 @@ class PatientDocumentService(
     // Names match the former repository calls on purpose; callers only changed the receiver.
 
     fun save(document: PatientDocument): PatientDocument = docs.save(document)
-    fun findById(id: Long): java.util.Optional<PatientDocument> = docs.findById(id)
+    /** A live document (not removed, BE-21). */
+    fun findById(id: Long): java.util.Optional<PatientDocument> = docs.findById(id).filter { it.deletedAt == null }
     fun listForPatient(patientId: Long): List<PatientDocument> = docs.listForPatient(patientId)
     fun findByAppointmentId(appointmentId: Long): List<PatientDocument> = docs.findByAppointmentId(appointmentId)
     fun countByAppointmentIds(appointmentIds: Collection<Long>): List<Array<Any>> = docs.countByAppointmentIds(appointmentIds)
@@ -402,5 +455,5 @@ class PatientDocumentService(
     fun clearUploadedByDoctor(doctorId: Long): Int = docs.clearUploadedByDoctor(doctorId)
     /** Rows only; the stored files are kept (account deletion keeps today's behaviour). */
     @Transactional
-    fun deleteAllForPatient(patientId: Long) = docs.deleteAll(docs.listForPatient(patientId))
+    fun deleteAllForPatient(patientId: Long) = docs.deleteAll(docs.findAllByPatientId(patientId))
 }

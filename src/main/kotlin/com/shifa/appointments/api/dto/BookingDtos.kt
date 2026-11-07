@@ -11,7 +11,9 @@ data class BookReq(
     /** Optional structured location FK. Required when doctor has multiple locations and !isVideo. */
     val locationId: Long? = null,
     /** Calendar doctor receiving the booking (defaults to authenticated doctor). */
-    val resourceDoctorId: Long? = null
+    val resourceDoctorId: Long? = null,
+    /** Optional: the earlier appointment of the same patient this visit follows up (400 otherwise). */
+    val followUpOf: Long? = null,
 )
 
 /** startAt/endAt: ISO 8601 UTC. */
@@ -25,5 +27,6 @@ data class ApptDto(
     val reason: String?,
     val status: String,
     val locationId: Long? = null,
-    val locationLabel: String? = null
+    val locationLabel: String? = null,
+    val followUpOf: Long? = null,
 )

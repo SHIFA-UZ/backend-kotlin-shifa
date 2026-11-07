@@ -42,6 +42,10 @@ class InstallmentItem(
 
     @Column(name = "last_reminder_sent_at")
     var lastReminderSentAt: OffsetDateTime? = null,
+
+    /** Last manual reminder from the clinic (`POST …/installment-items/{id}/notify`, BE-23). */
+    @Column(name = "last_notified_at")
+    var lastNotifiedAt: OffsetDateTime? = null,
 ) {
     enum class Status {
         PENDING,

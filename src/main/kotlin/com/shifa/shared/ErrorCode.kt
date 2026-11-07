@@ -32,7 +32,25 @@ enum class ErrorCode {
     /** Video token: the join window has closed (`joinWindow` in the body). */
     VIDEO_TOO_LATE,
     /** Video token: the visit is paid and the payment is not confirmed yet. */
-    VIDEO_PAYMENT_REQUIRED;
+    VIDEO_PAYMENT_REQUIRED,
+    /** Idempotency-Key: not 8 to 128 letters, digits, '-' or '_'. */
+    IDEMPOTENCY_KEY_INVALID,
+    /** Idempotency-Key: already used for another path or body by this account. */
+    IDEMPOTENCY_KEY_REUSED,
+    /** Idempotency-Key: the first request with this key is still running; retry shortly. */
+    IDEMPOTENCY_IN_PROGRESS,
+    /** Treatment-plan compose: the installments do not add up to the outstanding amount (`outstandingMinor`, `scheduledMinor`). */
+    INSTALLMENTS_MISMATCH,
+
+    // AI (BE-08): `errorCode` of an SSE `event: error`, and `code` of the doctor streams' refusals before they open.
+    /** The account's AI limit (daily or burst) is used up; retry later. Legacy stream code `RATE_LIMIT`. */
+    AI_QUOTA_EXCEEDED,
+    /** The AI provider failed or is unavailable. Legacy stream code `AI_UNAVAILABLE`. */
+    AI_UPSTREAM,
+    /** The subscription tier does not include this AI feature (403). */
+    AI_TIER_REQUIRED,
+    /** The request or answer was blocked by the safety rules. Legacy stream code `SAFETY_BLOCK`. */
+    AI_SAFETY_BLOCK;
 
     companion object {
         fun forStatus(status: Int): ErrorCode = when (status) {

@@ -136,6 +136,7 @@ class PatientCopilotController(
         requireCopilotAccess(principal)
         val emitter = SseEmitter(SSE_TIMEOUT_MS)
         val profile = currentPatientProfile(principal)
+        val requestId = com.shifa.shared.ErrorBodies.requestId() // the stream runs on another thread, without the MDC
 
         stream {
             try {
@@ -176,12 +177,8 @@ class PatientCopilotController(
                 }
             } catch (ex: AiStreamException) {
                 try {
-                    val payload = objectMapper.writeValueAsString(
-                        mapOf(
-                            "code" to ex.code,
-                            "message" to ex.message
-                        )
-                    )
+                    // `code` stays the legacy value the patient app matches (RATE_LIMIT); BE-08 adds errorCode, requestId.
+                    val payload = objectMapper.writeValueAsString(ex.ssePayload(requestId))
                     SseIoSupport.sendEvent(emitter, SseEmitter.event().name("error").data(payload))
                 } catch (_: Exception) {
                 }

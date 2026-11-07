@@ -53,4 +53,7 @@ data class PatientFormDto(
     val clinicalDiseaseId: String? = null,
     /** Clinical Engine chip selections for restore on edit (hidden). */
     val clinicalChipSelections: List<ClinicalChipSelectionDto> = emptyList(),
+    /** Server-managed instants (BE-22), ignored on create and update: when the form was created and last changed. */
+    val createdAt: String? = null,
+    val updatedAt: String? = null,
 ) 

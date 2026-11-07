@@ -1,5 +1,8 @@
 package com.shifa.ai.api
 
+import com.shifa.shared.CodedStatusException
+import com.shifa.shared.ErrorCode
+
 import tools.jackson.databind.ObjectMapper
 import com.shifa.ai.api.dto.CommitVisitFactsRequest
 import com.shifa.ai.api.dto.SpeakRequest
@@ -53,6 +56,25 @@ class DoctorAiController(
         /** A stream that is still open after five minutes is stuck; close it instead of holding the thread forever. */
         const val SSE_TIMEOUT_MS = 5L * 60 * 1000
     }
+    /** The tier refusal of the doctor streams: 403 as before, `code` `AI_TIER_REQUIRED` (BE-08). */
+    private fun requireAskShifaAi(principal: DoctorPrincipal) {
+        try {
+            subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
+        } catch (e: ResponseStatusException) {
+            throw CodedStatusException(HttpStatus.FORBIDDEN, e.reason ?: "Feature requires a higher tier", ErrorCode.AI_TIER_REQUIRED)
+        }
+    }
+
+    private fun sendError(emitter: SseEmitter, payload: Map<String, String>) {
+        runCatching {
+            SseIoSupport.sendEvent(emitter, SseEmitter.event().name("error").data(objectMapper.writeValueAsString(payload)))
+        }
+    }
+
+    /** An unexpected failure mid-stream is also an `event: error` (then the stream fails as before). */
+    private fun unexpectedErrorPayload(requestId: String?) =
+        AiStreamException.ssePayload("INTERNAL", "Shifa AI failed. Please try again.", ErrorCode.INTERNAL, requestId)
+
     /** Starts an SSE worker; when all stream slots are busy the client gets 503 instead of a 500 from the executor. */
     private fun stream(block: () -> Unit) {
         try {
@@ -73,7 +95,8 @@ class DoctorAiController(
         @RequestBody @Valid request: DoctorAiRequest
     ): SseEmitter {
 
-        subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
+        requireAskShifaAi(principal)
+        val requestId = com.shifa.shared.ErrorBodies.requestId() // the stream runs on another thread, without the MDC
 
         val emitter = SseEmitter(SSE_TIMEOUT_MS)
 
@@ -123,17 +146,10 @@ class DoctorAiController(
                 }
                 SseIoSupport.completeQuietly(emitter)
             } catch (ex: AiStreamException) {
-                try {
-                    val payload = objectMapper.writeValueAsString(
-                        mapOf(
-                            "code" to ex.code,
-                            "message" to ex.message
-                        )
-                    )
-                    SseIoSupport.sendEvent(emitter, SseEmitter.event().name("error").data(payload))
-                } catch (_: Exception) { }
+                sendError(emitter, ex.ssePayload(requestId))
                 SseIoSupport.completeQuietly(emitter)
             } catch (ex: Exception) {
+                sendError(emitter, unexpectedErrorPayload(requestId))
                 SseIoSupport.finish(emitter, ex)
             }
         }
@@ -218,7 +234,8 @@ class DoctorAiController(
         @AuthenticationPrincipal principal: DoctorPrincipal,
         @RequestBody @Valid request: DoctorAiRequest
     ): SseEmitter {
-        subscriptionTierService.requireFeature(principal.profile.user, SubscriptionFeature.ASK_SHIFA_AI)
+        requireAskShifaAi(principal)
+        val requestId = com.shifa.shared.ErrorBodies.requestId() // the stream runs on another thread, without the MDC
         val emitter = SseEmitter(SSE_TIMEOUT_MS)
         stream {
             try {
@@ -260,15 +277,10 @@ class DoctorAiController(
                     SseIoSupport.completeQuietly(emitter)
                 }
             } catch (ex: AiStreamException) {
-                try {
-                    val payload = objectMapper.writeValueAsString(
-                        mapOf("code" to ex.code, "message" to ex.message)
-                    )
-                    SseIoSupport.sendEvent(emitter, SseEmitter.event().name("error").data(payload))
-                } catch (_: Exception) {
-                }
+                sendError(emitter, ex.ssePayload(requestId))
                 SseIoSupport.completeQuietly(emitter)
             } catch (ex: Exception) {
+                sendError(emitter, unexpectedErrorPayload(requestId))
                 SseIoSupport.finish(emitter, ex)
             }
         }

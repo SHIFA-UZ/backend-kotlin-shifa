@@ -171,6 +171,12 @@ data class ChangePasswordRequest(
     @field:NotBlank val newPassword: String
 )
 
+/** `POST /api/auth/verify-forgot-password-otp` (BE-26): [email] may also be the account's phone, as in the reset. */
+data class VerifyForgotPasswordOtpRequest(
+    @field:NotBlank val email: String,
+    @field:NotBlank val code: String,
+)
+
 data class ForgotPasswordResetRequest(
     val idToken: String? = null,
     val email: String? = null,
