@@ -17,7 +17,7 @@ import java.time.Instant
 class DailyVideoService(
     private val dailyProperties: DailyProperties,
     private val objectMapper: ObjectMapper
-) {
+) : com.shifa.appointments.application.VideoRoomPresence {
     private val logger = LoggerFactory.getLogger(javaClass)
     private val client = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
@@ -343,6 +343,43 @@ class DailyVideoService(
             }
         } catch (e: Exception) {
             logger.warn("Could not enable recording on Daily room {}: {}", roomName, e.message)
+        }
+    }
+
+    /**
+     * Who is in [roomName] right now (`GET /rooms/{name}/presence`). A room that doesn't exist yet is empty (404).
+     * Null when Daily can't be asked (no key, an error, an unreadable answer), so callers never guess "not here".
+     */
+    override fun presence(roomName: String): List<com.shifa.appointments.application.RoomParticipant>? {
+        if (!isApiKeyConfigured()) return null
+        return try {
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create("${dailyProperties.apiUrl}/rooms/$roomName/presence"))
+                .header("Authorization", "Bearer ${dailyProperties.apiKey}")
+                .timeout(Duration.ofSeconds(5))
+                .GET()
+                .build()
+            val response = client.send(request, HttpResponse.BodyHandlers.ofString())
+            when (response.statusCode()) {
+                in 200..299 -> parsePresence(response.body())
+                404 -> emptyList()
+                else -> {
+                    logger.warn("Daily presence for room {} answered {}", roomName, response.statusCode())
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            logger.warn("Daily presence for room {} failed: {}", roomName, e.javaClass.simpleName)
+            null
+        }
+    }
+
+    internal fun parsePresence(body: String): List<com.shifa.appointments.application.RoomParticipant>? {
+        val data = (objectMapper.readValue(body, Map::class.java)["data"] as? List<*>) ?: return null
+        return data.mapNotNull { row ->
+            val m = row as? Map<*, *> ?: return@mapNotNull null
+            val userId = m["userId"] as? String ?: return@mapNotNull null
+            com.shifa.appointments.application.RoomParticipant(userId, (m["joinTime"] as? String)?.let { runCatching { Instant.parse(it) }.getOrNull() })
         }
     }
 }

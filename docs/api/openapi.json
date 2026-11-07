@@ -9604,6 +9604,18 @@
         ],
         "type": "object"
       },
+      "SendLoginSmsOtpRequest": {
+        "properties": {
+          "phone": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "phone"
+        ],
+        "type": "object"
+      },
       "SendMessageRequest": {
         "properties": {
           "attachmentName": {
@@ -9688,6 +9700,12 @@
         "properties": {
           "channel": {
             "type": "string"
+          },
+          "emailHint": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "sent": {
             "type": "boolean"
@@ -11400,6 +11418,41 @@
         },
         "required": [
           "valid"
+        ],
+        "type": "object"
+      },
+      "VerifyLoginSmsOtpRequest": {
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "phone": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "phone"
+        ],
+        "type": "object"
+      },
+      "VideoPresenceResponse": {
+        "properties": {
+          "patientInRoom": {
+            "type": "boolean"
+          },
+          "patientJoinedAt": {
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "patientInRoom"
         ],
         "type": "object"
       },
@@ -14788,6 +14841,36 @@
         ]
       }
     },
+    "/api/auth/send-login-sms-otp": {
+      "post": {
+        "operationId": "sendLoginSmsOtp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendLoginSmsOtpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendOtpChannelResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
     "/api/auth/send-sms-otp": {
       "post": {
         "operationId": "sendSmsOtp",
@@ -14897,6 +14980,36 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/VerifyKeyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/auth/verify-login-sms-otp": {
+      "post": {
+        "operationId": "verifyLoginSmsOtp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VerifyLoginSmsOtpRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenResponse"
                 }
               }
             },
@@ -23257,6 +23370,37 @@
         },
         "tags": [
           "treatment-plan-controller"
+        ]
+      }
+    },
+    "/api/video/appointments/{appointmentId}/presence": {
+      "get": {
+        "operationId": "presence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "appointmentId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/VideoPresenceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-controller"
         ]
       }
     },
