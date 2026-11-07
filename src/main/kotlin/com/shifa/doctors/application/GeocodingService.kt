@@ -23,9 +23,9 @@ data class GeocodedAddress(
     val locationStreetAddress: String?,
 )
 
-/** The geocoder behind the `/api/geocode` routes (Google in production, `doctors.infrastructure.GoogleGeocodingClient`). */
+/** The geocoder behind the `/api/geocode` routes (OpenStreetMap, `doctors.infrastructure.NominatimGeocodingClient`). */
 interface GeocodingGateway {
-    /** False when no key is configured: the routes then answer 503. */
+    /** False when the provider is switched off: the routes then answer 503. */
     fun isConfigured(): Boolean
 
     /** Best matches first; empty when nothing is found. Throws on a provider failure. */
@@ -35,13 +35,13 @@ interface GeocodingGateway {
 }
 
 /**
- * Geocoding for the apps (BE-15) so no client needs the Google key: answers are cached 10 minutes per query and
- * language, and each account may ask [PER_MINUTE] times a minute (429 `RATE_LIMITED` beyond).
+ * Geocoding for the apps (BE-15): answers are cached a day per query and language (addresses rarely move, and
+ * OpenStreetMap asks for caching), and each account may ask [PER_MINUTE] times a minute (429 `RATE_LIMITED` beyond).
  */
 @Service
 class GeocodingService(private val gateway: GeocodingGateway) {
     private val answers: Cache<String, List<GeocodedAddress>> =
-        Caffeine.newBuilder().expireAfterWrite(Duration.ofMinutes(10)).maximumSize(5_000).build()
+        Caffeine.newBuilder().expireAfterWrite(Duration.ofDays(1)).maximumSize(5_000).build()
     private val buckets: Cache<String, Bucket> =
         Caffeine.newBuilder().expireAfterAccess(Duration.ofHours(1)).maximumSize(100_000).build()
 
