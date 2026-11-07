@@ -70,6 +70,8 @@ class SecurityConfig(
                     "/api/auth/forgot-password-reset",
                     "/api/auth/send-login-otp",
                     "/api/auth/verify-email-otp",
+                    "/api/auth/send-login-sms-otp",
+                    "/api/auth/verify-login-sms-otp",
                     "/api/auth/send-forgot-password-otp",
                     "/api/auth/admin/request-login-otp",
                     "/api/auth/admin/verify-login-otp"

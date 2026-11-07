@@ -22,4 +22,10 @@ object SmsOtpFormatting {
         "Shifa Bemor parolni tiklash uchun tasdiqlash kodi: $code\n" +
             "Hurmat bilan,\n" +
             "SHIFA UZ"
+
+    /** Doctor app sign-in OTP — submit to DevSMS for approval if not yet approved (until then sends fall back to e-mail). */
+    fun loginOtpBody(code: String): String =
+        "Shifa Shifokor ilovasiga kirish uchun tasdiqlash kodi: $code\n" +
+            "Hurmat bilan,\n" +
+            "SHIFA UZ"
 }

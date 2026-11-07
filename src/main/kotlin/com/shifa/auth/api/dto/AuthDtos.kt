@@ -63,6 +63,8 @@ data class SendOtpChannelResponse(
     val sent: Boolean = true,
     val channel: String,
     val smsFallbackUsed: Boolean = false,
+    /** Set when an SMS sign-in code went to the account's e-mail instead: where it went, masked. */
+    val emailHint: String? = null,
 )
 
 data class SendSmsOtpRequest(
@@ -73,6 +75,13 @@ data class SendSmsOtpRequest(
 )
 
 data class SendLoginOtpRequest(@field:NotBlank @field:Email val email: String)
+
+data class SendLoginSmsOtpRequest(@field:NotBlank val phone: String)
+
+data class VerifyLoginSmsOtpRequest(
+    @field:NotBlank val phone: String,
+    @field:NotBlank val code: String
+)
 
 data class VerifyEmailOtpRequest(
     @field:NotBlank @field:Email val email: String,

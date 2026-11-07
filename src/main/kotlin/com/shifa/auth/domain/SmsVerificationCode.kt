@@ -34,6 +34,7 @@ class SmsVerificationCode(
         const val PURPOSE_REGISTRATION = "REGISTRATION"
         const val PURPOSE_FORGOT_PASSWORD = "FORGOT_PASSWORD"
         const val PURPOSE_ACCOUNT_DELETION = "ACCOUNT_DELETION"
+        const val PURPOSE_LOGIN = "LOGIN"
         const val MAX_ATTEMPTS = 5
     }
 
