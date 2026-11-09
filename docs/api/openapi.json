@@ -570,6 +570,12 @@
               "null"
             ]
           },
+          "doctorTimeZone": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
           "documentIds": {
             "items": {
               "format": "int64",
@@ -4527,6 +4533,12 @@
             "type": "boolean"
           },
           "telegram": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "timeZone": {
             "type": [
               "string",
               "null"
