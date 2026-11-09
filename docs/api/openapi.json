@@ -8076,6 +8076,9 @@
               "null"
             ]
           },
+          "canEdit": {
+            "type": "boolean"
+          },
           "canView": {
             "type": "boolean"
           },
@@ -8116,6 +8119,7 @@
           }
         },
         "required": [
+          "canEdit",
           "canView",
           "creatorLabel",
           "creatorType",

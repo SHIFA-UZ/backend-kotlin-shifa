@@ -29,6 +29,8 @@ data class PatientDocumentDto(
     val uploadedByPatient: Boolean = false,
     /** "PATIENT", "DOCTOR" or "UNKNOWN": machine-readable form of [creatorLabel]. */
     val creatorType: String = "UNKNOWN",
+    /** True when the signed-in doctor uploaded it: only then may they rename, recategorise or remove it (BE-21). */
+    val canEdit: Boolean = false,
     /** The visit this document belongs to, when it was attached to one (patient-app ask 15). */
     val appointmentId: Long? = null,
 )

@@ -40,6 +40,9 @@ class DocumentAccessService(
             requestingDoctorId,
             documentId
         )
+        // A removed document (BE-21) takes no requests, a pending one included.
+        val document = documentRepo.findById(documentId).filter { it.deletedAt == null }
+            .orElseThrow { IllegalArgumentException("Document not found: $documentId") }
         val existing = requestRepo.findByDocument_IdAndRequestingDoctor_IdAndStatus(
             documentId, requestingDoctorId, DocumentAccessRequest.Status.pending
         )
@@ -52,8 +55,6 @@ class DocumentAccessService(
             return existing
         }
 
-        val document = documentRepo.findById(documentId).filter { it.deletedAt == null }
-            .orElseThrow { IllegalArgumentException("Document not found: $documentId") }
         val requestingDoctor = doctorProfiles.findById(requestingDoctorId)
             .orElseThrow { IllegalArgumentException("Doctor not found: $requestingDoctorId") }
 
@@ -166,6 +167,8 @@ class DocumentAccessService(
                 // proceed with approval below
             }
         }
+        // Removed since it was asked (BE-21): nothing to grant.
+        require(request.document.deletedAt == null) { "Document not found" }
 
         request.status = DocumentAccessRequest.Status.approved
         requestRepo.save(request)

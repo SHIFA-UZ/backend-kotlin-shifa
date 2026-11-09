@@ -203,7 +203,7 @@ class AdminDoctorActivityMetricsBatchLoader(
         val q = if (window != null) {
             em.createQuery(
                 """SELECT d.uploadedByDoctor.id, COUNT(d) FROM PatientDocument d
-                   WHERE d.uploadedByDoctor.id IN :ids AND d.date >= :from AND d.date <= :to
+                   WHERE d.uploadedByDoctor.id IN :ids AND d.date >= :from AND d.date <= :to AND d.deletedAt IS NULL
                    GROUP BY d.uploadedByDoctor.id""",
                 Array<Any>::class.java,
             ).setParameter("ids", doctorIds)
@@ -212,7 +212,7 @@ class AdminDoctorActivityMetricsBatchLoader(
         } else {
             em.createQuery(
                 """SELECT d.uploadedByDoctor.id, COUNT(d) FROM PatientDocument d
-                   WHERE d.uploadedByDoctor.id IN :ids GROUP BY d.uploadedByDoctor.id""",
+                   WHERE d.uploadedByDoctor.id IN :ids AND d.deletedAt IS NULL GROUP BY d.uploadedByDoctor.id""",
                 Array<Any>::class.java,
             ).setParameter("ids", doctorIds)
         }

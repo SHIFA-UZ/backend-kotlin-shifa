@@ -49,6 +49,14 @@ class PatientDocumentController(
         else -> throw ResponseStatusException(HttpStatus.FORBIDDEN)
     }
 
+    /**
+     * The signed-in doctor's own profile, for what only an uploader may do (BE-21). Clinic staff act through the clinic's
+     * delegate doctor ([effectiveDoctorProfileId]), which must never let them change that doctor's uploads.
+     */
+    private fun ownDoctorProfileId(principal: Any): Long =
+        (principal as? DoctorPrincipal)?.profile?.id
+            ?: throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only documents you uploaded can be changed")
+
     private fun ensurePatientDocumentAccess(principal: Any, patientId: Long, clinicId: Long?) {
         clinicAccess.assertPracticeActor(principal)
         when (principal) {
@@ -81,7 +89,7 @@ class PatientDocumentController(
     ): ResponseEntity<List<PatientDocumentDto>> {
         ensurePatientDocumentAccess(principal, patientId, clinicId)
         val doctorId = effectiveDoctorProfileId(principal, clinicId)
-        return ResponseEntity.ok(service.list(patientId, doctorId))
+        return ResponseEntity.ok(service.list(patientId, doctorId, (principal as? DoctorPrincipal)?.profile?.id))
     }
 
     /** One page of [list] (roadmap P6). */
@@ -94,7 +102,7 @@ class PatientDocumentController(
     ): Page<PatientDocumentDto> {
         ensurePatientDocumentAccess(principal, patientId, clinicId)
         val doctorId = effectiveDoctorProfileId(principal, clinicId)
-        return Pages.of(service.list(patientId, doctorId), pageable)
+        return Pages.of(service.list(patientId, doctorId, (principal as? DoctorPrincipal)?.profile?.id), pageable)
     }
 
     @PostMapping("/{patientId}/documents")
@@ -125,7 +133,8 @@ class PatientDocumentController(
             category = category,
             appointment = appointment,
         )
-        return ResponseEntity.ok(dto)
+        // Staff upload as the clinic's delegate doctor but may not change it afterwards (BE-21).
+        return ResponseEntity.ok(if (principal is DoctorPrincipal) dto else dto.copy(canEdit = false))
     }
 
     @PutMapping("/{patientId}/documents/{documentId}")
@@ -152,7 +161,7 @@ class PatientDocumentController(
         @RequestBody body: PatchPatientDocumentRequest,
     ): PatientDocumentDto {
         ensurePatientDocumentAccess(principal, patientId, clinicId)
-        return service.patchByDoctor(patientId, documentId, effectiveDoctorProfileId(principal, clinicId), body.title, body.category)
+        return service.patchByDoctor(patientId, documentId, ownDoctorProfileId(principal), body.title, body.category)
     }
 
     /** Remove (soft delete) a document the signed-in doctor uploaded (BE-21): 204; 403 for anyone else's upload. */
@@ -164,7 +173,7 @@ class PatientDocumentController(
         @RequestParam(name = "clinicId", required = false) clinicId: Long?,
     ): ResponseEntity<Void> {
         ensurePatientDocumentAccess(principal, patientId, clinicId)
-        service.deleteByDoctor(patientId, documentId, effectiveDoctorProfileId(principal, clinicId))
+        service.deleteByDoctor(patientId, documentId, ownDoctorProfileId(principal))
         return ResponseEntity.noContent().build()
     }
 
