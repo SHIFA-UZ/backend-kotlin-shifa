@@ -25,12 +25,17 @@ jobs:
         run: echo "SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
       - name: SHA must be on main
         run: git merge-base --is-ancestor "$SHA" origin/main
+      # Started right after a merge, development is often still deploying it: wait up to 15 minutes.
       - name: Development must be healthy and running this SHA
         run: |
-          curl -fsS "$DEV/actuator/health/readiness"
-          live="$(curl -fsS "$DEV/actuator/info" | jq -r .commit)"
-          echo "development runs $live"
-          test "$live" = "$SHA"
+          for i in $(seq 30); do
+            live="$(curl -fsS "$DEV/actuator/info" | jq -r .commit || true)"
+            echo "development runs $live"
+            if [ "$live" = "$SHA" ] && curl -fsS "$DEV/actuator/health/readiness"; then exit 0; fi
+            sleep 30
+          done
+          echo "::error::development did not run $SHA within 15 minutes"
+          exit 1
       # Fast-forward only: git refuses anything else. Railway deploys the production branch from its GitHub
       # webhook. Requires /actuator/info to expose "commit" (feat/actuator-info-commit) to be live on development.
       - name: Fast-forward production branch
