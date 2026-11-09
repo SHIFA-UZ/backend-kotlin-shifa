@@ -133,6 +133,8 @@ class PatientController(
         val cancelNote: String? = null,
         /** When the video room can be joined; null for a visit in person. */
         val joinWindow: com.shifa.appointments.api.dto.JoinWindowDto? = null,
+        /** The doctor's practice time zone (IANA id): the patient app shows the visit's time in it, as the doctor does. */
+        val doctorTimeZone: String? = null,
         /** The earlier appointment this visit follows up, set by the doctor's side when booking (BE-20). */
         val followUpOf: Long? = null,
     )
@@ -633,6 +635,7 @@ class PatientController(
             doctorProfession = appt.doctor.profession,
             doctorClinic = appt.locationRef?.clinic?.takeIf { it.isNotBlank() } ?: appt.doctor.clinic,
             doctorPhotoUrl = normalizeAvatarUrl(appt.doctor.avatarUrl, appProps.publicBaseUrl),
+            doctorTimeZone = appt.doctor.timeZone,
             startAt = appt.startAt.toString(),
             endAt = appt.endAt.toString(),
             location = appt.location,

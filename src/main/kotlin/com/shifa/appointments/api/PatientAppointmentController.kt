@@ -66,6 +66,8 @@ class PatientAppointmentController(
         val cancelNote: String? = null,
         /** When the video room can be joined; null for a visit in person. */
         val joinWindow: com.shifa.appointments.api.dto.JoinWindowDto? = null,
+        /** The doctor's practice time zone (IANA id): the patient app shows the visit's time in it, as the doctor does. */
+        val doctorTimeZone: String? = null,
     )
 
     @GetMapping("/{appointmentId}")
@@ -121,6 +123,7 @@ class PatientAppointmentController(
                 cancelReasonCode = appointment.cancelReasonCode?.name,
                 cancelNote = appointment.cancelNote,
                 joinWindow = com.shifa.appointments.api.dto.JoinWindowDto.of(appointment.videoJoinWindow()),
+                doctorTimeZone = doctor.timeZone,
             )
         } catch (e: Exception) {
             log.error("Failed to build appointment summary for id=$appointmentId", e)

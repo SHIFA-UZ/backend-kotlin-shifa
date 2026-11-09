@@ -88,7 +88,9 @@ class PublicDoctorController(
         val minPriceMinor: Long? = null,
         val minPriceCurrency: String? = null,
         val onlineMinPriceMinor: Long? = null,
-        val clinicMinPriceMinor: Long? = null
+        val clinicMinPriceMinor: Long? = null,
+        /** IANA id of the doctor's practice time zone: the zone the slots are built in and the apps show times in. */
+        val timeZone: String? = null,
     )
 
     private fun normalizeAvatarUrl(avatarUrl: String?): String? = publicUrls.absolute(avatarUrl)
@@ -540,7 +542,8 @@ class PublicDoctorController(
             minPriceMinor = prices.minPriceMinor,
             minPriceCurrency = prices.minPriceCurrency,
             onlineMinPriceMinor = prices.onlineMinPriceMinor,
-            clinicMinPriceMinor = prices.clinicMinPriceMinor
+            clinicMinPriceMinor = prices.clinicMinPriceMinor,
+            timeZone = doc.timeZone,
         )
     }
 
