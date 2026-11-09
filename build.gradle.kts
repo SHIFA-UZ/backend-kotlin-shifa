@@ -71,7 +71,7 @@ dependencies {
     implementation("net.javacrumbs.shedlock:shedlock-spring:7.10.1")
     implementation("net.javacrumbs.shedlock:shedlock-provider-jdbc-template:7.10.1")
     // Rate limiting (IP, per-user and AI buckets)
-    implementation("com.bucket4j:bucket4j_jdk17-core:8.16.1")
+    implementation("com.bucket4j:bucket4j_jdk17-core:8.22.0")
 
     // Firebase Admin SDK - verify ID tokens (phone OTP doctor login) and send pushes (FCM).
     // 9.11.0 at least: 9.4.0 with Boot 4's httpclient5 5.6 failed every push ("Not in GZIP format": the client now unzips
