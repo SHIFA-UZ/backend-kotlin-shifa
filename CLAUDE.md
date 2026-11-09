@@ -21,7 +21,7 @@ Shifa Doctor Backend MVP — a medical platform backend connecting doctors and p
 - **Quality:** detekt (baseline), JaCoCo, ArchUnit (`ArchitectureTest`), OpenAPI snapshot test
 - **Email:** Brevo SMTP (OTP delivery)
 - **API Docs:** springdoc-openapi 3.2.0 (Swagger UI at `/swagger-ui/`, off in production); the contract snapshot is `docs/api/openapi.json`
-- **Build:** Gradle 8.14.3 (Kotlin DSL), output: `build/libs/app.jar`; Dockerfile for Railway
+- **Build:** Gradle 9.8.2 (Kotlin DSL), output: `build/libs/app.jar`; Dockerfile for Railway
 
 ## Common Commands
 
