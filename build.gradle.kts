@@ -73,8 +73,10 @@ dependencies {
     // Rate limiting (IP, per-user and AI buckets)
     implementation("com.bucket4j:bucket4j_jdk17-core:8.16.1")
 
-    // Firebase Admin SDK - verify ID tokens (phone OTP doctor login)
-    implementation("com.google.firebase:firebase-admin:9.4.0")
+    // Firebase Admin SDK - verify ID tokens (phone OTP doctor login) and send pushes (FCM).
+    // 9.11.0 at least: 9.4.0 with Boot 4's httpclient5 5.6 failed every push ("Not in GZIP format": the client now unzips
+    // responses itself and the SDK unzipped them again; firebase-admin-java#1173).
+    implementation("com.google.firebase:firebase-admin:9.11.0")
 
     // Email (Brevo SMTP) - OTP verification emails
     implementation("org.springframework.boot:spring-boot-starter-mail")
