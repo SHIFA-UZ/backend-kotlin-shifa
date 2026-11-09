@@ -64,7 +64,7 @@ dependencies {
 
     // HTTP client for OpenAI, Daily, Click and FCM calls; coroutines for the AI streaming paths
     implementation("com.squareup.okhttp3:okhttp:5.5.1")
-    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.9.0")
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0")
 
     // Caffeine caches (CacheConfig) and ShedLock so one instance runs each data-changing scheduled job
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
