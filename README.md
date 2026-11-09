@@ -27,7 +27,7 @@ working in this repository are in `CLAUDE.md`.
 | Storage | `shared/storage/FileStorage`: local directory or S3-compatible Railway bucket |
 | API docs | springdoc-openapi 2.8.17 (Swagger UI in the local and development profiles) |
 | Quality | detekt with a baseline, JaCoCo, ArchUnit architecture tests, OpenAPI snapshot test |
-| Build | Gradle 8.14.3 (Kotlin DSL), output `build/libs/app.jar`, Dockerfile for Railway |
+| Build | Gradle 9.8.2 (Kotlin DSL), output `build/libs/app.jar`, Dockerfile for Railway |
 
 ## Prerequisites
 
