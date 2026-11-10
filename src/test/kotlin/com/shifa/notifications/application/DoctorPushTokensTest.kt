@@ -64,6 +64,10 @@ class DoctorPushTokensTest {
         assertEquals(null, previous.fcmToken)
 
         previous.fcmToken = "tok-a"
+        tokens.register(5L, "tok-a", "android", "jti-1")
+        assertEquals(null, previous.fcmToken)
+
+        previous.fcmToken = "tok-a"
         tokens.unregister(5L, "tok-a")
         assertEquals(null, previous.fcmToken)
     }
