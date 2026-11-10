@@ -129,7 +129,8 @@ class AuthController(
             found = true,
             fullName = fullName,
             photoUrl = patientProfile?.photoUrl?.takeIf { it.isNotBlank() },
-            email = existingUser.email?.takeIf { it.isNotBlank() }
+            // Only the address the caller already typed: a phone number must not reveal the account's e-mail.
+            email = existingUser.email?.takeIf { it.equals(emailNorm, ignoreCase = true) }
         )
     }
 
