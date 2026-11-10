@@ -324,8 +324,9 @@ class MessageService(
                         name = name,
                         photoUrl = profile.avatarUrl,
                         isDoctor = true,
-                        email = user.email,
-                        phone = user.phone
+                        // A contact picker needs a name and a photo; sign-in e-mail and phone stay private.
+                        email = null,
+                        phone = null
                     )
                 )
             }
@@ -341,8 +342,8 @@ class MessageService(
                     name = patient.fullName,
                     photoUrl = patient.photoUrl,
                     isDoctor = false,
-                    email = patient.email,
-                    phone = patient.phone
+                    email = null,
+                    phone = null
                 )
             )
         }
@@ -534,8 +535,8 @@ class MessageService(
                 name = name,
                 photoUrl = normalizePhotoUrl(profile.avatarUrl),
                 isDoctor = true,
-                email = profile.user.email,
-                phone = profile.user.phone
+                email = null,
+                phone = null
             )
         }.distinctBy { it.id }
     }
