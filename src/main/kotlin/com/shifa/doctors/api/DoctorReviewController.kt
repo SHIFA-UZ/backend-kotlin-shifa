@@ -118,6 +118,21 @@ class DoctorReviewController(
             apt
         }
 
+        // Without an appointment the checks above never ran: such a review still needs a past visit with this
+        // doctor, and a patient gets one of them per doctor.
+        if (appointment == null) {
+            val patientId = requireNotNull(patient.id) { "Patient profile has no id" }
+            val now = java.time.Instant.now()
+            val visited = appointmentRepository.findByPatientIdAndDoctorIdOrderByStartAtDesc(patientId, doctorId)
+                .any { it.status != Appointment.Status.CANCELLED && it.startAt.isBefore(now) }
+            if (!visited) {
+                throw ResponseStatusException(HttpStatus.FORBIDDEN, "You can review a doctor after a visit")
+            }
+            if (reviewRepository.findByPatientId(patientId).any { it.doctor.id == doctorId && it.appointment == null }) {
+                throw ResponseStatusException(HttpStatus.CONFLICT, "You have already reviewed this doctor")
+            }
+        }
+
         val review = DoctorReview(
             doctor = doctor,
             patient = patient,
