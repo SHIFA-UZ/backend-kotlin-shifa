@@ -26,6 +26,13 @@ class PrincipalResolverService(
     private val clinicMemberships: com.shifa.clinics.infrastructure.ClinicMembershipRepository
 ) {
 
+    /** [role] is typed as a plain enum so `shared` gains no new reference to the auth feature (ArchUnit). */
+    private fun withoutAdminUnlessAdminToken(
+        authorities: List<SimpleGrantedAuthority>,
+        role: Enum<*>,
+    ): List<SimpleGrantedAuthority> =
+        if (role.name == "ADMIN") authorities else authorities.filter { it.authority != "ROLE_ADMIN" }
+
     /**
      * Build principal for request: use tokenRole when present (and user has that role), otherwise primary role (users.role).
      */
@@ -35,20 +42,23 @@ class PrincipalResolverService(
             .takeIf { it.isNotEmpty() }
             ?.map { it.role }?.toSet()
             ?: setOf(user.role)
-        val authorities = roles.map { SimpleGrantedAuthority("ROLE_${it.name}") }.toList()
+        val allAuthorities = roles.map { SimpleGrantedAuthority("ROLE_${it.name}") }.toList()
 
         val effectiveRole = when {
             tokenRole != null -> {
                 val role = runCatching { Role.valueOf(tokenRole) }.getOrNull()
-                    ?: return resolveByPrimaryRole(user, authorities)
+                    ?: return resolveByPrimaryRole(user, allAuthorities)
                 if (!roles.contains(role)) {
                     // Token claims a role user doesn't have (e.g. tampered) -> reject by using primary only or throw
-                    return resolveByPrimaryRole(user, authorities)
+                    return resolveByPrimaryRole(user, allAuthorities)
                 }
                 role
             }
             else -> user.role
         }
+        // A doctor or patient token of an account that is also an admin must not open /api/admin/**:
+        // only the admin sign-in (password + e-mailed code) issues an ADMIN token.
+        val authorities = withoutAdminUnlessAdminToken(allAuthorities, effectiveRole)
 
         return when (effectiveRole) {
             Role.ADMIN -> {
