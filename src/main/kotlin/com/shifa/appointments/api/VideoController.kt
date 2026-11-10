@@ -136,8 +136,8 @@ class VideoController(
                 )
             }
 
-            // Generate room name if not provided
-            val roomName = request.roomName ?: com.shifa.appointments.application.VideoPresenceService.roomNameFor(request.appointmentId)
+            // Always the visit's own room: a room name from the client would give a token for someone else's visit.
+            val roomName = com.shifa.appointments.application.VideoPresenceService.roomNameFor(request.appointmentId)
             logger.debug("Using room name: $roomName")
 
             // Get or create room
@@ -301,6 +301,10 @@ class VideoController(
     ): Map<String, Any> {
         if (principal == null) {
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Authentication required")
+        }
+        // Creates the room when it is missing, so not for patients.
+        if (principal !is DoctorPrincipal) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Doctors only")
         }
 
         val room = dailyVideoService.getOrCreateRoom(roomName)
