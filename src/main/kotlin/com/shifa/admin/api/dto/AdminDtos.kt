@@ -64,3 +64,9 @@ data class AdminClinicUpsertRequest(
 data class AdminClinicMemberRoleRequest(
     @field:NotBlank val membershipRole: String,
 )
+
+/** The action and entity types present in the audit log (`GET /api/admin/audit-logs/types`). */
+data class AuditLogTypesResponse(
+    val actionTypes: List<String>,
+    val entityTypes: List<String>,
+)
