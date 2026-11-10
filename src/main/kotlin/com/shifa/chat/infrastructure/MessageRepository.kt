@@ -18,6 +18,21 @@ interface MessageRepository : JpaRepository<Message, Long> {
     )
     fun findByConversationIdOrderByCreatedAtAsc(@Param("conversationId") conversationId: Long): List<Message>
 
+    /** The conversation's messages with an id above [after], by id, as many as [page] allows (the `after` cursor). */
+    @Query(
+        """
+        SELECT m FROM Message m
+        LEFT JOIN FETCH m.senderUser
+        WHERE m.conversation.id = :conversationId AND m.id > :after
+        ORDER BY m.id ASC
+        """
+    )
+    fun findByConversationIdAfter(
+        @Param("conversationId") conversationId: Long,
+        @Param("after") after: Long,
+        page: org.springframework.data.domain.Pageable,
+    ): List<Message>
+
     @Query(
         """
         SELECT COUNT(m) FROM Message m

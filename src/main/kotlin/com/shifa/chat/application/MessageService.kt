@@ -17,6 +17,7 @@ import com.shifa.patients.application.PatientProfileMapper
 import java.time.OffsetDateTime
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.data.domain.PageRequest
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
@@ -141,7 +142,9 @@ class MessageService(
             throw IllegalArgumentException("Access denied")
         }
 
-        val messages = messageRepo.findByConversationIdOrderByCreatedAtAsc(conversationId)
+        val messages = loadMessages(conversationId, after, limit) {
+            messageRepo.countUnreadPerConversationForUser(listOf(conversationId), doctorUserId)
+        }
         val participantName = getParticipantName(conversation, doctorUserId)
         val participantPhotoUrl = getParticipantPhotoUrl(conversation, doctorUserId)
         val isDoctor = conversation.doctorParticipant != null
@@ -157,7 +160,7 @@ class MessageService(
             conversation.patientParticipant!!.id!!
         }
 
-        val unreadCount = messages.count { !it.isRead && it.senderUser!!.id != doctorUserId }
+        val unreadCount = messages.unread ?: messages.page.count { !it.isRead && it.senderUser!!.id != doctorUserId }
 
         val conversationDto = ConversationDto(
             id = conversation.id!!,
@@ -165,7 +168,7 @@ class MessageService(
             participantPhotoUrl = participantPhotoUrl,
             isDoctorParticipant = isDoctor,
             participantId = participantId,
-            lastMessage = messages.lastOrNull()?.let { lastMessagePreview(it) },
+            lastMessage = messages.last?.let { lastMessagePreview(it) },
             lastMessageAt = conversation.lastMessageAt,
             unreadCount = unreadCount
         )
@@ -173,7 +176,7 @@ class MessageService(
         val doctorUserIdInConv = conversation.doctorUser?.id
         val otherDoctorUserIdInConv = conversation.doctorParticipant?.id
         val patientUserIdInConv = try { conversation.patientParticipant?.user?.id } catch (_: Exception) { null }
-        val messageDtos = MessageCursor.page(messages, after, limit).map { msg ->
+        val messageDtos = messages.page.map { msg ->
             messageToDto(msg, doctorUserId, doctorUserIdInConv, otherDoctorUserIdInConv, patientUserIdInConv)
         }
 
@@ -415,11 +418,13 @@ class MessageService(
             throw IllegalArgumentException("Access denied")
         }
 
-        val messages = messageRepo.findByConversationIdOrderByCreatedAtAsc(conversationId)
+        val messages = loadMessages(conversationId, after, limit) {
+            messageRepo.countUnreadPerConversationForPatient(listOf(conversationId), patientProfileId)
+        }
         val participantName = getDoctorNameForPatient(conversation)
         val participantPhotoUrl = getDoctorPhotoForPatient(conversation)
 
-        val unreadCount = messages.count { !it.isRead && it.recipientPatient?.id == patientProfileId }
+        val unreadCount = messages.unread ?: messages.page.count { !it.isRead && it.recipientPatient?.id == patientProfileId }
 
         val conversationDto = ConversationDto(
             id = conversation.id!!,
@@ -427,7 +432,7 @@ class MessageService(
             participantPhotoUrl = participantPhotoUrl,
             isDoctorParticipant = true,
             participantId = conversation.doctorUser!!.id,
-            lastMessage = messages.lastOrNull()?.let { lastMessagePreview(it) },
+            lastMessage = messages.last?.let { lastMessagePreview(it) },
             lastMessageAt = conversation.lastMessageAt,
             unreadCount = unreadCount
         )
@@ -435,7 +440,7 @@ class MessageService(
         val doctorUserIdInConv = conversation.doctorUser?.id
         val otherDoctorUserIdInConv = conversation.doctorParticipant?.id
         val patientUserIdInConv = try { conversation.patientParticipant?.user?.id } catch (_: Exception) { null }
-        val messageDtos = MessageCursor.page(messages, after, limit).map { msg ->
+        val messageDtos = messages.page.map { msg ->
             messageToDto(msg, patientUserId, doctorUserIdInConv, otherDoctorUserIdInConv, patientUserIdInConv)
         }
 
@@ -677,6 +682,27 @@ class MessageService(
             if (current == null || (message.id ?: 0L) > (current.id ?: 0L)) result[conversationId] = message
         }
         return result
+    }
+
+    /** What a conversation read needs: the messages to return, the newest message, and the unread count (null: count [page]). */
+    private class LoadedMessages(val page: List<Message>, val last: Message?, val unread: Int?)
+
+    /**
+     * Without [after] the whole conversation, as always. With it only the page after the cursor is read; the newest
+     * message and the unread count then come from the conversation list's queries ([unreadRows]) instead of from
+     * every message.
+     */
+    private fun loadMessages(conversationId: Long, after: Long?, limit: Int?, unreadRows: () -> List<Array<Any>>): LoadedMessages {
+        if (after == null) {
+            val all = messageRepo.findByConversationIdOrderByCreatedAtAsc(conversationId)
+            return LoadedMessages(all, all.lastOrNull(), null)
+        }
+        val page = messageRepo.findByConversationIdAfter(conversationId, after, PageRequest.of(0, MessageCursor.size(limit)))
+        return LoadedMessages(
+            page = page,
+            last = lastMessagesByConversation(listOf(conversationId))[conversationId],
+            unread = unreadCountsByConversation(unreadRows())[conversationId] ?: 0,
+        )
     }
 
     private fun unreadCountsByConversation(rows: List<Array<Any>>): Map<Long, Int> =
