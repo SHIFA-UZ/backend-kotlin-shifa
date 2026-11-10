@@ -18111,36 +18111,6 @@
         ]
       }
     },
-    "/api/doctor/subscription/start": {
-      "post": {
-        "operationId": "startSubscription",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/StartSubscriptionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "$ref": "#/components/schemas/SubscriptionDto"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "subscription-controller"
-        ]
-      }
-    },
     "/api/doctors/me": {
       "get": {
         "operationId": "getAll",

@@ -72,6 +72,7 @@ class DoctorAppThirdRoundIntegrationTest {
     @Autowired lateinit var booking: com.shifa.appointments.application.DoctorAppointmentBookingService
     @Autowired lateinit var fileStorage: com.shifa.shared.storage.FileStorage
     @Autowired lateinit var documentAccess: com.shifa.documents.application.DocumentAccessService
+    @Autowired lateinit var planLines: com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 
     companion object {
         @JvmStatic
@@ -206,6 +207,12 @@ class DoctorAppThirdRoundIntegrationTest {
             assertThrows<IllegalArgumentException> { financeController.listRecords(principal, clinicId, null, 0, 50, from, null) }
             financeController.appointmentLedger(principal, clinicId, null, null, 0, 20, principal.profile.id)
             financeController.appointmentLedger(principal, clinicId, from, to, 0, 20, principal.profile.id)
+            // BE-37: a month without a doctor filter answered 500 (DISTINCT with ORDER BY an unselected column).
+            financeController.appointmentLedger(principal, clinicId, from, to, 0, 20, null)
+            val page = org.springframework.data.domain.PageRequest.of(0, 20)
+            val (start, end) = java.time.Instant.parse(from) to java.time.Instant.parse(to)
+            planLines.findDistinctLinkedAppointmentIdsForClinicInRange(clinicId, start, end, page)
+            planLines.findDistinctLinkedAppointmentIdsForClinicAndPatientsInRange(clinicId, listOf(-1L), start, end, page)
         }
         val today = LocalDate.now()
         analytics.overview(principal.profile, today.minusDays(30), today)

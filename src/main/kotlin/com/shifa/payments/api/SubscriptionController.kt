@@ -51,23 +51,8 @@ class SubscriptionController(
         )
     }
 
-    @PostMapping("/start")
-    fun startSubscription(
-        @AuthenticationPrincipal principal: DoctorPrincipal,
-        @RequestBody body: StartSubscriptionRequest
-    ): SubscriptionDto {
-        val doctorId = principal.profile.id!!
-        val subscription = subscriptionService.startSubscription(doctorId, body.planCode, body.gateway)
-        return SubscriptionDto(
-            id = subscription.id,
-            planCode = subscription.plan.code,
-            status = subscription.status.name,
-            gateway = subscription.gateway.name,
-            currentPeriodEnd = subscription.currentPeriodEnd?.toString(),
-            gracePeriodEndsAt = subscription.gracePeriodEndsAt?.toString(),
-            suspendedAt = subscription.suspendedAt?.toString()
-        )
-    }
+    // No `POST /start`: it marked a plan ACTIVE without any payment. A plan starts only from a paid Stripe checkout
+    // (`/checkout` and its webhook); admins set tiers in the admin panel.
 
     @PostMapping("/checkout")
     fun createCheckout(

@@ -88,6 +88,33 @@ class SubscriptionTierService(
     }
 
     /**
+     * A paid plan (a Stripe checkout or renewal) raises the user to its tier, and never lowers one an admin granted.
+     * Plans are named after tiers (`BASIC`, `PRO`, `PREMIUM`); a plan with another code changes nothing.
+     */
+    @Transactional
+    fun grantPaidTier(user: User, planCode: String) {
+        val tier = tierOfPlan(planCode) ?: return
+        if (user.role == Role.ADMIN || user.role == Role.PATIENT || user.subscriptionTier.atLeast(tier)) return
+        user.subscriptionTier = tier
+        userRepository.save(user)
+    }
+
+    /**
+     * The paid plan ended (Stripe cancelled it, its retries included): back to BASIC, unless the tier is no longer the
+     * plan's, because an admin changed it since.
+     */
+    @Transactional
+    fun endPaidTier(user: User, planCode: String) {
+        val tier = tierOfPlan(planCode) ?: return
+        if (user.role == Role.ADMIN || user.role == Role.PATIENT || user.subscriptionTier != tier) return
+        user.subscriptionTier = SubscriptionTier.BASIC
+        userRepository.save(user)
+    }
+
+    private fun tierOfPlan(planCode: String): SubscriptionTier? =
+        SubscriptionTier.entries.firstOrNull { it.name == planCode.trim().uppercase() }
+
+    /**
      * Feature codes available for a given user, scoped to features that apply to their role.
      * Used by frontends to render gates without leaking cross-role feature names.
      */
