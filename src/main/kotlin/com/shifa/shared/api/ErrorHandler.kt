@@ -112,6 +112,24 @@ class ErrorHandler(
             .body(body(409, "A record with the same unique value already exists", ErrorCode.CONFLICT))
     }
 
+    /** Wrong method, wrong content type or a missing upload part: the client's mistake, not a 500. */
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException::class)
+    fun handleMethodNotSupported(e: org.springframework.web.HttpRequestMethodNotSupportedException): ResponseEntity<Map<String, Any>> =
+        ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
+            .body(body(405, "Method not allowed", ErrorCode.BAD_REQUEST))
+
+    @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException::class)
+    fun handleMediaTypeNotSupported(e: org.springframework.web.HttpMediaTypeNotSupportedException): ResponseEntity<Map<String, Any>> =
+        ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
+            .body(body(415, "Unsupported content type", ErrorCode.BAD_REQUEST))
+
+    @ExceptionHandler(org.springframework.web.multipart.support.MissingServletRequestPartException::class)
+    fun handleMissingPart(
+        e: org.springframework.web.multipart.support.MissingServletRequestPartException,
+    ): ResponseEntity<Map<String, Any>> =
+        ResponseEntity.status(HttpStatus.BAD_REQUEST)
+            .body(body(400, "Missing required part '${e.requestPartName}'", ErrorCode.VALIDATION))
+
     /** Missing static file (photo, document, attachment) or unknown path: 404, not 500. */
     @ExceptionHandler(NoResourceFoundException::class)
     fun handleNoResourceFound(e: NoResourceFoundException): ResponseEntity<Map<String, Any>> =
