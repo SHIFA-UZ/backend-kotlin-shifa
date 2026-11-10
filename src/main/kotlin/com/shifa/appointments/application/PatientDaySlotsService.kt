@@ -11,6 +11,7 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.LocalTime
 import java.time.ZoneId
+import java.time.ZoneOffset
 import org.springframework.transaction.annotation.Transactional
 
 /**
@@ -130,49 +131,85 @@ class PatientDaySlotsService(
      * Finds the earliest bookable slot start time for [doctor] at or after [fromInstant], scanning up to
      * [lookaheadDays] days forward. Returns null when no slot is available in that window. Used by copilot
      * doctor ranking to prefer providers with soonest availability.
-     *
-     * Prefetches schedule rules, appointments, and blocks once per doctor to avoid N×day DB round-trips.
      */
     @Transactional
     fun nextAvailableStartAt(
         doctor: DoctorProfile,
         fromInstant: Instant,
         lookaheadDays: Int = 14
+    ): Instant? = nextAvailableStartAt(listOf(doctor), fromInstant, lookaheadDays)[doctor.id]
+
+    /**
+     * [nextAvailableStartAt] for several doctors, by doctor id (no entry: no slot in the window). Schedule rules,
+     * validity periods, appointments and blocks are read once for all of them: five queries for a page of the public
+     * doctor list instead of five per doctor.
+     */
+    @Transactional
+    fun nextAvailableStartAt(
+        doctors: Collection<DoctorProfile>,
+        fromInstant: Instant,
+        lookaheadDays: Int = 14,
+    ): Map<Long, Instant> {
+        if (doctors.isEmpty()) return emptyMap()
+        val ids = doctors.map { it.id }
+        // Each doctor's window is in their own time zone; read the widest one, the per-day filters narrow it again.
+        val startDates = doctors.map { fromInstant.atZone(ZoneId.of(it.timeZone)).toLocalDate() }
+        val firstDate = startDates.min()
+        val lastDate = startDates.max().plusDays(lookaheadDays.toLong())
+        val rangeStart = firstDate.minusDays(1).atStartOfDay(ZoneOffset.UTC).toInstant()
+        val rangeEnd = lastDate.plusDays(2).atStartOfDay(ZoneOffset.UTC).toInstant()
+
+        val weeklyRules = rulesRepo.findByDoctorIdIn(ids).groupBy { it.doctor.id }
+        val dateSpecificRules =
+            dateSpecificRulesRepo.findOverlappingWithDateRangeForDoctors(ids, firstDate, lastDate).groupBy { it.doctor.id }
+        val validityPeriods = scheduleValidityService.getPeriods(doctors)
+        val busy = (
+            appts.findBusyTimesForDoctors(ids, rangeStart, rangeEnd).map { (it[0] as Long) to Busy(it[1] as Instant, it[2] as Instant) } +
+                blocksRepo.findOverlappingForDoctors(ids, rangeStart, rangeEnd).map { it.doctor.id to Busy(it.startAt, it.endAt) }
+            ).groupBy({ it.first }, { it.second })
+
+        val result = HashMap<Long, Instant>()
+        for (doctor in doctors) {
+            val next = firstSlot(
+                doctor = doctor,
+                fromInstant = fromInstant,
+                lookaheadDays = lookaheadDays,
+                weeklyRules = weeklyRules[doctor.id].orEmpty(),
+                dateSpecificRules = dateSpecificRules[doctor.id].orEmpty(),
+                validityPeriods = validityPeriods[doctor.id].orEmpty(),
+                busy = busy[doctor.id].orEmpty(),
+            )
+            if (next != null) result[doctor.id] = next
+        }
+        return result
+    }
+
+    /** A time the doctor is taken: an appointment that holds its slot, or a block. */
+    private data class Busy(val startAt: Instant, val endAt: Instant)
+
+    private fun firstSlot(
+        doctor: DoctorProfile,
+        fromInstant: Instant,
+        lookaheadDays: Int,
+        weeklyRules: List<com.shifa.appointments.domain.WeeklyScheduleRule>,
+        dateSpecificRules: List<com.shifa.appointments.domain.DateSpecificScheduleRule>,
+        validityPeriods: List<com.shifa.appointments.domain.ScheduleValidityPeriod>,
+        busy: List<Busy>,
     ): Instant? {
-        val doctorId = doctor.id!!
+        // No rules: nothing to offer. No validity period: no date is bookable (as availableSlotsForDay has it).
+        if (weeklyRules.isEmpty() && dateSpecificRules.isEmpty()) return null
+        if (validityPeriods.isEmpty()) return null
         val zone = ZoneId.of(doctor.timeZone)
         val startDate = fromInstant.atZone(zone).toLocalDate()
-        val endDate = startDate.plusDays(lookaheadDays.toLong())
-        val rangeStart = startDate.atStartOfDay(zone).toInstant()
-        val rangeEnd = endDate.plusDays(1).atStartOfDay(zone).toInstant()
-
-        val weeklyRules = rulesRepo.findByDoctorId(doctorId)
-        val dateSpecificRules =
-            dateSpecificRulesRepo.findOverlappingWithDateRange(doctorId, startDate, endDate)
-        if (weeklyRules.isEmpty() && dateSpecificRules.isEmpty()) {
-            return null
-        }
-
-        val validityPeriods = scheduleValidityService.getPeriods(doctor)
-        // The appointments that hold a slot, as availableSlotsForDay counts them: a cancelled, expired or unpaid-failed
-        // one frees its time.
-        val allAppts = appts.findOverlapping(doctorId, rangeStart, rangeEnd)
-        val allBlocks = blocksRepo.findOverlapping(doctorId, rangeStart, rangeEnd)
-
         for (i in 0..lookaheadDays) {
             val date = startDate.plusDays(i.toLong())
-            if (validityPeriods.isNotEmpty() && validityPeriods.none { it.contains(date) }) {
-                continue
-            }
+            if (validityPeriods.none { it.contains(date) }) continue
             val slots = availableSlotsForDayWithPrefetch(
-                doctor = doctor,
                 localDate = date,
                 zone = zone,
                 weeklyRules = weeklyRules,
                 dateSpecificRules = dateSpecificRules,
-                existingAppts = allAppts,
-                blocks = allBlocks,
-                skipValidityCheck = validityPeriods.isNotEmpty()
+                busy = busy,
             )
             for (s in slots) {
                 val slotStart = Instant.parse(s.startAt)
@@ -183,21 +220,14 @@ class PatientDaySlotsService(
     }
 
     private fun availableSlotsForDayWithPrefetch(
-        doctor: DoctorProfile,
         localDate: LocalDate,
         zone: ZoneId,
         weeklyRules: List<com.shifa.appointments.domain.WeeklyScheduleRule>,
         dateSpecificRules: List<com.shifa.appointments.domain.DateSpecificScheduleRule>,
-        existingAppts: List<com.shifa.appointments.domain.Appointment>,
-        blocks: List<com.shifa.appointments.domain.ScheduleBlock>,
+        busy: List<Busy>,
         locationId: Long? = null,
-        skipValidityCheck: Boolean = false
     ): List<AvailableSlotDto> {
         val weekday = localDate.dayOfWeek.value
-
-        if (!skipValidityCheck && !scheduleValidityService.isDateWithinAnyPeriod(doctor, localDate)) {
-            return emptyList()
-        }
 
         val dayStart = localDate.atStartOfDay(zone).toInstant()
         val dayEnd = localDate.plusDays(1).atStartOfDay(zone).toInstant()
@@ -254,18 +284,12 @@ class PatientDaySlotsService(
             }
         }
 
-        val dayAppts = existingAppts.filter { ap ->
-            ap.startAt < dayEnd && ap.endAt > dayStart
-        }
-        val dayBlocks = blocks.filter { block ->
-            block.startAt < dayEnd && block.endAt > dayStart
-        }
+        val dayBusy = busy.filter { it.startAt < dayEnd && it.endAt > dayStart }
 
         fun overlaps(a: Instant, b: Instant, c: Instant, d: Instant) = a < d && c < b
 
         return freeSlots.filter { (start, end, _) ->
-            dayAppts.none { ap -> overlaps(start, end, ap.startAt, ap.endAt) } &&
-                dayBlocks.none { block -> overlaps(start, end, block.startAt, block.endAt) }
+            dayBusy.none { overlaps(start, end, it.startAt, it.endAt) }
         }.map { (_, _, dto) -> dto }.sortedBy { it.startAt }
     }
 }

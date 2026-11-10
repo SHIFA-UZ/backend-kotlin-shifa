@@ -232,14 +232,7 @@ class PublicDoctorController(
         var working = filtered
 
         if (!availableWithin.isNullOrBlank()) {
-            working = working.map { (doc, dist, enrichment) ->
-                val next = daySlotsService.nextAvailableStartAt(
-                    doc,
-                    now,
-                    LIST_AVAILABILITY_LOOKAHEAD_DAYS
-                )
-                Triple(doc, dist, enrichment.copy(nextAvailableStartAt = next))
-            }.filter { (doc, _, enrichment) ->
+            working = withNextAvailable(working, now).filter { (doc, _, enrichment) ->
                 matchesAvailableWithin(enrichment.nextAvailableStartAt, availableWithin, doc)
             }
         }
@@ -259,14 +252,7 @@ class PublicDoctorController(
             }
             "availability" -> {
                 val withSlots = if (availableWithin.isNullOrBlank() && !shouldComputeAvailability) {
-                    working.map { (doc, dist, enrichment) ->
-                        val next = daySlotsService.nextAvailableStartAt(
-                            doc,
-                            now,
-                            LIST_AVAILABILITY_LOOKAHEAD_DAYS
-                        )
-                        Triple(doc, dist, enrichment.copy(nextAvailableStartAt = next))
-                    }
+                    withNextAvailable(working, now)
                 } else {
                     working
                 }
@@ -287,15 +273,7 @@ class PublicDoctorController(
         val pageItems = sorted.drop(fromIndex).take(size)
 
         val pageWithAvailability = if (shouldComputeAvailability && availableWithin.isNullOrBlank()) {
-            pageItems.map { (doc, dist, enrichment) ->
-                val next = enrichment.nextAvailableStartAt
-                    ?: daySlotsService.nextAvailableStartAt(
-                        doc,
-                        now,
-                        LIST_AVAILABILITY_LOOKAHEAD_DAYS
-                    )
-                Triple(doc, dist, enrichment.copy(nextAvailableStartAt = next))
-            }
+            withNextAvailable(pageItems, now)
         } else {
             pageItems
         }
@@ -411,6 +389,21 @@ class PublicDoctorController(
         private const val DEFAULT_PAGE_SIZE = 20
         private const val MAX_PAGE_SIZE = 50
         private const val LIST_AVAILABILITY_LOOKAHEAD_DAYS = 21
+    }
+
+    /** Fills in the next available time of the doctors that do not have it yet, with one batch of queries for all of them. */
+    private fun withNextAvailable(
+        items: List<Triple<DoctorProfile, Double?, DoctorEnrichment>>,
+        now: Instant,
+    ): List<Triple<DoctorProfile, Double?, DoctorEnrichment>> {
+        val next = daySlotsService.nextAvailableStartAt(
+            items.filter { it.third.nextAvailableStartAt == null }.map { it.first },
+            now,
+            LIST_AVAILABILITY_LOOKAHEAD_DAYS,
+        )
+        return items.map { (doc, dist, enrichment) ->
+            Triple(doc, dist, enrichment.copy(nextAvailableStartAt = enrichment.nextAvailableStartAt ?: next[doc.id]))
+        }
     }
 
     private fun enrichDoctorLight(doc: DoctorProfile, listing: PublicDoctorCatalog.Listing): DoctorEnrichment {

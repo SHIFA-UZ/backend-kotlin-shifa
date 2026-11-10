@@ -6,4 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository
 interface ScheduleValidityPeriodRepository : JpaRepository<ScheduleValidityPeriod, Long> {
 
     fun findByDoctorIdOrderByValidFromAsc(doctorId: Long): List<ScheduleValidityPeriod>
+    fun findByDoctorIdInOrderByValidFromAsc(doctorIds: Collection<Long>): List<ScheduleValidityPeriod>
 }

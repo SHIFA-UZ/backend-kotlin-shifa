@@ -28,6 +28,17 @@ class ScheduleValidityService(
         return periodRepo.findByDoctorIdOrderByValidFromAsc(doctor.id)
     }
 
+    /** [getPeriods] for several doctors, by doctor id: one query, plus the legacy migration for a doctor who still needs it. */
+    @Transactional
+    fun getPeriods(doctors: Collection<DoctorProfile>): Map<Long, List<ScheduleValidityPeriod>> {
+        if (doctors.isEmpty()) return emptyMap()
+        val found = periodRepo.findByDoctorIdInOrderByValidFromAsc(doctors.map { it.id }).groupBy { it.doctor.id }
+        return doctors.associate { doctor ->
+            val legacy = doctor.scheduleValidFrom != null && doctor.scheduleValidUntil != null
+            doctor.id to (found[doctor.id] ?: if (legacy) getPeriods(doctor) else emptyList())
+        }
+    }
+
     /**
      * Returns true if the given date falls within any validity period for the doctor.
      */

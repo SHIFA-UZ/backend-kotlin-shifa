@@ -57,6 +57,23 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
     fun findOverlapping(doctorId: Long, start: Instant, end: Instant): List<Appointment>
 
     /**
+     * Rows of (doctor id, startAt, endAt) for the appointments [findOverlapping] returns, for several doctors in one
+     * query and without loading the rows themselves (public listing: next available time).
+     */
+    @Query("""
+        SELECT a.doctor.id, a.startAt, a.endAt FROM Appointment a
+        WHERE a.doctor.id IN :doctorIds
+          AND a.startAt < :end
+          AND a.endAt   > :start
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
+    """)
+    fun findBusyTimesForDoctors(
+        @Param("doctorIds") doctorIds: Collection<Long>,
+        @Param("start") start: Instant,
+        @Param("end") end: Instant,
+    ): List<Array<Any>>
+
+    /**
      * Today's appointments (UTC) for the Home screen.
      * Excludes cancelled appointments.
      */
