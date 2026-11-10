@@ -48,7 +48,7 @@ class StoredFileControllerTest {
             .andExpect(status().isOk)
             .andExpect(header().string("Content-Type", "application/pdf"))
             .andExpect(header().string("Content-Disposition", "inline; filename=\"report.pdf\""))
-            .andExpect(header().string("Cache-Control", "max-age=3600, public"))
+            .andExpect(header().string("Cache-Control", "max-age=3600, private"))
             .andExpect(content().bytes("%PDF".toByteArray()))
     }
 
@@ -61,5 +61,21 @@ class StoredFileControllerTest {
             .andExpect(header().string("Content-Type", "image/jpeg"))
             .andExpect(header().doesNotExist("Content-Disposition"))
         mockMvc.perform(get("/doctors/missing.jpg")).andExpect(status().isNotFound)
+    }
+
+    @Test
+    fun `an uploaded page or script is downloaded, never rendered`() {
+        for (name in listOf("x.html", "y.js", "z.svg")) {
+            `when`(storage.open("chat-attachments/$name")).thenReturn(ByteArrayResource(byteArrayOf(1)))
+
+            mockMvc.perform(get("/chat-attachments/$name"))
+                .andExpect(status().isOk)
+                .andExpect(header().string("Content-Type", "application/octet-stream"))
+                .andExpect(header().string("Content-Disposition", "attachment; filename=\"$name\""))
+                .andExpect(header().string("Cache-Control", "max-age=3600, private"))
+        }
+        `when`(storage.open("doctors/jane-7.jpg")).thenReturn(ByteArrayResource(byteArrayOf(1, 2)))
+        mockMvc.perform(get("/doctors/jane-7.jpg"))
+            .andExpect(header().string("Cache-Control", "max-age=3600, public"))
     }
 }
