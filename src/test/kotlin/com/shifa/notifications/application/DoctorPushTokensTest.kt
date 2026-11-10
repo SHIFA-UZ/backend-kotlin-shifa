@@ -18,13 +18,14 @@ class DoctorPushTokensTest {
 
     @Test
     fun `a new device is added`() {
-        tokens.register(5L, "tok-a", "ios")
+        tokens.register(5L, "tok-a", "ios", "jti-1")
 
         val saved = ArgumentCaptor.forClass(DoctorPushToken::class.java)
         verify(repo).save(saved.capture())
         assertEquals(5L, saved.value.doctorProfileId)
         assertEquals("tok-a", saved.value.token)
         assertEquals("ios", saved.value.platform)
+        assertEquals("jti-1", saved.value.sessionJti)
     }
 
     @Test
@@ -32,9 +33,10 @@ class DoctorPushTokensTest {
         val row = DoctorPushToken(id = 1L, doctorProfileId = 5L, token = "tok-a", platform = "android")
         `when`(repo.findByToken("tok-a")).thenReturn(row)
 
-        tokens.register(9L, "tok-a", null)
+        tokens.register(9L, "tok-a", null, "jti-2")
 
         assertEquals(9L, row.doctorProfileId)
+        assertEquals("jti-2", row.sessionJti)
         assertEquals("android", row.platform)
         verify(repo).save(row)
     }
@@ -59,6 +61,10 @@ class DoctorPushTokensTest {
         `when`(doctors.findByFcmToken("tok-a")).thenReturn(listOf(previous))
 
         tokens.register(9L, "tok-a", "android")
+        assertEquals(null, previous.fcmToken)
+
+        previous.fcmToken = "tok-a"
+        tokens.register(5L, "tok-a", "android", "jti-1")
         assertEquals(null, previous.fcmToken)
 
         previous.fcmToken = "tok-a"

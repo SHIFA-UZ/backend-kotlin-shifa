@@ -31,4 +31,8 @@ class DoctorPushToken(
 
     @Column(name = "last_seen_at", nullable = false)
     var lastSeenAt: OffsetDateTime = OffsetDateTime.now(),
+
+    /** The session (JWT `jti`) that registered the token; pushes stop when it ends. Null on rows from before V132. */
+    @Column(name = "session_jti")
+    var sessionJti: String? = null,
 )

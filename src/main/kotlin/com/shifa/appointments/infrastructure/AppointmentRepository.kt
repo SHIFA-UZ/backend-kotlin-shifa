@@ -57,6 +57,23 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
     fun findOverlapping(doctorId: Long, start: Instant, end: Instant): List<Appointment>
 
     /**
+     * Rows of (doctor id, startAt, endAt) for the appointments [findOverlapping] returns, for several doctors in one
+     * query and without loading the rows themselves (public listing: next available time).
+     */
+    @Query("""
+        SELECT a.doctor.id, a.startAt, a.endAt FROM Appointment a
+        WHERE a.doctor.id IN :doctorIds
+          AND a.startAt < :end
+          AND a.endAt   > :start
+          AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
+    """)
+    fun findBusyTimesForDoctors(
+        @Param("doctorIds") doctorIds: Collection<Long>,
+        @Param("start") start: Instant,
+        @Param("end") end: Instant,
+    ): List<Array<Any>>
+
+    /**
      * Today's appointments (UTC) for the Home screen.
      * Excludes cancelled appointments.
      */
@@ -151,6 +168,35 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         endAt: Instant,
         status: Appointment.Status
     ): Long
+
+    /**
+     * Rows of (status, count) for the doctor's appointments in the range: what one
+     * [countByDoctor_IdAndStartAtBetweenAndStatus] call per status returns (both ends inclusive, like it), in one query.
+     */
+    @Query("""
+        SELECT a.status, COUNT(a) FROM Appointment a
+        WHERE a.doctor.id = :doctorId
+          AND a.startAt BETWEEN :start AND :end
+        GROUP BY a.status
+    """)
+    fun countByStatusForDoctorBetween(
+        @Param("doctorId") doctorId: Long,
+        @Param("start") start: Instant,
+        @Param("end") end: Instant,
+    ): List<Array<Any>>
+
+    /** Only the start times of the doctor's appointments in the range: enough to count per day, without the rows' large text columns. */
+    @Query("""
+        SELECT a.startAt FROM Appointment a
+        WHERE a.doctor.id = :doctorId
+          AND a.startAt >= :start
+          AND a.startAt < :end
+    """)
+    fun findStartTimesByDoctorIdAndStartAtBetween(
+        @Param("doctorId") doctorId: Long,
+        @Param("start") start: Instant,
+        @Param("end") end: Instant,
+    ): List<Instant>
 
     /** All appointments for doctor in range (for grouping by date in service). */
     @Query("""

@@ -64,11 +64,12 @@ class PatientDocumentService(
     @Transactional(readOnly = true)
     fun list(patientId: Long, doctorId: Long, editorId: Long? = doctorId): List<PatientDocumentDto> {
         val found = docs.listForPatient(patientId)
+        val granted = grantedDocumentIds(patientId, doctorId)
         return found
             .filter { safeFilePathOf(it) != null }
             .filter { !it.isChatAttachment }
             .mapNotNull { d ->
-                runCatching { toDto(d, doctorId, editorId) }
+                runCatching { toDto(d, doctorId, editorId, granted) }
                     .onFailure { ex ->
                         log.warn("Skipping invalid doctor document id={} patientId={}: {}", d.id, patientId, ex.message)
                     }
@@ -82,6 +83,7 @@ class PatientDocumentService(
      * every document related to them: both ones they created and ones doctors created for them.
      * All entries are returned with canView=true and a viewable url.
      */
+    @Transactional(readOnly = true)
     fun listForPatientSelf(patientId: Long): List<PatientDocumentDto> {
         val found = docs.listForPatient(patientId)
         return found
@@ -120,9 +122,14 @@ class PatientDocumentService(
         )
     }
 
-    private fun toDto(d: PatientDocument, doctorId: Long, editorId: Long? = doctorId): PatientDocumentDto {
+    private fun toDto(
+        d: PatientDocument,
+        doctorId: Long,
+        editorId: Long? = doctorId,
+        granted: Set<Long>? = null,
+    ): PatientDocumentDto {
         val id = requireNotNull(d.id) { "Document must be persisted" }
-        val canView = canDoctorViewDocument(d, doctorId)
+        val canView = canDoctorViewDocument(d, doctorId, granted)
         val creatorLabel = creatorLabelOf(d)
         val filePath = safeFilePathOf(d)
         val url = if (canView && filePath != null) storage.publicUrlFor(filePath) else null
@@ -154,12 +161,16 @@ class PatientDocumentService(
      *   2. Otherwise the creator can always view their own upload.
      *   3. Otherwise an explicit access grant is required.
      */
-    private fun canDoctorViewDocument(d: PatientDocument, doctorId: Long): Boolean {
+    private fun canDoctorViewDocument(d: PatientDocument, doctorId: Long, granted: Set<Long>? = null): Boolean {
         if (d.isSharedWithTeam) return true
         if (d.uploadedByDoctor?.id == doctorId) return true
-        if (d.id != null && accessGrants.existsByDocument_IdAndDoctor_Id(d.id!!, doctorId)) return true
-        return false
+        val id = d.id ?: return false
+        return granted?.contains(id) ?: accessGrants.existsByDocument_IdAndDoctor_Id(id, doctorId)
     }
+
+    /** The doctor's grants on this patient's documents, for [canDoctorViewDocument] over a list (one query, not one per document). */
+    private fun grantedDocumentIds(patientId: Long, doctorId: Long): Set<Long> =
+        accessGrants.findGrantedDocumentIds(patientId, doctorId).toSet()
 
     /**
      * Compute team-visibility for a doctor upload. Doctor uploads are only
@@ -177,10 +188,11 @@ class PatientDocumentService(
      */
     fun listDocumentsWithAccess(patientId: Long, doctorId: Long): List<PatientDocument> {
         val all = docs.listForPatient(patientId)
+        val granted = grantedDocumentIds(patientId, doctorId)
         return all
             .filter { safeFilePathOf(it) != null }
             .filter { !it.isChatAttachment }
-            .filter { canDoctorViewDocument(it, doctorId) }
+            .filter { canDoctorViewDocument(it, doctorId, granted) }
     }
 
     /**
@@ -188,8 +200,10 @@ class PatientDocumentService(
      * Used so the app can open documents with the auth token (works after access is granted).
      */
     fun getDocumentResourceForDoctor(patientId: Long, documentId: Long, doctorId: Long): Resource? {
-        val list = docs.listForPatient(patientId)
-        val doc = list.find { it.id == documentId } ?: return null
+        // The same rows listForPatient gives (this patient's, not deleted), without loading the whole list for one id.
+        val doc = docs.findById(documentId).orElse(null)
+            ?.takeIf { it.patient?.id == patientId && it.deletedAt == null }
+            ?: return null
         if (!canDoctorViewDocument(doc, doctorId)) return null
         val filePath = safeFilePathOf(doc) ?: return null
         return storage.getFileResource(filePath)
@@ -282,16 +296,25 @@ class PatientDocumentService(
         return toDtoForPatient(persisted)
     }
 
-    /** Update an existing document's file content. Only allowed if the doctor is creator or has a grant. */
+    /**
+     * Replaces the file of a document this doctor uploaded (a re-saved 025-2). Seeing a document is not enough:
+     * team-shared documents are visible to every doctor.
+     */
+    @Transactional
     fun updateFile(
+        patientId: Long,
         documentId: Long,
         doctorId: Long,
         file: MultipartFile
     ): PatientDocumentDto {
-        val existing = docs.findById(documentId).filter { it.deletedAt == null }
+        // The patient in the path is the one the caller was checked against, so the document must be theirs.
+        val existing = docs.findById(documentId).filter { it.deletedAt == null && it.patient?.id == patientId }
             .orElseThrow { IllegalArgumentException("Document not found: $documentId") }
         if (!canDoctorViewDocument(existing, doctorId)) {
             throw IllegalArgumentException("Document not found")
+        }
+        if (existing.uploadedByDoctor?.id != doctorId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only documents you uploaded can be changed")
         }
         val existingPath = existing.filePath
         val baseName = if (existingPath.isNotBlank()) {

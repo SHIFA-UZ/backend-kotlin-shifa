@@ -20,6 +20,11 @@ class StripeGateway(
 ) : PaymentGateway {
     override val code: PaymentGatewayCode = PaymentGatewayCode.STRIPE
 
+    private companion object {
+        const val CONNECT_TIMEOUT_MS = 5_000
+        const val READ_TIMEOUT_MS = 15_000
+    }
+
     override fun createCheckout(request: GatewayCheckoutRequest): GatewayCheckoutResult {
         val apiKey = stripeProperties.secretKey.trim()
         require(apiKey.isNotEmpty()) { "Stripe is not configured (missing STRIPE_SECRET_KEY)" }
@@ -61,7 +66,16 @@ class StripeGateway(
             .setPaymentIntentData(intent.build())
 
         val session = try {
-            Session.create(builder.build())
+            // This runs inside the checkout transaction, which holds the appointment's row lock: the SDK's own
+            // limits (30 s to connect, 80 s to read) would keep that lock and a pooled connection for as long.
+            Session.create(
+                builder.build(),
+                com.stripe.net.RequestOptions.builder()
+                    .setApiKey(apiKey)
+                    .setConnectTimeout(CONNECT_TIMEOUT_MS)
+                    .setReadTimeout(READ_TIMEOUT_MS)
+                    .build(),
+            )
         } catch (e: StripeException) {
             throw ResponseStatusException(
                 HttpStatus.BAD_REQUEST,

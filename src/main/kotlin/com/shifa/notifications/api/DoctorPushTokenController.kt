@@ -21,12 +21,21 @@ import org.springframework.web.bind.annotation.RestController
  */
 @RestController
 @RequestMapping("/api/doctors/me/fcm-tokens")
-class DoctorPushTokenController(private val pushTokens: DoctorPushTokens) {
+class DoctorPushTokenController(
+    private val pushTokens: DoctorPushTokens,
+    private val jwt: com.shifa.shared.security.JwtService,
+) {
 
     @PostMapping
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun add(@AuthenticationPrincipal principal: DoctorPrincipal, @RequestBody @Valid req: DoctorPushTokenRequest) {
-        pushTokens.register(principal.profile.id, req.token.trim(), req.platform)
+    fun add(
+        @AuthenticationPrincipal principal: DoctorPrincipal,
+        @RequestBody @Valid req: DoctorPushTokenRequest,
+        request: jakarta.servlet.http.HttpServletRequest,
+    ) {
+        // The device rings only while the session that registered it lives.
+        val jti = runCatching { jwt.parse(request.getHeader("Authorization").removePrefix("Bearer ").trim()).id }.getOrNull()
+        pushTokens.register(principal.profile.id, req.token.trim(), req.platform, jti)
     }
 
     /** Idempotent: an unknown token, or another doctor's, is a no-op. */

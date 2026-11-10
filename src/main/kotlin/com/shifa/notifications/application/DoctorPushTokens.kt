@@ -15,18 +15,20 @@ class DoctorPushTokens(
 
     /** Idempotent. A token already registered by another doctor moves to this one (the device changed account). */
     @Transactional
-    fun register(doctorProfileId: Long, token: String, platform: String?) {
-        // The same device's legacy single token (Flutter build) on any other doctor stops there: one device, one doctor.
-        clearLegacy(token) { it.id != doctorProfileId }
+    fun register(doctorProfileId: Long, token: String, platform: String?, sessionJti: String? = null) {
+        // The device now rings through its own row, bound to this session: its legacy single token (Flutter build)
+        // goes on every doctor, this one too, or it would keep ringing after the session ends.
+        clearLegacy(token) { true }
         val now = OffsetDateTime.now()
         val row = repo.findByToken(token)
         if (row == null) {
-            repo.save(DoctorPushToken(doctorProfileId = doctorProfileId, token = token, platform = platform))
+            repo.save(DoctorPushToken(doctorProfileId = doctorProfileId, token = token, platform = platform, sessionJti = sessionJti))
             return
         }
         row.doctorProfileId = doctorProfileId
         row.platform = platform ?: row.platform
         row.lastSeenAt = now
+        row.sessionJti = sessionJti
         repo.save(row)
     }
 

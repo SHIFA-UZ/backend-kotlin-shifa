@@ -46,6 +46,17 @@ class ErrorHandlerExposureTest {
     }
 
     @Test
+    fun `wrong method, content type and missing part are client errors`() {
+        val method = handler(false).handleMethodNotSupported()
+        assertEquals(405, method.statusCode.value())
+        val type = handler(false).handleMediaTypeNotSupported()
+        assertEquals(415, type.statusCode.value())
+        val part = handler(false).handleMissingPart(org.springframework.web.multipart.support.MissingServletRequestPartException("file"))
+        assertEquals(400, part.statusCode.value())
+        assertEquals("Missing required part 'file'", part.body!!["message"])
+    }
+
+    @Test
     fun `missing and unconvertible parameters are 400 with the parameter name`() {
         val missing = handler(false).handleMissingParameter(MissingServletRequestParameterException("day", "String"))
         assertEquals(400, missing.statusCode.value())

@@ -259,6 +259,7 @@ class UserManagementService(
         val tempPassword = generateTemporaryPassword()
         user.passwordHash = passwordEncoder.encode(tempPassword)!!
         userRepository.save(user)
+        revokeSessionsExcept(userId, keepJti = null)
         return tempPassword
     }
     
@@ -275,6 +276,22 @@ class UserManagementService(
         sessionValidationCache.invalidateAll(jtis)
     }
     
+    /**
+     * After a password change: every other session of the user ends, so a stolen token dies with the old password.
+     * [keepJti] is the caller's own session (null after a forgotten-password reset, which signs in anew).
+     */
+    @Transactional
+    fun revokeSessionsExcept(userId: Long, keepJti: String?) {
+        val now = OffsetDateTime.now()
+        val others = userSessionRepository.findActiveSessionsByUserId(userId, now).filter { it.tokenJti != keepJti }
+        others.forEach {
+            it.revoked = true
+            it.revokedAt = now
+        }
+        userSessionRepository.saveAll(others)
+        sessionValidationCache.invalidateAll(others.mapNotNull { it.tokenJti })
+    }
+
     /**
      * Unlock user account (clear lockout)
      */
@@ -333,8 +350,9 @@ class UserManagementService(
      */
     private fun generateTemporaryPassword(): String {
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        val random = java.security.SecureRandom()
         return (1..12)
-            .map { chars.random() }
+            .map { chars[random.nextInt(chars.length)] }
             .joinToString("")
     }
     

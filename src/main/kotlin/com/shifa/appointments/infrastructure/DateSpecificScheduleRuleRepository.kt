@@ -57,6 +57,20 @@ interface DateSpecificScheduleRuleRepository : JpaRepository<DateSpecificSchedul
         rangeEndDate: LocalDate
     ): List<DateSpecificScheduleRule>
 
+    /** [findOverlappingWithDateRange] for several doctors in one query, in the same order. */
+    @Query("""
+        SELECT r FROM DateSpecificScheduleRule r
+        WHERE r.doctor.id IN :doctorIds
+          AND r.startDate <= :rangeEndDate
+          AND r.endDate >= :rangeStartDate
+        ORDER BY r.startDate ASC, r.startTime ASC
+    """)
+    fun findOverlappingWithDateRangeForDoctors(
+        @Param("doctorIds") doctorIds: Collection<Long>,
+        @Param("rangeStartDate") rangeStartDate: LocalDate,
+        @Param("rangeEndDate") rangeEndDate: LocalDate,
+    ): List<DateSpecificScheduleRule>
+
     /** The doctors among [doctorIds] that have at least one rule (public listing: "has a schedule"). */
     @org.springframework.data.jpa.repository.Query("SELECT DISTINCT r.doctor.id FROM DateSpecificScheduleRule r WHERE r.doctor.id IN :doctorIds")
     fun findDoctorIdsWithRules(@org.springframework.data.repository.query.Param("doctorIds") doctorIds: Collection<Long>): List<Long>

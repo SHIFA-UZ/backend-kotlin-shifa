@@ -7,6 +7,8 @@ import org.springframework.data.repository.query.Param
 
 interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
     fun findByPlan_IdOrderBySortOrderAscIdAsc(planId: Long): List<TreatmentPlanLine>
+    /** The lines of several plans in one query; within a plan the order is the one above. */
+    fun findByPlan_IdInOrderBySortOrderAscIdAsc(planIds: Collection<Long>): List<TreatmentPlanLine>
 
     @Query(
         """

@@ -17,6 +17,7 @@ import com.shifa.patients.application.PatientProfileMapper
 import java.time.OffsetDateTime
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import org.springframework.data.domain.PageRequest
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.support.TransactionSynchronization
 import org.springframework.transaction.support.TransactionSynchronizationManager
@@ -135,14 +136,15 @@ class MessageService(
 
         // Allow access if doctor is either the owner or the participant
         val hasAccess = conversation.doctorUser!!.id == doctorUserId ||
-                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId) ||
-                (conversation.patientParticipant != null && conversation.patientParticipant!!.id == doctorUserId)
+                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId)
         
         if (!hasAccess) {
             throw IllegalArgumentException("Access denied")
         }
 
-        val messages = messageRepo.findByConversationIdOrderByCreatedAtAsc(conversationId)
+        val messages = loadMessages(conversationId, after, limit) {
+            messageRepo.countUnreadPerConversationForUser(listOf(conversationId), doctorUserId)
+        }
         val participantName = getParticipantName(conversation, doctorUserId)
         val participantPhotoUrl = getParticipantPhotoUrl(conversation, doctorUserId)
         val isDoctor = conversation.doctorParticipant != null
@@ -158,7 +160,7 @@ class MessageService(
             conversation.patientParticipant!!.id!!
         }
 
-        val unreadCount = messages.count { !it.isRead && it.senderUser!!.id != doctorUserId }
+        val unreadCount = messages.unread ?: messages.page.count { !it.isRead && it.senderUser!!.id != doctorUserId }
 
         val conversationDto = ConversationDto(
             id = conversation.id!!,
@@ -166,7 +168,7 @@ class MessageService(
             participantPhotoUrl = participantPhotoUrl,
             isDoctorParticipant = isDoctor,
             participantId = participantId,
-            lastMessage = messages.lastOrNull()?.let { lastMessagePreview(it) },
+            lastMessage = messages.last?.let { lastMessagePreview(it) },
             lastMessageAt = conversation.lastMessageAt,
             unreadCount = unreadCount
         )
@@ -174,7 +176,7 @@ class MessageService(
         val doctorUserIdInConv = conversation.doctorUser?.id
         val otherDoctorUserIdInConv = conversation.doctorParticipant?.id
         val patientUserIdInConv = try { conversation.patientParticipant?.user?.id } catch (_: Exception) { null }
-        val messageDtos = MessageCursor.page(messages, after, limit).map { msg ->
+        val messageDtos = messages.page.map { msg ->
             messageToDto(msg, doctorUserId, doctorUserIdInConv, otherDoctorUserIdInConv, patientUserIdInConv)
         }
 
@@ -203,8 +205,7 @@ class MessageService(
 
         // Allow access if doctor is either the owner or the participant
         val hasAccess = conversation.doctorUser!!.id == doctorUserId ||
-                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId) ||
-                (conversation.patientParticipant != null && conversation.patientParticipant!!.id == doctorUserId)
+                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId)
         
         if (!hasAccess) {
             throw IllegalArgumentException("Access denied")
@@ -258,9 +259,9 @@ class MessageService(
             recipientPatient = recipientPatient,
             text = request.text,
             messageType = messageType,
-            attachmentUrl = fileUrlSigner.canonical(request.attachmentUrl), // never store a signed URL
+            attachmentUrl = ownFileUrl(request.attachmentUrl), // never store a signed URL
             attachmentName = request.attachmentName,
-            thumbnailUrl = fileUrlSigner.canonical(request.thumbnailUrl),
+            thumbnailUrl = ownFileUrl(request.thumbnailUrl),
             fileSize = request.fileSize,
             duration = request.duration,
             status = Message.MessageStatus.SENT,
@@ -298,14 +299,25 @@ class MessageService(
 
         // Allow access if doctor is either the owner or the participant
         val hasAccess = conversation.doctorUser!!.id == doctorUserId ||
-                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId) ||
-                (conversation.patientParticipant != null && conversation.patientParticipant!!.id == doctorUserId)
+                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId)
         
         if (!hasAccess) {
             throw IllegalArgumentException("Access denied")
         }
 
         messageRepo.markReadForUser(conversationId, doctorUserId)
+    }
+
+    /**
+     * What gets stored for an attachment: the path of a file this backend serves, on this backend's own host.
+     * Any other URL from the client is refused, because the recipient's app fetches and opens it as it is.
+     */
+    private fun ownFileUrl(url: String?): String? {
+        val canonical = fileUrlSigner.canonical(url)
+        if (canonical.isNullOrBlank()) return null
+        val path = runCatching { java.net.URI(canonical).rawPath }.getOrNull().orEmpty()
+        require(fileUrlSigner.isProtected(path)) { "Attachment must be a file uploaded to Shifa" }
+        return publicUrls.absolute(path)
     }
 
     @Transactional(readOnly = true)
@@ -327,8 +339,9 @@ class MessageService(
                         name = name,
                         photoUrl = profile.avatarUrl,
                         isDoctor = true,
-                        email = user.email,
-                        phone = user.phone
+                        // A contact picker needs a name and a photo; sign-in e-mail and phone stay private.
+                        email = null,
+                        phone = null
                     )
                 )
             }
@@ -344,8 +357,8 @@ class MessageService(
                     name = patient.fullName,
                     photoUrl = patient.photoUrl,
                     isDoctor = false,
-                    email = patient.email,
-                    phone = patient.phone
+                    email = null,
+                    phone = null
                 )
             )
         }
@@ -405,11 +418,13 @@ class MessageService(
             throw IllegalArgumentException("Access denied")
         }
 
-        val messages = messageRepo.findByConversationIdOrderByCreatedAtAsc(conversationId)
+        val messages = loadMessages(conversationId, after, limit) {
+            messageRepo.countUnreadPerConversationForPatient(listOf(conversationId), patientProfileId)
+        }
         val participantName = getDoctorNameForPatient(conversation)
         val participantPhotoUrl = getDoctorPhotoForPatient(conversation)
 
-        val unreadCount = messages.count { !it.isRead && it.recipientPatient?.id == patientProfileId }
+        val unreadCount = messages.unread ?: messages.page.count { !it.isRead && it.recipientPatient?.id == patientProfileId }
 
         val conversationDto = ConversationDto(
             id = conversation.id!!,
@@ -417,7 +432,7 @@ class MessageService(
             participantPhotoUrl = participantPhotoUrl,
             isDoctorParticipant = true,
             participantId = conversation.doctorUser!!.id,
-            lastMessage = messages.lastOrNull()?.let { lastMessagePreview(it) },
+            lastMessage = messages.last?.let { lastMessagePreview(it) },
             lastMessageAt = conversation.lastMessageAt,
             unreadCount = unreadCount
         )
@@ -425,7 +440,7 @@ class MessageService(
         val doctorUserIdInConv = conversation.doctorUser?.id
         val otherDoctorUserIdInConv = conversation.doctorParticipant?.id
         val patientUserIdInConv = try { conversation.patientParticipant?.user?.id } catch (_: Exception) { null }
-        val messageDtos = MessageCursor.page(messages, after, limit).map { msg ->
+        val messageDtos = messages.page.map { msg ->
             messageToDto(msg, patientUserId, doctorUserIdInConv, otherDoctorUserIdInConv, patientUserIdInConv)
         }
 
@@ -484,9 +499,9 @@ class MessageService(
             recipientPatient = null,
             text = request.text,
             messageType = messageType,
-            attachmentUrl = fileUrlSigner.canonical(request.attachmentUrl), // never store a signed URL
+            attachmentUrl = ownFileUrl(request.attachmentUrl), // never store a signed URL
             attachmentName = request.attachmentName,
-            thumbnailUrl = fileUrlSigner.canonical(request.thumbnailUrl),
+            thumbnailUrl = ownFileUrl(request.thumbnailUrl),
             fileSize = request.fileSize,
             duration = request.duration,
             status = Message.MessageStatus.SENT,
@@ -537,8 +552,8 @@ class MessageService(
                 name = name,
                 photoUrl = normalizePhotoUrl(profile.avatarUrl),
                 isDoctor = true,
-                email = profile.user.email,
-                phone = profile.user.phone
+                email = null,
+                phone = null
             )
         }.distinctBy { it.id }
     }
@@ -667,6 +682,27 @@ class MessageService(
             if (current == null || (message.id ?: 0L) > (current.id ?: 0L)) result[conversationId] = message
         }
         return result
+    }
+
+    /** What a conversation read needs: the messages to return, the newest message, and the unread count (null: count [page]). */
+    private class LoadedMessages(val page: List<Message>, val last: Message?, val unread: Int?)
+
+    /**
+     * Without [after] the whole conversation, as always. With it only the page after the cursor is read; the newest
+     * message and the unread count then come from the conversation list's queries ([unreadRows]) instead of from
+     * every message.
+     */
+    private fun loadMessages(conversationId: Long, after: Long?, limit: Int?, unreadRows: () -> List<Array<Any>>): LoadedMessages {
+        if (after == null) {
+            val all = messageRepo.findByConversationIdOrderByCreatedAtAsc(conversationId)
+            return LoadedMessages(all, all.lastOrNull(), null)
+        }
+        val page = messageRepo.findByConversationIdAfter(conversationId, after, PageRequest.of(0, MessageCursor.size(limit)))
+        return LoadedMessages(
+            page = page,
+            last = lastMessagesByConversation(listOf(conversationId))[conversationId],
+            unread = unreadCountsByConversation(unreadRows())[conversationId] ?: 0,
+        )
     }
 
     private fun unreadCountsByConversation(rows: List<Array<Any>>): Map<Long, Int> =

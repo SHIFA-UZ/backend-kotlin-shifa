@@ -147,7 +147,7 @@ class PatientDocumentController(
     ): ResponseEntity<PatientDocumentDto> {
         ensurePatientDocumentAccess(principal, patientId, clinicId)
         val doctorId = effectiveDoctorProfileId(principal, clinicId)
-        val dto = service.updateFile(documentId, doctorId, file)
+        val dto = service.updateFile(patientId, documentId, doctorId, file)
         return ResponseEntity.ok(dto)
     }
 

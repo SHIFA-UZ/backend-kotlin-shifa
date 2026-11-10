@@ -162,7 +162,7 @@ class RemoteCareTaskController(
             }
         }
 
-        return tasks.map { toTaskDto(it) }
+        return toTaskDtos(tasks)
     }
 
     @GetMapping("/templates")
@@ -292,7 +292,7 @@ class RemoteCareTaskController(
                 .filter { it.status != RemoteCareTask.Status.CANCELLED }
         }
 
-        return tasks.map { toTaskDto(it) }
+        return toTaskDtos(tasks)
     }
 
     @GetMapping("/my-tasks/{id}")
@@ -594,8 +594,16 @@ class RemoteCareTaskController(
         )
     }
 
-    private fun toTaskDto(task: RemoteCareTask): TaskDto {
-        val checkIns = checkInRepo.findByTaskIdOrderByScheduledDateAscScheduledTimeAsc(task.id)
+    /** A list of tasks with one check-in query for all of them instead of one per task. */
+    private fun toTaskDtos(tasks: List<RemoteCareTask>): List<TaskDto> {
+        val checkInsByTask = checkInRepo.findByTaskIdIn(tasks.map { it.id }).groupBy { it.task.id }
+        return tasks.map { toTaskDto(it, checkInsByTask[it.id].orEmpty()) }
+    }
+
+    private fun toTaskDto(
+        task: RemoteCareTask,
+        checkIns: List<TaskCheckIn> = checkInRepo.findByTaskIdOrderByScheduledDateAscScheduledTimeAsc(task.id),
+    ): TaskDto {
         val progress = computeProgress(checkIns, patientTimeZone(task))
 
         return TaskDto(

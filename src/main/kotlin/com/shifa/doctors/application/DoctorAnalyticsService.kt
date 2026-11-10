@@ -13,6 +13,7 @@ import java.time.LocalDate
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 
 /**
@@ -28,27 +29,23 @@ class DoctorAnalyticsService(
     private val dateFormatter = DateTimeFormatter.ISO_LOCAL_DATE
 
     /** Today by default; with [from]/[to] (BE-19) the `…Today` counts cover that period instead. */
+    @Transactional(readOnly = true)
     fun overview(doctor: DoctorProfile, from: LocalDate? = null, to: LocalDate? = null): DoctorAnalyticsOverviewDto {
         val doctorId = doctor.id
         val (dayStart, dayEnd) = periodRange(doctor, from, to) ?: todayRange(doctor)
-        val appointmentsToday = appts.countByDoctor_IdAndStartAtBetweenAndStatus(
-            doctorId, dayStart, dayEnd, Appointment.Status.REQUESTED
-        ) + appts.countByDoctor_IdAndStartAtBetweenAndStatus(
-            doctorId, dayStart, dayEnd, Appointment.Status.CONFIRMED
-        ) + appts.countByDoctor_IdAndStartAtBetweenAndStatus(
-            doctorId, dayStart, dayEnd, Appointment.Status.IN_PROGRESS
-        ) + appts.countByDoctor_IdAndStartAtBetweenAndStatus(
-            doctorId, dayStart, dayEnd, Appointment.Status.COMPLETED
+        val byStatus = appts.countByStatusForDoctorBetween(doctorId, dayStart, dayEnd)
+        fun count(vararg statuses: Appointment.Status) = statuses.sumOf { byStatus[it] ?: 0L }.toInt()
+        val appointmentsToday = count(
+            Appointment.Status.REQUESTED,
+            Appointment.Status.CONFIRMED,
+            Appointment.Status.IN_PROGRESS,
+            Appointment.Status.COMPLETED,
         )
-        val completedToday = appts.countByDoctor_IdAndStartAtBetweenAndStatus(
-            doctorId, dayStart, dayEnd, Appointment.Status.COMPLETED
-        ).toInt()
-        val cancelledToday = appts.countByDoctor_IdAndStartAtBetweenAndStatus(
-            doctorId, dayStart, dayEnd, Appointment.Status.CANCELLED
-        ).toInt()
+        val completedToday = count(Appointment.Status.COMPLETED)
+        val cancelledToday = count(Appointment.Status.CANCELLED)
         val newPatientsToday = appts.countNewPatientsToday(doctorId, dayStart, dayEnd).toInt()
         return DoctorAnalyticsOverviewDto(
-            appointmentsToday = appointmentsToday.toInt(),
+            appointmentsToday = appointmentsToday,
             completedToday = completedToday,
             cancelledToday = cancelledToday,
             newPatientsToday = newPatientsToday
@@ -56,15 +53,16 @@ class DoctorAnalyticsService(
     }
 
     /** Last N days (inclusive of today); returns one point per day, sorted by date. */
+    @Transactional(readOnly = true)
     fun appointmentsTrend(doctor: DoctorProfile, days: Int): List<AppointmentTrendPointDto> {
         val doctorId = doctor.id
         val zone = java.time.ZoneId.of(doctor.timeZone)
         val today = LocalDate.now(zone)
         val rangeStart = today.minusDays((days - 1).toLong()).atStartOfDay(zone).toInstant()
         val rangeEnd = today.plusDays(1).atStartOfDay(zone).toInstant()
-        val list = appts.findByDoctorIdAndStartAtBetween(doctorId, rangeStart, rangeEnd)
-        val byDate = list.groupBy { it.startAt.atZone(zone).toLocalDate() }
-            .mapValues { it.value.size }
+        val byDate = appts.findStartTimesByDoctorIdAndStartAtBetween(doctorId, rangeStart, rangeEnd)
+            .groupingBy { it.atZone(zone).toLocalDate() }
+            .eachCount()
         return (0 until days).map { i ->
             val d = LocalDate.now(zone).minusDays((days - 1 - i).toLong())
             AppointmentTrendPointDto(
@@ -75,6 +73,7 @@ class DoctorAnalyticsService(
     }
 
     /** Last 30 days: video vs in-person counts. */
+    @Transactional(readOnly = true)
     fun consultationTypes(doctor: DoctorProfile, from: LocalDate? = null, to: LocalDate? = null): ConsultationTypesDto {
         val doctorId = doctor.id
         val (start, end) = periodRange(doctor, from, to) ?: last30DaysRange(doctor)
@@ -84,6 +83,7 @@ class DoctorAnalyticsService(
     }
 
     /** Active patients (distinct in last 30 days) and documents received (last 30 days) for those patients. */
+    @Transactional(readOnly = true)
     fun engagement(doctor: DoctorProfile, from: LocalDate? = null, to: LocalDate? = null): DoctorEngagementDto {
         val doctorId = doctor.id
         val (start, end) = periodRange(doctor, from, to) ?: last30DaysRange(doctor)

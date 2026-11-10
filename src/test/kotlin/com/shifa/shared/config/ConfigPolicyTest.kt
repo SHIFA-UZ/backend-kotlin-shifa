@@ -79,6 +79,9 @@ class ConfigPolicyTest {
         assertEquals("shifa-uploads-test", env.getProperty("app.storage.s3.bucket"))
         assertEquals("secret-from-railway", env.getProperty("app.jwt.secret"))
         assertEquals("jdbc:postgresql://db:5432/railway", env.getProperty("spring.datasource.url"))
+        // JSON only: compressing text/event-stream would hold the AI streams back.
+        assertEquals("true", env.getProperty("server.compression.enabled"))
+        assertEquals("application/json", env.getProperty("server.compression.mime-types"))
     }
 
     @Test

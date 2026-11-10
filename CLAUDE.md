@@ -67,7 +67,7 @@ java -jar build/libs/app.jar
 
 ### Auth Model
 
-Four roles — `DOCTOR`, `PATIENT`, `ADMIN`, `CLINIC_STAFF`. Users can hold multiple roles. `CLINIC_STAFF` shares the doctor-app routes for the roster, booking, calendar, messages, clinics and treatment plans. JWT tokens include `jti` for session revocation via the `UserSession` table (validity cached 30 s). Doctor, staff and admin tokens expire after 30 days (`app.jwt.accessTokenMinutesDoctor`), patient tokens after 365 days. Admin login adds an e-mailed second factor.
+Four roles — `DOCTOR`, `PATIENT`, `ADMIN`, `CLINIC_STAFF`. Users can hold multiple roles. `CLINIC_STAFF` shares the doctor-app routes for the roster, booking, calendar, messages, clinics and treatment plans. JWT tokens include `jti` for session revocation via the `UserSession` table (validity cached 30 s). Doctor, staff and admin tokens expire after 12 hours (`app.jwt.accessTokenMinutesDoctor`), patient tokens after 365 days. Admin login adds an e-mailed second factor.
 
 ### Security Filter Chain Order
 

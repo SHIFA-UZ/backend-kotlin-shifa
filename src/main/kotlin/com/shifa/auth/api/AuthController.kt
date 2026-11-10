@@ -129,7 +129,8 @@ class AuthController(
             found = true,
             fullName = fullName,
             photoUrl = patientProfile?.photoUrl?.takeIf { it.isNotBlank() },
-            email = existingUser.email?.takeIf { it.isNotBlank() }
+            // Only the address the caller already typed: a phone number must not reveal the account's e-mail.
+            email = existingUser.email?.takeIf { it.equals(emailNorm, ignoreCase = true) }
         )
     }
 
@@ -1085,6 +1086,14 @@ class AuthController(
             "patient" -> Role.PATIENT
             else -> user.role
         }
+		// Without ?app the role falls back to the account's own: an admin account would get an ADMIN token here
+		// with the password alone, past the e-mail code.
+		if (tokenRole == Role.ADMIN) {
+			throw ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Admin sign-in requires email verification. Use POST /api/auth/admin/request-login-otp and POST /api/auth/admin/verify-login-otp."
+			)
+		}
 		val principal = user.username ?: user.email ?: user.phone!!
 		val tokenResult = jwt.generate(user.id, principal, tokenRole.name)
 		userSessions.save(
@@ -1435,6 +1444,8 @@ class AuthController(
         user.lockedUntil = null
         user.failedLoginAttempts = 0
         users.save(user)
+        // Whoever held a token under the old password is signed out; this request gets a new session below.
+        userManagementService.revokeSessionsExcept(user.id, keepJti = null)
         val principal = user.email ?: user.phone!!
         val tokenResult = jwt.generate(user.id, principal, tokenRole.name)
         userSessions.save(
@@ -1450,7 +1461,8 @@ class AuthController(
     @PostMapping("/reset-password")
     fun resetPassword(
         @RequestBody @Valid r: ChangePasswordRequest,
-        @AuthenticationPrincipal principal: UserDetails
+        @AuthenticationPrincipal principal: UserDetails,
+        request: jakarta.servlet.http.HttpServletRequest,
     ): Map<String, String> {
         // SECURITY (NEW): Enforce strong password for new password; never log password.
         PasswordPolicy.validate(r.newPassword)?.let { msg ->
@@ -1472,6 +1484,10 @@ class AuthController(
         user.passwordHash = encoder.encode(r.newPassword)!!
         user.forcePasswordReset = false
         users.save(user)
+        // The caller stays signed in; every other session of the account ends with the old password.
+        val ownJti = request.getHeader("Authorization")?.removePrefix("Bearer ")?.trim()
+            ?.let { runCatching { jwt.parse(it).id }.getOrNull() }
+        userManagementService.revokeSessionsExcept(user.id, keepJti = ownJti)
 
         return mapOf("message" to "Password updated successfully")
     }

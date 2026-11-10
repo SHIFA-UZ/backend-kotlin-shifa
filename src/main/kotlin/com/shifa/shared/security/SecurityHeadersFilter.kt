@@ -48,6 +48,8 @@ class SecurityHeadersFilter(
         }
 
         // SECURITY (NEW): Prevent clickjacking and MIME sniffing
+        // Browsers (the admin page, the doctor web app's API calls) never fall back to plain HTTP again.
+        if (isProduction) response.setHeader("Strict-Transport-Security", "max-age=31536000")
         response.setHeader("X-Frame-Options", "DENY")
         response.setHeader("X-Content-Type-Options", "nosniff")
         response.setHeader("Referrer-Policy", "strict-origin-when-cross-origin")

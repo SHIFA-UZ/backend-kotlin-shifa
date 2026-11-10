@@ -221,7 +221,7 @@ almost everything); the point of the rules is the layer they cross, not their nu
 Four roles: `DOCTOR`, `PATIENT`, `ADMIN`, `CLINIC_STAFF`. A user can hold several. JWT tokens carry a `jti` bound to a
 `UserSession` row, so a revoked session (force logout) stops working within the 30 s validity cache. There is no refresh
 token: a 401 means log out.
-Doctor, staff and admin tokens last 30 days, patient tokens 365 days. Admin login adds an e-mailed second factor.
+Doctor, staff and admin tokens last 12 hours, patient tokens 365 days. Admin login adds an e-mailed second factor.
 
 Filter chain, in execution order:
 

@@ -26,4 +26,12 @@ interface ScheduleBlockRepository : JpaRepository<ScheduleBlock, Long> {
         @Param("rangeStart") rangeStart: java.time.Instant,
         @Param("rangeEnd") rangeEnd: java.time.Instant
     ): List<ScheduleBlock>
+
+    /** [findOverlapping] for several doctors in one query. */
+    @Query("SELECT b FROM ScheduleBlock b WHERE b.doctor.id IN :doctorIds AND b.startAt < :rangeEnd AND b.endAt > :rangeStart")
+    fun findOverlappingForDoctors(
+        @Param("doctorIds") doctorIds: Collection<Long>,
+        @Param("rangeStart") rangeStart: java.time.Instant,
+        @Param("rangeEnd") rangeEnd: java.time.Instant,
+    ): List<ScheduleBlock>
 }

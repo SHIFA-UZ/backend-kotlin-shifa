@@ -52,10 +52,11 @@ class InvitationKeyService(
      */
     private fun generateUniqueKeyCode(): String {
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+        val secureRandom = java.security.SecureRandom()
         var keyCode: String
         do {
             keyCode = (1..8)
-                .map { chars.random() }
+                .map { chars[secureRandom.nextInt(chars.length)] }
                 .joinToString("")
         } while (invitationKeyRepository.findByKeyCode(keyCode) != null)
         return keyCode

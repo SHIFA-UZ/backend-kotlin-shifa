@@ -22,6 +22,11 @@ class DailyVideoService(
     private val client = HttpClient.newBuilder()
         .connectTimeout(Duration.ofSeconds(10))
         .build()
+
+    private companion object {
+        /** Without a request timeout java.net.http waits for the response forever and pins the request thread. */
+        val REQUEST_TIMEOUT: Duration = Duration.ofSeconds(10)
+    }
     
     /**
      * Check if Daily.co API key is configured
@@ -106,6 +111,7 @@ class DailyVideoService(
         try {
             // First, try to get existing room
             val getRequest = HttpRequest.newBuilder()
+                .timeout(REQUEST_TIMEOUT)
                 .uri(URI.create("${dailyProperties.apiUrl}/rooms/$roomName"))
                 .header("Authorization", "Bearer ${dailyProperties.apiKey}")
                 .header("Content-Type", "application/json")
@@ -184,6 +190,7 @@ class DailyVideoService(
 
         val requestBody = objectMapper.writeValueAsString(createRequest)
         val createHttpRequest = HttpRequest.newBuilder()
+            .timeout(REQUEST_TIMEOUT)
             .uri(URI.create("${dailyProperties.apiUrl}/rooms"))
             .header("Authorization", "Bearer ${dailyProperties.apiKey}")
             .header("Content-Type", "application/json")
@@ -296,6 +303,7 @@ class DailyVideoService(
 
         val requestBody = objectMapper.writeValueAsString(tokenRequest)
         val httpRequest = HttpRequest.newBuilder()
+            .timeout(REQUEST_TIMEOUT)
             .uri(URI.create("${dailyProperties.apiUrl}/meeting-tokens"))
             .header("Authorization", "Bearer ${dailyProperties.apiKey}")
             .header("Content-Type", "application/json")
@@ -325,6 +333,7 @@ class DailyVideoService(
                 mapOf("properties" to mapOf("enable_recording" to "cloud-audio-only"))
             )
             val request = HttpRequest.newBuilder()
+                .timeout(REQUEST_TIMEOUT)
                 .uri(URI.create("${dailyProperties.apiUrl}/rooms/$roomName"))
                 .header("Authorization", "Bearer ${dailyProperties.apiKey}")
                 .header("Content-Type", "application/json")

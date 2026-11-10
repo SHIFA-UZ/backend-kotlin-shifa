@@ -244,6 +244,7 @@ class PatientController(
     // -------------------- Appointments Endpoints --------------------
 
     @GetMapping("/appointments")
+    @Transactional(readOnly = true)
     fun getAppointments(
         @AuthenticationPrincipal principal: PatientPrincipal,
         @RequestParam(required = false) status: String?,
@@ -689,6 +690,7 @@ class PatientController(
     // -------------------- Documents Endpoints (patient's own) --------------------
 
     @GetMapping("/documents")
+    @Transactional(readOnly = true)
     fun getDocuments(
         @AuthenticationPrincipal principal: PatientPrincipal
     ): List<PatientDocumentDto> {

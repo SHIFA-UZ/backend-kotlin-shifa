@@ -8,6 +8,8 @@ import org.springframework.data.repository.query.Param
 
 interface WeeklyScheduleRuleRepository : JpaRepository<WeeklyScheduleRule, Long> {
     fun findByDoctorId(doctorId: Long): List<WeeklyScheduleRule>
+    /** The rules of several doctors in one query (public listing: next available time). */
+    fun findByDoctorIdIn(doctorIds: Collection<Long>): List<WeeklyScheduleRule>
 
     /** Rules for a specific location only (used when replacing rules for a single location). */
     @Query("SELECT r FROM WeeklyScheduleRule r WHERE r.doctor.id = :doctorId AND r.location.id = :locationId")

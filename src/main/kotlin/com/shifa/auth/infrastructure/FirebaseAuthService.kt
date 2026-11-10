@@ -28,7 +28,12 @@ class FirebaseAuthService {
                         if (!json.isNullOrBlank()) {
                             val stream = ByteArrayInputStream(json.toByteArray(StandardCharsets.UTF_8))
                             val credentials = GoogleCredentials.fromStream(stream)
-                            val options = FirebaseOptions.builder().setCredentials(credentials).build()
+                            // Same timeouts as FcmService: whichever of the two starts first creates the app.
+                            val options = FirebaseOptions.builder()
+                                .setCredentials(credentials)
+                                .setConnectTimeout(5_000)
+                                .setReadTimeout(10_000)
+                                .build()
                             FirebaseApp.initializeApp(options)
                             log.info("Firebase Auth initialized from FIREBASE_SERVICE_ACCOUNT_JSON")
                         } else {

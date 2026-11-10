@@ -37,7 +37,12 @@ class FcmService(
                         if (!json.isNullOrBlank()) {
                             val stream = ByteArrayInputStream(json.toByteArray(StandardCharsets.UTF_8))
                             val credentials = GoogleCredentials.fromStream(stream)
-                            val options = FirebaseOptions.builder().setCredentials(credentials).build()
+                            // Sends run on request threads: without these a stalled Firebase holds one indefinitely.
+                            val options = FirebaseOptions.builder()
+                                .setCredentials(credentials)
+                                .setConnectTimeout(5_000)
+                                .setReadTimeout(10_000)
+                                .build()
                             FirebaseApp.initializeApp(options)
                             log.info("Firebase Messaging initialized from FIREBASE_SERVICE_ACCOUNT_JSON")
                         } else {
@@ -180,7 +185,9 @@ class FcmService(
     ): Boolean {
         // The legacy single token (Flutter build) and every device token (POST /doctors/me/fcm-tokens), once each.
         val doctorId = notification.doctor?.id
-        val tokens = (listOfNotNull(fcmToken?.trim()?.takeIf { it.isNotEmpty() }) + deviceTokens(doctorId)).distinct()
+        // Only devices whose session is still live ring; the legacy token only while the doctor is signed in somewhere.
+        val legacy = fcmToken?.trim()?.takeIf { it.isNotEmpty() && signedIn(doctorId) }
+        val tokens = (listOfNotNull(legacy) + deviceTokens(doctorId)).distinct()
         if (tokens.isEmpty()) {
             log.info("FCM skip: no token for doctor (doctorId={}, notificationId={})", doctorId, notification.id)
             return false
@@ -235,10 +242,15 @@ class FcmService(
         }.any { it }
     }
 
+    private fun signedIn(doctorId: Long?): Boolean =
+        doctorId != null && doctorId != 0L &&
+            // A failed lookup keeps the push: missing one is worse than one too many.
+            runCatching { doctorPushTokens.doctorHasLiveSession(doctorId) }.getOrDefault(true)
+
     private fun deviceTokens(doctorId: Long?): List<String> {
         if (doctorId == null || doctorId == 0L) return emptyList()
         return try {
-            doctorPushTokens.findByDoctorProfileId(doctorId).map { it.token }
+            doctorPushTokens.findLiveTokens(doctorId)
         } catch (e: Exception) {
             log.warn("Doctor device tokens lookup failed (doctorId={}): {}", doctorId, e.message)
             emptyList()

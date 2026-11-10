@@ -10,7 +10,6 @@ import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.OffsetDateTime
-import kotlin.random.Random
 
 @Service
 class SmsOtpService(
@@ -19,7 +18,10 @@ class SmsOtpService(
 ) {
     private val log = LoggerFactory.getLogger(SmsOtpService::class.java)
 
-    private fun generateCode(): String = Random.nextInt(100_000, 1_000_000).toString()
+    // SecureRandom: the code is a credential, a predictable generator is not enough.
+    private val random = java.security.SecureRandom()
+
+    private fun generateCode(): String = (100_000 + random.nextInt(900_000)).toString()
 
   /**
    * Generate a code, persist it, and send SMS.

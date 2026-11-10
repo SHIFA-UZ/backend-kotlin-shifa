@@ -9,6 +9,8 @@ import java.time.LocalTime
 
 interface TaskCheckInRepository : JpaRepository<TaskCheckIn, Long> {
     fun findByTaskIdOrderByScheduledDateAscScheduledTimeAsc(taskId: Long): List<TaskCheckIn>
+    /** The check-ins of several tasks in one query (task lists). */
+    fun findByTaskIdIn(taskIds: Collection<Long>): List<TaskCheckIn>
     fun findByTaskIdAndScheduledDate(taskId: Long, scheduledDate: LocalDate): List<TaskCheckIn>
     fun findByTaskIdAndStatus(taskId: Long, status: TaskCheckIn.Status): List<TaskCheckIn>
     

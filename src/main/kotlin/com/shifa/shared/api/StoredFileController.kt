@@ -26,6 +26,7 @@ class StoredFileController(private val storage: FileStorage) {
 
     companion object {
         private const val FLAT_DIRS = "doctors|patients|certificates|chat-attachments"
+        private val ACTIVE_SUBTYPES = setOf("html", "xhtml+xml", "svg+xml", "xml", "javascript", "ecmascript", "css")
     }
 
     /** Patient documents: PDFs open in the viewer, everything else downloads (as before). */
@@ -42,11 +43,17 @@ class StoredFileController(private val storage: FileStorage) {
         if (!StorageKeys.valid(key)) return ResponseEntity.notFound().build()
         val resource = storage.open(key) ?: return ResponseEntity.notFound().build()
         val filename = key.substringAfterLast('/')
-        val mediaType = MediaTypeFactory.getMediaType(filename).orElse(MediaType.APPLICATION_OCTET_STREAM)
+        val declared = MediaTypeFactory.getMediaType(filename).orElse(MediaType.APPLICATION_OCTET_STREAM)
+        // An uploaded page or script would run on the API's own origin (where the admin page keeps its token):
+        // those types are only ever downloaded, never rendered.
+        val active = declared.subtype.lowercase() in ACTIVE_SUBTYPES
+        val mediaType = if (active) MediaType.APPLICATION_OCTET_STREAM else declared
+        // Doctor photos are public profile data; everything else is a patient's and stays out of shared caches.
+        val cache = CacheControl.maxAge(1, TimeUnit.HOURS).let { if (key.startsWith("doctors/")) it.cachePublic() else it.cachePrivate() }
         val response = ResponseEntity.ok()
             .contentType(mediaType)
-            .cacheControl(CacheControl.maxAge(1, TimeUnit.HOURS).cachePublic())
-        if (withDisposition) {
+            .cacheControl(cache)
+        if (withDisposition || active) {
             val disposition = if (mediaType == MediaType.APPLICATION_PDF) ContentDisposition.inline() else ContentDisposition.attachment()
             response.header("Content-Disposition", disposition.filename(filename).build().toString())
         }

@@ -343,4 +343,39 @@ class DoctorAppThirdRoundIntegrationTest {
     }
 
     @Autowired lateinit var doctorController: com.shifa.doctors.api.DoctorController
+
+    // ---------- pushes follow the session ----------
+
+    @Autowired lateinit var pushTokenRepo: com.shifa.notifications.infrastructure.DoctorPushTokenRepository
+
+    @Test
+    fun `a device rings only while the session that registered it is live`() {
+        val doctor = doctor1()
+        rolledBack {
+            val userId = doctor.profile.user.id
+            jdbc.update("DELETE FROM user_sessions WHERE user_id = ?", userId)
+            jdbc.update("DELETE FROM doctor_push_tokens WHERE doctor_profile_id = ?", doctor.profile.id)
+            fun session(jti: String, expires: String, revoked: Boolean) = jdbc.update(
+                "INSERT INTO user_sessions (user_id, token_jti, expires_at, revoked) VALUES (?, ?, now() + ?::interval, ?)",
+                userId, jti, expires, revoked,
+            )
+            fun device(token: String, jti: String?) = jdbc.update(
+                "INSERT INTO doctor_push_tokens (doctor_profile_id, token, session_jti) VALUES (?, ?, ?)",
+                doctor.profile.id, token, jti,
+            )
+            session("jti-expired", "-1 hour", false)
+            session("jti-revoked", "1 hour", true)
+            device("dev-expired", "jti-expired")
+            device("dev-revoked", "jti-revoked")
+            device("dev-purged", "jti-gone")
+            device("dev-old-row", null)
+            assertEquals(emptyList<String>(), pushTokenRepo.findLiveTokens(doctor.profile.id))
+            assertFalse(pushTokenRepo.doctorHasLiveSession(doctor.profile.id))
+
+            session("jti-live", "1 hour", false)
+            device("dev-live", "jti-live")
+            assertEquals(setOf("dev-live", "dev-old-row"), pushTokenRepo.findLiveTokens(doctor.profile.id).toSet())
+            assertTrue(pushTokenRepo.doctorHasLiveSession(doctor.profile.id))
+        }
+    }
 }
