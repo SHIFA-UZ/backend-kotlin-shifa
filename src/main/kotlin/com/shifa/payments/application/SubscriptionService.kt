@@ -24,6 +24,8 @@ class SubscriptionService(
     private val doctorSubscriptionRepository: DoctorSubscriptionRepository,
     private val stripeProperties: StripeProperties,
     private val publicUrls: com.shifa.shared.PublicUrls,
+    // The paid plan sets the doctor's tier, which every feature gate reads.
+    private val tiers: SubscriptionTierService,
 ) {
     companion object {
         private const val DEFAULT_GRACE_DAYS: Long = 7
@@ -39,31 +41,6 @@ class SubscriptionService(
     @Transactional(readOnly = true)
     fun getDoctorSubscription(doctorId: Long): DoctorSubscription? =
         doctorSubscriptionRepository.findTopByDoctor_IdOrderByCreatedAtDesc(doctorId)
-
-    @Transactional
-    fun startSubscription(doctorId: Long, planCode: String, gateway: PaymentGatewayCode): DoctorSubscription {
-        val doctor = doctorProfiles.findById(doctorId)
-            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found") }
-        val plan = planRepository.findByCode(planCode)
-            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "Plan not found: $planCode")
-
-        val now = Instant.now()
-        val current = doctorSubscriptionRepository.findTopByDoctor_IdOrderByCreatedAtDesc(doctorId)
-        if (current != null && current.status == DoctorSubscriptionStatus.ACTIVE) {
-            return current
-        }
-
-        return doctorSubscriptionRepository.save(
-            DoctorSubscription(
-                doctor = doctor,
-                plan = plan,
-                gateway = gateway,
-                status = DoctorSubscriptionStatus.ACTIVE,
-                trialEndsAt = null,
-                currentPeriodEnd = now.plusSeconds(30L * 24L * 60L * 60L)
-            )
-        )
-    }
 
     @Transactional
     fun createStripeCheckout(doctorId: Long, planCode: String): SubscriptionCheckoutResult {
@@ -133,6 +110,9 @@ class SubscriptionService(
         val doctor = doctorProfiles.findById(doctorId).orElse(null) ?: return
 
         val existing = doctorSubscriptionRepository.findTopByDoctor_IdOrderByCreatedAtDesc(doctorId)
+        // The row is reused for the new plan, so the old plan's cancellation will never find it: end the tier the old
+        // plan gave now (a no-op if an admin changed it), then grant the new one.
+        val replaced = existing?.plan?.code?.takeIf { it != plan.code }
         val subscription = if (existing != null) {
             existing.plan = plan
             existing.gateway = PaymentGatewayCode.STRIPE
@@ -156,16 +136,21 @@ class SubscriptionService(
             )
         }
         doctorSubscriptionRepository.save(subscription)
+        replaced?.let { tiers.endPaidTier(doctor.user, it) }
+        tiers.grantPaidTier(doctor.user, plan.code)
     }
 
     @Transactional
     fun markPaidByStripeSubscriptionId(extSubId: String) {
         val sub = doctorSubscriptionRepository.findTopByExternalSubscriptionIdOrderByCreatedAtDesc(extSubId) ?: return
+        // Stripe doesn't keep its events in order: a payment arriving after the cancellation brings nothing back.
+        if (sub.status == DoctorSubscriptionStatus.CANCELLED) return
         sub.status = DoctorSubscriptionStatus.ACTIVE
         sub.gracePeriodEndsAt = null
         sub.suspendedAt = null
         sub.updatedAt = Instant.now()
         doctorSubscriptionRepository.save(sub)
+        tiers.grantPaidTier(sub.doctor.user, sub.plan.code)
     }
 
     @Transactional
@@ -185,5 +170,6 @@ class SubscriptionService(
         sub.suspendedAt = Instant.now()
         sub.updatedAt = Instant.now()
         doctorSubscriptionRepository.save(sub)
+        tiers.endPaidTier(sub.doctor.user, sub.plan.code)
     }
 }

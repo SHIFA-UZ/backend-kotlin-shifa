@@ -131,13 +131,14 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
 
     @Query(
         value = """
-            SELECT DISTINCT l.linked_appointment_id FROM treatment_plan_lines l
+            SELECT l.linked_appointment_id FROM treatment_plan_lines l
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
             AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             AND a.start_at >= :from AND a.start_at < :toExclusive
-            ORDER BY a.start_at DESC, l.linked_appointment_id DESC
+            GROUP BY l.linked_appointment_id
+            ORDER BY MAX(a.start_at) DESC, l.linked_appointment_id DESC
             """,
         countQuery = """
             SELECT COUNT(DISTINCT l.linked_appointment_id) FROM treatment_plan_lines l
@@ -158,14 +159,15 @@ interface TreatmentPlanLineRepository : JpaRepository<TreatmentPlanLine, Long> {
 
     @Query(
         value = """
-            SELECT DISTINCT l.linked_appointment_id FROM treatment_plan_lines l
+            SELECT l.linked_appointment_id FROM treatment_plan_lines l
             INNER JOIN treatment_plans p ON l.plan_id = p.id
             INNER JOIN appointments a ON a.id = l.linked_appointment_id
             WHERE p.clinic_id = :clinicId AND l.linked_appointment_id IS NOT NULL
             AND a.status NOT IN ('CANCELLED', 'EXPIRED', 'PAYMENT_FAILED')
             AND a.patient_id IN (:patientIds)
             AND a.start_at >= :from AND a.start_at < :toExclusive
-            ORDER BY a.start_at DESC, l.linked_appointment_id DESC
+            GROUP BY l.linked_appointment_id
+            ORDER BY MAX(a.start_at) DESC, l.linked_appointment_id DESC
             """,
         countQuery = """
             SELECT COUNT(DISTINCT l.linked_appointment_id) FROM treatment_plan_lines l
