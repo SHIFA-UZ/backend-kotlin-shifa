@@ -196,7 +196,8 @@ class ApplicationContextTest {
             assertEquals(5, row.latency.total)
             assertEquals(100, row.latency.percentile(0.95))
             assertEquals(2, row.peakRps)
-            assertEquals(3, trafficRepository.top4xxFrom(hour, 4).first { it.route == "/api/x" }.count)
+            // A wide limit: the refusals other tests of this context provoke are flushed into the same table.
+            assertEquals(3, trafficRepository.top4xxFrom(hour, 1000).first { it.route == "/api/x" }.count)
             assertEquals(hour, trafficRepository.earliestHour())
             com.shifa.admin.application.MetricsRange.entries.forEach { trafficRollups.range(it) }
         } finally {

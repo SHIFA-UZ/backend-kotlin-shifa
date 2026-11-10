@@ -11,6 +11,8 @@ import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.verify
+import org.mockito.Mockito.verifyNoInteractions
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.mockito.Mockito.`when`
 
 /** A password change ends every other session of the account and keeps the caller's own. */
@@ -41,6 +43,37 @@ class UserManagementSessionRevokeTest {
 
         assertFalse(own.revoked)
         assertTrue(stolen.revoked)
-        verify(cache).invalidateAll(listOf("stolen"))
+        verify(cache).markRevoked(listOf("stolen"))
+    }
+
+    /** The logout race: a request that read the row just before the revoke must not cache the session as valid. */
+    @Test
+    fun `a revoked session cannot be put back into the cache as valid`() {
+        val real = UserSessionValidationCache()
+        val later = OffsetDateTime.now().plusDays(1)
+        real.putValid("jti", later)
+        assertTrue(real.isCurrentlyValid(real.get("jti")!!))
+
+        real.markRevoked(listOf("jti"))
+        real.putValid("jti", later) // the late write of the request that read before the revoke
+
+        assertFalse(real.isCurrentlyValid(real.get("jti")!!))
+    }
+
+    @Test
+    fun `inside a transaction the cache hears of a revoke only after the commit`() {
+        val user = User(id = 7, passwordHash = "x")
+        val session = UserSession(user = user, tokenJti = "own", expiresAt = OffsetDateTime.now().plusDays(1))
+        `when`(sessions.findByTokenJti("own")).thenReturn(java.util.Optional.of(session))
+        TransactionSynchronizationManager.initSynchronization()
+        try {
+            service.revokeSession(7, "own")
+            assertTrue(session.revoked)
+            verifyNoInteractions(cache)
+            TransactionSynchronizationManager.getSynchronizations().forEach { it.afterCommit() }
+            verify(cache).markRevoked(listOf("own"))
+        } finally {
+            TransactionSynchronizationManager.clearSynchronization()
+        }
     }
 }

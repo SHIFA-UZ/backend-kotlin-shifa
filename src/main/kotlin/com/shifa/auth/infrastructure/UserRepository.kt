@@ -20,6 +20,17 @@ interface UserRepository : JpaRepository<User, Long>, UserRepositoryCustom {
     fun findByEnabled(enabled: Boolean, pageable: Pageable): Page<User>
     fun findByRoleAndEnabled(role: Role, enabled: Boolean, pageable: Pageable): Page<User>
     fun countByRole(role: Role): Long
+
+    /**
+     * The enabled super admins, their user rows locked until the transaction ends: two requests that each disable one of
+     * the last two wait for each other here, and the second sees one left.
+     */
+    @org.springframework.data.jpa.repository.Lock(jakarta.persistence.LockModeType.PESSIMISTIC_WRITE)
+    @Query(
+        "SELECT u FROM User u WHERE u.enabled = true AND u.id IN " +
+            "(SELECT a.user.id FROM AdminProfile a WHERE a.adminLevel = com.shifa.admin.domain.AdminLevel.SUPER_ADMIN)"
+    )
+    fun lockEnabledSuperAdmins(): List<User>
     fun countByRoleAndEnabled(role: Role, enabled: Boolean): Long
 
     @Query("SELECT COUNT(u) FROM User u WHERE u.role = :role AND u.lastLoginAt IS NULL")

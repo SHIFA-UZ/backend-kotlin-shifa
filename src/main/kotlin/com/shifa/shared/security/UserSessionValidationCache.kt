@@ -9,7 +9,7 @@ import java.time.OffsetDateTime
  * Short-lived in-memory cache of JWT session validity by `jti`.
  * Cuts repeated DB hits on [JwtAuthFilter] for the same token.
  *
- * Force-logout must call [invalidate] / [invalidateAll] so revoke is visible within this JVM.
+ * Every revoke must call [markRevoked] once it is committed, so it is visible within this JVM at once.
  * Multi-replica deploys need a shared store (e.g. Redis) for instant cross-instance revoke.
  */
 @Component
@@ -27,17 +27,18 @@ class UserSessionValidationCache {
 
     fun get(jti: String): Entry? = cache.getIfPresent(jti)
 
+    /** Never replaces a revoked entry: a request that read the session just before its revoke cannot bring it back. */
     fun putValid(jti: String, expiresAt: OffsetDateTime) {
-        cache.put(jti, Entry(expiresAt = expiresAt, revoked = false))
+        cache.asMap().compute(jti) { _, old -> old?.takeIf { it.revoked } ?: Entry(expiresAt = expiresAt, revoked = false) }
     }
 
-    fun invalidate(jti: String) {
-        cache.invalidate(jti)
-    }
-
-    fun invalidateAll(jtis: Collection<String>) {
-        if (jtis.isEmpty()) return
-        cache.invalidateAll(jtis)
+    /**
+     * Remembers the sessions as revoked (not merely forgotten) for the cache's lifetime; after that the database row
+     * says the same. Call it after the revoke has committed.
+     */
+    fun markRevoked(jtis: Collection<String>) {
+        val now = OffsetDateTime.now()
+        jtis.forEach { cache.put(it, Entry(expiresAt = now, revoked = true)) }
     }
 
     fun isCurrentlyValid(entry: Entry, now: OffsetDateTime = OffsetDateTime.now()): Boolean =
