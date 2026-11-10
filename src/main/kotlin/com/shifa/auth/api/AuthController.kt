@@ -1085,6 +1085,14 @@ class AuthController(
             "patient" -> Role.PATIENT
             else -> user.role
         }
+		// Without ?app the role falls back to the account's own: an admin account would get an ADMIN token here
+		// with the password alone, past the e-mail code.
+		if (tokenRole == Role.ADMIN) {
+			throw ResponseStatusException(
+				HttpStatus.BAD_REQUEST,
+				"Admin sign-in requires email verification. Use POST /api/auth/admin/request-login-otp and POST /api/auth/admin/verify-login-otp."
+			)
+		}
 		val principal = user.username ?: user.email ?: user.phone!!
 		val tokenResult = jwt.generate(user.id, principal, tokenRole.name)
 		userSessions.save(

@@ -276,6 +276,22 @@ class UserManagementService(
     }
     
     /**
+     * After a password change: every other session of the user ends, so a stolen token dies with the old password.
+     * [keepJti] is the caller's own session (null after a forgotten-password reset, which signs in anew).
+     */
+    @Transactional
+    fun revokeSessionsExcept(userId: Long, keepJti: String?) {
+        val now = OffsetDateTime.now()
+        val others = userSessionRepository.findActiveSessionsByUserId(userId, now).filter { it.tokenJti != keepJti }
+        others.forEach {
+            it.revoked = true
+            it.revokedAt = now
+        }
+        userSessionRepository.saveAll(others)
+        sessionValidationCache.invalidateAll(others.mapNotNull { it.tokenJti })
+    }
+
+    /**
      * Unlock user account (clear lockout)
      */
     @Transactional
