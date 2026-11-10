@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
 
-/** Operations view of the running service for the admin dashboard page (`/admin-metrics/`); the admin routes are ADMIN only. */
+/** Operations view of the running service for the admin panel's Backend health page; the admin routes are ADMIN only. */
 @RestController
 @RequestMapping("/api/admin/metrics")
 class AdminMetricsController(private val metrics: MetricsService, private val traffic: TrafficRollupService) {
