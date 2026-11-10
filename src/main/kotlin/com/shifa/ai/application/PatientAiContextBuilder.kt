@@ -22,6 +22,7 @@ class PatientAiContextBuilder(
     private val clinicalSnippets: DoctorPatientRecordSnippetService,
     private val documentStorage: PatientDocumentStorageService,
     private val pdfExtraction: PdfTextExtractionService,
+    private val access: com.shifa.patients.application.DoctorPatientAccessService,
 ) {
 
     companion object {
@@ -43,6 +44,9 @@ class PatientAiContextBuilder(
      * - Recent **025-2** snapshots and **consultation notes** (via [DoctorPatientRecordSnippetService])
      */
     fun build(patientId: Long, doctorId: Long): PatientAiContext {
+        // Same rule as the briefing and the RAG retrieval: no context for a patient this doctor has no link to.
+        // Answers like a missing patient, so ids can't be probed.
+        require(access.doctorMayAccessPatient(doctorId, patientId)) { "Patient not found" }
         val patient = patientRepo.findById(patientId)
             .orElseThrow { IllegalArgumentException("Patient not found") }
 
