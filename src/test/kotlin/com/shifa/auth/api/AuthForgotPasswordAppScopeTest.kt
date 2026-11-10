@@ -33,6 +33,8 @@ import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.anyString
 import org.mockito.Mockito.`when`
+import org.mockito.Mockito.times
+import org.mockito.Mockito.verify
 import org.mockito.Mockito.verifyNoInteractions
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc
@@ -302,5 +304,63 @@ class AuthForgotPasswordAppScopeTest {
         )
             .andExpect(status().isOk)
             .andExpect(jsonPath("$.token").value("jwt-token"))
+    }
+
+    @Test
+    fun `admin forgot-password reset changes the password and hands out no session`() {
+        val user = User(id = 106L, email = "admin@example.com", passwordHash = "old-hash", role = Role.ADMIN)
+        `when`(users.findByEmailIgnoreCase("admin@example.com")).thenReturn(Optional.of(user))
+        `when`(userRoles.existsByUserIdAndRole(user.id, Role.ADMIN)).thenReturn(true)
+        `when`(emailOtpService.verify("admin@example.com", "123456", EmailVerificationCode.PURPOSE_FORGOT_PASSWORD))
+            .thenReturn(true)
+        `when`(encoder.encode("NewPass1!")).thenReturn("new-hash")
+
+        // With app=admin, and without app for an account whose only role is ADMIN.
+        listOf(""","app":"admin"""", "").forEach { app ->
+            user.passwordHash = "old-hash"
+            mockMvc.perform(
+                post("/api/auth/forgot-password-reset")
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .content("""{"email":"admin@example.com","emailOtp":"123456","newPassword":"NewPass1!"$app}""")
+            )
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.token").value(""))
+                .andExpect(jsonPath("$.forcePasswordReset").value(false))
+            assertEquals("new-hash", user.passwordHash)
+        }
+
+        verify(userManagementService, times(2)).revokeSessionsExcept(user.id, null)
+        verifyNoInteractions(jwt, userSessions)
+    }
+
+    @Test
+    fun `admin sign-in names a disabled and a locked account by code, with the old status and message`() {
+        val disabled = User(id = 107L, email = "off@example.com", passwordHash = "hash", role = Role.ADMIN, enabled = false)
+        val locked = User(
+            id = 108L, email = "locked@example.com", passwordHash = "hash", role = Role.ADMIN,
+            lockedUntil = OffsetDateTime.now().plusMinutes(30),
+        )
+        val active = User(id = 109L, email = "on@example.com", passwordHash = "hash", role = Role.ADMIN)
+        listOf(disabled, locked, active).forEach {
+            `when`(users.findByEmailIgnoreCase(it.email ?: "")).thenReturn(Optional.of(it))
+        }
+
+        fun signIn(route: String, email: String) = mockMvc.perform(
+            post("/api/auth/admin/$route")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""{"username":"$email","password":"wrong","code":"123456"}""")
+        ).andExpect(status().isUnauthorized)
+
+        listOf("request-login-otp", "verify-login-otp").forEach { route ->
+            signIn(route, "off@example.com")
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DISABLED"))
+                .andExpect(jsonPath("$.message").value("Account is disabled"))
+            signIn(route, "locked@example.com")
+                .andExpect(jsonPath("$.code").value("ACCOUNT_LOCKED"))
+                .andExpect(jsonPath("$.message").value("Account is locked"))
+            signIn(route, "on@example.com")
+                .andExpect(jsonPath("$.code").value("UNAUTHORIZED"))
+                .andExpect(jsonPath("$.message").value("Invalid credentials"))
+        }
     }
 }

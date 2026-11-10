@@ -2,6 +2,7 @@ package com.shifa.admin.api.dto
 
 import jakarta.validation.constraints.Email
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Size
 
 data class GenerateTokenRequest(
     val expiresInDays: Int? = null,
@@ -43,10 +44,11 @@ data class AdminPatientProfileResponse(
 )
 
 data class CreateAdminRequest(
-    @NotBlank val email: String,
-    @NotBlank val password: String,
-    @NotBlank val firstName: String,
-    @NotBlank val lastName: String,
+    @field:NotBlank @field:Email @field:Size(max = 255) val email: String,
+    /** Checked against [com.shifa.shared.security.PasswordPolicy] by the service. */
+    @field:NotBlank val password: String,
+    @field:NotBlank @field:Size(max = 255) val firstName: String,
+    @field:NotBlank @field:Size(max = 255) val lastName: String,
     val adminLevel: String? = "ADMIN"
 )
 

@@ -80,6 +80,7 @@ class SecurityConfig(
                 
                 // Protected auth endpoints
                 it.requestMatchers("/api/auth/reset-password").authenticated()
+                it.requestMatchers(HttpMethod.POST, "/api/auth/logout").authenticated() // any role and admin level
 
                 // Submitting a review needs a patient token; without this rule the handler 500s on a null principal.
                 it.requestMatchers(HttpMethod.POST, "/api/public/doctors/*/reviews").authenticated()

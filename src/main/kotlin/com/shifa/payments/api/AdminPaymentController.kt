@@ -5,12 +5,14 @@ import com.shifa.payments.application.PaymentAdminQueries
 import com.shifa.payments.application.StripeWebhookService
 import com.shifa.shared.security.AdminPrincipal
 import jakarta.servlet.http.HttpServletRequest
+import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
+import org.springframework.web.server.ResponseStatusException
 
 @RestController
 @RequestMapping("/api/admin/payments")
@@ -90,6 +92,9 @@ class AdminPaymentController(
         @PathVariable paymentEventId: Long,
         httpRequest: HttpServletRequest,
     ): Map<String, Any> {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot retry webhooks")
+        }
         val ok = auditService.audited(
             adminUser = principal.adminProfile.user,
             actionType = "STRIPE_WEBHOOK_RETRIED",

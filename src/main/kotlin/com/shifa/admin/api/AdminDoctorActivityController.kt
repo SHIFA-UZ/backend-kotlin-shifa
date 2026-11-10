@@ -146,6 +146,9 @@ class AdminDoctorActivityController(
         @PathVariable doctorId: Long,
         httpRequest: HttpServletRequest,
     ): EarlyPartnerContractIssueDto {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot issue contracts")
+        }
         return auditService.audited(
             adminUser = principal.adminProfile.user,
             actionType = "EARLY_PARTNER_CONTRACT_ISSUED",
