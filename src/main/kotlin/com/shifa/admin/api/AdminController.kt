@@ -3,12 +3,14 @@ package com.shifa.admin.api
 import com.shifa.admin.api.dto.AdminClinicMemberRoleRequest
 import com.shifa.admin.api.dto.AdminClinicUpsertRequest
 import com.shifa.admin.api.dto.AdminPatientProfileResponse
+import com.shifa.admin.api.dto.AuditLogTypesResponse
 import com.shifa.admin.api.dto.CreateAdminRequest
 import com.shifa.admin.api.dto.GenerateTokenRequest
 import com.shifa.admin.api.dto.UpdateSubscriptionTierRequest
 import com.shifa.admin.api.dto.UserResponse
 import com.shifa.admin.application.AdminCalendarResetService
 import com.shifa.admin.application.AdminClinicService
+import com.shifa.admin.application.AuditLogFilter
 import com.shifa.admin.application.AuditService
 import com.shifa.admin.domain.AdminLevel
 import com.shifa.auth.application.UserActivityService
@@ -23,6 +25,7 @@ import com.shifa.payments.application.SubscriptionTierService
 import com.shifa.shared.security.AdminPrincipal
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.validation.Valid
+import java.time.Instant
 import java.time.OffsetDateTime
 import java.util.NoSuchElementException
 import org.springframework.data.domain.Page
@@ -415,6 +418,7 @@ class AdminController(
     @DeleteMapping("/users/{userId}")
     fun deleteUser(
         @PathVariable userId: Long,
+        @RequestParam(required = false) reason: String?,
         @AuthenticationPrincipal principal: AdminPrincipal,
         httpRequest: HttpServletRequest
     ): Map<String, Any> {
@@ -422,6 +426,7 @@ class AdminController(
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot delete users")
         }
         requireMayManage(principal, userId)
+        val reasonDetails = reasonDetails(reason)
         val adminUser = principal.adminProfile.user
         val user = userManagementService.getUserById(userId)
         userDeletionService.deleteUser(userId)
@@ -434,7 +439,7 @@ class AdminController(
                 "deletedPhone" to (user.phone ?: ""),
                 "deletedEmail" to (user.email ?: ""),
                 "deletedRole" to user.role.name
-            ),
+            ) + reasonDetails,
             request = httpRequest
         )
         return mapOf(
@@ -453,12 +458,14 @@ class AdminController(
     @PostMapping("/doctors/{doctorId}/reset-calendar")
     fun resetDoctorCalendar(
         @PathVariable doctorId: Long,
+        @RequestParam(required = false) reason: String?,
         @AuthenticationPrincipal principal: AdminPrincipal,
         httpRequest: HttpServletRequest
     ): Map<String, Any> {
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot reset doctor calendars")
         }
+        val reasonDetails = reasonDetails(reason)
 
         val adminUser = principal.adminProfile.user
         return try {
@@ -471,7 +478,7 @@ class AdminController(
                 details = mapOf(
                     "doctorUserId" to doctor.user.id,
                     "doctorName" to "${doctor.firstName} ${doctor.lastName}"
-                ),
+                ) + reasonDetails,
                 request = httpRequest
             )
             mapOf(
@@ -482,6 +489,19 @@ class AdminController(
         } catch (e: NoSuchElementException) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found: $doctorId")
         }
+    }
+
+    /** The optional `reason` of a destructive action as audit details: trimmed, absent when blank; 400 when too
+     *  long or holding control characters (newline and tab are fine), checked before the action runs. */
+    private fun reasonDetails(reason: String?): Map<String, Any> {
+        val trimmed = reason?.trim().orEmpty()
+        if (trimmed.length > MAX_REASON_LENGTH) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "reason must be at most $MAX_REASON_LENGTH characters")
+        }
+        if (trimmed.any { it.isISOControl() && it != '\n' && it != '\t' }) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "reason must not contain control characters")
+        }
+        return if (trimmed.isEmpty()) emptyMap() else mapOf("reason" to trimmed)
     }
 
     @GetMapping("/users/{userId}/sessions")
@@ -738,49 +758,58 @@ class AdminController(
 
     // ==================== AUDIT LOGS ====================
     
+    /**
+     * Every filter given is applied together. `from` (inclusive) and `to` (exclusive) are ISO-8601 instants; without
+     * `from` the last 30 days are listed, unless `adminUserId` or `entityType` with `entityId` is given (all time).
+     * Sort keys: createdAt (default, newest first), id, actionType, entityType, entityId, adminUserId.
+     */
     @GetMapping("/audit-logs")
     fun getAuditLogs(
         @RequestParam(required = false) adminUserId: Long?,
         @RequestParam(required = false) entityType: String?,
         @RequestParam(required = false) entityId: Long?,
         @RequestParam(required = false) actionType: String?,
+        @RequestParam(required = false) from: Instant?,
+        @RequestParam(required = false) to: Instant?,
         @PageableDefault(size = 50) pageable: Pageable
-    ): Page<Map<String, Any>> {
-        val page = when {
-            adminUserId != null -> auditService.getAdminActivity(adminUserId, pageable)
-            entityType != null && entityId != null -> auditService.getEntityActivity(entityType, entityId, pageable)
-            actionType != null -> auditService.getActivityByType(actionType, OffsetDateTime.now().minusDays(30), pageable)
-            else -> auditService.getActivityBetween(OffsetDateTime.now().minusDays(30), OffsetDateTime.now(), pageable)
-        }
-        
-        return page.map {
+    ): Page<Map<String, Any?>> {
+        val filter = AuditLogFilter(adminUserId, entityType?.ifBlank { null }, entityId, actionType?.ifBlank { null }, from, to)
+        return auditService.search(filter, pageable).map {
             mapOf(
-                "id" to it.id,
-                "adminUserId" to it.adminUser.id,
-                "actionType" to it.actionType,
-                "entityType" to it.entityType,
-                "entityId" to (it.entityId ?: ""),
-                "details" to (it.details ?: emptyMap<String, Any>()),
-                "ipAddress" to (it.ipAddress ?: ""),
-                "userAgent" to (it.userAgent ?: ""),
-                "createdAt" to it.createdAt.toString()
+                "id" to it.log.id,
+                "adminUserId" to it.log.adminUser.id,
+                "adminEmail" to it.adminEmail,
+                "adminName" to it.adminName,
+                "actionType" to it.log.actionType,
+                "entityType" to it.log.entityType,
+                "entityId" to (it.log.entityId ?: ""),
+                "details" to (it.log.details ?: emptyMap<String, Any>()),
+                "ipAddress" to (it.log.ipAddress ?: ""),
+                "userAgent" to (it.log.userAgent ?: ""),
+                "createdAt" to it.log.createdAt.toString()
             )
         }
     }
-    
+
+    /** The action and entity types present in the audit log, for a client's filter lists. */
+    @GetMapping("/audit-logs/types")
+    fun getAuditLogTypes(): AuditLogTypesResponse =
+        auditService.types().let { AuditLogTypesResponse(actionTypes = it.actionTypes, entityTypes = it.entityTypes) }
+
+    /**
+     * Every filter given is applied together. `from` (inclusive) and `to` (exclusive) are ISO-8601 instants; without
+     * `from` the last 30 days are listed, unless `userId` is given (all time).
+     * Sort keys: createdAt (default, newest first), id, activityType, success, userId.
+     */
     @GetMapping("/activity-logs")
     fun getActivityLogs(
         @RequestParam(required = false) userId: Long?,
         @RequestParam(required = false) activityType: String?,
+        @RequestParam(required = false) from: Instant?,
+        @RequestParam(required = false) to: Instant?,
         @PageableDefault(size = 50) pageable: Pageable
     ): Page<Map<String, Any>> {
-        val page = when {
-            userId != null -> userActivityService.getUserActivity(userId, pageable)
-            activityType != null -> userActivityService.getActivityByType(activityType, OffsetDateTime.now().minusDays(30), pageable)
-            else -> userActivityService.getActivityBetween(OffsetDateTime.now().minusDays(30), OffsetDateTime.now(), pageable)
-        }
-        
-        return page.map {
+        return userActivityService.search(userId, activityType?.ifBlank { null }, from, to, pageable).map {
             mapOf(
                 "id" to it.id,
                 "userId" to it.user.id,
@@ -793,7 +822,7 @@ class AdminController(
             )
         }
     }
-    
+
     // ==================== SYSTEM CONFIG ====================
     
     @GetMapping("/config")
@@ -824,7 +853,9 @@ class AdminController(
         val config = systemConfigRepository.findByKey(key)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Config not found") }
         
-        config.value = request["value"] ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Value required")
+        val newValue = request["value"] ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Value required")
+        val oldValue = config.value
+        config.value = newValue
         config.updatedAt = OffsetDateTime.now()
         systemConfigRepository.save(config)
         
@@ -833,10 +864,15 @@ class AdminController(
             actionType = "CONFIG_UPDATED",
             entityType = "SYSTEM_CONFIG",
             entityId = config.id,
-            details = mapOf("key" to key, "oldValue" to config.value, "newValue" to request["value"]!!),
+            details = mapOf("key" to key, "oldValue" to oldValue, "newValue" to newValue),
             request = httpRequest
         )
         
         return mapOf("key" to config.key, "value" to config.value)
+    }
+
+    companion object {
+        /** Longest `reason` accepted on delete user and reset calendar. */
+        const val MAX_REASON_LENGTH = 500
     }
 }

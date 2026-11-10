@@ -1,8 +1,10 @@
 package com.shifa.payments.api
 
+import com.shifa.admin.application.AuditService
 import com.shifa.payments.application.PaymentAdminQueries
 import com.shifa.payments.application.StripeWebhookService
 import com.shifa.shared.security.AdminPrincipal
+import jakarta.servlet.http.HttpServletRequest
 import org.springframework.http.HttpStatus
 import org.springframework.security.core.annotation.AuthenticationPrincipal
 import org.springframework.web.bind.annotation.GetMapping
@@ -17,6 +19,7 @@ import org.springframework.web.server.ResponseStatusException
 class AdminPaymentController(
     private val queries: PaymentAdminQueries,
     private val stripeWebhookService: StripeWebhookService,
+    private val auditService: AuditService,
 ) {
     @GetMapping("/ledger")
     fun ledger(): List<Map<String, Any?>> =
@@ -86,15 +89,25 @@ class AdminPaymentController(
     @PostMapping("/webhooks/stripe/failed/{paymentEventId}/retry")
     fun retryFailedStripeWebhook(
         @AuthenticationPrincipal principal: AdminPrincipal,
-        @PathVariable paymentEventId: Long
+        @PathVariable paymentEventId: Long,
+        httpRequest: HttpServletRequest,
     ): Map<String, Any> {
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot retry webhooks")
         }
-        val ok = stripeWebhookService.retryStoredWebhookEvent(
-            paymentEventId = paymentEventId,
-            adminUserId = principal.adminProfile.user.id
-        )
+        val ok = auditService.audited(
+            adminUser = principal.adminProfile.user,
+            actionType = "STRIPE_WEBHOOK_RETRIED",
+            entityType = "PAYMENT_EVENT",
+            entityId = paymentEventId,
+            request = httpRequest,
+            details = { mapOf("success" to it) },
+        ) {
+            stripeWebhookService.retryStoredWebhookEvent(
+                paymentEventId = paymentEventId,
+                adminUserId = principal.adminProfile.user.id
+            )
+        }
         return mapOf(
             "success" to ok,
             "paymentEventId" to paymentEventId

@@ -10,6 +10,7 @@ import java.util.*
 interface AdminProfileRepository : JpaRepository<AdminProfile, Long> {
     fun findByUser(user: User): Optional<AdminProfile>
     fun findByUserId(userId: Long): Optional<AdminProfile>
+    fun findByUserIdIn(userIds: Collection<Long>): List<AdminProfile>
 
     /** Admin user search: user IDs of admins whose first or last name contains q (JPQL). */
     @org.springframework.data.jpa.repository.Query(
