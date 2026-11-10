@@ -37,7 +37,12 @@ class FcmService(
                         if (!json.isNullOrBlank()) {
                             val stream = ByteArrayInputStream(json.toByteArray(StandardCharsets.UTF_8))
                             val credentials = GoogleCredentials.fromStream(stream)
-                            val options = FirebaseOptions.builder().setCredentials(credentials).build()
+                            // Sends run on request threads: without these a stalled Firebase holds one indefinitely.
+                            val options = FirebaseOptions.builder()
+                                .setCredentials(credentials)
+                                .setConnectTimeout(5_000)
+                                .setReadTimeout(10_000)
+                                .build()
                             FirebaseApp.initializeApp(options)
                             log.info("Firebase Messaging initialized from FIREBASE_SERVICE_ACCOUNT_JSON")
                         } else {
