@@ -135,8 +135,7 @@ class MessageService(
 
         // Allow access if doctor is either the owner or the participant
         val hasAccess = conversation.doctorUser!!.id == doctorUserId ||
-                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId) ||
-                (conversation.patientParticipant != null && conversation.patientParticipant!!.id == doctorUserId)
+                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId)
         
         if (!hasAccess) {
             throw IllegalArgumentException("Access denied")
@@ -203,8 +202,7 @@ class MessageService(
 
         // Allow access if doctor is either the owner or the participant
         val hasAccess = conversation.doctorUser!!.id == doctorUserId ||
-                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId) ||
-                (conversation.patientParticipant != null && conversation.patientParticipant!!.id == doctorUserId)
+                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId)
         
         if (!hasAccess) {
             throw IllegalArgumentException("Access denied")
@@ -298,8 +296,7 @@ class MessageService(
 
         // Allow access if doctor is either the owner or the participant
         val hasAccess = conversation.doctorUser!!.id == doctorUserId ||
-                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId) ||
-                (conversation.patientParticipant != null && conversation.patientParticipant!!.id == doctorUserId)
+                (conversation.doctorParticipant != null && conversation.doctorParticipant!!.id == doctorUserId)
         
         if (!hasAccess) {
             throw IllegalArgumentException("Access denied")
