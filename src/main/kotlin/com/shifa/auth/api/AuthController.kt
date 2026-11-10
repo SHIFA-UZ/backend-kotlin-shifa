@@ -1121,12 +1121,7 @@ class AuthController(
         request: jakarta.servlet.http.HttpServletRequest
     ): AdminLoginOtpSentResponse {
         val user = resolveUserForLogin(r.username.trim(), request)
-        if (!user.enabled) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account is disabled")
-        }
-        if (user.isLocked()) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account is locked")
-        }
+        requireAdminSignInAllowed(user)
         if (!encoder.matches(r.password, user.passwordHash)) {
             userManagementService.incrementFailedLoginAttempts(user.id)
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials")
@@ -1154,12 +1149,7 @@ class AuthController(
         request: jakarta.servlet.http.HttpServletRequest
     ): TokenResponse {
         val user = resolveUserForLogin(r.username.trim(), request)
-        if (!user.enabled) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account is disabled")
-        }
-        if (user.isLocked()) {
-            throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account is locked")
-        }
+        requireAdminSignInAllowed(user)
         if (!encoder.matches(r.password, user.passwordHash)) {
             userManagementService.incrementFailedLoginAttempts(user.id)
             throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid credentials")
@@ -1446,6 +1436,11 @@ class AuthController(
         users.save(user)
         // Whoever held a token under the old password is signed out; this request gets a new session below.
         userManagementService.revokeSessionsExcept(user.id, keepJti = null)
+        if (tokenRole == Role.ADMIN) {
+            // No session: an admin signs in with the new password and the e-mailed code. A token here would be a way
+            // into the panel with one factor. The empty token keeps the response shape; the panel does not read it.
+            return TokenResponse(token = "", forcePasswordReset = false)
+        }
         val principal = user.email ?: user.phone!!
         val tokenResult = jwt.generate(user.id, principal, tokenRole.name)
         userSessions.save(
@@ -1485,11 +1480,19 @@ class AuthController(
         user.forcePasswordReset = false
         users.save(user)
         // The caller stays signed in; every other session of the account ends with the old password.
-        val ownJti = request.getHeader("Authorization")?.removePrefix("Bearer ")?.trim()
-            ?.let { runCatching { jwt.parse(it).id }.getOrNull() }
-        userManagementService.revokeSessionsExcept(user.id, keepJti = ownJti)
+        userManagementService.revokeSessionsExcept(user.id, keepJti = bearerJti(request))
 
         return mapOf("message" to "Password updated successfully")
+    }
+
+    /** Sign-out: ends the session of the token this request came with and nothing else. Every role and admin level. */
+    @PostMapping("/logout")
+    fun logout(
+        @AuthenticationPrincipal principal: UserDetails,
+        request: jakarta.servlet.http.HttpServletRequest,
+    ): org.springframework.http.ResponseEntity<Void> {
+        bearerJti(request)?.let { userManagementService.revokeSession(principal.username.toLong(), it) }
+        return org.springframework.http.ResponseEntity.noContent().build()
     }
 
     private fun resolveUserForLogin(username: String, request: jakarta.servlet.http.HttpServletRequest): User {
@@ -1515,6 +1518,25 @@ class AuthController(
             throw ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Login error: ${e.message}")
         }
     }
+
+    /**
+     * The admin sign-in names a disabled and a locked account by `code`. Status, message and the order of the checks
+     * are the old ones: the message already told the two apart before the password is looked at, so the code reveals
+     * nothing new, and a locked account must not say whether the password was right.
+     */
+    private fun requireAdminSignInAllowed(user: User) {
+        if (!user.enabled) {
+            throw CodedStatusException(HttpStatus.UNAUTHORIZED, "Account is disabled", ErrorCode.ACCOUNT_DISABLED)
+        }
+        if (user.isLocked()) {
+            throw CodedStatusException(HttpStatus.UNAUTHORIZED, "Account is locked", ErrorCode.ACCOUNT_LOCKED)
+        }
+    }
+
+    /** The session id (`jti`) of the bearer token this request came with. */
+    private fun bearerJti(request: jakarta.servlet.http.HttpServletRequest): String? =
+        request.getHeader("Authorization")?.removePrefix("Bearer ")?.trim()
+            ?.let { runCatching { jwt.parse(it).id }.getOrNull() }
 
     private fun userHasAppRole(user: User, requiredRole: Role): Boolean {
         val roleRows = userRoles.findByUserId(user.id)

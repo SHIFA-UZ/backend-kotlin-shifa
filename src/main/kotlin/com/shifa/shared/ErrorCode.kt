@@ -15,6 +15,10 @@ enum class ErrorCode {
     RATE_LIMITED, SESSION_INVALID, SESSION_EXPIRED, TOKEN_INVALID, ACCOUNT_DISABLED, INTERNAL, UPSTREAM, UNAVAILABLE,
 
     // Thrown as [CodedStatusException] where the status alone doesn't tell the app what to do.
+    /** Admin sign-in: too many wrong passwords, the account is locked for a while. */
+    ACCOUNT_LOCKED,
+    /** Admin panel: the account is the only enabled super admin, so it cannot be disabled or deleted (409). */
+    LAST_SUPER_ADMIN,
     /** Registration: the account is already a doctor; sign in instead. */
     DOCTOR_EXISTS,
     /** Registration onto an existing account: prove it is yours (its e-mail code or its current password). */
