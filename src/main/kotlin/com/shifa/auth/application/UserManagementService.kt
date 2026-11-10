@@ -333,8 +333,9 @@ class UserManagementService(
      */
     private fun generateTemporaryPassword(): String {
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        val random = java.security.SecureRandom()
         return (1..12)
-            .map { chars.random() }
+            .map { chars[random.nextInt(chars.length)] }
             .joinToString("")
     }
     
