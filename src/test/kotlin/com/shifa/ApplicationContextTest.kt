@@ -157,9 +157,8 @@ class ApplicationContextTest {
         assertTrue(m.ai24h != null && m.paymentsLast24h != null && m.jobs != null)
 
         mockMvc.perform(get("/api/admin/metrics")).andExpect(status().isUnauthorized)
-        mockMvc.perform(get("/admin-metrics/index.html")).andExpect(status().isOk)
-        mockMvc.perform(get("/admin-metrics/app.js")).andExpect(status().isOk)
-        mockMvc.perform(get("/admin-metrics/favicon.svg")).andExpect(status().isOk)
+        // The stand-alone health page is gone (the admin panel shows it); nothing static is public.
+        mockMvc.perform(get("/admin-metrics/index.html")).andExpect(status().isUnauthorized)
     }
 
     @Test

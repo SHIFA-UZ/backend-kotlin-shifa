@@ -71,7 +71,7 @@ development environment) the database gets deterministic test data: three doctor
 
 - Health: `http://localhost:8080/actuator/health` (`/liveness` and `/readiness` groups)
 - Build info: `http://localhost:8080/actuator/info`
-- Admin health page: `http://localhost:8080/admin-metrics/` (admin sign-in with the e-mailed code; polls `GET /api/admin/metrics`: build, JVM, database, record counts and request counters)
+- Admin health: the admin panel's Backend health page (`web-kmp-admin`) reads `GET /api/admin/metrics`: build, JVM, database, record counts and request counters
 - Swagger UI: `http://localhost:8080/swagger-ui/index.html`
 - OpenAPI: `http://localhost:8080/v3/api-docs`
 

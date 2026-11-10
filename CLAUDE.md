@@ -86,11 +86,10 @@ Four roles — `DOCTOR`, `PATIENT`, `ADMIN`, `CLINIC_STAFF`. Users can hold mult
 - `/api/patients/**`, `/api/appointments/**`, `/api/calendar/**`, `/api/messages/**`, `/api/clinics/**`, `/api/treatment-plans/**` → DOCTOR or CLINIC_STAFF; `/api/schedule/**` reads, booking and blocks for both, other schedule mutations DOCTOR only
 - Fallback: `anyRequest().authenticated()` (any signed-in user), so every new route gets an explicit rule
 - `/api/notifications/**`, `/api/ai/**`, `/api/video/**`, `/api/geocode/**` → any authenticated user (geocoding: 30 calls a minute per account)
-- `/api/admin/**` → ADMIN only (`GET /api/admin/metrics` is the operations read behind the `/admin-metrics/` page)
+- `/api/admin/**` → ADMIN only (`GET /api/admin/metrics` is the operations read behind the admin panel's Backend health page)
 - `/api/public/**` (except `POST .../reviews`, authenticated), `/api/webhooks/**`, the public `/api/auth/*` endpoints → no auth
 - `/actuator/health/**`, `GET /actuator/info`, `/swagger-ui/**`, `/v3/api-docs/**` → no auth
 - Static files: `/doctors/**`, `/patients/**`, `/patientdocuments/**`, `/certificates/**`, `/chat-attachments/**` → no auth, signed URLs (`/photos/**` was removed)
-- `/admin-metrics/**` → no auth: the static admin health page (`src/main/resources/static/admin-metrics/index.html`), which signs in with the admin e-mail second factor and polls `GET /api/admin/metrics` every 30 s
 
 ## Entry Point
 
