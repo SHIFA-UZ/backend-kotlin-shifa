@@ -12867,6 +12867,38 @@
         ]
       }
     },
+    "/api/admin/doctors/{doctorId}/early-partner-contract/pdf": {
+      "get": {
+        "operationId": "earlyPartnerContractPdf",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "doctorId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-doctor-activity-controller"
+        ]
+      }
+    },
     "/api/admin/doctors/{doctorId}/reset-calendar": {
       "post": {
         "operationId": "resetDoctorCalendar",

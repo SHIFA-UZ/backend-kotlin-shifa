@@ -117,4 +117,21 @@ class AdminDoctorActivityController(
     ): EarlyPartnerContractIssueDto {
         return earlyPartnerContractService.issueForDoctor(doctorId)
     }
+
+    /** The issued contract as a PDF (the same file the doctor's app shows); 404 `NO_CONTRACT` when none was issued. */
+    @Suppress("UNUSED_PARAMETER")
+    @GetMapping("/{doctorId}/early-partner-contract/pdf")
+    fun earlyPartnerContractPdf(
+        @AuthenticationPrincipal principal: AdminPrincipal,
+        @PathVariable doctorId: Long,
+    ): org.springframework.http.ResponseEntity<ByteArray> {
+        val file = earlyPartnerContractService.pdfForDoctor(doctorId)
+        return org.springframework.http.ResponseEntity.ok()
+            .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+            .header(
+                org.springframework.http.HttpHeaders.CONTENT_DISPOSITION,
+                org.springframework.http.ContentDisposition.attachment().filename("${file.contractNumber}.pdf").build().toString(),
+            )
+            .body(file.bytes)
+    }
 }
