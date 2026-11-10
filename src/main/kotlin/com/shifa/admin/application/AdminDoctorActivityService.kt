@@ -9,6 +9,8 @@ import com.shifa.auth.domain.User
 import com.shifa.doctors.application.EarlyPartnerContractService
 import com.shifa.doctors.domain.DoctorProfile
 import com.shifa.notifications.application.DoctorSmsBillingService
+import com.shifa.shared.CodedStatusException
+import com.shifa.shared.ErrorCode
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -114,9 +116,11 @@ class AdminDoctorActivityService(
         val requestedWindow = parseOptionalWindow(from, toInclusive)
         val users = resolveDoctorUsers(searchTrimmed)
         if (users.size > maxDoctorsPerListRequest) {
-            throw ResponseStatusException(
+            throw CodedStatusException(
                 HttpStatus.BAD_REQUEST,
                 "Too many doctors to aggregate (${users.size}). Narrow your search filter.",
+                ErrorCode.TOO_MANY_DOCTORS,
+                extra = mapOf("doctorCount" to users.size, "maxDoctors" to maxDoctorsPerListRequest),
             )
         }
         if (users.isEmpty()) {
@@ -152,10 +156,7 @@ class AdminDoctorActivityService(
                 )
             }
         }
-        val comparator = comparatorFor(sortOneOf)
-        val sorted =
-            if (dirDescending) rows.sortedWith(comparator.reversed())
-            else rows.sortedWith(comparator)
+        val sorted = rows.sortedWith(comparatorFor(sortOneOf, dirDescending))
 
         val p = pageZeroBased.coerceAtLeast(0)
         val s = pageSize.coerceAtLeast(1).coerceAtMost(500)
@@ -196,6 +197,8 @@ class AdminDoctorActivityService(
 
         return DoctorActivityRowDto(
             doctorId = 0,
+            userId = user.id,
+            hasProfile = false,
             doctorName = displayName,
             email = user.email?.takeUnless { it.isBlank() },
             clinicId = null,
@@ -240,7 +243,14 @@ class AdminDoctorActivityService(
         val row = buildRow(doctor, requestedWindow, contractNumber, smsByDoctor[doctor.id])
         val chartWindow = computeChartWindow(requestedWindow)
         val daily = buildDailySeries(doctor.id, doctor.user.id, chartWindow)
-        return DoctorActivityDetailDto(row = row, dailySeries = daily)
+        return DoctorActivityDetailDto(
+            row = row,
+            dailySeries = daily,
+            rowFrom = requestedWindow?.usageFrom?.format(ISO_DATE),
+            rowTo = requestedWindow?.usageToInclusive?.format(ISO_DATE),
+            seriesFrom = chartWindow.usageFrom.format(ISO_DATE),
+            seriesTo = chartWindow.usageToInclusive.format(ISO_DATE),
+        )
     }
 
     @Transactional
@@ -278,6 +288,19 @@ class AdminDoctorActivityService(
         return buildRow(doctor, null, contractNumber, smsByDoctor[doctor.id])
     }
 
+    /** Rows without a last-active date come last in both directions. */
+    internal fun comparatorFor(sort: String, descending: Boolean): Comparator<DoctorActivityRowDto> {
+        if (sort.equals("lastactive", ignoreCase = true)) {
+            val byInstant = if (descending) Comparator.reverseOrder<Instant>() else Comparator.naturalOrder<Instant>()
+            return Comparator.comparing<DoctorActivityRowDto, Instant?>(
+                { dr -> dr.lastActiveAt?.let { Instant.parse(it) } },
+                Comparator.nullsLast(byInstant),
+            )
+        }
+        val comparator = comparatorFor(sort)
+        return if (descending) comparator.reversed() else comparator
+    }
+
     private fun comparatorFor(sort: String): Comparator<DoctorActivityRowDto> {
         return when (sort.lowercase(Locale.ROOT)) {
             "name" ->
@@ -290,11 +313,6 @@ class AdminDoctorActivityService(
                 Comparator.comparingLong(DoctorActivityRowDto::aiRequests)
             "patientscreated" ->
                 Comparator.comparingInt(DoctorActivityRowDto::patientsCreated)
-            "lastactive" ->
-                Comparator.comparing<DoctorActivityRowDto, Instant?>(
-                    { dr -> dr.lastActiveAt?.let { Instant.parse(it) } },
-                    Comparator.nullsLast(Comparator.naturalOrder<Instant>()),
-                )
             else ->
                 Comparator.comparingInt(DoctorActivityRowDto::appointmentsBooked)
         }
@@ -497,6 +515,7 @@ class AdminDoctorActivityService(
 
         return DoctorActivityRowDto(
             doctorId = id,
+            userId = userId,
             doctorName = "${doctor.firstName.trim()} ${doctor.lastName.trim()}".trim(),
             email = email,
             clinicId = clinicId,
@@ -558,6 +577,7 @@ class AdminDoctorActivityService(
 
         return DoctorActivityRowDto(
             doctorId = doctor.id,
+            userId = doctor.user.id,
             doctorName = "${doctor.firstName.trim()} ${doctor.lastName.trim()}".trim(),
             email = doctor.user.email?.takeUnless { it.isBlank() },
             clinicId = clinicId,

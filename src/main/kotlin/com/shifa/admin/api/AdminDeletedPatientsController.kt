@@ -21,12 +21,6 @@ import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.AdminPrincipal
 import com.shifa.shared.util.PhoneNormalizer
 import java.security.MessageDigest
-import org.apache.pdfbox.pdmodel.PDDocument
-import org.apache.pdfbox.pdmodel.PDPage
-import org.apache.pdfbox.pdmodel.PDPageContentStream
-import org.apache.pdfbox.pdmodel.common.PDRectangle
-import org.apache.pdfbox.pdmodel.font.PDType1Font
-import org.apache.pdfbox.pdmodel.font.Standard14Fonts.FontName
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
 import org.springframework.http.HttpStatus
@@ -213,10 +207,10 @@ class AdminDeletedPatientsController(
         )
 
         val prettyJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(export)
-        val pdfBytes = renderTextPdf(
+        val pdfBytes = com.shifa.admin.application.DeletedPatientExportPdf.render(
             title = "Deleted Patient Export (Legal/GDPR)",
             fileLabel = "patientProfileId=$patientProfileId",
-            rawText = prettyJson
+            text = prettyJson
         )
 
         val filename = "deleted_patient_${patientProfileId}_export.pdf"
@@ -319,101 +313,6 @@ class AdminDeletedPatientsController(
             consultationNotes = consultationNotes,
             aiDraftNotes = aiDraftNotes
         )
-    }
-
-    private fun renderTextPdf(title: String, fileLabel: String, rawText: String): ByteArray {
-        // Simple text-to-PDF using PDFBox (Helvetica font). We sanitize non-ASCII chars to avoid missing glyphs.
-        val safeTitle = toAsciiSafe(title)
-        val safeLabel = toAsciiSafe(fileLabel)
-        val safeText = toAsciiSafe(rawText)
-
-        val maxCharsPerLine = 100
-        val leading = 14f
-        val marginTop = 50f
-        val marginBottom = 50f
-        val startX = 50f
-
-        val lines = buildList {
-            add(safeTitle)
-            add(safeLabel)
-            add("=".repeat(60))
-            addAll(wrapLines(safeText, maxCharsPerLine))
-        }
-
-        PDDocument().use { doc ->
-            var page = PDPage(PDRectangle.A4)
-            doc.addPage(page)
-            var y = page.mediaBox.height - marginTop
-
-            fun openStream(): PDPageContentStream {
-                return PDPageContentStream(doc, page)
-            }
-
-            val font = PDType1Font(FontName.HELVETICA)
-            var contentStream = openStream()
-            contentStream.setFont(font, 11f)
-            contentStream.beginText()
-            contentStream.newLineAtOffset(startX, y)
-
-            for (line in lines) {
-                if (y < marginBottom) {
-                    contentStream.endText()
-                    contentStream.close()
-
-                    page = PDPage(PDRectangle.A4)
-                    doc.addPage(page)
-                    y = page.mediaBox.height - marginTop
-
-                    contentStream = openStream()
-                    contentStream.setFont(font, 11f)
-                    contentStream.beginText()
-                    contentStream.newLineAtOffset(startX, y)
-                }
-
-                contentStream.showText(sanitizePdfWinAnsiLine(line))
-                contentStream.newLineAtOffset(0f, -leading)
-                y -= leading
-            }
-
-            contentStream.endText()
-            contentStream.close()
-
-            val baos = java.io.ByteArrayOutputStream()
-            doc.save(baos)
-            return baos.toByteArray()
-        }
-    }
-
-    private fun wrapLines(text: String, maxCharsPerLine: Int): List<String> {
-        val out = mutableListOf<String>()
-        val srcLines = text.split('\n')
-        for (src in srcLines) {
-            var s = src
-            if (s.isEmpty()) {
-                out.add("")
-                continue
-            }
-            while (s.length > maxCharsPerLine) {
-                out.add(s.substring(0, maxCharsPerLine))
-                s = s.substring(maxCharsPerLine)
-            }
-            out.add(s)
-        }
-        return out
-    }
-
-    private fun toAsciiSafe(s: String): String {
-        return s.map { ch ->
-            if (ch.code <= 127) ch else '?'
-        }.joinToString("")
-    }
-
-    /** Helvetica WinAnsi cannot represent all ASCII; keep printable subset for PDFBox showText. */
-    private fun sanitizePdfWinAnsiLine(line: String): String {
-        return line.map { ch ->
-            val c = ch.code
-            if (c in 32..126) ch else '?'
-        }.joinToString("")
     }
 
     private fun toPatientProfileExport(p: PatientProfile): PatientProfileExportDto {

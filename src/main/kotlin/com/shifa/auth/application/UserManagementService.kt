@@ -10,7 +10,6 @@ import com.shifa.auth.infrastructure.UserRoleRepository
 import com.shifa.auth.infrastructure.UserSessionRepository
 import com.shifa.shared.security.UserSessionValidationCache
 import java.time.OffsetDateTime
-import java.util.NoSuchElementException
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.http.HttpStatus
@@ -43,8 +42,9 @@ class UserManagementService(
         lastName: String,
         adminLevel: AdminLevel = AdminLevel.ADMIN
     ): User {
-        if (userRepository.findByEmail(email).isPresent) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Email already registered")
+        // Case-insensitive, as the address is stored lower-cased: one answer whatever the spelling (409, as registration).
+        if (userRepository.findByEmailIgnoreCase(email.trim()).isPresent) {
+            throw ResponseStatusException(HttpStatus.CONFLICT, "Email already registered")
         }
         val user = User(
             email = email.trim().lowercase(),
@@ -68,9 +68,9 @@ class UserManagementService(
     }
 
     /**
-     * Get all users with pagination and filtering.
-     * When search is not blank, searches phone, email, username, and name (doctor/patient/admin profile).
-     * Uses JPQL only (no native SQL) so search is reliable across databases.
+     * The admin user list. Every filter (role, enabled, search over phone, e-mail, username and profile names,
+     * device) is applied in one query, so the page and the total are right for any combination; the order is the
+     * pageable's sort, newest first by default (see [com.shifa.auth.infrastructure.UserRepositoryCustom]).
      */
     @Transactional(readOnly = true)
     fun listUsers(
@@ -79,25 +79,7 @@ class UserManagementService(
         search: String? = null,
         deviceRegistered: Boolean? = null,
         pageable: Pageable
-    ): Page<User> {
-        val searchTrimmed = search?.trim()?.takeIf { it.isNotBlank() }
-        if (deviceRegistered != null && searchTrimmed == null) {
-            return listUsersByDeviceFilter(role, enabled, deviceRegistered, pageable)
-        }
-        val basePage = if (searchTrimmed != null) {
-            searchUsersAdminJpql(searchTrimmed, role, enabled, pageable)
-        } else {
-            when {
-                role != null && enabled != null -> userRepository.findByRoleAndEnabled(role, enabled, pageable)
-                role != null -> userRepository.findByRole(role, pageable)
-                enabled != null -> userRepository.findByEnabled(enabled, pageable)
-                else -> userRepository.findAll(pageable)
-            }
-        }
-        if (deviceRegistered == null || searchTrimmed == null) return basePage
-        val filtered = basePage.content.filter { isDeviceRegistered(it) == deviceRegistered }
-        return org.springframework.data.domain.PageImpl(filtered, pageable, filtered.size.toLong())
-    }
+    ): Page<User> = userRepository.searchUsersAdmin(search, role, enabled, deviceRegistered, pageable)
 
     /** Aggregate metrics for the admin User Management dashboard. */
     @Transactional(readOnly = true)
@@ -112,10 +94,12 @@ class UserManagementService(
         val totalPatientProfiles = patientProfileRepository.count()
         val profilesWithoutAppAccount = patientProfileRepository.countByUserIsNull()
         val profilesWithAppAccount = patientProfileRepository.countByUserIsNotNull()
-        val patientsWithDevice = patientProfileRepository.countWithDeviceRegistered()
-        val patientAppUsersWithoutDevice = patientProfileRepository.countAppUsersWithoutDevice()
-        val doctorsWithDevice = doctorProfileRepository.countWithDeviceRegistered()
-        val doctorsWithoutDevice = (totalDoctors - doctorsWithDevice).coerceAtLeast(0)
+        // The same query as the list's device filter, so each number equals the list's total for that filter and
+        // with-device plus without-device is the role's account count (accounts without a profile have no device).
+        val patientsWithDevice = userRepository.countUsersAdmin(null, Role.PATIENT, null, true)
+        val patientAppUsersWithoutDevice = userRepository.countUsersAdmin(null, Role.PATIENT, null, false)
+        val doctorsWithDevice = userRepository.countUsersAdmin(null, Role.DOCTOR, null, true)
+        val doctorsWithoutDevice = userRepository.countUsersAdmin(null, Role.DOCTOR, null, false)
         val patientsNeverLoggedIn = userRepository.countByRoleAndLastLoginAtIsNull(Role.PATIENT)
         val patientsLoggedIn = userRepository.countByRoleAndLastLoginAtIsNotNull(Role.PATIENT)
         val doctorsNeverLoggedIn = userRepository.countByRoleAndLastLoginAtIsNull(Role.DOCTOR)
@@ -168,75 +152,13 @@ class UserManagementService(
         }
     }
 
-    private fun listUsersByDeviceFilter(
-        role: Role?,
-        enabled: Boolean?,
-        deviceRegistered: Boolean,
-        pageable: Pageable
-    ): Page<User> {
-        val candidateIds: List<Long> = when (role) {
-            Role.PATIENT -> if (deviceRegistered) {
-                patientProfileRepository.findUserIdsWithDeviceRegistered()
-            } else {
-                userRepository.findPatientUserIdsWithoutDeviceRegistered()
-            }
-            Role.DOCTOR -> if (deviceRegistered) {
-                doctorProfileRepository.findUserIdsWithDeviceRegistered()
-            } else {
-                userRepository.findDoctorUserIdsWithoutDeviceRegistered()
-            }
-            null -> {
-                val withDevice = patientProfileRepository.findUserIdsWithDeviceRegistered() +
-                    doctorProfileRepository.findUserIdsWithDeviceRegistered()
-                val withoutDevice = userRepository.findPatientUserIdsWithoutDeviceRegistered() +
-                    userRepository.findDoctorUserIdsWithoutDeviceRegistered()
-                if (deviceRegistered) withDevice.distinct() else withoutDevice.distinct()
-            }
-            else -> emptyList()
-        }
-        if (candidateIds.isEmpty()) {
-            return org.springframework.data.domain.PageImpl(emptyList(), pageable, 0L)
-        }
-        val users = userRepository.findAllById(candidateIds)
-        val filtered = users.filter { user ->
-            (enabled == null || user.enabled == enabled) &&
-                (role == null || user.role == role)
-        }.sortedByDescending { it.createdAt }
-        val total = filtered.size.toLong()
-        val page = filtered.drop(pageable.offset.toInt()).take(pageable.pageSize)
-        return org.springframework.data.domain.PageImpl(page, pageable, total)
-    }
-
-    /** Search by phone/email/username and profile names using JPQL only; merge, filter by role/enabled, paginate. */
-    private fun searchUsersAdminJpql(
-        q: String,
-        role: Role?,
-        enabled: Boolean?,
-        pageable: Pageable
-    ): Page<User> {
-        val idsFromUser = userRepository.findUserIdsBySearch(q, role, enabled)
-        val idsFromDoctor = doctorProfileRepository.findUserIdsBySearch(q)
-        val idsFromPatient = patientProfileRepository.findUserIdsBySearch(q)
-        val idsFromAdmin = adminProfileRepository.findUserIdsBySearch(q)
-        val mergedIds = (idsFromUser + idsFromDoctor + idsFromPatient + idsFromAdmin).distinct()
-        if (mergedIds.isEmpty()) return org.springframework.data.domain.PageImpl(emptyList(), pageable, 0L)
-        val users = userRepository.findAllById(mergedIds)
-        val filtered = if (role != null || enabled != null) {
-            users.filter { (role == null || it.role == role) && (enabled == null || it.enabled == enabled) }
-        } else users
-        val sorted = filtered.sortedBy { it.id }
-        val total = sorted.size.toLong()
-        val page = sorted.drop(pageable.offset.toInt()).take(pageable.pageSize)
-        return org.springframework.data.domain.PageImpl(page, pageable, total)
-    }
-    
     /**
      * Get user by ID
      */
     @Transactional(readOnly = true)
     fun getUserById(userId: Long): User {
         return userRepository.findById(userId)
-            .orElseThrow { NoSuchElementException("User not found: $userId") }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
     }
     
     /**

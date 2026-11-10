@@ -344,6 +344,7 @@ class AdminDoctorActivityMetricsBatchLoader(
 
         fun mergeMax(jpql: String, instantAt: (Array<Any>) -> Instant?) {
             val q = em.createQuery(jpql, Array<Any>::class.java).setParameter("ids", doctorIds)
+            if (":now" in jpql) q.setParameter("now", Instant.now())
             for (row in q.resultList) {
                 val doctorId = (row[0] as Number).toLong()
                 val instant = instantAt(row) ?: continue
@@ -353,7 +354,8 @@ class AdminDoctorActivityMetricsBatchLoader(
         }
 
         mergeMax(
-            "SELECT a.doctor.id, MAX(a.startAt) FROM Appointment a WHERE a.doctor.id IN :ids GROUP BY a.doctor.id",
+            // Visits that have started only: a booking for next week is not activity yet.
+            "SELECT a.doctor.id, MAX(a.startAt) FROM Appointment a WHERE a.doctor.id IN :ids AND a.startAt <= :now GROUP BY a.doctor.id",
         ) { row -> row[1] as? Instant }
         mergeMax(
             """SELECT tp.attendingDoctor.id, MAX(tp.updatedAt) FROM TreatmentPlan tp

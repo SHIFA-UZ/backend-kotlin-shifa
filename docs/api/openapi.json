@@ -43,6 +43,7 @@
             ]
           },
           "email": {
+            "format": "email",
             "type": [
               "string",
               "null"
@@ -4025,6 +4026,30 @@
           },
           "row": {
             "$ref": "#/components/schemas/DoctorActivityRowDto"
+          },
+          "rowFrom": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "rowTo": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seriesFrom": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "seriesTo": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         },
         "required": [
@@ -4109,6 +4134,9 @@
               "null"
             ]
           },
+          "hasProfile": {
+            "type": "boolean"
+          },
           "lastActiveAt": {
             "type": [
               "string",
@@ -4165,6 +4193,13 @@
             "format": "int32",
             "type": "integer"
           },
+          "userId": {
+            "format": "int64",
+            "type": [
+              "integer",
+              "null"
+            ]
+          },
           "videoAppointments": {
             "format": "int32",
             "type": "integer"
@@ -4182,6 +4217,7 @@
           "doctorId",
           "doctorName",
           "documentsUploaded",
+          "hasProfile",
           "monthlyChargeUsd",
           "monthsAfterTrial",
           "patientForms",
@@ -5441,7 +5477,9 @@
             ]
           },
           "expiresInDays": {
+            "exclusiveMinimum": 0,
             "format": "int32",
+            "maximum": 36500,
             "type": [
               "integer",
               "null"
@@ -12330,6 +12368,14 @@
         "parameters": [
           {
             "in": "query",
+            "name": "search",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "pageable",
             "required": true,
             "schema": {
@@ -12985,6 +13031,24 @@
               "format": "int64",
               "type": "integer"
             }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -13344,6 +13408,14 @@
           {
             "in": "query",
             "name": "purpose",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
             "required": false,
             "schema": {
               "type": "string"

@@ -8,6 +8,14 @@ import java.util.*
 interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
     fun findAllByPracticeClinic_Id(clinicId: Long): List<DoctorProfile>
 
+    /** Rows of (clinic id, number of doctors assigned to it) for the given clinics; a clinic without doctors has no row. */
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT d.practiceClinic.id, COUNT(d) FROM DoctorProfile d WHERE d.practiceClinic.id IN :clinicIds GROUP BY d.practiceClinic.id"
+    )
+    fun countByPracticeClinicIds(
+        @org.springframework.data.repository.query.Param("clinicIds") clinicIds: Collection<Long>,
+    ): List<Array<Any>>
+
     fun findByUserId(userId: Long): Optional<DoctorProfile>
 
     @org.springframework.data.jpa.repository.Query(

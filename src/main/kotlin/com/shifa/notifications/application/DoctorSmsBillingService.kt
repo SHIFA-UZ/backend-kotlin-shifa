@@ -9,8 +9,10 @@ import com.shifa.shared.config.DevSmsProperties
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneOffset
+import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.web.server.ResponseStatusException
 
 
 data class DoctorSmsUsageSummary(
@@ -97,7 +99,7 @@ class DoctorSmsBillingService(
     @Transactional
     fun setSmsRemindersAllowed(doctorId: Long, allowed: Boolean): DoctorProfile {
         val doctor = doctorProfileRepository.findById(doctorId)
-            .orElseThrow { NoSuchElementException("Doctor not found") }
+            .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found") }
         doctor.smsRemindersAllowed = allowed
         return doctorProfileRepository.save(doctor)
     }

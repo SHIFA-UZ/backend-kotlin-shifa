@@ -438,8 +438,9 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
     )
     fun findExpiredPaymentHolds(@Param("now") now: Instant): List<Appointment>
 
-    @Query("SELECT MAX(a.startAt) FROM Appointment a WHERE a.doctor.id = :doctorId")
-    fun findMaxStartAtByDoctorId(@Param("doctorId") doctorId: Long): Instant?
+    /** The latest visit that has started by [now]: a booking for next week is not activity yet. */
+    @Query("SELECT MAX(a.startAt) FROM Appointment a WHERE a.doctor.id = :doctorId AND a.startAt <= :now")
+    fun findMaxStartAtByDoctorId(@Param("doctorId") doctorId: Long, @Param("now") now: Instant): Instant?
 
     /**
      * Patients ranked by non-cancelled visit count with this doctor (most visited first).
