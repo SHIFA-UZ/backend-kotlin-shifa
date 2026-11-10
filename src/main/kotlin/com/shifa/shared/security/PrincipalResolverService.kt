@@ -11,6 +11,7 @@ import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.userdetails.UserDetails
 import org.springframework.security.core.userdetails.UsernameNotFoundException
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * Resolves the correct principal type based on JWT token context (userId + optional role claim).
@@ -35,7 +36,11 @@ class PrincipalResolverService(
 
     /**
      * Build principal for request: use tokenRole when present (and user has that role), otherwise primary role (users.role).
+     *
+     * Runs on every authenticated request: one read-only transaction, so its three lookups share a connection and the
+     * profile's user is the one already loaded instead of a fourth query.
      */
+    @Transactional(readOnly = true)
     fun getPrincipalForToken(userId: Long, tokenRole: String?): UserDetails {
         val user = users.findById(userId).orElseThrow { UsernameNotFoundException("User not found: $userId") }
         val roles = userRoles.findByUserId(user.id)
