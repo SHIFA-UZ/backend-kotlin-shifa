@@ -114,12 +114,12 @@ class ErrorHandler(
 
     /** Wrong method, wrong content type or a missing upload part: the client's mistake, not a 500. */
     @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException::class)
-    fun handleMethodNotSupported(e: org.springframework.web.HttpRequestMethodNotSupportedException): ResponseEntity<Map<String, Any>> =
+    fun handleMethodNotSupported(): ResponseEntity<Map<String, Any>> =
         ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED)
             .body(body(405, "Method not allowed", ErrorCode.BAD_REQUEST))
 
     @ExceptionHandler(org.springframework.web.HttpMediaTypeNotSupportedException::class)
-    fun handleMediaTypeNotSupported(e: org.springframework.web.HttpMediaTypeNotSupportedException): ResponseEntity<Map<String, Any>> =
+    fun handleMediaTypeNotSupported(): ResponseEntity<Map<String, Any>> =
         ResponseEntity.status(HttpStatus.UNSUPPORTED_MEDIA_TYPE)
             .body(body(415, "Unsupported content type", ErrorCode.BAD_REQUEST))
 

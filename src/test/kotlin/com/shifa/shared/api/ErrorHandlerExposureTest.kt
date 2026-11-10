@@ -47,9 +47,9 @@ class ErrorHandlerExposureTest {
 
     @Test
     fun `wrong method, content type and missing part are client errors`() {
-        val method = handler(false).handleMethodNotSupported(org.springframework.web.HttpRequestMethodNotSupportedException("PUT"))
+        val method = handler(false).handleMethodNotSupported()
         assertEquals(405, method.statusCode.value())
-        val type = handler(false).handleMediaTypeNotSupported(org.springframework.web.HttpMediaTypeNotSupportedException("text/plain"))
+        val type = handler(false).handleMediaTypeNotSupported()
         assertEquals(415, type.statusCode.value())
         val part = handler(false).handleMissingPart(org.springframework.web.multipart.support.MissingServletRequestPartException("file"))
         assertEquals(400, part.statusCode.value())
