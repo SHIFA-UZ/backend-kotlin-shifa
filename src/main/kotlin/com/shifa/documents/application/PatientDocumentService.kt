@@ -286,12 +286,15 @@ class PatientDocumentService(
      * Replaces the file of a document this doctor uploaded (a re-saved 025-2). Seeing a document is not enough:
      * team-shared documents are visible to every doctor.
      */
+    @Transactional
     fun updateFile(
+        patientId: Long,
         documentId: Long,
         doctorId: Long,
         file: MultipartFile
     ): PatientDocumentDto {
-        val existing = docs.findById(documentId).filter { it.deletedAt == null }
+        // The patient in the path is the one the caller was checked against, so the document must be theirs.
+        val existing = docs.findById(documentId).filter { it.deletedAt == null && it.patient?.id == patientId }
             .orElseThrow { IllegalArgumentException("Document not found: $documentId") }
         if (!canDoctorViewDocument(existing, doctorId)) {
             throw IllegalArgumentException("Document not found")

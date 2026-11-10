@@ -282,7 +282,6 @@ com.shifa.documents.application.PatientDocumentService.listForPatient(long) is p
 com.shifa.documents.application.PatientDocumentService.listForPatientSelf(long) is public and not @Transactional
 com.shifa.documents.application.PatientDocumentService.listUploadedByDoctorInDocumentDateRange(long, java.time.LocalDate, java.time.LocalDate) is public and not @Transactional
 com.shifa.documents.application.PatientDocumentService.save(com.shifa.documents.domain.PatientDocument) is public and not @Transactional
-com.shifa.documents.application.PatientDocumentService.updateFile(long, long, org.springframework.web.multipart.MultipartFile) is public and not @Transactional
 com.shifa.documents.application.PatientDocumentService.upload(long, long, org.springframework.web.multipart.MultipartFile, java.lang.String, java.time.LocalDate, boolean, java.lang.String, com.shifa.appointments.domain.Appointment) is public and not @Transactional
 com.shifa.documents.application.PatientDocumentService.uploadByPatient(long, org.springframework.web.multipart.MultipartFile, java.lang.String, java.time.LocalDate, boolean, java.lang.String) is public and not @Transactional
 com.shifa.notifications.application.NotificationService.alreadyNotifiedDoctor(long, long, com.shifa.notifications.domain.Notification$Type) is public and not @Transactional
