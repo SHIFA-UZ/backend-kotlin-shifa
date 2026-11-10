@@ -609,10 +609,11 @@ class ClinicFinanceController(
         val uid = clinicAccess.resolveBookingActorUserId(principal)
         val user = users.findById(uid).orElse(null)
 
+        // The record must be this clinic's and this patient's: an id from another clinic would be marked paid.
         val fr = req.financialRecordId?.let {
-            financialRecords.findById(it).orElseThrow {
-                ResponseStatusException(HttpStatus.NOT_FOUND, "Financial record not found")
-            }
+            financialRecords.findById(it)
+                .filter { r -> r.clinic.id == clinicId && r.patient.id == plan.patient.id }
+                .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Financial record not found") }
         }
 
         val payment = financeService.recordPaymentAndSync(
