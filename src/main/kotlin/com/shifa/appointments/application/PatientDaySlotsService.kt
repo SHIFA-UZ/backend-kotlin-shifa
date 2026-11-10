@@ -154,7 +154,9 @@ class PatientDaySlotsService(
         }
 
         val validityPeriods = scheduleValidityService.getPeriods(doctor)
-        val allAppts = appts.findByDoctorIdAndStartAtBetween(doctorId, rangeStart, rangeEnd)
+        // The appointments that hold a slot, as availableSlotsForDay counts them: a cancelled, expired or unpaid-failed
+        // one frees its time.
+        val allAppts = appts.findOverlapping(doctorId, rangeStart, rangeEnd)
         val allBlocks = blocksRepo.findOverlapping(doctorId, rangeStart, rangeEnd)
 
         for (i in 0..lookaheadDays) {
