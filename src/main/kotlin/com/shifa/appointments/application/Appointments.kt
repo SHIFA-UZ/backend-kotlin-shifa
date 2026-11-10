@@ -41,6 +41,9 @@ class Appointments(private val repo: AppointmentRepository, private val entityMa
     @Transactional(readOnly = true)
     fun countByStatusForDoctorBetween(doctorId: Long, start: Instant, end: Instant): Map<Appointment.Status, Long> =
         repo.countByStatusForDoctorBetween(doctorId, start, end).associate { (it[0] as Appointment.Status) to (it[1] as Long) }
+    @Transactional(readOnly = true)
+    fun findStartTimesByDoctorIdAndStartAtBetween(doctorId: Long, start: Instant, end: Instant): List<Instant> =
+        repo.findStartTimesByDoctorIdAndStartAtBetween(doctorId, start, end)
     fun findByDoctorIdAndStartAtBetween(doctorId: Long, start: Instant, end: Instant): List<Appointment> = repo.findByDoctorIdAndStartAtBetween(doctorId, start, end)
     fun countNewPatientsToday(doctorId: Long, dayStart: Instant, dayEnd: Instant): Long = repo.countNewPatientsToday(doctorId, dayStart, dayEnd)
     fun existsNonCancelledByPatientIdAndDoctorIds(patientId: Long, doctorIds: Collection<Long>): Boolean = repo.existsNonCancelledByPatientIdAndDoctorIds(patientId, doctorIds)

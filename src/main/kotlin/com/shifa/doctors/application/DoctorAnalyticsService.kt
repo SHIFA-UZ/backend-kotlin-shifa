@@ -60,9 +60,9 @@ class DoctorAnalyticsService(
         val today = LocalDate.now(zone)
         val rangeStart = today.minusDays((days - 1).toLong()).atStartOfDay(zone).toInstant()
         val rangeEnd = today.plusDays(1).atStartOfDay(zone).toInstant()
-        val list = appts.findByDoctorIdAndStartAtBetween(doctorId, rangeStart, rangeEnd)
-        val byDate = list.groupBy { it.startAt.atZone(zone).toLocalDate() }
-            .mapValues { it.value.size }
+        val byDate = appts.findStartTimesByDoctorIdAndStartAtBetween(doctorId, rangeStart, rangeEnd)
+            .groupingBy { it.atZone(zone).toLocalDate() }
+            .eachCount()
         return (0 until days).map { i ->
             val d = LocalDate.now(zone).minusDays((days - 1 - i).toLong())
             AppointmentTrendPointDto(

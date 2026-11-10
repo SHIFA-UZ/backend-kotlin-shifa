@@ -168,6 +168,19 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         @Param("end") end: Instant,
     ): List<Array<Any>>
 
+    /** Only the start times of the doctor's appointments in the range: enough to count per day, without the rows' large text columns. */
+    @Query("""
+        SELECT a.startAt FROM Appointment a
+        WHERE a.doctor.id = :doctorId
+          AND a.startAt >= :start
+          AND a.startAt < :end
+    """)
+    fun findStartTimesByDoctorIdAndStartAtBetween(
+        @Param("doctorId") doctorId: Long,
+        @Param("start") start: Instant,
+        @Param("end") end: Instant,
+    ): List<Instant>
+
     /** All appointments for doctor in range (for grouping by date in service). */
     @Query("""
         SELECT a FROM Appointment a
