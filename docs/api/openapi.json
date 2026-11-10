@@ -20419,6 +20419,19 @@
         ]
       }
     },
+    "/api/patients/me/delete-account/sms-code": {
+      "post": {
+        "operationId": "sendSmsCode",
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        },
+        "tags": [
+          "patient-account-deletion-controller"
+        ]
+      }
+    },
     "/api/patients/me/documents": {
       "get": {
         "operationId": "getDocuments",

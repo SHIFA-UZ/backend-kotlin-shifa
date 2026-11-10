@@ -72,6 +72,25 @@ class PatientAccountDeletionController(
         )
     }
 
+    /**
+     * Sends the deletion SMS code to the account's own phone (the number `confirm` verifies against), so the app never
+     * has to guess it from the profile.
+     */
+    @PostMapping("/sms-code")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun sendSmsCode(@AuthenticationPrincipal principal: PatientPrincipal) {
+        val user = users.findById(principal.user.id).orElseThrow {
+            ResponseStatusException(HttpStatus.NOT_FOUND, "User not found")
+        }
+        val phone = user.phone?.let { PhoneNormalizer.normalize(it) }?.takeIf { PhoneNormalizer.isUzbekMobile(it) }
+            ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "SMS verification is not available for this account")
+        if (smsOtpService.sendCode(phone, com.shifa.auth.domain.SmsVerificationCode.PURPOSE_ACCOUNT_DELETION)
+                is com.shifa.auth.application.SmsOtpSendResult.Failure
+        ) {
+            throw ResponseStatusException(HttpStatus.SERVICE_UNAVAILABLE, "SMS could not be sent. Please try again later.")
+        }
+    }
+
     @PostMapping("/confirm")
     @Transactional
     fun confirmDeletion(
