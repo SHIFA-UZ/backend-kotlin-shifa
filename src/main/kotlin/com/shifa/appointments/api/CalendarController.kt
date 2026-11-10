@@ -34,7 +34,10 @@ class CalendarController(
 ) {
     private val logger = LoggerFactory.getLogger(CalendarController::class.java)
 
+    // One transaction (one connection) for the day's seven reads. Not read-only: the validity check may move a
+    // doctor's legacy validity dates into their own table on first use.
     @GetMapping
+    @org.springframework.transaction.annotation.Transactional
     fun byDay(
         @AuthenticationPrincipal principal: Any,
         @RequestParam day: String,

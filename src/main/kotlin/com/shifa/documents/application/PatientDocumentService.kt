@@ -83,6 +83,7 @@ class PatientDocumentService(
      * every document related to them: both ones they created and ones doctors created for them.
      * All entries are returned with canView=true and a viewable url.
      */
+    @Transactional(readOnly = true)
     fun listForPatientSelf(patientId: Long): List<PatientDocumentDto> {
         val found = docs.listForPatient(patientId)
         return found
