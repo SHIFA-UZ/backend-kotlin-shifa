@@ -259,6 +259,7 @@ class UserManagementService(
         val tempPassword = generateTemporaryPassword()
         user.passwordHash = passwordEncoder.encode(tempPassword)!!
         userRepository.save(user)
+        revokeSessionsExcept(userId, keepJti = null)
         return tempPassword
     }
     
