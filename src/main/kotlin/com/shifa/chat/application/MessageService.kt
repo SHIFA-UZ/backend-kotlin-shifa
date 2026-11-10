@@ -256,9 +256,9 @@ class MessageService(
             recipientPatient = recipientPatient,
             text = request.text,
             messageType = messageType,
-            attachmentUrl = fileUrlSigner.canonical(request.attachmentUrl), // never store a signed URL
+            attachmentUrl = ownFileUrl(request.attachmentUrl), // never store a signed URL
             attachmentName = request.attachmentName,
-            thumbnailUrl = fileUrlSigner.canonical(request.thumbnailUrl),
+            thumbnailUrl = ownFileUrl(request.thumbnailUrl),
             fileSize = request.fileSize,
             duration = request.duration,
             status = Message.MessageStatus.SENT,
@@ -303,6 +303,18 @@ class MessageService(
         }
 
         messageRepo.markReadForUser(conversationId, doctorUserId)
+    }
+
+    /**
+     * What gets stored for an attachment: the path of a file this backend serves, on this backend's own host.
+     * Any other URL from the client is refused, because the recipient's app fetches and opens it as it is.
+     */
+    private fun ownFileUrl(url: String?): String? {
+        val canonical = fileUrlSigner.canonical(url)
+        if (canonical.isNullOrBlank()) return null
+        val path = runCatching { java.net.URI(canonical).rawPath }.getOrNull().orEmpty()
+        require(fileUrlSigner.isProtected(path)) { "Attachment must be a file uploaded to Shifa" }
+        return publicUrls.absolute(path)
     }
 
     @Transactional(readOnly = true)
@@ -482,9 +494,9 @@ class MessageService(
             recipientPatient = null,
             text = request.text,
             messageType = messageType,
-            attachmentUrl = fileUrlSigner.canonical(request.attachmentUrl), // never store a signed URL
+            attachmentUrl = ownFileUrl(request.attachmentUrl), // never store a signed URL
             attachmentName = request.attachmentName,
-            thumbnailUrl = fileUrlSigner.canonical(request.thumbnailUrl),
+            thumbnailUrl = ownFileUrl(request.thumbnailUrl),
             fileSize = request.fileSize,
             duration = request.duration,
             status = Message.MessageStatus.SENT,
