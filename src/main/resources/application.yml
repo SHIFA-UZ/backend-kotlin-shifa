@@ -146,7 +146,7 @@ app:
     issuer: shifa
     # Local only. application-prod.yml requires JWT_SECRET; StartupSecretChecks warns below 64 characters.
     secret: "a_really_long_random_64+_char_secret_development_only"
-    accessTokenMinutesDoctor: 43200   # 30 days for the doctor app (login once per month)
+    accessTokenMinutesDoctor: 720     # 12 hours for doctor, clinic staff and admin tokens
     accessTokenMinutesPatient: 525600  # 365 days for the patient app
   # Files are served from the API's own domain; this is also a CORS origin.
   publicBaseUrl: http://localhost:8080

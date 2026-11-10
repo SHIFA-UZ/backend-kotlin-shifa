@@ -10,7 +10,7 @@ import java.time.OffsetDateTime
 
 /**
  * Purges expired and long-revoked [user_sessions] rows so the table does not grow unbounded
- * with 30-day doctor / 365-day patient JWTs.
+ * with 12-hour doctor / 365-day patient JWTs.
  */
 @Component
 class UserSessionCleanupScheduler(
