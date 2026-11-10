@@ -95,6 +95,12 @@ server:
   # Let in-flight requests finish during a deploy (up to the phase timeout below) instead of cutting them
   # at once; long SSE streams can still be cut after that window (roadmap 2.4).
   shutdown: graceful
+  # JSON goes out gzipped (the doctor list is 25 KB plain). Only JSON: the AI streams (text/event-stream) must
+  # reach the client line by line, and files are compressed formats already.
+  compression:
+    enabled: true
+    min-response-size: 1KB
+    mime-types: application/json
 
 spring.lifecycle.timeout-per-shutdown-phase: 30s
 
