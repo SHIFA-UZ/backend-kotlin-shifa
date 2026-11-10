@@ -152,6 +152,22 @@ interface AppointmentRepository : JpaRepository<Appointment, Long> {
         status: Appointment.Status
     ): Long
 
+    /**
+     * Rows of (status, count) for the doctor's appointments in the range: what one
+     * [countByDoctor_IdAndStartAtBetweenAndStatus] call per status returns (both ends inclusive, like it), in one query.
+     */
+    @Query("""
+        SELECT a.status, COUNT(a) FROM Appointment a
+        WHERE a.doctor.id = :doctorId
+          AND a.startAt BETWEEN :start AND :end
+        GROUP BY a.status
+    """)
+    fun countByStatusForDoctorBetween(
+        @Param("doctorId") doctorId: Long,
+        @Param("start") start: Instant,
+        @Param("end") end: Instant,
+    ): List<Array<Any>>
+
     /** All appointments for doctor in range (for grouping by date in service). */
     @Query("""
         SELECT a FROM Appointment a
