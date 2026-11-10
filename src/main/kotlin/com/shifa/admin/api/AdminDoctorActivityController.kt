@@ -120,12 +120,14 @@ class AdminDoctorActivityController(
     }
 
     /** Allocate or refresh early-partner contract data for PDF generation (sequential number per new doctor). */
-    @Suppress("UNUSED_PARAMETER")
     @PostMapping("/{doctorId}/early-partner-contract/issue")
     fun issueEarlyPartnerContract(
         @AuthenticationPrincipal principal: AdminPrincipal,
         @PathVariable doctorId: Long,
     ): EarlyPartnerContractIssueDto {
+        if (principal.isReadOnly()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot issue contracts")
+        }
         return earlyPartnerContractService.issueForDoctor(doctorId)
     }
 

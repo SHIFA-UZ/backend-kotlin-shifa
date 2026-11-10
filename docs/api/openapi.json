@@ -3112,15 +3112,19 @@
             ]
           },
           "email": {
-            "minLength": 1,
+            "format": "email",
+            "maxLength": 255,
+            "minLength": 0,
             "type": "string"
           },
           "firstName": {
-            "minLength": 1,
+            "maxLength": 255,
+            "minLength": 0,
             "type": "string"
           },
           "lastName": {
-            "minLength": 1,
+            "maxLength": 255,
+            "minLength": 0,
             "type": "string"
           },
           "password": {
@@ -15416,6 +15420,19 @@
                 }
               }
             },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth-controller"
+        ]
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "logout",
+        "responses": {
+          "200": {
             "description": "OK"
           }
         },

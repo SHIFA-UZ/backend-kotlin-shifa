@@ -42,6 +42,7 @@ class UserDeletionService(
     private val aiDraftNoteRepository: com.shifa.ai.application.AiDraftNotes,
     private val doctorSettingsRepository: com.shifa.doctors.application.DoctorSettingsDoor,
     private val doctorBillingService: com.shifa.payments.application.DoctorBillingService,
+    private val userManagementService: UserManagementService,
 ) {
     private val log = LoggerFactory.getLogger(UserDeletionService::class.java)
 
@@ -55,6 +56,7 @@ class UserDeletionService(
         val user = userRepository.findById(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found: $userId") }
 
+        userManagementService.requireNotLastSuperAdmin(userId)
         if (user.role == Role.ADMIN) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Cannot delete admin users. Deactivate instead.")
         }

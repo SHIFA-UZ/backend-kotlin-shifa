@@ -298,11 +298,7 @@ class AdminController(
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot create admin users")
         }
-        val adminLevel = try {
-            request.adminLevel?.let { AdminLevel.valueOf(it.uppercase()) } ?: AdminLevel.ADMIN
-        } catch (e: IllegalArgumentException) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid adminLevel: ${request.adminLevel}")
-        }
+        val adminLevel = levelForNewAdmin(request.adminLevel, principal)
         val adminUser = principal.adminProfile.user
         val user = userManagementService.createAdminUser(
             email = request.email.trim(),
@@ -332,6 +328,7 @@ class AdminController(
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot modify users")
         }
+        requireMayManage(principal, userId)
         
         val adminUser = principal.adminProfile.user
         val enabled = request["enabled"] ?: true
@@ -358,6 +355,7 @@ class AdminController(
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot reset passwords")
         }
+        requireMayManage(principal, userId)
         
         val adminUser = principal.adminProfile.user
         val tempPassword = userManagementService.resetPassword(userId)
@@ -383,6 +381,7 @@ class AdminController(
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot force logout")
         }
+        requireMayManage(principal, userId)
         
         val adminUser = principal.adminProfile.user
         userManagementService.forceLogout(userId, adminUser)
@@ -407,6 +406,7 @@ class AdminController(
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot unlock users")
         }
+        requireMayManage(principal, userId)
         
         val adminUser = principal.adminProfile.user
         val user = userManagementService.unlockUser(userId)
@@ -435,6 +435,7 @@ class AdminController(
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot delete users")
         }
+        requireMayManage(principal, userId)
         val adminUser = principal.adminProfile.user
         val user = userManagementService.getUserById(userId)
         userDeletionService.deleteUser(userId)
@@ -512,6 +513,27 @@ class AdminController(
         }
     }
     
+    /** The level asked for (ADMIN when none); only a super admin may hand out SUPER_ADMIN. */
+    private fun levelForNewAdmin(requested: String?, principal: AdminPrincipal): AdminLevel {
+        val level = try {
+            requested?.let { AdminLevel.valueOf(it.uppercase()) } ?: AdminLevel.ADMIN
+        } catch (_: IllegalArgumentException) {
+            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid adminLevel: $requested")
+        }
+        if (level == AdminLevel.SUPER_ADMIN && !principal.isSuperAdmin()) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only super admins can create super admins")
+        }
+        return level
+    }
+
+    /** Another admin's account is a super admin's business; every admin may still act on their own account. */
+    private fun requireMayManage(principal: AdminPrincipal, userId: Long) {
+        val own = userId == principal.adminProfile.user.id
+        if (!own && !principal.isSuperAdmin() && userManagementService.isAdminAccount(userId)) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only super admins can manage admin accounts")
+        }
+    }
+
     private fun toUserResponse(user: User): UserResponse {
         val profile = userManagementService.getUserProfileInfo(user.id)
         return UserResponse(
@@ -544,6 +566,7 @@ class AdminController(
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot modify users")
         }
+        requireMayManage(principal, userId)
 
         val tier = try {
             SubscriptionTier.valueOf(request.tier.trim().uppercase())

@@ -417,7 +417,7 @@ class AdminListsIntegrationTest {
     fun `a taken admin e-mail is 409 whatever its case`() {
         rolledBack {
             val mvc = mockMvc()
-            for (email in listOf("seed.admin@shifa.dev", "SEED.Admin@Shifa.dev", "  seed.admin@shifa.dev ")) {
+            for (email in listOf("seed.admin@shifa.dev", "SEED.Admin@Shifa.dev")) {
                 mvc.perform(
                     post("/api/admin/users/create-admin").contentType(MediaType.APPLICATION_JSON)
                         .content("""{"email":"$email","password":"Str0ng!Passw0rd","firstName":"A","lastName":"B"}"""),

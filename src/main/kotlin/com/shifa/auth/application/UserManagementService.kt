@@ -8,6 +8,9 @@ import com.shifa.auth.domain.UserRole
 import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.auth.infrastructure.UserRoleRepository
 import com.shifa.auth.infrastructure.UserSessionRepository
+import com.shifa.shared.CodedStatusException
+import com.shifa.shared.ErrorCode
+import com.shifa.shared.security.PasswordPolicy
 import com.shifa.shared.security.UserSessionValidationCache
 import java.time.OffsetDateTime
 import org.springframework.data.domain.Page
@@ -16,6 +19,8 @@ import org.springframework.http.HttpStatus
 import org.springframework.security.crypto.password.PasswordEncoder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import org.springframework.transaction.support.TransactionSynchronization
+import org.springframework.transaction.support.TransactionSynchronizationManager
 import org.springframework.web.server.ResponseStatusException
 
 @Service
@@ -42,6 +47,7 @@ class UserManagementService(
         lastName: String,
         adminLevel: AdminLevel = AdminLevel.ADMIN
     ): User {
+        PasswordPolicy.validate(password)?.let { throw ResponseStatusException(HttpStatus.BAD_REQUEST, it) }
         // Case-insensitive, as the address is stored lower-cased: one answer whatever the spelling (409, as registration).
         if (userRepository.findByEmailIgnoreCase(email.trim()).isPresent) {
             throw ResponseStatusException(HttpStatus.CONFLICT, "Email already registered")
@@ -161,14 +167,37 @@ class UserManagementService(
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
     }
     
+    /** True for an account that can sign in to the admin panel (any admin level), whatever its other roles. */
+    @Transactional(readOnly = true)
+    fun isAdminAccount(userId: Long): Boolean =
+        adminProfileRepository.findByUserId(userId).isPresent ||
+            userRoleRepository.existsByUserIdAndRole(userId, Role.ADMIN) ||
+            userRepository.findById(userId).map { it.role == Role.ADMIN }.orElse(false)
+
     /**
      * Activate/deactivate user
      */
     @Transactional
     fun setUserEnabled(userId: Long, enabled: Boolean): User {
+        if (!enabled) requireNotLastSuperAdmin(userId)
         val user = getUserById(userId)
         user.enabled = enabled
         return userRepository.save(user)
+    }
+
+    /**
+     * Refuses to take away (disable or delete) the only enabled super admin, whoever asks: nobody else could enable the
+     * account again or make another super admin, and password recovery refuses a disabled account.
+     */
+    @Transactional
+    fun requireNotLastSuperAdmin(userId: Long) {
+        if (userRepository.lockEnabledSuperAdmins().singleOrNull()?.id == userId) {
+            throw CodedStatusException(
+                HttpStatus.CONFLICT,
+                "This is the last enabled super admin. Make another super admin first.",
+                ErrorCode.LAST_SUPER_ADMIN,
+            )
+        }
     }
     
     /**
@@ -195,9 +224,31 @@ class UserManagementService(
         val jtis = userSessionRepository.findActiveSessionsByUserId(userId, now)
             .mapNotNull { it.tokenJti }
         userSessionRepository.revokeAllUserSessions(userId, now)
-        sessionValidationCache.invalidateAll(jtis)
+        markRevokedAfterCommit(jtis)
     }
     
+    /** Sign-out: ends the one session behind [jti] if it is [userId]'s; every other session stays. */
+    @Transactional
+    fun revokeSession(userId: Long, jti: String) {
+        val session = userSessionRepository.findByTokenJti(jti).orElse(null) ?: return
+        if (session.user.id != userId || session.revoked) return
+        session.revoked = true
+        session.revokedAt = OffsetDateTime.now()
+        userSessionRepository.save(session)
+        markRevokedAfterCommit(listOf(jti))
+    }
+
+    /**
+     * The cache learns of a revoke only once it is committed. Earlier, a request in between would read the still
+     * unrevoked row and cache the session as valid for the cache's lifetime.
+     */
+    private fun markRevokedAfterCommit(jtis: List<String>) {
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) return sessionValidationCache.markRevoked(jtis)
+        TransactionSynchronizationManager.registerSynchronization(object : TransactionSynchronization {
+            override fun afterCommit() = sessionValidationCache.markRevoked(jtis)
+        })
+    }
+
     /**
      * After a password change: every other session of the user ends, so a stolen token dies with the old password.
      * [keepJti] is the caller's own session (null after a forgotten-password reset, which signs in anew).
@@ -211,7 +262,7 @@ class UserManagementService(
             it.revokedAt = now
         }
         userSessionRepository.saveAll(others)
-        sessionValidationCache.invalidateAll(others.mapNotNull { it.tokenJti })
+        markRevokedAfterCommit(others.mapNotNull { it.tokenJti })
     }
 
     /**
