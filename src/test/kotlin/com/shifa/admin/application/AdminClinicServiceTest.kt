@@ -92,6 +92,7 @@ class AdminClinicServiceTest {
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
         assertEquals("Invalid membership role", ex.reason)
+        assertEquals(com.shifa.shared.ErrorCode.CLINIC_MEMBER_ROLE_INVALID, (ex as com.shifa.shared.CodedStatusException).code)
     }
 
     @Test
@@ -117,6 +118,7 @@ class AdminClinicServiceTest {
         }
         assertEquals(HttpStatus.BAD_REQUEST, ex.statusCode)
         assertEquals("Clinic must have an owner", ex.reason)
+        assertEquals(com.shifa.shared.ErrorCode.CLINIC_OWNER_REQUIRED, (ex as com.shifa.shared.CodedStatusException).code)
     }
 
     @Test

@@ -46,6 +46,22 @@ enum class ErrorCode {
     /** Treatment-plan compose: the installments do not add up to the outstanding amount (`outstandingMinor`, `scheduledMinor`). */
     INSTALLMENTS_MISMATCH,
 
+    // Admin panel refusals that the status alone does not tell apart.
+    /** Doctor activity list: more doctors match than one request aggregates (`doctorCount`, `maxDoctors`); narrow the search. */
+    TOO_MANY_DOCTORS,
+    /** Clinic member change: the account is not a doctor account. */
+    CLINIC_MEMBER_NOT_DOCTOR,
+    /** Clinic member change: the doctor is not assigned to any clinic. */
+    CLINIC_MEMBER_NO_CLINIC,
+    /** Clinic member change: the doctor belongs to another clinic. */
+    CLINIC_MEMBER_OTHER_CLINIC,
+    /** Clinic member change: the doctor has no active membership at this clinic. */
+    CLINIC_MEMBER_NO_MEMBERSHIP,
+    /** Clinic member change: it would leave the clinic without an owner. */
+    CLINIC_OWNER_REQUIRED,
+    /** Clinic member change: the role is not one a doctor member can hold. */
+    CLINIC_MEMBER_ROLE_INVALID,
+
     // AI (BE-08): `errorCode` of an SSE `event: error`, and `code` of the doctor streams' refusals before they open.
     /** The account's AI limit (daily or burst) is used up; retry later. Legacy stream code `RATE_LIMIT`. */
     AI_QUOTA_EXCEEDED,

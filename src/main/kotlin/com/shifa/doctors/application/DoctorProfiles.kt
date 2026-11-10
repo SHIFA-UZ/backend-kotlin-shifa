@@ -14,6 +14,12 @@ import org.springframework.stereotype.Service
 @Suppress("FunctionNaming", "FunctionParameterNaming", "MaxLineLength", "TooManyFunctions")
 class DoctorProfiles(private val repo: DoctorProfileRepository) {
     fun findAllByPracticeClinic_Id(clinicId: Long): List<DoctorProfile> = repo.findAllByPracticeClinic_Id(clinicId)
+
+    /** Doctors assigned to each of the clinics, in one query; a clinic without doctors is absent from the map. */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    fun countByPracticeClinicIds(clinicIds: Collection<Long>): Map<Long, Int> =
+        if (clinicIds.isEmpty()) emptyMap()
+        else repo.countByPracticeClinicIds(clinicIds).associate { (it[0] as Number).toLong() to (it[1] as Number).toInt() }
     fun findByUserId(userId: Long): Optional<DoctorProfile> = repo.findByUserId(userId)
     fun findByUserIdWithPracticeClinic(userId: Long): Optional<DoctorProfile> = repo.findByUserIdWithPracticeClinic(userId)
     fun findByFcmToken(fcmToken: String): List<DoctorProfile> = repo.findByFcmToken(fcmToken)

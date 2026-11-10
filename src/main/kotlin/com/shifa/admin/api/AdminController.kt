@@ -61,8 +61,9 @@ class AdminController(
         val activeDoctors = userRepository.countByRoleAndEnabled(com.shifa.auth.domain.Role.DOCTOR, true)
         val totalPatients = patientProfileRepository.count()
         val totalUsers = userRepository.count()
-        val activeTokens = invitationKeyService.findAllActive(
-            org.springframework.data.domain.PageRequest.of(0, 1)
+        // Unused and not expired: a used, revoked or expired key is not active.
+        val activeTokens = invitationKeyService.findForAdmin(
+            InvitationKeyService.KeyStatus.ACTIVE, null, null, org.springframework.data.domain.PageRequest.of(0, 1)
         ).totalElements
         
         return mapOf(
@@ -85,12 +86,17 @@ class AdminController(
         val notes: String?,
         val emailSentTo: String?,
         val emailSentAt: String?,
-        val createdAt: String
+        val createdAt: String,
+        /** ACTIVE (unused, not expired), EXPIRED (unused, past its expiry) or CONSUMED (used, revoked or regenerated). */
+        val status: String = "ACTIVE",
+        val consumedAt: String? = null,
+        /** The account that registered with the key; null on a consumed key = revoked or regenerated (or that account was deleted). */
+        val consumedByUserId: Long? = null,
     )
     
     @PostMapping("/tokens/generate")
     fun generateToken(
-        @RequestBody request: GenerateTokenRequest,
+        @RequestBody @Valid request: GenerateTokenRequest,
         @AuthenticationPrincipal principal: AdminPrincipal,
         httpRequest: HttpServletRequest
     ): TokenResponse {
@@ -133,14 +139,15 @@ class AdminController(
         @AuthenticationPrincipal principal: AdminPrincipal,
         @RequestParam(required = false) consumed: Boolean?,
         @RequestParam(required = false) purpose: String?,
+        @RequestParam(required = false) status: String?,
         @PageableDefault(size = 20) pageable: Pageable
     ): Page<TokenResponse> {
+        val statusFilter = status?.trim()?.takeIf { it.isNotEmpty() }?.let { raw ->
+            InvitationKeyService.KeyStatus.entries.firstOrNull { it.name.equals(raw, ignoreCase = true) }
+                ?: throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid status: $raw. Allowed: ACTIVE, EXPIRED, CONSUMED, ALL.")
+        }
         return try {
-            val page = when {
-                consumed != null -> invitationKeyService.findAllConsumed(consumed, pageable)
-                purpose != null -> invitationKeyService.findByPurpose(purpose, pageable)
-                else -> invitationKeyService.findAllActive(pageable)
-            }
+            val page = invitationKeyService.findForAdmin(statusFilter, consumed, purpose, pageable)
             val result = page.map { toTokenResponse(it) }
             org.slf4j.LoggerFactory.getLogger(AdminController::class.java)
                 .debug("AdminController.listTokens: Returning page with ${result.content.size} tokens, total: ${result.totalElements}")
@@ -186,7 +193,7 @@ class AdminController(
     @PostMapping("/tokens/{tokenId}/regenerate")
     fun regenerateToken(
         @PathVariable tokenId: Long,
-        @RequestBody request: GenerateTokenRequest,
+        @RequestBody @Valid request: GenerateTokenRequest,
         @AuthenticationPrincipal principal: AdminPrincipal,
         httpRequest: HttpServletRequest
     ): TokenResponse {
@@ -223,7 +230,14 @@ class AdminController(
             notes = key.notes,
             emailSentTo = key.emailSentTo,
             emailSentAt = key.emailSentAt?.toString(),
-            createdAt = key.createdAt.toString()
+            createdAt = key.createdAt.toString(),
+            status = when {
+                key.consumed -> "CONSUMED"
+                key.isExpired() -> "EXPIRED"
+                else -> "ACTIVE"
+            },
+            consumedAt = key.consumedAt?.toString(),
+            consumedByUserId = key.consumedByUserId,
         )
     }
     
@@ -612,9 +626,10 @@ class AdminController(
     @GetMapping("/clinics")
     fun listClinics(
         @AuthenticationPrincipal principal: AdminPrincipal,
+        @RequestParam(required = false) search: String?,
         @PageableDefault(size = 50, sort = ["name"]) pageable: Pageable
     ): Page<AdminClinicService.ClinicRow> {
-        return adminClinicService.listPaged(pageable)
+        return adminClinicService.listPaged(search, pageable)
     }
 
     @Suppress("UNUSED_PARAMETER")
@@ -720,7 +735,9 @@ class AdminController(
         val role = try {
             ClinicMembership.MembershipRole.valueOf(request.membershipRole.trim().uppercase())
         } catch (_: IllegalArgumentException) {
-            throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid membership role")
+            throw com.shifa.shared.CodedStatusException(
+                HttpStatus.BAD_REQUEST, "Invalid membership role", com.shifa.shared.ErrorCode.CLINIC_MEMBER_ROLE_INVALID,
+            )
         }
         val updated = adminClinicService.updateMemberRole(clinicId, doctorProfileId, role)
         auditService.logAction(

@@ -157,7 +157,8 @@ class AdminAuditTrailIntegrationTest {
         val doctorId = doctorId()
         // The row is written in the transaction of the write, so it is read (and rolled back) inside it.
         rolledBack {
-            doctorActivityController.updateSubscriptionBilling(admin(), doctorId, DoctorSubscriptionBillingRequest(monthlyChargeUsd = 45), request())
+            val charge45 = DoctorSubscriptionBillingRequest(monthlyChargeUsd = 45)
+            doctorActivityController.updateSubscriptionBilling(admin(), doctorId, charge45, null, null, request())
             doctorActivityController.setSmsRemindersAllowed(admin(), doctorId, SmsRemindersAllowedRequest(allowed = true), request())
             doctorActivityController.issueEarlyPartnerContract(admin(), doctorId, request())
 
@@ -187,7 +188,7 @@ class AdminAuditTrailIntegrationTest {
         val ghost = AdminPrincipal(AdminProfile(user = User(id = -99, passwordHash = "x", role = Role.ADMIN), firstName = "No", lastName = "One"), emptyList())
 
         assertThrows<Exception> {
-            doctorActivityController.updateSubscriptionBilling(ghost, doctorId, DoctorSubscriptionBillingRequest(monthlyChargeUsd = 15), request())
+            doctorActivityController.updateSubscriptionBilling(ghost, doctorId, DoctorSubscriptionBillingRequest(monthlyChargeUsd = 15), null, null, request())
         }
         assertThrows<Exception> {
             doctorActivityController.setSmsRemindersAllowed(ghost, doctorId, SmsRemindersAllowedRequest(allowed = before["sms"] != true), request())

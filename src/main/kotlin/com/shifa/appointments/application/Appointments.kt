@@ -64,7 +64,7 @@ class Appointments(private val repo: AppointmentRepository, private val entityMa
     fun countByDoctor_Id(doctorId: Long): Long = repo.countByDoctor_Id(doctorId)
     fun countByDoctor_IdAndStatus(doctorid: Long, status: Appointment.Status): Long = repo.countByDoctor_IdAndStatus(doctorid, status)
     fun findExpiredPaymentHolds(now: Instant): List<Appointment> = repo.findExpiredPaymentHolds(now)
-    fun findMaxStartAtByDoctorId(doctorId: Long): Instant? = repo.findMaxStartAtByDoctorId(doctorId)
+    fun findMaxStartAtByDoctorId(doctorId: Long): Instant? = repo.findMaxStartAtByDoctorId(doctorId, Instant.now())
     fun findMostVisitedPatients(doctorId: Long, since: Instant, pageable: org.springframework.data.domain.Pageable): List<Array<Any>> = repo.findMostVisitedPatients(doctorId, since, pageable)
     fun findById(id: Long): Optional<Appointment> = repo.findById(id)
     fun flush() = repo.flush()

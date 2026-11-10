@@ -1,11 +1,15 @@
 package com.shifa.admin.api.dto
 
 import jakarta.validation.constraints.Email
+import jakarta.validation.constraints.Max
 import jakarta.validation.constraints.NotBlank
+import jakarta.validation.constraints.Positive
 import jakarta.validation.constraints.Size
 
 data class GenerateTokenRequest(
-    val expiresInDays: Int? = null,
+    /** Days until the key expires; null = no expiry (on regenerate: as long as the old key was issued for). */
+    // The cap only keeps the date arithmetic far from overflow (100 years); any realistic number of days passes.
+    @field:Positive @field:Max(36500) val expiresInDays: Int? = null,
     val purpose: String = "DOCTOR_ONBOARDING",
     val notes: String? = null,
     val sendEmail: Boolean = false,
@@ -55,7 +59,7 @@ data class CreateAdminRequest(
 data class AdminClinicUpsertRequest(
     @field:NotBlank val name: String,
     val phone: String? = null,
-    val email: String? = null,
+    @field:Email val email: String? = null,
     val address: String? = null,
     /** IANA timezone id, e.g. Asia/Tashkent */
     val timeZone: String? = null,

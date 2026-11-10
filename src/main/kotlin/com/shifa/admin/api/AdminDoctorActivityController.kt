@@ -77,18 +77,27 @@ class AdminDoctorActivityController(
         )
     }
 
-    /** Update admin-managed trial length and/or monthly charge for a doctor. */
+    /**
+     * Update admin-managed trial length and/or monthly charge for a doctor. The answer's counters are all time, or
+     * cover `from`..`to` (both or neither, as on the list) when the dates are sent.
+     */
     @PatchMapping("/{doctorId}/subscription-billing")
     fun updateSubscriptionBilling(
         @AuthenticationPrincipal principal: AdminPrincipal,
         @PathVariable doctorId: Long,
         @RequestBody body: DoctorSubscriptionBillingRequest,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate?,
+        @RequestParam(required = false)
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate?,
         httpRequest: HttpServletRequest,
     ): DoctorActivityRowDto {
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot change subscription billing")
         }
-        return auditService.audited(
+        // Checked before anything is saved: one date of two, or dates the wrong way round, is a 400.
+        val windowed = adminDoctorActivityService.parseOptionalWindow(from, to) != null
+        val allTime = auditService.audited(
             adminUser = principal.adminProfile.user,
             actionType = "DOCTOR_SUBSCRIPTION_BILLING_CHANGED",
             entityType = "DOCTOR_PROFILE",
@@ -112,6 +121,8 @@ class AdminDoctorActivityController(
                 monthlyChargeUsd = body.monthlyChargeUsd,
             )
         }
+        // With dates the answer is the row of that window, as the list shows it; without, the all-time row as before.
+        return if (windowed) adminDoctorActivityService.doctorDetail(doctorId, from, to).row else allTime
     }
 
     /** Grant or revoke permission for a doctor to enable patient SMS appointment reminders. */

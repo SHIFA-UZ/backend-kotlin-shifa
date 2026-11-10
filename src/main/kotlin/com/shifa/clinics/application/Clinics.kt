@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page
 import org.springframework.data.domain.Pageable
 import org.springframework.data.domain.Sort
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * The feature's door to Clinic records for its controllers and for other features (roadmap Phase 5 step 4):
@@ -20,6 +21,13 @@ class Clinics(private val repo: ClinicRepository) {
     fun findAll(): List<Clinic> = repo.findAll()
     fun findAll(pageable: Pageable): Page<Clinic> = repo.findAll(pageable)
     fun findAll(sort: Sort): List<Clinic> = repo.findAll(sort)
+
+    /** The admin clinic list: every clinic, or those whose name, phone, e-mail or address contains [search]. */
+    @Transactional(readOnly = true)
+    fun findForAdmin(search: String?, pageable: Pageable): Page<Clinic> {
+        val term = search?.trim()?.lowercase()?.takeIf { it.isNotEmpty() } ?: return repo.findAll(pageable)
+        return repo.searchForAdmin("%$term%", pageable)
+    }
     fun findById(id: Long): Optional<Clinic> = repo.findById(id)
     fun save(entity: Clinic): Clinic = repo.save(entity)
 }

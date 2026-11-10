@@ -1,5 +1,6 @@
 package com.shifa.auth.infrastructure
 
+import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
 import jakarta.persistence.EntityManager
 import jakarta.persistence.Query
@@ -15,70 +16,85 @@ class UserRepositoryImpl(
 
     override fun searchUsersAdmin(
         q: String?,
-        roleName: String?,
-        enabledVal: Boolean?,
-        pageable: Pageable
+        role: Role?,
+        enabled: Boolean?,
+        deviceRegistered: Boolean?,
+        pageable: Pageable,
     ): Page<User> {
-        val searchTerm = if (q.isNullOrBlank()) "" else q.trim()
-        val searchPattern = "%$searchTerm%".lowercase()
-        // Positional params (?1, ?2, ...) avoid Hibernate native-query named-parameter issues on PostgreSQL
-        val whereClause = """
-            WHERE (COALESCE(?1, '') = '' OR
-                LOWER(COALESCE(u.phone, '')) LIKE ?2 OR
-                LOWER(COALESCE(u.email, '')) LIKE ?3 OR
-                LOWER(COALESCE(u.username, '')) LIKE ?4 OR
-                LOWER(CONCAT(COALESCE(d.first_name, ''), ' ', COALESCE(d.last_name, ''))) LIKE ?5 OR
-                LOWER(COALESCE(p.full_name, '')) LIKE ?6 OR
-                LOWER(CONCAT(COALESCE(a.first_name, ''), ' ', COALESCE(a.last_name, ''))) LIKE ?7)
-            AND (?8::text IS NULL OR CAST(u.role AS TEXT) = ?8)
-            AND (?9 IS NULL OR u.enabled = ?9)
-        """.trimIndent()
-        val countSql = """
-            SELECT COUNT(DISTINCT u.id) FROM users u
-            LEFT JOIN doctor_profiles d ON d.user_id = u.id
-            LEFT JOIN patient_profiles p ON p.user_id = u.id
-            LEFT JOIN admin_profiles a ON a.user_id = u.id
-            $whereClause
-        """.trimIndent()
-        val countQuery: Query = em.createNativeQuery(countSql)
-        countQuery.setParameter(1, searchTerm)
-        countQuery.setParameter(2, searchPattern)
-        countQuery.setParameter(3, searchPattern)
-        countQuery.setParameter(4, searchPattern)
-        countQuery.setParameter(5, searchPattern)
-        countQuery.setParameter(6, searchPattern)
-        countQuery.setParameter(7, searchPattern)
-        countQuery.setParameter(8, roleName)
-        countQuery.setParameter(9, enabledVal)
+        val filter = Filter(q, role, enabled, deviceRegistered)
+        val total = filter.count()
+        if (total == 0L || pageable.offset >= total) return PageImpl(emptyList(), pageable, total)
+        val query = em.createNativeQuery(
+            "SELECT u.* FROM users u ${filter.where} ORDER BY ${orderBy(pageable)} LIMIT :limit OFFSET :offset",
+            User::class.java,
+        )
+        filter.bind(query)
+        query.setParameter("limit", pageable.pageSize)
+        query.setParameter("offset", pageable.offset)
         @Suppress("UNCHECKED_CAST")
-        val total = (countQuery.singleResult as Number).toLong()
+        return PageImpl(query.resultList as List<User>, pageable, total)
+    }
 
-        val orderAndLimit = " ORDER BY u.id LIMIT ${pageable.pageSize} OFFSET ${pageable.offset}"
-        val idSql = """
-            SELECT DISTINCT u.id FROM users u
-            LEFT JOIN doctor_profiles d ON d.user_id = u.id
-            LEFT JOIN patient_profiles p ON p.user_id = u.id
-            LEFT JOIN admin_profiles a ON a.user_id = u.id
-            $whereClause
-            $orderAndLimit
-        """.trimIndent()
-        val idQuery: Query = em.createNativeQuery(idSql)
-        idQuery.setParameter(1, searchTerm)
-        idQuery.setParameter(2, searchPattern)
-        idQuery.setParameter(3, searchPattern)
-        idQuery.setParameter(4, searchPattern)
-        idQuery.setParameter(5, searchPattern)
-        idQuery.setParameter(6, searchPattern)
-        idQuery.setParameter(7, searchPattern)
-        idQuery.setParameter(8, roleName)
-        idQuery.setParameter(9, enabledVal)
-        @Suppress("UNCHECKED_CAST")
-        val rawIds = idQuery.resultList as List<Any>
-        val ids = rawIds.map { (it as Number).toLong() }
-        if (ids.isEmpty()) {
-            return PageImpl(emptyList(), pageable, total)
+    override fun countUsersAdmin(q: String?, role: Role?, enabled: Boolean?, deviceRegistered: Boolean?): Long =
+        Filter(q, role, enabled, deviceRegistered).count()
+
+    /** Whitelisted columns only (never client text in the SQL); nulls last; id closes every order so pages are stable. */
+    private fun orderBy(pageable: Pageable): String {
+        val orders = pageable.sort.toList().mapNotNull { order ->
+            UserRepositoryCustom.ADMIN_SORT_FIELDS[order.property]?.let { it to order.isAscending }
+        }.ifEmpty { listOf("u.created_at" to false) }
+        val columns = orders.map { (column, asc) -> "$column ${if (asc) "ASC" else "DESC"} NULLS LAST" }
+        return if (orders.any { it.first == "u.id" }) columns.joinToString() else {
+            (columns + "u.id ${if (orders.first().second) "ASC" else "DESC"}").joinToString()
         }
-        val ordered = ids.map { id -> em.find(User::class.java, id)!! }
-        return PageImpl(ordered, pageable, total)
+    }
+
+    /** Only the clauses of the filters that are set, so no parameter is ever bound as an untyped null. */
+    private inner class Filter(q: String?, role: Role?, enabled: Boolean?, deviceRegistered: Boolean?) {
+        private val params = linkedMapOf<String, Any>()
+        val where: String
+
+        init {
+            val clauses = mutableListOf<String>()
+            q?.trim()?.takeIf { it.isNotEmpty() }?.let {
+                params["q"] = "%${it.lowercase().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")}%"
+                clauses += """(LOWER(COALESCE(u.phone, '')) LIKE :q OR LOWER(COALESCE(u.email, '')) LIKE :q
+                    OR LOWER(COALESCE(u.username, '')) LIKE :q
+                    OR EXISTS (SELECT 1 FROM doctor_profiles d WHERE d.user_id = u.id
+                        AND LOWER(CONCAT(COALESCE(d.first_name, ''), ' ', COALESCE(d.last_name, ''))) LIKE :q)
+                    OR EXISTS (SELECT 1 FROM patient_profiles p WHERE p.user_id = u.id AND LOWER(COALESCE(p.full_name, '')) LIKE :q)
+                    OR EXISTS (SELECT 1 FROM admin_profiles a WHERE a.user_id = u.id
+                        AND LOWER(CONCAT(COALESCE(a.first_name, ''), ' ', COALESCE(a.last_name, ''))) LIKE :q))"""
+            }
+            role?.let {
+                params["role"] = it.name
+                clauses += "CAST(u.role AS TEXT) = :role"
+            }
+            enabled?.let {
+                params["enabled"] = it
+                clauses += "u.enabled = :enabled"
+            }
+            deviceRegistered?.let {
+                clauses += "CAST(u.role AS TEXT) IN ('PATIENT', 'DOCTOR') AND ${if (it) "" else "NOT "}$HAS_DEVICE"
+            }
+            where = if (clauses.isEmpty()) "" else clauses.joinToString(" AND ", prefix = "WHERE ")
+        }
+
+        fun bind(query: Query) = params.forEach { (name, value) -> query.setParameter(name, value) }
+
+        fun count(): Long {
+            val query = em.createNativeQuery("SELECT COUNT(*) FROM users u $where")
+            bind(query)
+            return (query.singleResult as Number).toLong()
+        }
+    }
+
+    private companion object {
+        /** Same rule as the row's `deviceRegistered`: the profile of the account's own role holds a push token. */
+        const val HAS_DEVICE = """(
+            (CAST(u.role AS TEXT) = 'PATIENT' AND EXISTS (SELECT 1 FROM patient_profiles p
+                WHERE p.user_id = u.id AND TRIM(COALESCE(p.fcm_token, '')) <> ''))
+            OR (CAST(u.role AS TEXT) = 'DOCTOR' AND EXISTS (SELECT 1 FROM doctor_profiles d
+                WHERE d.user_id = u.id AND TRIM(COALESCE(d.fcm_token, '')) <> '')))"""
     }
 }
