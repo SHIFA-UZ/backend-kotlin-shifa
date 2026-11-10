@@ -282,7 +282,10 @@ class PatientDocumentService(
         return toDtoForPatient(persisted)
     }
 
-    /** Update an existing document's file content. Only allowed if the doctor is creator or has a grant. */
+    /**
+     * Replaces the file of a document this doctor uploaded (a re-saved 025-2). Seeing a document is not enough:
+     * team-shared documents are visible to every doctor.
+     */
     fun updateFile(
         documentId: Long,
         doctorId: Long,
@@ -292,6 +295,9 @@ class PatientDocumentService(
             .orElseThrow { IllegalArgumentException("Document not found: $documentId") }
         if (!canDoctorViewDocument(existing, doctorId)) {
             throw IllegalArgumentException("Document not found")
+        }
+        if (existing.uploadedByDoctor?.id != doctorId) {
+            throw ResponseStatusException(HttpStatus.FORBIDDEN, "Only documents you uploaded can be changed")
         }
         val existingPath = existing.filePath
         val baseName = if (existingPath.isNotBlank()) {
