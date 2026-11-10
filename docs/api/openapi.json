@@ -963,6 +963,27 @@
         ],
         "type": "object"
       },
+      "AuditLogTypesResponse": {
+        "properties": {
+          "actionTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "entityTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "actionTypes",
+          "entityTypes"
+        ],
+        "type": "object"
+      },
       "AvailableSlotDto": {
         "properties": {
           "endAt": {
@@ -12278,6 +12299,24 @@
           },
           {
             "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "pageable",
             "required": true,
             "schema": {
@@ -12342,6 +12381,24 @@
           },
           {
             "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "pageable",
             "required": true,
             "schema": {
@@ -12355,6 +12412,26 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/PageMapStringObject"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-controller"
+        ]
+      }
+    },
+    "/api/admin/audit-logs/types": {
+      "get": {
+        "operationId": "getAuditLogTypes",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditLogTypesResponse"
                 }
               }
             },
@@ -12960,6 +13037,14 @@
             "schema": {
               "format": "int64",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],
@@ -13746,6 +13831,14 @@
             "schema": {
               "format": "int64",
               "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": false,
+            "schema": {
+              "type": "string"
             }
           }
         ],

@@ -3,10 +3,12 @@ package com.shifa.admin.api
 import com.shifa.admin.api.dto.DoctorSubscriptionBillingRequest
 import com.shifa.admin.api.dto.SmsRemindersAllowedRequest
 import com.shifa.admin.application.AdminDoctorActivityService
+import com.shifa.admin.application.AuditService
 import com.shifa.doctors.api.EarlyPartnerContractIssueDto
 import com.shifa.doctors.application.EarlyPartnerContractService
 import com.shifa.notifications.application.DoctorSmsBillingService
 import com.shifa.shared.security.AdminPrincipal
+import jakarta.servlet.http.HttpServletRequest
 import java.time.LocalDate
 import org.springframework.data.domain.Page
 import org.springframework.format.annotation.DateTimeFormat
@@ -29,6 +31,7 @@ class AdminDoctorActivityController(
     private val adminDoctorActivityService: AdminDoctorActivityService,
     private val earlyPartnerContractService: EarlyPartnerContractService,
     private val doctorSmsBillingService: DoctorSmsBillingService,
+    private val auditService: AuditService,
 ) {
 
     /** List doctor activity aggregates (pagination + sorting in memory after filter). Read-only admins allowed. */
@@ -87,17 +90,37 @@ class AdminDoctorActivityController(
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate?,
         @RequestParam(required = false)
         @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate?,
+        httpRequest: HttpServletRequest,
     ): DoctorActivityRowDto {
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot change subscription billing")
         }
         // Checked before anything is saved: one date of two, or dates the wrong way round, is a 400.
         val windowed = adminDoctorActivityService.parseOptionalWindow(from, to) != null
-        val allTime = adminDoctorActivityService.updateSubscriptionBilling(
-            doctorId = doctorId,
-            trialPeriodMonths = body.trialPeriodMonths,
-            monthlyChargeUsd = body.monthlyChargeUsd,
-        )
+        val allTime = auditService.audited(
+            adminUser = principal.adminProfile.user,
+            actionType = "DOCTOR_SUBSCRIPTION_BILLING_CHANGED",
+            entityType = "DOCTOR_PROFILE",
+            entityId = doctorId,
+            request = httpRequest,
+            // What was sent (changed) and the terms in force afterwards.
+            details = { row ->
+                mapOf(
+                    "changed" to listOfNotNull(
+                        body.trialPeriodMonths?.let { "trialPeriodMonths" },
+                        body.monthlyChargeUsd?.let { "monthlyChargeUsd" },
+                    ),
+                    "trialPeriodMonths" to row.trialPeriodMonths,
+                    "monthlyChargeUsd" to row.monthlyChargeUsd,
+                )
+            },
+        ) {
+            adminDoctorActivityService.updateSubscriptionBilling(
+                doctorId = doctorId,
+                trialPeriodMonths = body.trialPeriodMonths,
+                monthlyChargeUsd = body.monthlyChargeUsd,
+            )
+        }
         // With dates the answer is the row of that window, as the list shows it; without, the all-time row as before.
         return if (windowed) adminDoctorActivityService.doctorDetail(doctorId, from, to).row else allTime
     }
@@ -108,11 +131,19 @@ class AdminDoctorActivityController(
         @AuthenticationPrincipal principal: AdminPrincipal,
         @PathVariable doctorId: Long,
         @RequestBody body: SmsRemindersAllowedRequest,
+        httpRequest: HttpServletRequest,
     ): Map<String, Any> {
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot change SMS settings")
         }
-        val doctor = doctorSmsBillingService.setSmsRemindersAllowed(doctorId, body.allowed)
+        val doctor = auditService.audited(
+            adminUser = principal.adminProfile.user,
+            actionType = "DOCTOR_SMS_REMINDERS_ALLOWED_CHANGED",
+            entityType = "DOCTOR_PROFILE",
+            entityId = doctorId,
+            request = httpRequest,
+            details = { mapOf("allowed" to it.smsRemindersAllowed) },
+        ) { doctorSmsBillingService.setSmsRemindersAllowed(doctorId, body.allowed) }
         return mapOf(
             "doctorId" to doctor.id,
             "smsRemindersAllowed" to doctor.smsRemindersAllowed,
@@ -124,11 +155,19 @@ class AdminDoctorActivityController(
     fun issueEarlyPartnerContract(
         @AuthenticationPrincipal principal: AdminPrincipal,
         @PathVariable doctorId: Long,
+        httpRequest: HttpServletRequest,
     ): EarlyPartnerContractIssueDto {
         if (principal.isReadOnly()) {
             throw ResponseStatusException(HttpStatus.FORBIDDEN, "Read-only admins cannot issue contracts")
         }
-        return earlyPartnerContractService.issueForDoctor(doctorId)
+        return auditService.audited(
+            adminUser = principal.adminProfile.user,
+            actionType = "EARLY_PARTNER_CONTRACT_ISSUED",
+            entityType = "DOCTOR_PROFILE",
+            entityId = doctorId,
+            request = httpRequest,
+            details = { mapOf("contractNumber" to it.contractNumber, "newAllocation" to it.newAllocation) },
+        ) { earlyPartnerContractService.issueForDoctor(doctorId) }
     }
 
     /** The issued contract as a PDF (the same file the doctor's app shows); 404 `NO_CONTRACT` when none was issued. */

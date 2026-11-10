@@ -24,7 +24,6 @@
     <ID>ConstructorParameterNaming:DailyVideoService.kt$DailyVideoService.TokenProperties$val room_name: String</ID>
     <ID>ConstructorParameterNaming:DailyVideoService.kt$DailyVideoService.TokenProperties$val user_id: String</ID>
     <ID>ConstructorParameterNaming:DailyVideoService.kt$DailyVideoService.TokenProperties$val user_name: String</ID>
-    <ID>CyclomaticComplexMethod:AdminDeletedPatientsController.kt$AdminDeletedPatientsController$@PostMapping("/search") fun searchDeletedPatients( @AuthenticationPrincipal principal: AdminPrincipal, @RequestBody request: DeletedPatientSearchRequest ): DeletedPatientSearchResponse</ID>
     <ID>CyclomaticComplexMethod:AppointmentActionService.kt$AppointmentActionService$private fun select( doctor: DoctorProfile, userText: String, patientId: Long?, appointmentId: Long?, zone: ZoneId, upcomingOnly: Boolean = false, ): Selection</ID>
     <ID>CyclomaticComplexMethod:AppointmentIntelligenceService.kt$AppointmentIntelligenceService$private fun answer( doctorId: Long, zone: ZoneId, request: IntelligenceRequest, patient: PatientPick.Chosen, ): Map&lt;String, Any?&gt;</ID>
     <ID>CyclomaticComplexMethod:AppointmentQuery.kt$AppointmentQueryContextMerger$private fun overlay( base: IntelligenceRequest, incoming: IntelligenceRequest, text: String, zone: ZoneId, continued: Boolean, ): IntelligenceRequest</ID>
@@ -289,7 +288,6 @@
     <ID>SpreadOperator:IntelligenceMemoryRepository.kt$IntelligenceMemoryRepository$( """ SELECT $columns, (embedding &lt;=&gt; ?::vector) AS distance FROM intelligence_memories WHERE ${scopeSql(clinicId)} AND status = 'ACTIVE' AND (expires_at IS NULL OR expires_at &gt; NOW()) AND embedding IS NOT NULL ORDER BY embedding &lt;=&gt; ?::vector LIMIT ? """.trimIndent(), { rs, i -&gt; mapper.mapRow(rs, i)!! to rs.getDouble("distance") }, vec, *scopeArgs(doctorId, clinicId), vec, limit, )</ID>
     <ID>ThrowsCount:AdminClinicService.kt$AdminClinicService$@Transactional fun removeDoctor(clinicId: Long, doctorProfileId: Long)</ID>
     <ID>ThrowsCount:AdminClinicService.kt$AdminClinicService$@Transactional fun updateMemberRole( clinicId: Long, doctorProfileId: Long, membershipRole: ClinicMembership.MembershipRole, ): ClinicDetail</ID>
-    <ID>ThrowsCount:AdminDeletedPatientsController.kt$AdminDeletedPatientsController$@PostMapping("/search") fun searchDeletedPatients( @AuthenticationPrincipal principal: AdminPrincipal, @RequestBody request: DeletedPatientSearchRequest ): DeletedPatientSearchResponse</ID>
     <ID>ThrowsCount:AdminDeletedPatientsController.kt$AdminDeletedPatientsController$private fun buildDeletedPatientExportDto(patientProfileId: Long): DeletedPatientExportDto</ID>
     <ID>ThrowsCount:AdminDoctorActivityService.kt$AdminDoctorActivityService$@Transactional fun updateSubscriptionBilling( doctorId: Long, trialPeriodMonths: Int?, monthlyChargeUsd: Int?, ): DoctorActivityRowDto</ID>
     <ID>ThrowsCount:AiDraftNoteService.kt$AiDraftNoteService$@Transactional fun confirmDraft( draftId: UUID, doctorId: Long, patientIdOverride: Long? = null, appointmentIdOverride: Long? = null, fullBodyOverride: String? = null, ): ConsultationNote</ID>

@@ -355,9 +355,11 @@ class AdminListsIntegrationTest {
             assertEquals(week.row.appointmentsBooked, week.dailySeries.getValue("appointments").sumOf { it.count })
 
             // the billing answer covers the window it is asked for (all time without dates, as before)
-            val windowed = activityController.updateSubscriptionBilling(admin(), doctorId, DoctorSubscriptionBillingRequest(trialPeriodMonths = 3), from, today)
+            val threeMonths = DoctorSubscriptionBillingRequest(trialPeriodMonths = 3)
+            val http = org.springframework.mock.web.MockHttpServletRequest()
+            val windowed = activityController.updateSubscriptionBilling(admin(), doctorId, threeMonths, from, today, http)
             assertEquals(week.row.copy(trialPeriodMonths = 3, monthsAfterTrial = windowed.monthsAfterTrial, totalDebtUsd = windowed.totalDebtUsd), windowed)
-            val plain = activityController.updateSubscriptionBilling(admin(), doctorId, DoctorSubscriptionBillingRequest(trialPeriodMonths = 3), null, null)
+            val plain = activityController.updateSubscriptionBilling(admin(), doctorId, threeMonths, null, null, http)
             assertEquals(allTime.row.appointmentsBooked, plain.appointmentsBooked)
 
             val m = marker()

@@ -20,6 +20,7 @@ import com.shifa.patients.application.PatientFormService
 import com.shifa.patients.domain.PatientProfile
 import com.shifa.shared.security.AdminPrincipal
 import com.shifa.shared.util.PhoneNormalizer
+import jakarta.servlet.http.HttpServletRequest
 import java.security.MessageDigest
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpHeaders
@@ -50,7 +51,52 @@ class AdminDeletedPatientsController(
     @PostMapping("/search")
     fun searchDeletedPatients(
         @AuthenticationPrincipal principal: AdminPrincipal,
-        @RequestBody request: DeletedPatientSearchRequest
+        @RequestBody request: DeletedPatientSearchRequest,
+        httpRequest: HttpServletRequest,
+    ): DeletedPatientSearchResponse {
+        val searchedBy = listOfNotNull(
+            request.phone?.takeIf { it.isNotBlank() }?.let { "PHONE" },
+            request.email?.takeIf { it.isNotBlank() }?.let { "EMAIL" },
+            request.userId?.let { "USER_ID" },
+        ).joinToString(",")
+        // The user ID is the one input that is safe to record; the phone and e-mail never reach the audit row.
+        val details = mapOf("matchedBy" to searchedBy) + (request.userId?.let { mapOf("userId" to it) } ?: emptyMap())
+        return auditingRefusals(principal, "DELETED_PATIENT_SEARCH", null, details, httpRequest) {
+            search(principal, request, httpRequest)
+        }
+    }
+
+    /**
+     * A refused lookup (unknown ID, not a deleted patient, nothing to search by) is audited like a served one, so
+     * probing IDs leaves a trace. The refusal texts carry IDs only.
+     */
+    private fun <T> auditingRefusals(
+        principal: AdminPrincipal,
+        actionType: String,
+        entityId: Long?,
+        details: Map<String, Any>,
+        httpRequest: HttpServletRequest,
+        block: () -> T,
+    ): T = try {
+        block()
+    } catch (e: ResponseStatusException) {
+        auditService.logAction(
+            adminUser = principal.adminProfile.user,
+            actionType = actionType,
+            entityType = "DELETED_PATIENT",
+            entityId = entityId,
+            details = details + mapOf("refused" to (e.reason ?: ""), "status" to e.statusCode.value()),
+            request = httpRequest,
+        )
+        throw e
+    }
+
+    // Legacy body, moved unchanged under the audited wrapper above; its findings were in the detekt baseline.
+    @Suppress("CyclomaticComplexMethod", "ThrowsCount")
+    private fun search(
+        principal: AdminPrincipal,
+        request: DeletedPatientSearchRequest,
+        httpRequest: HttpServletRequest,
     ): DeletedPatientSearchResponse {
         val phoneInput = request.phone?.trim().takeIf { !it.isNullOrBlank() }
         val emailInput = request.email?.trim().takeIf { !it.isNullOrBlank() }
@@ -153,7 +199,8 @@ class AdminDeletedPatientsController(
                     userIdInput?.let { "USER_ID" }
                 ).filterNotNull().joinToString(","),
                 "count" to matchesByPatientProfileId.size,
-            )
+            ),
+            request = httpRequest,
         )
 
         return DeletedPatientSearchResponse(matches = matchesByPatientProfileId.values.toList())
@@ -164,17 +211,18 @@ class AdminDeletedPatientsController(
     fun exportDeletedPatient(
         @AuthenticationPrincipal principal: AdminPrincipal,
         @PathVariable patientProfileId: Long,
-        @RequestParam(required = false, defaultValue = "false") includeChat: Boolean
+        @RequestParam(required = false, defaultValue = "false") includeChat: Boolean,
+        httpRequest: HttpServletRequest,
     ): DeletedPatientExportDto {
-        if (includeChat) {
-            // Chat messages are hard-deleted by PatientAccountDeletionService.
-            throw ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "includeChat=true is not available (chat hard-deleted)"
-            )
+        val export = auditingRefusals(
+            principal, "DELETED_PATIENT_EXPORT", patientProfileId, mapOf("includeChat" to includeChat), httpRequest,
+        ) {
+            if (includeChat) {
+                // Chat messages are hard-deleted by PatientAccountDeletionService.
+                throw ResponseStatusException(HttpStatus.BAD_REQUEST, "includeChat=true is not available (chat hard-deleted)")
+            }
+            buildDeletedPatientExportDto(patientProfileId)
         }
-
-        val export = buildDeletedPatientExportDto(patientProfileId)
 
         val adminUser = principal.adminProfile.user
         auditService.logAction(
@@ -182,7 +230,8 @@ class AdminDeletedPatientsController(
             actionType = "DELETED_PATIENT_EXPORT",
             entityType = "DELETED_PATIENT",
             entityId = patientProfileId,
-            details = mapOf("includeChat" to includeChat)
+            details = mapOf("includeChat" to includeChat),
+            request = httpRequest,
         )
 
         return export
@@ -193,9 +242,12 @@ class AdminDeletedPatientsController(
     fun exportDeletedPatientPdf(
         @AuthenticationPrincipal principal: AdminPrincipal,
         @PathVariable patientProfileId: Long,
+        httpRequest: HttpServletRequest,
     ): ResponseEntity<ByteArray> {
         // NOTE: Chat export is intentionally not supported because chat data is hard-deleted.
-        val export = buildDeletedPatientExportDto(patientProfileId)
+        val export = auditingRefusals(
+            principal, "DELETED_PATIENT_EXPORT_PDF", patientProfileId, mapOf("includeChat" to false), httpRequest,
+        ) { buildDeletedPatientExportDto(patientProfileId) }
 
         val adminUser = principal.adminProfile.user
         auditService.logAction(
@@ -203,7 +255,8 @@ class AdminDeletedPatientsController(
             actionType = "DELETED_PATIENT_EXPORT_PDF",
             entityType = "DELETED_PATIENT",
             entityId = patientProfileId,
-            details = mapOf("includeChat" to false)
+            details = mapOf("includeChat" to false),
+            request = httpRequest,
         )
 
         val prettyJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(export)
