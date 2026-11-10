@@ -251,12 +251,9 @@ class PublicDoctorController(
                 }
             }
             "availability" -> {
-                val withSlots = if (availableWithin.isNullOrBlank() && !shouldComputeAvailability) {
-                    withNextAvailable(working, now)
-                } else {
-                    working
-                }
-                withSlots.sortedBy { (_, _, enrichment) ->
+                // Every doctor needs the time to be sorted by it. (With includeNextAvailable the times used to be
+                // filled in only after paging, so this sort left the list as it was.)
+                withNextAvailable(working, now).sortedBy { (_, _, enrichment) ->
                     enrichment.nextAvailableStartAt ?: Instant.MAX
                 }
             }
