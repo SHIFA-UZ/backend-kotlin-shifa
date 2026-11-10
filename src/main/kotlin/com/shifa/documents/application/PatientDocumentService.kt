@@ -60,13 +60,15 @@ class PatientDocumentService(
 
 
     /** Return documents for a patient with visibility for the given doctor (newest first). */
-    fun list(patientId: Long, doctorId: Long): List<PatientDocumentDto> {
+    /** [editorId]: the doctor whose own uploads are [PatientDocumentDto.canEdit]; null (clinic staff) for none. */
+    @Transactional(readOnly = true)
+    fun list(patientId: Long, doctorId: Long, editorId: Long? = doctorId): List<PatientDocumentDto> {
         val found = docs.listForPatient(patientId)
         return found
             .filter { safeFilePathOf(it) != null }
             .filter { !it.isChatAttachment }
             .mapNotNull { d ->
-                runCatching { toDto(d, doctorId) }
+                runCatching { toDto(d, doctorId, editorId) }
                     .onFailure { ex ->
                         log.warn("Skipping invalid doctor document id={} patientId={}: {}", d.id, patientId, ex.message)
                     }
@@ -118,7 +120,7 @@ class PatientDocumentService(
         )
     }
 
-    private fun toDto(d: PatientDocument, doctorId: Long): PatientDocumentDto {
+    private fun toDto(d: PatientDocument, doctorId: Long, editorId: Long? = doctorId): PatientDocumentDto {
         val id = requireNotNull(d.id) { "Document must be persisted" }
         val canView = canDoctorViewDocument(d, doctorId)
         val creatorLabel = creatorLabelOf(d)
@@ -140,6 +142,7 @@ class PatientDocumentService(
                 else -> "UNKNOWN"
             },
             appointmentId = d.appointment?.id,
+            canEdit = editorId != null && d.uploadedByDoctor?.id == editorId,
         )
     }
 

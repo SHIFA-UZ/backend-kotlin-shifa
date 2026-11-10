@@ -71,6 +71,7 @@ class DoctorAppThirdRoundIntegrationTest {
     @Autowired lateinit var analytics: com.shifa.doctors.application.DoctorAnalyticsService
     @Autowired lateinit var booking: com.shifa.appointments.application.DoctorAppointmentBookingService
     @Autowired lateinit var fileStorage: com.shifa.shared.storage.FileStorage
+    @Autowired lateinit var documentAccess: com.shifa.documents.application.DocumentAccessService
     @Autowired lateinit var planLines: com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 
     companion object {
@@ -262,8 +263,13 @@ class DoctorAppThirdRoundIntegrationTest {
                     uploadedByDoctor = principal.profile, category = "APPOINTMENT_NOTE",
                 ),
             )
+            assertTrue(documents.list(patientId, doctorId).single { it.id == doc.id }.canEdit) // the uploader's
+            assertTrue(documents.list(patientId, doctorId).filter { it.creatorType == "PATIENT" }.none { it.canEdit })
+            // Clinic staff read as the clinic's doctor but edit nothing (no editor).
+            assertTrue(documents.list(patientId, doctorId, editorId = null).none { it.canEdit })
             val renamed = documents.patchByDoctor(patientId, doc.id!!, doctorId, "MRI knee", "MRI")
             assertEquals("MRI knee", renamed.title)
+            assertTrue(renamed.canEdit)
             assertTrue(doc.isSharedWithTeam) // MRI is a medical result: shared like an upload with that category
             assertThrows<IllegalArgumentException> { documents.patchByDoctor(patientId, doc.id!!, doctorId, null, "NOT_A_CATEGORY") }
 
@@ -279,6 +285,8 @@ class DoctorAppThirdRoundIntegrationTest {
             assertTrue(documents.findById(doc.id!!).isEmpty)
             assertFalse(documents.list(patientId, doctorId).any { it.id == doc.id })
             assertFalse(documents.listForPatientSelf(patientId).any { it.id == doc.id })
+            // A removed document takes no access requests.
+            assertThrows<IllegalArgumentException> { documentAccess.requestAccess(doc.id!!, doctorId) }
 
             val patientsOwn = jdbc.queryForObject(
                 "SELECT id FROM patient_documents WHERE uploaded_by_patient_profile_id IS NOT NULL ORDER BY id LIMIT 1",

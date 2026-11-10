@@ -294,7 +294,8 @@ class AppointmentBriefingService(
         return appointmentIds.associateWith { id ->
             val row = briefings[id]
             val status = row?.status?.name
-            val count = row?.documentCount?.takeIf { it > 0 } ?: (counts[id] ?: 0)
+            // The live count: the briefing's was taken when it ran, before any later upload or removal (BE-21).
+            val count = counts[id] ?: 0
             status to count
         }
     }

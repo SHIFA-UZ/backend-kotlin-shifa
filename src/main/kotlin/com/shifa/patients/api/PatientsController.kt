@@ -512,7 +512,7 @@ class PatientsController(
 
         val docDtos = try {
             p.documents
-                .filter { it.filePath.isNotBlank() && !it.isChatAttachment }
+                .filter { it.deletedAt == null && it.filePath.isNotBlank() && !it.isChatAttachment }
                 .map { d -> documentToDto(d, doctorId) }
         } catch (_: Exception) {
             emptyList()
