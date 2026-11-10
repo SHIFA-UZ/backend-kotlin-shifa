@@ -4,6 +4,7 @@ import com.shifa.clinics.domain.TreatmentPlanLine
 import com.shifa.clinics.infrastructure.TreatmentPlanLineRepository
 import java.util.Optional
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
 
 /**
  * The feature's door to TreatmentPlanLine records for its controllers and for other features (roadmap Phase 5 step 4):
@@ -14,6 +15,9 @@ import org.springframework.stereotype.Service
 @Suppress("FunctionNaming", "FunctionParameterNaming", "MaxLineLength", "TooManyFunctions")
 class TreatmentPlanLines(private val repo: TreatmentPlanLineRepository) {
     fun findByPlan_IdOrderBySortOrderAscIdAsc(planId: Long): List<TreatmentPlanLine> = repo.findByPlan_IdOrderBySortOrderAscIdAsc(planId)
+    @Transactional(readOnly = true)
+    fun findByPlan_IdInOrderBySortOrderAscIdAsc(planIds: Collection<Long>): List<TreatmentPlanLine> =
+        if (planIds.isEmpty()) emptyList() else repo.findByPlan_IdInOrderBySortOrderAscIdAsc(planIds)
     fun countDistinctLinkedAppointmentsByPlanId(planId: Long): Long = repo.countDistinctLinkedAppointmentsByPlanId(planId)
     fun countDistinctLinkedAppointmentsGrouped(planIds: Collection<Long>): List<Array<Any>> = repo.countDistinctLinkedAppointmentsGrouped(planIds)
     fun findLinkedAppointmentLinesForPlan(planId: Long): List<TreatmentPlanLine> = repo.findLinkedAppointmentLinesForPlan(planId)

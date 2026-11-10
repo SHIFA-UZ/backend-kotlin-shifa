@@ -15,6 +15,11 @@ import org.springframework.stereotype.Service
 @Suppress("FunctionNaming", "FunctionParameterNaming", "MaxLineLength", "TooManyFunctions")
 class TreatmentPlanPayments(private val repo: TreatmentPlanPaymentRepository) {
     fun findByPlan_IdOrderByRecordedAtAsc(planId: Long): List<TreatmentPlanPayment> = repo.findByPlan_IdOrderByRecordedAtAsc(planId)
+    /** Paid amount per plan id (plans without payments are absent), in one query. */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    fun sumAmountMinorByPlan(planIds: Collection<Long>): Map<Long, Long> =
+        if (planIds.isEmpty()) emptyMap()
+        else repo.sumAmountMinorGroupedByPlan(planIds).associate { (it[0] as Number).toLong() to (it[1] as Number).toLong() }
     fun findByPlanIdsOrderByRecordedAtAsc(planIds: Collection<Long>): List<TreatmentPlanPayment> = repo.findByPlanIdsOrderByRecordedAtAsc(planIds)
     fun findByClinicAndPlanStatuses(clinicId: Long, statuses: List<TreatmentPlan.Status>, pageable: Pageable): List<TreatmentPlanPayment> = repo.findByClinicAndPlanStatuses(clinicId, statuses, pageable)
     fun findByClinicAndPlanStatusesAndPatientIds(clinicId: Long, statuses: List<TreatmentPlan.Status>, patientIds: Collection<Long>, pageable: Pageable): List<TreatmentPlanPayment> = repo.findByClinicAndPlanStatusesAndPatientIds(clinicId, statuses, patientIds, pageable)

@@ -5,10 +5,15 @@ import com.shifa.clinics.domain.TreatmentPlanPayment
 import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
+import org.springframework.data.repository.query.Param
 import java.time.OffsetDateTime
 
 interface TreatmentPlanPaymentRepository : JpaRepository<TreatmentPlanPayment, Long> {
     fun findByPlan_IdOrderByRecordedAtAsc(planId: Long): List<TreatmentPlanPayment>
+
+    /** Rows of (plan id, sum of amountMinor) for the plans that have payments. */
+    @Query("SELECT p.plan.id, SUM(p.amountMinor) FROM TreatmentPlanPayment p WHERE p.plan.id IN :planIds GROUP BY p.plan.id")
+    fun sumAmountMinorGroupedByPlan(@Param("planIds") planIds: Collection<Long>): List<Array<Any>>
 
     fun findByOnlinePaymentId(onlinePaymentId: Long): TreatmentPlanPayment?
 

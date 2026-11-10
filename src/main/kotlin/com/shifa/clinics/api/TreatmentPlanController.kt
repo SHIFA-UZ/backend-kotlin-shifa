@@ -137,10 +137,14 @@ class TreatmentPlanController(
         }
     }
 
-    private fun toSummary(plan: TreatmentPlan, visitCount: Int? = null): TreatmentPlanSummaryDto {
-        val lineRows = linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(plan.id)
+    /** [lineRows] and [paid] are passed by the list endpoint, which loads them for all its plans at once. */
+    private fun toSummary(
+        plan: TreatmentPlan,
+        visitCount: Int? = null,
+        lineRows: List<TreatmentPlanLine> = linesRepo.findByPlan_IdOrderBySortOrderAscIdAsc(plan.id),
+        paid: Long = paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(plan.id).sumOf { it.amountMinor },
+    ): TreatmentPlanSummaryDto {
         val total = lineRows.sumOf { lineAmt(it) }
-        val paid = paymentsRepo.findByPlan_IdOrderByRecordedAtAsc(plan.id).sumOf { it.amountMinor }
         val cur = lineRows.firstOrNull()?.currency ?: "UZS"
         val visits =
             visitCount
@@ -401,8 +405,11 @@ class TreatmentPlanController(
             }
             .toList()
             .let { planList ->
-                val visitCounts = batchVisitCounts(planList.map { it.id })
-                planList.map { toSummary(it, visitCounts[it.id] ?: 0) }
+                val ids = planList.map { it.id }
+                val visitCounts = batchVisitCounts(ids)
+                val lines = linesRepo.findByPlan_IdInOrderBySortOrderAscIdAsc(ids).groupBy { it.plan.id }
+                val paid = paymentsRepo.sumAmountMinorByPlan(ids)
+                planList.map { toSummary(it, visitCounts[it.id] ?: 0, lines[it.id].orEmpty(), paid[it.id] ?: 0L) }
             }
     }
 
