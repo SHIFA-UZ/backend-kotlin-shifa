@@ -147,10 +147,7 @@ class AuthController(
         if (phoneTrimmed == null && emailTrimmed == null) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone or email required")
         }
-        val phoneNorm = phoneTrimmed?.let { PhoneNormalizer.normalize(it) }
-        val user = phoneTrimmed?.let { users.findByPhone(it).orElse(null) }
-            ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
-            ?: emailTrimmed?.let { users.findByEmailIgnoreCase(it).orElse(null) }
+        val user = accountFor(phoneTrimmed, emailTrimmed)
             ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No account found")
         if (!userRoles.existsByUserIdAndRole(user.id, Role.DOCTOR)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "No doctor account found")
@@ -176,11 +173,7 @@ class AuthController(
         if (phoneTrimmed == null && emailTrimmed == null) {
             throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Phone or email required")
         }
-        val phoneNorm = phoneTrimmed?.let { PhoneNormalizer.normalize(it) }
-        val user = phoneTrimmed?.let { users.findByPhone(it).orElse(null) }
-            ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
-            ?: emailTrimmed?.let { users.findByEmailIgnoreCase(it).orElse(null) }
-            ?: return CheckIdentifierResponse(type = "none")
+        val user = accountFor(phoneTrimmed, emailTrimmed) ?: return CheckIdentifierResponse(type = "none")
         if (userRoles.existsByUserIdAndRole(user.id, Role.DOCTOR)) {
             val doc = doctors.findByUserId(user.id).orElse(null)
             return CheckIdentifierResponse(
@@ -199,6 +192,41 @@ class AuthController(
             )
         }
         return CheckIdentifierResponse(type = "none")
+    }
+
+    /**
+     * The one account a phone and/or e-mail from the patient app's create-account step name; null when neither is
+     * registered. A phone and an e-mail that name different accounts, or one account that has a different phone or
+     * e-mail than the one typed, is a 409 IDENTIFIER_CONFLICT: answering with whichever matched first offered the
+     * wrong person's account (another doctor's name) or a doctor link that could never succeed.
+     */
+    private fun accountFor(phoneTrimmed: String?, emailTrimmed: String?): User? {
+        val phoneNorm = phoneTrimmed?.let { PhoneNormalizer.normalize(it) }
+        val byPhone = phoneTrimmed?.let { users.findByPhone(it).orElse(null) }
+            ?: phoneNorm?.let { users.findByPhone(it).orElse(null) }
+        val byEmail = emailTrimmed?.let {
+            try {
+                users.findByEmailIgnoreCase(it).orElse(null)
+            } catch (_: org.springframework.dao.IncorrectResultSizeDataAccessException) {
+                null // case-variant duplicates: ambiguous, so the e-mail alone names no account
+            }
+        }
+        val user = byPhone ?: byEmail ?: return null
+        // Stored values are compared, not lookups: a phone saved with spaces is still the same phone.
+        val storedPhone = user.phone?.trim()?.takeIf { it.isNotEmpty() }
+        val storedEmail = user.email?.trim()?.takeIf { it.isNotEmpty() }
+        val conflict = (byPhone != null && byEmail != null && byPhone.id != byEmail.id) ||
+            (phoneTrimmed != null && storedPhone != null &&
+                (PhoneNormalizer.normalize(storedPhone) ?: storedPhone) != (phoneNorm ?: phoneTrimmed)) ||
+            (emailTrimmed != null && storedEmail != null && !storedEmail.equals(emailTrimmed, ignoreCase = true))
+        if (conflict) {
+            throw CodedStatusException(
+                HttpStatus.CONFLICT,
+                "This phone number and email belong to different accounts",
+                ErrorCode.IDENTIFIER_CONFLICT,
+            )
+        }
+        return user
     }
 
     // ---------- Send email OTP (generic – registration, doctor-to-patient, etc.) ----------

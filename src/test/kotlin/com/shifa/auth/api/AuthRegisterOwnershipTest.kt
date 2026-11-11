@@ -279,4 +279,72 @@ class AuthRegisterOwnershipTest {
                 .content("""{"email":"DOCTOR@example.uz"}"""),
         ).andExpect(status().isOk).andExpect(jsonPath("$.firstName").value("Aziza"))
     }
+
+    private fun checkIdentifier(body: String) =
+        mockMvc.perform(post("/api/auth/check-identifier").contentType(MediaType.APPLICATION_JSON).content(body))
+
+    @Test
+    fun `check-identifier refuses a phone and an e-mail that name different accounts`() {
+        val doctor = existing(id = 7L).apply { phone = "+998900000201" }
+        val otherDoctor = existing(id = 8L, mail = "other@example.uz").apply { phone = "+998900000202" }
+        `when`(users.findByEmailIgnoreCase(email)).thenReturn(Optional.of(doctor))
+        `when`(users.findByPhone("+998900000202")).thenReturn(Optional.of(otherDoctor))
+        `when`(users.findByPhone("+998900000201")).thenReturn(Optional.of(doctor))
+        `when`(userRoles.existsByUserIdAndRole(7L, Role.DOCTOR)).thenReturn(true)
+        `when`(doctors.findByUserId(7L)).thenReturn(Optional.of(DoctorProfile(user = doctor, firstName = "Aziza", lastName = "K")))
+
+        // Another doctor's phone: before, the answer named that doctor.
+        checkIdentifier("""{"email":"$email","phone":"+998900000202"}""")
+            .andExpect(status().isConflict).andExpect(jsonPath("$.code").value("IDENTIFIER_CONFLICT"))
+        // An unused phone, while the e-mail's account has another one: the doctor link could never succeed.
+        checkIdentifier("""{"email":"$email","phone":"+998977771122"}""")
+            .andExpect(status().isConflict).andExpect(jsonPath("$.code").value("IDENTIFIER_CONFLICT"))
+        // An unused e-mail with the doctor's phone.
+        checkIdentifier("""{"email":"new@example.uz","phone":"+998900000201"}""")
+            .andExpect(status().isConflict).andExpect(jsonPath("$.code").value("IDENTIFIER_CONFLICT"))
+        mockMvc.perform(
+            post("/api/auth/check-existing-doctor").contentType(MediaType.APPLICATION_JSON)
+                .content("""{"email":"$email","phone":"+998900000202"}"""),
+        ).andExpect(status().isConflict)
+
+        // The doctor's own phone and e-mail, or either one alone: the doctor.
+        for (body in listOf(
+            """{"email":"$email","phone":"+998900000201"}""",
+            """{"email":"$email"}""",
+            """{"phone":"+998900000201"}""",
+        )) {
+            checkIdentifier(body).andExpect(status().isOk).andExpect(jsonPath("$.type").value("doctor"))
+                .andExpect(jsonPath("$.firstName").value("Aziza"))
+        }
+    }
+
+    @Test
+    fun `check-identifier accepts a new phone for an account that has none`() {
+        val doctor = existing(id = 7L)
+        `when`(users.findByEmailIgnoreCase(email)).thenReturn(Optional.of(doctor))
+        `when`(userRoles.existsByUserIdAndRole(7L, Role.DOCTOR)).thenReturn(true)
+        `when`(doctors.findByUserId(7L)).thenReturn(Optional.of(DoctorProfile(user = doctor, firstName = "Aziza", lastName = "K")))
+
+        checkIdentifier("""{"email":"$email","phone":"+998977771122"}""")
+            .andExpect(status().isOk).andExpect(jsonPath("$.type").value("doctor"))
+        checkIdentifier("""{"email":"new@example.uz","phone":"+998977771122"}""")
+            .andExpect(status().isOk).andExpect(jsonPath("$.type").value("none"))
+    }
+
+    @Test
+    fun `check-identifier treats a phone saved with spaces as the same phone, and survives case-variant e-mails`() {
+        val doctor = existing(id = 7L).apply { phone = "+998 90 123 45 67" }
+        `when`(users.findByEmailIgnoreCase(email)).thenReturn(Optional.of(doctor))
+        `when`(userRoles.existsByUserIdAndRole(7L, Role.DOCTOR)).thenReturn(true)
+        `when`(doctors.findByUserId(7L)).thenReturn(Optional.of(DoctorProfile(user = doctor, firstName = "Aziza", lastName = "K")))
+        checkIdentifier("""{"email":"$email","phone":"+998901234567"}""")
+            .andExpect(status().isOk).andExpect(jsonPath("$.type").value("doctor"))
+
+        // Doctor@… and doctor@… both exist: the phone's account decides, its own e-mail matches.
+        `when`(users.findByEmailIgnoreCase(email))
+            .thenThrow(org.springframework.dao.IncorrectResultSizeDataAccessException(1, 2))
+        `when`(users.findByPhone("+998901234567")).thenReturn(Optional.of(doctor))
+        checkIdentifier("""{"email":"$email","phone":"+998901234567"}""")
+            .andExpect(status().isOk).andExpect(jsonPath("$.type").value("doctor"))
+    }
 }
