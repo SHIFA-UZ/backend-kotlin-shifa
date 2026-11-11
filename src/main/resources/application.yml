@@ -16,6 +16,12 @@ spring:
     url: jdbc:postgresql://localhost:5433/shifa
     username: shifa
     password: shifa
+    # One stuck request must not hold the pool (production outage 2026-11-11, 15/15 connections held): Postgres
+    # cancels a statement after 30 s, and Hikari logs a connection held over 20 s with the code that took it.
+    hikari:
+      leak-detection-threshold: 20000
+      data-source-properties:
+        options: "-c statement_timeout=30000"
 
   jpa:
     # Local convenience only; application-prod.yml sets validate. Flyway owns the schema.
@@ -49,6 +55,11 @@ spring:
 
   flyway:
     enabled: true
+    # Its own connection, not the pool's: migrations (an index on a big table) may outlast the requests' statement
+    # timeout, and a SET on a pooled connection would stay on it for the requests after.
+    url: ${spring.datasource.url}
+    user: ${spring.datasource.username}
+    password: ${spring.datasource.password}
     locations: classpath:db/migration
     validate-on-migrate: true
     validate-migration-naming: true
