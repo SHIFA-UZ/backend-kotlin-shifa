@@ -550,7 +550,7 @@ class PublicDoctorController(
                 "Doctor not found"
             ) }
         // Do not expose disabled doctors to patients
-        if (!doctor.user.enabled) {
+        if (!doctorProfiles.isListed(doctor)) {
             throw org.springframework.web.server.ResponseStatusException(
                 org.springframework.http.HttpStatus.NOT_FOUND,
                 "Doctor not found"
@@ -606,7 +606,7 @@ class PublicDoctorController(
                 org.springframework.http.HttpStatus.NOT_FOUND,
                 "Doctor not found"
             ) }
-        if (!doctor.user.enabled) {
+        if (!doctorProfiles.isListed(doctor)) {
             throw org.springframework.web.server.ResponseStatusException(
                 org.springframework.http.HttpStatus.NOT_FOUND,
                 "Doctor not found"

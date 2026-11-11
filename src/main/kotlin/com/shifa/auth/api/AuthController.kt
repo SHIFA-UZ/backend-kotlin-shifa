@@ -725,7 +725,8 @@ class AuthController(
                 )
             }
             requireAccountOwnership(existingUser, emailTrimmed, emailProven, r.currentPassword)
-            if (!userRoles.existsByUserIdAndRole(existingUser.id, Role.DOCTOR)) {
+            val returningDoctor = !userRoles.existsByUserIdAndRole(existingUser.id, Role.DOCTOR)
+            if (returningDoctor) {
                 userRoles.save(
                     com.shifa.auth.domain.UserRole(user = existingUser, role = Role.DOCTOR)
                 )
@@ -744,10 +745,15 @@ class AuthController(
             } else {
                 // Already has doctor profile: ensure avatar is set from patient if doctor has none
                 val existingDoctor = doctors.findByUserId(existingUser.id).orElse(null)
+                if (existingDoctor != null && returningDoctor) {
+                    // The profile of a doctor side deleted earlier (anonymised, "Deleted Doctor"): it gets the new name.
+                    existingDoctor.firstName = r.firstName.trim()
+                    existingDoctor.lastName = r.lastName.trim()
+                }
                 if (existingDoctor != null && (existingDoctor.avatarUrl.isNullOrBlank()) && patientPhotoUrl != null) {
                     existingDoctor.avatarUrl = patientPhotoUrl
-                    doctors.save(existingDoctor)
                 }
+                existingDoctor?.let(doctors::save)
             }
             existingUser.role = Role.DOCTOR
             // The patient side keeps its own password: registering here no longer changes the patient app's one.
@@ -1580,7 +1586,7 @@ class AuthController(
 
     /** A patient that is also a doctor, staff or admin: each app keeps its own password ([User.setPassword]). */
     private fun isDual(user: User): Boolean {
-        val roles = userRoles.findByUserId(user.id).map { it.role }.toSet().ifEmpty { setOf(user.role) }
+        val roles = userRoles.rolesOf(user)
         return Role.PATIENT in roles && roles.any { it != Role.PATIENT }
     }
 

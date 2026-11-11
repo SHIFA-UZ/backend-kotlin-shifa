@@ -27,6 +27,9 @@ class DoctorProfiles(private val repo: DoctorProfileRepository) {
     fun findUserIdsWithDeviceRegistered(): List<Long> = repo.findUserIdsWithDeviceRegistered()
     fun searchByQuery(query: String): List<DoctorProfile> = repo.searchByQuery(query)
     fun findAllByUserEnabled(): List<DoctorProfile> = repo.findAllByUserEnabled()
+    /** Shown to patients: an enabled account that still has the doctor role (not a deleted doctor side). */
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
+    fun isListed(doctor: DoctorProfile): Boolean = doctor.user.enabled && repo.isListed(doctor.id)
     fun findPartnerSearchCandidates(excludeDoctorId: Long, search: String?, profession: String?, pageable: org.springframework.data.domain.Pageable): List<DoctorProfile> = repo.findPartnerSearchCandidates(excludeDoctorId, search, profession, pageable)
     fun searchWithFilters(search: String?, profession: String?): List<DoctorProfile> = repo.searchWithFilters(search, profession)
     fun findUserIdsBySearch(q: String): List<Long> = repo.findUserIdsBySearch(q)

@@ -515,7 +515,7 @@ class PatientCopilotController(
             }
         }
         val doctor = doctorProfiles.findById(doctorId).orElse(null)
-        if (doctor == null || !doctor.user.enabled) {
+        if (doctor == null || !doctorProfiles.isListed(doctor)) {
             return mapOf(
                 "booked" to false,
                 "reasonCode" to "DOCTOR_NOT_FOUND",

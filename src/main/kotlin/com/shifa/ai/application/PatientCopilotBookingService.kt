@@ -64,7 +64,7 @@ class PatientCopilotBookingService(
         val doctor = doctorProfiles.findById(doctorId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found") }
 
-        if (!doctor.user.enabled) {
+        if (!doctorProfiles.isListed(doctor)) {
             throw ResponseStatusException(HttpStatus.NOT_FOUND, "Doctor not found")
         }
 

@@ -2,6 +2,7 @@ package com.shifa.auth.application
 
 import com.shifa.appointments.domain.Appointment
 import com.shifa.auth.domain.EmailVerificationCode
+import com.shifa.auth.domain.Role
 import com.shifa.auth.domain.User
 import com.shifa.auth.infrastructure.UserRepository
 import com.shifa.doctors.domain.DoctorProfile
@@ -34,6 +35,7 @@ class DoctorAccountDeletionService(
     private val pushTokens: com.shifa.notifications.application.DoctorPushTokens,
     private val userManagement: UserManagementService,
     private val emailOtp: EmailOtpService,
+    private val userRoles: UserRoles,
 ) {
     private val log = LoggerFactory.getLogger(DoctorAccountDeletionService::class.java)
 
@@ -73,21 +75,41 @@ class DoctorAccountDeletionService(
 
         userManagement.forceLogout(user.id, revokedBy = null)
         pushTokens.tokensOf(doctor.id).forEach { pushTokens.unregister(doctor.id, it) }
-        memberships.findByUserIdAndActiveTrue(user.id).forEach { it.active = false; memberships.save(it) }
+        // An account that is also a patient or staff (one users row, several roles) loses only its doctor side: the
+        // DOCTOR role, the doctor's memberships and the profile below. Before, the whole account was closed, so the
+        // patient app stopped working too (the user's report, 2026-11-11).
+        val keepAccount = userRoles.rolesOf(user).any { it != Role.DOCTOR }
+        memberships.findByUserIdAndActiveTrue(user.id)
+            .filter { !keepAccount || it.membershipRole != com.shifa.clinics.domain.ClinicMembership.MembershipRole.STAFF }
+            .forEach { it.active = false; memberships.save(it) }
 
         val now = OffsetDateTime.now()
-        user.phoneOriginalHash = user.phone?.let(::sha256Hex)
-        user.emailOriginalHash = user.email?.let { sha256Hex(it.trim().lowercase()) }
-        user.phone = null
-        user.email = null
-        user.staffFirstName = null
-        user.staffLastName = null
-        user.staffPhotoUrl = null
-        user.enabled = false
-        user.accountStatus = User.AccountStatus.DELETED
-        user.deletionRequestedAt = user.deletionRequestedAt ?: now
-        user.deletedAt = now
-        users.save(user)
+        if (keepAccount) {
+            userRoles.remove(user, Role.DOCTOR)
+            // Only the patient side left: its own password, if it had one, becomes the account's only password. A
+            // staff side keeps the shared password it signs in with.
+            if (userRoles.rolesOf(user) == setOf(Role.PATIENT)) {
+                user.patientPasswordHash?.let { user.passwordHash = it }
+                user.patientPasswordHash = null
+            }
+            users.save(user)
+            // The profile stays (user_id can't be detached) and a doctor who registers again gets it back: without
+            // its clinic, which only a new invitation grants.
+            doctor.practiceClinic = null
+        } else {
+            user.phoneOriginalHash = user.phone?.let(::sha256Hex)
+            user.emailOriginalHash = user.email?.let { sha256Hex(it.trim().lowercase()) }
+            user.phone = null
+            user.email = null
+            user.staffFirstName = null
+            user.staffLastName = null
+            user.staffPhotoUrl = null
+            user.enabled = false
+            user.accountStatus = User.AccountStatus.DELETED
+            user.deletionRequestedAt = user.deletionRequestedAt ?: now
+            user.deletedAt = now
+            users.save(user)
+        }
 
         doctor.firstName = "Deleted"
         doctor.lastName = "Doctor"
