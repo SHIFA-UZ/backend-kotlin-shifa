@@ -151,4 +151,24 @@ class PatientDaySlotsNextAvailableTest {
             service.nextAvailableStartAt(extraAfter, Instant.parse("2031-01-05T00:00:00Z"), 14),
         )
     }
+
+    @Test
+    fun `hours ending near midnight stop at the last slot instead of wrapping past 24-00 forever`() {
+        // Production, 2026-11-11: 23:30 + 30 min is 00:00, "before" 23:59, so the slot loop never ended.
+        val lateDate = LocalDate.of(2030, 1, 10)
+        val late = DateSpecificScheduleRule(
+            doctor = extraAfter, startDate = lateDate, endDate = lateDate,
+            startTime = LocalTime.of(22, 0), endTime = LocalTime.of(23, 59), slotMinutes = 30,
+        )
+        `when`(dateRules.findByDoctorIdAndDate(anyLong(), org.mockito.ArgumentMatchers.eq(lateDate) ?: lateDate))
+            .thenReturn(listOf(late))
+        val slots = org.junit.jupiter.api.Assertions.assertTimeoutPreemptively(
+            java.time.Duration.ofSeconds(5),
+            org.junit.jupiter.api.function.ThrowingSupplier { service.availableSlotsForDay(extraAfter, lateDate).map { it.startAt } },
+        )
+        // 22:00, 22:30, 23:00 in Tashkent (UTC+5); 23:30 would end at 24:00, past 23:59.
+        assertEquals(listOf("2030-01-10T17:00:00Z", "2030-01-10T17:30:00Z", "2030-01-10T18:00:00Z"), slots)
+        assertNull(com.shifa.appointments.domain.slotEnd(LocalTime.of(23, 30), 30, LocalTime.of(23, 59)))
+        assertEquals(LocalTime.of(23, 30), com.shifa.appointments.domain.slotEnd(LocalTime.of(23, 0), 30, LocalTime.of(23, 59)))
+    }
 }
