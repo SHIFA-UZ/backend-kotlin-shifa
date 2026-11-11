@@ -33,8 +33,11 @@ EXPOSE 8080
 # Target ~2GB+ container RAM total: 1024m heap + 320m metaspace + JVM native (~200-350Mi) + /tmp (voice uploads
 # write up to 25MB there). This ENTRYPOINT is the image default; Railway overrides it with its start command
 # (-Xmx1536m, see the service settings and docs/ARCHITECTURE_ROADMAP.md 1.13). Tomcat threads: application-prod.yml.
+# The JVM settings live here only: Railway's start command must stay empty, or it replaces them. The heap peaks at
+# ~500 MB in production (RuntimeMetricsLogger, 2026-11); 768 MB leaves room, and Serial GC suits one small instance
+# with little traffic (less memory than G1). Out of memory: exit, so Railway restarts it instead of a half-dead JVM.
 ENTRYPOINT ["java", \
-  "-Xmx1024m", "-Xms384m", \
-  "-XX:+UseG1GC", "-XX:MaxGCPauseMillis=200", \
-  "-XX:+UseStringDeduplication", "-XX:MaxMetaspaceSize=320m", \
+  "-Xmx768m", "-Xms256m", \
+  "-XX:+UseSerialGC", "-XX:MaxMetaspaceSize=320m", \
+  "-XX:+ExitOnOutOfMemoryError", \
   "-jar", "build/libs/app.jar"]

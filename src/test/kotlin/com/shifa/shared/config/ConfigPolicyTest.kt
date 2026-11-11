@@ -31,6 +31,8 @@ class ConfigPolicyTest {
         "S3_BUCKET", "S3_ACCESS_KEY", "S3_SECRET_KEY",
         // JVM property, not an environment variable
         "java.io.tmpdir",
+        // References to other properties, not environment variables: Flyway's own connection to the datasource's database
+        "spring.datasource.url", "spring.datasource.username", "spring.datasource.password",
     )
 
     private val placeholder = Regex("""\$\{([A-Za-z0-9_.]+)(:[^}]*)?}""")
