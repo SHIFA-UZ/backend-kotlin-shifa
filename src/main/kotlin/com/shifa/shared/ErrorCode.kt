@@ -21,6 +21,8 @@ enum class ErrorCode {
     LAST_SUPER_ADMIN,
     /** Registration: the account is already a doctor; sign in instead. */
     DOCTOR_EXISTS,
+    /** Patient sign-up: the phone and the e-mail name different accounts (or the account has another phone/e-mail). */
+    IDENTIFIER_CONFLICT,
     /** Registration onto an existing account: prove it is yours (its e-mail code or its current password). */
     OWNERSHIP_REQUIRED,
     EMAIL_OTP_INVALID,
