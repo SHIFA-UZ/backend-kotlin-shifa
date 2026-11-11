@@ -17,6 +17,10 @@ class User(
     @Column(name = "password_hash", nullable = false)
     var passwordHash: String,
 
+    /** The patient app's own password on an account that is also a doctor or staff; null shares [passwordHash]. */
+    @Column(name = "patient_password_hash")
+    var patientPasswordHash: String? = null,
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false) var role: Role = Role.DOCTOR,
 
@@ -79,6 +83,27 @@ class User(
     val createdAt: OffsetDateTime = OffsetDateTime.now(),
 ) {
     fun isLocked(): Boolean = lockedUntil != null && lockedUntil!!.isAfter(OffsetDateTime.now())
+
+    /** The password an app checks: the patient app its own once set; every other app the shared one. */
+    fun passwordHashFor(patientApp: Boolean): String = if (patientApp) patientPasswordHash ?: passwordHash else passwordHash
+
+    /**
+     * Sets one app's password. [dual]: the account is a patient and also a doctor, staff or admin, so each app keeps
+     * its own and the first change on either side splits them. Otherwise there is one password.
+     */
+    fun setPassword(hash: String, patientApp: Boolean, dual: Boolean) {
+        when {
+            !dual -> {
+                passwordHash = hash
+                patientPasswordHash = null
+            }
+            patientApp -> patientPasswordHash = hash
+            else -> {
+                if (patientPasswordHash == null) patientPasswordHash = passwordHash
+                passwordHash = hash
+            }
+        }
+    }
 
     enum class AccountStatus {
         ACTIVE,

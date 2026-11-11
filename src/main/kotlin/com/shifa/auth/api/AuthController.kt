@@ -722,7 +722,8 @@ class AuthController(
                 }
             }
             existingUser.role = Role.DOCTOR
-            existingUser.passwordHash = encoder.encode(r.password)!!
+            // The patient side keeps its own password: registering here no longer changes the patient app's one.
+            existingUser.setPassword(encoder.encode(r.password)!!, patientApp = false, dual = isDual(existingUser))
             if (existingUser.email.isNullOrBlank()) {
                 existingUser.email = emailTrimmed
             }
@@ -880,7 +881,8 @@ class AuthController(
             if (!userRoles.existsByUserIdAndRole(existingUser.id, Role.CLINIC_STAFF)) {
                 userRoles.save(com.shifa.auth.domain.UserRole(user = existingUser, role = Role.CLINIC_STAFF))
             }
-            existingUser.passwordHash = encoder.encode(r.password)!!
+            // The patient side keeps its own password: registering here no longer changes the patient app's one.
+            existingUser.setPassword(encoder.encode(r.password)!!, patientApp = false, dual = isDual(existingUser))
             if (existingUser.email.isNullOrBlank()) {
                 existingUser.email = emailTrimmed
             }
@@ -1019,7 +1021,10 @@ class AuthController(
 			throw ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account is locked")
 		}
 
-		val passwordMatches = encoder.matches(r.password, user.passwordHash)
+		// The side the token is for checks its own password (V133): app=patient, or no app on a patient's own account
+		// (the token role below falls back to users.role).
+		val patientApp = appTypeEarly == "patient" || (appTypeEarly != "doctor" && user.role == Role.PATIENT)
+		val passwordMatches = encoder.matches(r.password, user.passwordHashFor(patientApp))
 		
 		if (!passwordMatches) {
 			userActivityService.logActivity(
@@ -1042,7 +1047,8 @@ class AuthController(
 		)
 		
 		// Update last login
-		userManagementService.updateLastLogin(user.id)
+		// A patient-app sign-in on a split account doesn't clear the doctor side's failed attempts.
+		userManagementService.updateLastLogin(user.id, resetFailures = !(patientApp && user.patientPasswordHash != null))
 
         // App-based role enforcement (multi-role support)
         val appType = app?.lowercase() ?: request.getHeader("X-App")?.lowercase()
@@ -1427,7 +1433,7 @@ class AuthController(
                 else -> throw ResponseStatusException(HttpStatus.FORBIDDEN, "No doctor, patient, or admin account found")
             }
         }
-        user.passwordHash = encoder.encode(r.newPassword)!!
+        user.setPassword(encoder.encode(r.newPassword)!!, patientApp = tokenRole == Role.PATIENT, dual = isDual(user))
         user.forcePasswordReset = false
         // Clear lockout so the next login can use the new password immediately
         // (reset already proves ownership via OTP / Firebase token).
@@ -1466,17 +1472,19 @@ class AuthController(
         val userId = principal.username.toLong()
         val user = users.findById(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
+        // Which app's password: the one the caller's token was issued for.
+        val patientApp = bearerRole(request) == Role.PATIENT.name
 
         if (!user.forcePasswordReset) {
             if (r.currentPassword.isNullOrBlank()) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is required")
             }
-            if (!encoder.matches(r.currentPassword, user.passwordHash)) {
+            if (!encoder.matches(r.currentPassword, user.passwordHashFor(patientApp))) {
                 throw ResponseStatusException(HttpStatus.BAD_REQUEST, "Current password is incorrect")
             }
         }
 
-        user.passwordHash = encoder.encode(r.newPassword)!!
+        user.setPassword(encoder.encode(r.newPassword)!!, patientApp, isDual(user))
         user.forcePasswordReset = false
         users.save(user)
         // The caller stays signed in; every other session of the account ends with the old password.
@@ -1537,6 +1545,16 @@ class AuthController(
     private fun bearerJti(request: jakarta.servlet.http.HttpServletRequest): String? =
         request.getHeader("Authorization")?.removePrefix("Bearer ")?.trim()
             ?.let { runCatching { jwt.parse(it).id }.getOrNull() }
+
+    private fun bearerRole(request: jakarta.servlet.http.HttpServletRequest): String? =
+        request.getHeader("Authorization")?.removePrefix("Bearer ")?.trim()
+            ?.let { runCatching { jwt.parse(it)["role"]?.toString() }.getOrNull() }
+
+    /** A patient that is also a doctor, staff or admin: each app keeps its own password ([User.setPassword]). */
+    private fun isDual(user: User): Boolean {
+        val roles = userRoles.findByUserId(user.id).map { it.role }.toSet().ifEmpty { setOf(user.role) }
+        return Role.PATIENT in roles && roles.any { it != Role.PATIENT }
+    }
 
     private fun userHasAppRole(user: User, requiredRole: Role): Boolean {
         val roleRows = userRoles.findByUserId(user.id)
@@ -1606,6 +1624,7 @@ class AuthController(
         val ownEmail = existing.email?.trim()?.equals(email, ignoreCase = true) == true
         if (emailProven && ownEmail) return
         val password = currentPassword?.takeIf { it.isNotEmpty() }
+        // Only the doctor/staff side's password: registration replaces it, so the patient app's one proves nothing here.
         if (password != null && encoder.matches(password, existing.passwordHash)) return
         throw CodedStatusException(
             HttpStatus.CONFLICT,
