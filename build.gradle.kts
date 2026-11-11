@@ -39,7 +39,7 @@ dependencies {
     // starter; with flyway-core alone the migrations are silently skipped.
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-core:12.4.0")
-    implementation("org.flywaydb:flyway-database-postgresql:12.4.0")
+    implementation("org.flywaydb:flyway-database-postgresql:13.12.1")
 
     // Security + JWT
     implementation("org.springframework.boot:spring-boot-starter-security")
