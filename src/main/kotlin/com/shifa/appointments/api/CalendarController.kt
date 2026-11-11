@@ -99,15 +99,12 @@ class CalendarController(
         )
         
         val freeSlots = buildList {
-            if (dateOutsideValidity) {
-                // Strict upper/lower bound: no free slots outside calendar validity
-                return@buildList
-            }
-
             // Extension is additive: combine weekly rules (for this weekday) and
             // date-specific rules (for this date). Optionally filter to one location.
+            // The validity periods bound the weekly template only: extra hours added for a date outside them still
+            // count (the user's report, 2026-11-11: such hours never showed on the calendar).
             val weeklyForDay = rulesRepo.findByDoctorId(doctor.id)
-                .filter { it.weekday == weekday }
+                .filter { !dateOutsideValidity && it.weekday == weekday }
                 .filter { locationId == null || it.location?.id == locationId }
                 .map { rule ->
                     ScheduleRuleForDay(
