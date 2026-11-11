@@ -386,6 +386,26 @@ class AdminListsIntegrationTest {
     // ---------- unknown ids, duplicate admin e-mail ----------
 
     @Test
+    fun `a patient profile id finds its app account, and a profile without one is 404`() {
+        rolledBack {
+            val mvc = mockMvc()
+            val m = marker()
+            val user = patient("$m@shifa.dev", OffsetDateTime.now(), profile = true)
+            val profileId = requireNotNull(patientProfiles.findByUserId(requireNotNull(user.id)).get().id)
+            mvc.perform(get("/api/admin/users/by-patient-profile/$profileId"))
+                .andExpect(status().isOk)
+                .andExpect(jsonPath("$.id").value(requireNotNull(user.id)))
+                .andExpect(jsonPath("$.role").value("PATIENT"))
+            val noAccount = requireNotNull(patientProfiles.save(PatientProfile(fullName = "Patient $m")).id)
+            listOf(noAccount, UNKNOWN_ID).forEach { id ->
+                mvc.perform(get("/api/admin/users/by-patient-profile/$id"))
+                    .andExpect(status().isNotFound)
+                    .andExpect(jsonPath("$.code").value("NOT_FOUND"))
+            }
+        }
+    }
+
+    @Test
     fun `unknown ids on admin routes answer 404 with the API body`() {
         rolledBack {
             val mvc = mockMvc()

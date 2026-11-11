@@ -13731,6 +13731,37 @@
         ]
       }
     },
+    "/api/admin/users/by-patient-profile/{patientProfileId}": {
+      "get": {
+        "operationId": "getUserByPatientProfile",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "patientProfileId",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-controller"
+        ]
+      }
+    },
     "/api/admin/users/create-admin": {
       "post": {
         "operationId": "createAdminUser",
