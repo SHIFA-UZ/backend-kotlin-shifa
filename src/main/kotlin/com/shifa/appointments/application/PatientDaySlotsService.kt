@@ -55,9 +55,8 @@ class PatientDaySlotsService(
         val weekday = localDate.dayOfWeek.value
         val zone = ZoneId.of(doctor.timeZone)
 
-        if (!scheduleValidityService.isDateWithinAnyPeriod(doctor, localDate)) {
-            return emptyList()
-        }
+        // The validity periods bound the weekly template only; extra hours for this date count either way.
+        val weeklyValid = scheduleValidityService.isDateWithinAnyPeriod(doctor, localDate)
 
         val dayStart = localDate.atStartOfDay(zone).toInstant()
         val dayEnd = localDate.plusDays(1).atStartOfDay(zone).toInstant()
@@ -70,7 +69,7 @@ class PatientDaySlotsService(
             val locationLabel: String?
         )
         val weeklyRules = rulesRepo.findByDoctorId(doctor.id)
-            .filter { it.weekday == weekday }
+            .filter { weeklyValid && it.weekday == weekday }
             .filter { locationId == null || it.location?.id == locationId }
             .map { RuleForDay(it.startTime, it.endTime, it.slotMinutes, it.location?.id, it.location?.label) }
         val dateSpecificRules = dateSpecificRulesRepo.findByDoctorIdAndDate(doctor.id, localDate)
@@ -196,18 +195,18 @@ class PatientDaySlotsService(
         validityPeriods: List<com.shifa.appointments.domain.ScheduleValidityPeriod>,
         busy: List<Busy>,
     ): Instant? {
-        // No rules: nothing to offer. No validity period: no date is bookable (as availableSlotsForDay has it).
+        // No rules: nothing to offer. The validity periods bound the weekly template only (as availableSlotsForDay
+        // has it): a date outside them offers its extra hours alone.
         if (weeklyRules.isEmpty() && dateSpecificRules.isEmpty()) return null
-        if (validityPeriods.isEmpty()) return null
         val zone = ZoneId.of(doctor.timeZone)
         val startDate = fromInstant.atZone(zone).toLocalDate()
         for (i in 0..lookaheadDays) {
             val date = startDate.plusDays(i.toLong())
-            if (validityPeriods.none { it.contains(date) }) continue
+            val weeklyValid = validityPeriods.any { it.contains(date) }
             val slots = availableSlotsForDayWithPrefetch(
                 localDate = date,
                 zone = zone,
-                weeklyRules = weeklyRules,
+                weeklyRules = if (weeklyValid) weeklyRules else emptyList(),
                 dateSpecificRules = dateSpecificRules,
                 busy = busy,
             )

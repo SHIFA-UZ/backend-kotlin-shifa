@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertNull
 import org.junit.jupiter.api.Test
 import org.mockito.ArgumentMatchers
+import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.anyLong
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
@@ -37,21 +38,29 @@ class PatientDaySlotsNextAvailableTest {
     private val berlin = doctor(10, "Europe/Berlin") // UTC+1 in January
     private val noPeriod = doctor(11, "Asia/Tashkent")
     private val blocked = doctor(12, "Asia/Tashkent")
+    // Valid in 2030 only (Mondays 09-10), with extra hours on Wednesday 2031-01-08, 10:00-11:00, past the period.
+    private val extraAfter = doctor(13, "Asia/Tashkent")
+    private val extraDate = LocalDate.of(2031, 1, 8)
     private val all = listOf(tashkent, berlin, noPeriod, blocked)
 
     private fun weekly(doctor: DoctorProfile, weekday: Int, from: Int, to: Int) =
         WeeklyScheduleRule(doctor = doctor, weekday = weekday, startTime = LocalTime.of(from, 0), endTime = LocalTime.of(to, 0), slotMinutes = 30)
 
     private val year = LocalDate.of(2030, 1, 1) to LocalDate.of(2030, 12, 31)
-    private val weeklyRows = listOf(weekly(tashkent, 1, 9, 10), weekly(noPeriod, 1, 9, 10), weekly(blocked, 1, 9, 10))
+    private val weeklyRows =
+        listOf(weekly(tashkent, 1, 9, 10), weekly(noPeriod, 1, 9, 10), weekly(blocked, 1, 9, 10), weekly(extraAfter, 1, 9, 10))
     private val dateRows = listOf(
         // Berlin works only on Wednesday 2030-01-09, 14:00-15:00.
         DateSpecificScheduleRule(
             doctor = berlin, startDate = LocalDate.of(2030, 1, 9), endDate = LocalDate.of(2030, 1, 9),
             startTime = LocalTime.of(14, 0), endTime = LocalTime.of(15, 0), slotMinutes = 30,
         ),
+        DateSpecificScheduleRule(
+            doctor = extraAfter, startDate = extraDate, endDate = extraDate,
+            startTime = LocalTime.of(10, 0), endTime = LocalTime.of(11, 0), slotMinutes = 30,
+        ),
     )
-    private val periodRows = listOf(tashkent, berlin, blocked)
+    private val periodRows = listOf(tashkent, berlin, blocked, extraAfter)
         .associate { it.id to listOf(ScheduleValidityPeriod(doctor = it, validFrom = year.first, validUntil = year.second)) }
 
     /** Monday 2030-01-07, 09:00 in Tashkent. */
@@ -78,10 +87,14 @@ class PatientDaySlotsNextAvailableTest {
 
     private val rules = mock(WeeklyScheduleRuleRepository::class.java).also { repo ->
         `when`(repo.findByDoctorIdIn(anyIds())).thenAnswer { call -> weeklyRows.filter { it.doctor.id in ids(call) } }
+        `when`(repo.findByDoctorId(anyLong())).thenAnswer { call -> weeklyRows.filter { it.doctor.id == call.getArgument<Long>(0) } }
     }
     private val dateRules = mock(DateSpecificScheduleRuleRepository::class.java).also { repo ->
         `when`(repo.findOverlappingWithDateRangeForDoctors(anyIds(), anyDate(), anyDate()))
             .thenAnswer { call -> dateRows.filter { it.doctor.id in ids(call) } }
+        `when`(repo.findByDoctorIdAndDate(anyLong(), anyDate())).thenAnswer { call ->
+            dateRows.filter { it.doctor.id == call.getArgument<Long>(0) && it.appliesTo(call.getArgument(1)) }
+        }
     }
     private val appts = mock(AppointmentRepository::class.java).also { repo ->
         `when`(repo.findBusyTimesForDoctors(anyIds(), anyInstant(), anyInstant()))
@@ -94,6 +107,9 @@ class PatientDaySlotsNextAvailableTest {
     private val validity = mock(ScheduleValidityService::class.java).also { service ->
         `when`(service.getPeriods(anyDoctors())).thenAnswer { call ->
             call.getArgument<Collection<DoctorProfile>>(0).associate { it.id to periodRows[it.id].orEmpty() }
+        }
+        `when`(service.isDateWithinAnyPeriod(any(DoctorProfile::class.java) ?: tashkent, anyDate())).thenAnswer { call ->
+            periodRows[call.getArgument<DoctorProfile>(0).id].orEmpty().any { it.contains(call.getArgument(1)) }
         }
     }
     private val service = PatientDaySlotsService(rules, dateRules, appts, blocks, validity)
@@ -120,5 +136,19 @@ class PatientDaySlotsNextAvailableTest {
         assertEquals(alone, service.nextAvailableStartAt(all, from, 14))
         assertEquals(setOf(9L, 10L, 12L), alone.keys)
         assertEquals(emptyMap<Long, Instant>(), service.nextAvailableStartAt(emptyList(), from, 14))
+    }
+
+    @Test
+    fun `extra hours on a date past the validity period still count, the weekly hours there do not`() {
+        // The user's report (2026-11-11): such hours never showed on the calendar or to patients.
+        val slots = service.availableSlotsForDay(extraAfter, extraDate).map { it.startAt }
+        assertEquals(listOf("2031-01-08T05:00:00Z", "2031-01-08T05:30:00Z"), slots)
+        // Monday 2031-01-06 is outside the period: its weekly 09:00-10:00 is not offered.
+        assertEquals(emptyList<String>(), service.availableSlotsForDay(extraAfter, LocalDate.of(2031, 1, 6)).map { it.startAt })
+        // And next available skips that Monday and finds the Wednesday.
+        assertEquals(
+            Instant.parse("2031-01-08T05:00:00Z"),
+            service.nextAvailableStartAt(extraAfter, Instant.parse("2031-01-05T00:00:00Z"), 14),
+        )
     }
 }

@@ -385,7 +385,7 @@ class ScheduleController(
         validateDateSpecificRule(startDate, endDate, startTime, endTime, body.slotMinutes)
 
         val targetLocation = resolveDateSpecificLocation(d, body.locationId)
-        validateNoOverrides(d.id, startDate, endDate, startTime, endTime, targetLocationId = targetLocation.id)
+        validateNoOverrides(d, startDate, endDate, startTime, endTime, targetLocationId = targetLocation.id)
 
         val saved = dateSpecificRulesRepo.save(
             DateSpecificScheduleRule(
@@ -443,7 +443,7 @@ class ScheduleController(
 
         val targetLocation = resolveDateSpecificLocation(d, body.locationId ?: existing.location?.id)
         validateNoOverrides(
-            d.id, startDate, endDate, startTime, endTime,
+            d, startDate, endDate, startTime, endTime,
             targetLocationId = targetLocation.id,
             excludeRuleId = id
         )
@@ -532,9 +532,10 @@ class ScheduleController(
      * Rules:
      * 1. Within the SAME location: can only expand (start exactly when existing ends).
      * 2. Across DIFFERENT locations: overlap is forbidden (doctor can't be at two places).
+     * The weekly template counts only on dates inside a validity period: outside one it gives no hours to clash with.
      */
     private fun validateNoOverrides(
-        doctorId: Long,
+        doctor: com.shifa.doctors.domain.DoctorProfile,
         newStartDate: LocalDate,
         newEndDate: LocalDate,
         newStartTime: LocalTime,
@@ -542,6 +543,8 @@ class ScheduleController(
         targetLocationId: Long,
         excludeRuleId: Long? = null
     ) {
+        val doctorId = doctor.id
+        val periods = scheduleValidityService.getPeriods(doctor)
         val overlappingDateSpecific = dateSpecificRulesRepo
             .findOverlappingWithDateRange(doctorId, newStartDate, newEndDate)
             .filter { excludeRuleId == null || it.id != excludeRuleId }
@@ -573,7 +576,8 @@ class ScheduleController(
             }
 
             val weekday = currentDate.dayOfWeek.value
-            val weeklyRules = rulesRepo.findByDoctorId(doctorId).filter { it.weekday == weekday }
+            val weeklyRules = rulesRepo.findByDoctorId(doctorId)
+                .filter { it.weekday == weekday && periods.any { p -> p.contains(currentDate) } }
 
             for (weeklyRule in weeklyRules) {
                 val timeOverlap = newStartTime < weeklyRule.endTime && weeklyRule.startTime < newEndTime
