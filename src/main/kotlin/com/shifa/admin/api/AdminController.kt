@@ -292,6 +292,11 @@ class AdminController(
         return toUserResponse(user)
     }
 
+    /** The account behind the patient app's analytics id `patient_<patientProfileId>`; 404 without one. */
+    @GetMapping("/users/by-patient-profile/{patientProfileId}")
+    fun getUserByPatientProfile(@PathVariable patientProfileId: Long): UserResponse =
+        toUserResponse(userManagementService.getUserByPatientProfileId(patientProfileId))
+
     @PostMapping("/users/create-admin")
     fun createAdminUser(
         @RequestBody @Valid request: CreateAdminRequest,

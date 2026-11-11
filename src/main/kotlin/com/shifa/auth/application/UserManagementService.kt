@@ -166,6 +166,15 @@ class UserManagementService(
         return userRepository.findById(userId)
             .orElseThrow { ResponseStatusException(HttpStatus.NOT_FOUND, "User not found") }
     }
+
+    /**
+     * The app account of patient profile [patientProfileId]: the patient app's analytics id is `patient_<profile id>`,
+     * not the user id. 404 when the profile is unknown or has no app account (a patient a doctor created).
+     */
+    @Transactional(readOnly = true)
+    fun getUserByPatientProfileId(patientProfileId: Long): User =
+        patientProfileRepository.findByIdWithUser(patientProfileId).orElse(null)?.user
+            ?: throw ResponseStatusException(HttpStatus.NOT_FOUND, "No app account for this patient profile")
     
     /** True for an account that can sign in to the admin panel (any admin level), whatever its other roles. */
     @Transactional(readOnly = true)
