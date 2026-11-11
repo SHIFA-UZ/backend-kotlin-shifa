@@ -218,6 +218,8 @@ class UserManagementService(
         // Generate temporary password (8-12 chars, alphanumeric)
         val tempPassword = generateTemporaryPassword()
         user.passwordHash = passwordEncoder.encode(tempPassword)!!
+        // One temporary password for every app: a patient app password of its own (V133) stops working too.
+        user.patientPasswordHash = null
         userRepository.save(user)
         revokeSessionsExcept(userId, keepJti = null)
         return tempPassword
@@ -289,10 +291,10 @@ class UserManagementService(
      * Update last login timestamp
      */
     @Transactional
-    fun updateLastLogin(userId: Long) {
+    fun updateLastLogin(userId: Long, resetFailures: Boolean = true) {
         val user = getUserById(userId)
         user.lastLoginAt = OffsetDateTime.now()
-        user.failedLoginAttempts = 0 // Reset on successful login
+        if (resetFailures) user.failedLoginAttempts = 0 // Reset on successful login
         userRepository.save(user)
     }
     
