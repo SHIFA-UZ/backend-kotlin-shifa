@@ -76,7 +76,9 @@ class SlotAvailabilityService(
             while (cursor.isBefore(endAt)) {
                 val slot = byStart[cursor] ?: return false
                 if (slot.locationId != anchorLocationId) return false
-                cursor = Instant.parse(slot.endAt)
+                val next = Instant.parse(slot.endAt)
+                if (!next.isAfter(cursor)) return false // a slot that doesn't move forward would loop forever
+                cursor = next
             }
             return cursor == endAt
         }

@@ -83,7 +83,7 @@ class PatientDaySlotsService(
                 var t = r.startTime
                 val step = maxOf(r.slotMinutes.toLong(), 5)
 
-                while (t.plusMinutes(step) <= r.endTime) {
+                while (com.shifa.appointments.domain.slotEnd(t, step, r.endTime) != null) {
                     val e = t.plusMinutes(step)
 
                     val startLdt = LocalDateTime.of(localDate, t)
@@ -254,7 +254,7 @@ class PatientDaySlotsService(
                 var t = r.startTime
                 val step = maxOf(r.slotMinutes.toLong(), 5)
 
-                while (t.plusMinutes(step) <= r.endTime) {
+                while (com.shifa.appointments.domain.slotEnd(t, step, r.endTime) != null) {
                     val e = t.plusMinutes(step)
 
                     val startLdt = LocalDateTime.of(localDate, t)

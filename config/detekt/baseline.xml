@@ -359,7 +359,7 @@
     <ID>ThrowsCount:RemoteCareTaskController.kt$RemoteCareTaskController$@PostMapping("/my-tasks/{taskId}/check-in") fun submitCheckIn( @AuthenticationPrincipal principal: PatientPrincipal, @PathVariable taskId: Long, @RequestBody req: SubmitCheckInRequest ): CheckInDto</ID>
     <ID>ThrowsCount:ScheduleBlockService.kt$ScheduleBlockService$private fun validateBlockRange(startAt: Instant, endAt: Instant, timeZone: String)</ID>
     <ID>ThrowsCount:ScheduleController.kt$ScheduleController$private fun validateDateSpecificRule( startDate: LocalDate, endDate: LocalDate, startTime: LocalTime, endTime: LocalTime, slotMinutes: Int )</ID>
-    <ID>ThrowsCount:ScheduleController.kt$ScheduleController$private fun validateNoOverrides( doctorId: Long, newStartDate: LocalDate, newEndDate: LocalDate, newStartTime: LocalTime, newEndTime: LocalTime, targetLocationId: Long, excludeRuleId: Long? = null )</ID>
+    <ID>ThrowsCount:ScheduleController.kt$ScheduleController$private fun validateNoOverrides( doctor: com.shifa.doctors.domain.DoctorProfile, newStartDate: LocalDate, newEndDate: LocalDate, newStartTime: LocalTime, newEndTime: LocalTime, targetLocationId: Long, excludeRuleId: Long? = null )</ID>
     <ID>ThrowsCount:ScheduleController.kt$ScheduleController$private fun validateWeeklyRulesWithinRequest(rules: List&lt;RuleDto&gt;)</ID>
     <ID>ThrowsCount:SlotAvailabilityService.kt$SlotAvailabilityService$fun assertBookableConsecutiveRange( doctor: DoctorProfile, startAt: Instant, endAt: Instant, filterLocationId: Long?, excludeAppointmentId: Long? = null, )</ID>
     <ID>ThrowsCount:StripeConnectService.kt$StripeConnectService$@Transactional fun createOrResumeOnboarding( doctorId: Long, refreshUrl: String?, returnUrl: String? ): ConnectOnboardingResult</ID>

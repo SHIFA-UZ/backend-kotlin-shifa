@@ -149,7 +149,7 @@ class CalendarController(
                     
                     var t = r.startTime
                     var generated = 0
-                    while (t.plusMinutes(step) <= r.endTime && generated < remainingSlots) {
+                    while (com.shifa.appointments.domain.slotEnd(t, step, r.endTime) != null && generated < remainingSlots) {
                         val e = t.plusMinutes(step)
                         val startLdt = LocalDateTime.of(localDate, t)
                         val endLdt = LocalDateTime.of(localDate, e)
@@ -180,7 +180,7 @@ class CalendarController(
                 
                 // Generate all slots for this rule
                 var t = r.startTime
-                while (t.plusMinutes(step) <= r.endTime) {
+                while (com.shifa.appointments.domain.slotEnd(t, step, r.endTime) != null) {
                     val e = t.plusMinutes(step)
                     val startLdt = LocalDateTime.of(localDate, t)
                     val endLdt = LocalDateTime.of(localDate, e)
