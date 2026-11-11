@@ -79,6 +79,7 @@ class PatientCopilotControllerResolveBookingTest {
 
         `when`(patients.findNewestByUserId(11L)).thenReturn(Optional.of(patient))
         `when`(doctors.findById(55L)).thenReturn(Optional.of(doctor))
+        `when`(doctors.isListed(doctor)).thenReturn(true)
         `when`(
             ai.resolvePatientBookingIntent(
                 listOf(AiMessageDto("user", "Please book doctor 55 tomorrow at 14:30 video")),
@@ -140,6 +141,7 @@ class PatientCopilotControllerResolveBookingTest {
 
         `when`(patients.findNewestByUserId(12L)).thenReturn(Optional.of(patient))
         `when`(doctors.findById(66L)).thenReturn(Optional.of(doctor))
+        `when`(doctors.isListed(doctor)).thenReturn(true)
         `when`(
             ai.resolvePatientBookingIntent(
                 listOf(AiMessageDto("user", "Book this doctor tomorrow 11:00 in person")),

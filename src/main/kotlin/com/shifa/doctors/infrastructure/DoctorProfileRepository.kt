@@ -5,7 +5,20 @@ import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.repository.query.Param
 import java.util.*
 
+/**
+ * A doctor patients may see: the account still has the doctor role, as a user_roles row (V40) or as users.role on an
+ * account without rows. An account whose doctor side was deleted keeps its patient or staff role and drops out.
+ */
+const val HAS_DOCTOR_ROLE =
+    "(EXISTS (SELECT r.id FROM UserRole r WHERE r.user = d.user AND r.role = com.shifa.auth.domain.Role.DOCTOR) " +
+        "OR d.user.role = com.shifa.auth.domain.Role.DOCTOR)"
+
 interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
+    @org.springframework.data.jpa.repository.Query(
+        "SELECT COUNT(d) > 0 FROM DoctorProfile d WHERE d.id = :id AND d.user.enabled = true AND $HAS_DOCTOR_ROLE",
+    )
+    fun isListed(@Param("id") id: Long): Boolean
+
     fun findAllByPracticeClinic_Id(clinicId: Long): List<DoctorProfile>
 
     /** Rows of (clinic id, number of doctors assigned to it) for the given clinics; a clinic without doctors has no row. */
@@ -41,7 +54,7 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
     
     // Search doctors by query string (name, email, phone, profession, clinic) - only enabled (non-disabled) doctors
     @org.springframework.data.jpa.repository.Query(
-        "SELECT d FROM DoctorProfile d WHERE d.user.enabled = true AND (" +
+        "SELECT d FROM DoctorProfile d WHERE d.user.enabled = true AND $HAS_DOCTOR_ROLE AND (" +
         "LOWER(CONCAT(d.firstName, ' ', d.lastName)) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
         "LOWER(d.user.email) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
         "LOWER(d.user.phone) LIKE LOWER(CONCAT('%', :query, '%')) OR " +
@@ -51,7 +64,7 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
     fun searchByQuery(@org.springframework.data.repository.query.Param("query") query: String): List<DoctorProfile>
 
     // All doctors with enabled user only (for public listing when no search/profession filter)
-    @org.springframework.data.jpa.repository.Query("SELECT d FROM DoctorProfile d WHERE d.user.enabled = true")
+    @org.springframework.data.jpa.repository.Query("SELECT d FROM DoctorProfile d WHERE d.user.enabled = true AND $HAS_DOCTOR_ROLE")
     fun findAllByUserEnabled(): List<DoctorProfile>
 
     /**
@@ -61,7 +74,7 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
     @org.springframework.data.jpa.repository.Query(
         """
         SELECT d FROM DoctorProfile d
-        WHERE d.user.enabled = true
+        WHERE d.user.enabled = true AND $HAS_DOCTOR_ROLE
           AND d.id <> :excludeDoctorId
           AND (
             :search IS NULL OR :search = '' OR
@@ -85,7 +98,7 @@ interface DoctorProfileRepository : JpaRepository<DoctorProfile, Long> {
 
     // Search doctors with filters - only enabled doctors
     @org.springframework.data.jpa.repository.Query(
-        "SELECT d FROM DoctorProfile d WHERE d.user.enabled = true AND " +
+        "SELECT d FROM DoctorProfile d WHERE d.user.enabled = true AND $HAS_DOCTOR_ROLE AND " +
         "(:search IS NULL OR :search = '' OR " +
         " LOWER(CONCAT(d.firstName, ' ', d.lastName)) LIKE LOWER(CONCAT('%', :search, '%')) OR " +
         " LOWER(d.profession) LIKE LOWER(CONCAT('%', :search, '%')) OR " +

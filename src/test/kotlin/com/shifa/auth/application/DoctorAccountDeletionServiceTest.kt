@@ -18,6 +18,7 @@ import java.util.Optional
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertThrows
 import org.mockito.ArgumentMatchers
@@ -36,8 +37,9 @@ class DoctorAccountDeletionServiceTest {
     private val pushTokens = mock(DoctorPushTokens::class.java)
     private val userManagement = mock(UserManagementService::class.java)
     private val emailOtp = mock(EmailOtpService::class.java)
+    private val userRoles = mock(UserRoles::class.java)
     private val service = DoctorAccountDeletionService(
-        users, doctors, appointments, subscriptions, memberships, pushTokens, userManagement, emailOtp,
+        users, doctors, appointments, subscriptions, memberships, pushTokens, userManagement, emailOtp, userRoles,
     )
 
     private val purpose = EmailVerificationCode.PURPOSE_ACCOUNT_DELETION
@@ -49,6 +51,8 @@ class DoctorAccountDeletionServiceTest {
 
     init {
         `when`(doctors.findById(3L)).thenReturn(Optional.of(doctor))
+        `when`(userRoles.rolesOf(user)).thenReturn(setOf(Role.DOCTOR)) // a doctor-only account unless a test says otherwise
+        `when`(users.save(user)).thenReturn(user)
     }
 
     private fun upcoming(status: Appointment.Status, count: Long) {
@@ -113,5 +117,38 @@ class DoctorAccountDeletionServiceTest {
         assertNull(doctor.fcmToken)
         verify(doctors).save(doctor)
         verify(doctors, never()).delete(doctor)
+    }
+
+    @Test
+    fun `a doctor who is also a patient loses only the doctor side, and the patient app keeps working`() {
+        `when`(emailOtp.check("aziza@example.uz", "123456", purpose)).thenReturn(EmailOtpService.OtpCheck.VALID)
+        `when`(userRoles.rolesOf(user)).thenReturn(setOf(Role.DOCTOR, Role.PATIENT), setOf(Role.PATIENT))
+        user.patientPasswordHash = "patient-hash"
+
+        service.confirm(3L, "123456")
+
+        verify(userRoles).remove(user, Role.DOCTOR)
+        assertTrue(user.enabled)
+        assertEquals(User.AccountStatus.ACTIVE, user.accountStatus)
+        assertEquals("Aziza@Example.uz", user.email)
+        assertEquals("+998901234567", user.phone)
+        assertEquals("patient-hash", user.passwordHash) // the patient app's own password is now the only one
+        assertNull(user.patientPasswordHash)
+        assertEquals("Deleted", doctor.firstName) // the doctor side is anonymised as before
+        verify(userManagement).forceLogout(7L, null)
+    }
+
+    @Test
+    fun `a doctor who is also staff and a patient keeps the staff password`() {
+        `when`(emailOtp.check("aziza@example.uz", "123456", purpose)).thenReturn(EmailOtpService.OtpCheck.VALID)
+        `when`(userRoles.rolesOf(user))
+            .thenReturn(setOf(Role.DOCTOR, Role.PATIENT, Role.CLINIC_STAFF), setOf(Role.PATIENT, Role.CLINIC_STAFF))
+        user.patientPasswordHash = "patient-hash"
+
+        service.confirm(3L, "123456")
+
+        assertEquals("h", user.passwordHash) // staff still signs in with it
+        assertEquals("patient-hash", user.patientPasswordHash)
+        assertNull(doctor.practiceClinic)
     }
 }

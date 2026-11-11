@@ -33,6 +33,7 @@ class PatientAccountDeletionServiceTest {
             conversations = conversations,
             messages = messages,
             storage = com.shifa.shared.storage.LocalFileStorage(java.nio.file.Files.createTempDirectory("shifa-test-storage")),
+            userRoles = mock(UserRoles::class.java),
         )
 
         val userId = 123L

@@ -18,6 +18,7 @@ class PatientAccountDeletionService(
     private val conversations: com.shifa.chat.application.Conversations,
     private val messages: com.shifa.chat.application.Messages,
     private val storage: com.shifa.shared.storage.FileStorage,
+    private val userRoles: UserRoles,
 ) {
     private val log = LoggerFactory.getLogger(PatientAccountDeletionService::class.java)
 
@@ -29,6 +30,10 @@ class PatientAccountDeletionService(
      * - Retain: appointments, patient documents, clinical notes (they remain linked to patient_profiles.id)
      * - Anonymize identifiers on users + patient_profiles to:
      *   (a) prevent further login, (b) free phone for re-registration, (c) avoid patient-side linkage to old data.
+     *
+     * An account that is also a doctor, staff or admin (one users row, several roles) loses only its patient side:
+     * the PATIENT role, the patient app's password and the patient profile's link and identifiers. Before, the whole
+     * account was closed, so deleting the patient app account also ended the doctor's (the user's report, 2026-11-11).
      */
     @Transactional
     fun deletePatientAccount(userId: Long) {
@@ -65,7 +70,27 @@ class PatientAccountDeletionService(
             conversations.deleteAll(patientConvs)
         }
 
-        // 3) Anonymize user + patient profile identifiers (retain medical/legal data).
+        profile.fullName = "Deleted User"
+        profile.phone = null
+        profile.phoneNormalized = null
+        profile.email = null
+        profile.address = null
+        // Keep other fields (birthDate, chronicDisease, etc.) for legal/clinical retention.
+
+        // 3a) Another role remains: only the patient side goes; the account, its e-mail and phone stay.
+        if (userRoles.rolesOf(user).any { it != com.shifa.auth.domain.Role.PATIENT }) {
+            userRoles.remove(user, com.shifa.auth.domain.Role.PATIENT)
+            user.patientPasswordHash = null
+            user.accountStatus = User.AccountStatus.ACTIVE // the controller marked it PENDING_DELETION
+            user.deletionRequestedAt = null
+            profile.user = null // the records stay; a new patient account gets a new profile
+            users.save(user)
+            patientProfiles.save(profile)
+            log.info("PATIENT_DELETE: patient side removed, account kept for its other roles (userId={}, patientId={})", userId, patientId)
+            return
+        }
+
+        // 3b) Anonymize user identifiers (retain medical/legal data).
         val now = OffsetDateTime.now()
         user.phoneOriginalHash = user.phone?.let { sha256Hex(it) }
         user.emailOriginalHash = user.email?.let { sha256Hex(it) }
@@ -74,13 +99,6 @@ class PatientAccountDeletionService(
         user.enabled = false
         user.accountStatus = User.AccountStatus.DELETED
         user.deletedAt = now
-
-        profile.fullName = "Deleted User"
-        profile.phone = null
-        profile.phoneNormalized = null
-        profile.email = null
-        profile.address = null
-        // Keep other fields (birthDate, chronicDisease, etc.) for legal/clinical retention.
 
         users.save(user)
         patientProfiles.save(profile)
